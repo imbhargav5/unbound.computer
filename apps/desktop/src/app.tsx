@@ -4896,307 +4896,358 @@ function IssueDetailView({
         <h1>Issue Details</h1>
       </div>
 
-      <section className="surface-panel issues-detail-panel">
-        <div className="issues-detail-title-row">
-          <div className="issues-detail-title-block">
-            <span className="route-kicker">
-              {issue.identifier ?? issue.title}
-            </span>
-            <h2>{isEditingIssue ? "Edit Issue" : issue.title}</h2>
-            {isEditingIssue ? (
-              <p className="issues-edit-subtitle">
-                Update the issue title, routing, ownership, and execution
-                context.
-              </p>
-            ) : null}
+      <div className="issues-detail-layout">
+        <section className="surface-panel issues-detail-panel issues-detail-main-panel">
+          <div className="issues-detail-title-row">
+            <div className="issues-detail-title-block">
+              <span className="route-kicker">
+                {issue.identifier ?? issue.title}
+              </span>
+              <h2>{isEditingIssue ? "Edit Issue" : issue.title}</h2>
+              {isEditingIssue ? (
+                <p className="issues-edit-subtitle">
+                  Update the issue title, routing, ownership, and execution
+                  context from the editor body and the properties rail.
+                </p>
+              ) : issue.description ? (
+                <p className="issues-detail-copy muted">
+                  Keep the main thread focused on context, discussion, and
+                  related work while the right rail owns the issue properties.
+                </p>
+              ) : null}
+            </div>
           </div>
 
-          <div className="issues-detail-actions">
-            {!isEditingIssue && canStartWorkspace ? (
-              <button
-                className="primary-button"
-                disabled={isWorking}
-                onClick={onStartWorkspace}
-                type="button"
-              >
-                Start Workspace
-              </button>
-            ) : null}
-
-            {!isEditingIssue ? (
-              <button
-                className="secondary-button"
-                onClick={onBeginEditing}
-                type="button"
-              >
-                Edit Issue
-              </button>
-            ) : null}
-          </div>
-        </div>
-
-        {isEditingIssue ? (
-          <section className="issue-edit-shell">
-            <div className="issue-dialog-context">
-              <div className="issue-dialog-context-chip">
-                <span className="issue-dialog-context-label">Issue</span>
-                <strong>{issue.identifier ?? issue.id}</strong>
-              </div>
-              <div className="issue-dialog-context-chip">
-                <span className="issue-dialog-context-label">
-                  Current status
-                </span>
-                <strong>{priorityLabel(issue.status)}</strong>
-              </div>
-              <div className="issue-dialog-context-chip">
-                <span className="issue-dialog-context-label">
-                  Current priority
-                </span>
-                <strong>{priorityLabel(issue.priority)}</strong>
-              </div>
-            </div>
-
-            <label className="issue-dialog-field issue-dialog-field-full">
-              <span className="issue-dialog-label">Title</span>
-              <input
-                className="issue-dialog-input issue-edit-title-input"
-                onChange={(event) =>
-                  onIssueDraftChange({
-                    title: event.target.value,
-                  })
-                }
-                placeholder="Issue title"
-                value={issueDraft.title}
-              />
-              <small className="issue-dialog-hint">
-                This is the main issue title and the default workspace label.
-              </small>
-            </label>
-
-            <label className="issue-dialog-field issue-dialog-field-full">
-              <span className="issue-dialog-label">Description</span>
-              <textarea
-                className="issue-dialog-input issue-dialog-textarea issue-edit-description-input"
-                onChange={(event) =>
-                  onIssueDraftChange({
-                    description: event.target.value,
-                  })
-                }
-                placeholder="What needs to happen, what context matters, and what should the assignee do next?"
-                value={issueDraft.description}
-              />
-              <small className="issue-dialog-hint">
-                Background, acceptance criteria, and bootstrap instructions all
-                live here.
-              </small>
-            </label>
-
-            <div className="issue-dialog-grid">
-              <IssueDialogSelectField
-                hint="Moves the issue through the board lifecycle."
-                label="Status"
-                onChange={(value) =>
-                  onIssueDraftChange({
-                    status: value,
-                  })
-                }
-                value={issueDraft.status}
-              >
-                {availableStatusOptions.map((status) => (
-                  <option key={status} value={status}>
-                    {priorityLabel(status)}
-                  </option>
-                ))}
-              </IssueDialogSelectField>
-
-              <IssueDialogSelectField
-                hint="Controls ordering and urgency in issue views."
-                label="Priority"
-                onChange={(value) =>
-                  onIssueDraftChange({
-                    priority: value,
-                  })
-                }
-                value={issueDraft.priority}
-              >
-                {availablePriorityOptions.map((priority) => (
-                  <option key={priority} value={priority}>
-                    {priorityLabel(priority)}
-                  </option>
-                ))}
-              </IssueDialogSelectField>
-
-              <IssueDialogSelectField
-                hint="Optional project anchor for execution routing and repo context."
-                label="Project"
-                onChange={onProjectSelect}
-                value={issueDraft.projectId}
-              >
-                <option value="">No project</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name ?? project.title ?? project.id}
-                  </option>
-                ))}
-              </IssueDialogSelectField>
-
-              <IssueDialogSelectField
-                hint="Choose the agent who owns this work."
-                label="Assignee"
-                onChange={(value) =>
-                  onIssueDraftChange({
-                    assigneeAgentId: value,
-                  })
-                }
-                value={issueDraft.assigneeAgentId}
-              >
-                <option value="">Unassigned</option>
-                {agents.map((agent) => (
-                  <option key={agent.id} value={agent.id}>
-                    {agent.name || agent.title || agent.role || agent.id}
-                  </option>
-                ))}
-              </IssueDialogSelectField>
-
-              <IssueDialogSelectField
-                hint="Nest the issue under another issue or clear the parent."
-                label="Parent Issue"
-                onChange={onParentIssueSelect}
-                value={issueDraft.parentId}
-              >
-                <option value="">No parent issue</option>
-                {selectableParentIssues.map((parentIssue) => (
-                  <option key={parentIssue.id} value={parentIssue.id}>
-                    {parentIssue.identifier ?? parentIssue.title}
-                  </option>
-                ))}
-              </IssueDialogSelectField>
-            </div>
-
-            {issueEditorError ? (
-              <div className="issue-dialog-alert">{issueEditorError}</div>
-            ) : null}
-
-            <div className="issue-edit-footer">
-              <button
-                className="secondary-button"
-                disabled={isSavingIssue}
-                onClick={onCancelEditing}
-                type="button"
-              >
-                Cancel
-              </button>
-              <button
-                className="primary-button"
-                disabled={!canSaveIssueEdits}
-                onClick={onSave}
-                type="button"
-              >
-                {isSavingIssue ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-          </section>
-        ) : issue.description ? (
-          <section className="issues-detail-section">
-            <h3>Description</h3>
-            <p className="issues-detail-copy">{issue.description}</p>
-          </section>
-        ) : null}
-
-        {!isEditingIssue ? (
-          <div className="issues-detail-grid">
-            <DetailRow label="Status" value={priorityLabel(issue.status)} />
-            <DetailRow label="Priority" value={priorityLabel(issue.priority)} />
-            <DetailRow label="Project" value={projectLabel(issue.project_id)} />
-            <DetailRow
-              label="Assignee"
-              value={assigneeLabel(issue.assignee_agent_id)}
-            />
-            <DetailRow
-              label="Parent"
-              value={parentIssueLabel(issue.parent_id)}
-            />
-            <DetailRow label="Depth" value={String(issue.request_depth)} />
-          </div>
-        ) : null}
-
-        {subissues.length ? (
-          <section className="issues-detail-section">
-            <h3>Subissues</h3>
-            <div className="surface-list dense">
-              {subissues.map((child) => (
-                <div
-                  className="surface-list-row issues-supporting-row"
-                  key={child.id}
-                >
-                  <strong>{child.identifier ?? child.title}</strong>
-                  <span className="workspace-status-pill">
-                    {priorityLabel(child.status)}
-                  </span>
+          {isEditingIssue ? (
+            <section className="issue-edit-shell">
+              <div className="issue-dialog-context">
+                <div className="issue-dialog-context-chip">
+                  <span className="issue-dialog-context-label">Issue</span>
+                  <strong>{issue.identifier ?? issue.id}</strong>
                 </div>
-              ))}
-            </div>
-          </section>
-        ) : null}
+                <div className="issue-dialog-context-chip">
+                  <span className="issue-dialog-context-label">
+                    Current status
+                  </span>
+                  <strong>{priorityLabel(issue.status)}</strong>
+                </div>
+                <div className="issue-dialog-context-chip">
+                  <span className="issue-dialog-context-label">
+                    Current priority
+                  </span>
+                  <strong>{priorityLabel(issue.priority)}</strong>
+                </div>
+              </div>
 
-        {linkedApprovals.length ? (
-          <section className="issues-detail-section">
-            <h3>Linked Approvals</h3>
-            <div className="surface-list dense">
-              {linkedApprovals.map((approval) => (
+              <label className="issue-dialog-field issue-dialog-field-full">
+                <span className="issue-dialog-label">Title</span>
+                <input
+                  className="issue-dialog-input issue-edit-title-input"
+                  onChange={(event) =>
+                    onIssueDraftChange({
+                      title: event.target.value,
+                    })
+                  }
+                  placeholder="Issue title"
+                  value={issueDraft.title}
+                />
+                <small className="issue-dialog-hint">
+                  This is the main issue title and the default workspace label.
+                </small>
+              </label>
+
+              <label className="issue-dialog-field issue-dialog-field-full">
+                <span className="issue-dialog-label">Description</span>
+                <textarea
+                  className="issue-dialog-input issue-dialog-textarea issue-edit-description-input"
+                  onChange={(event) =>
+                    onIssueDraftChange({
+                      description: event.target.value,
+                    })
+                  }
+                  placeholder="What needs to happen, what context matters, and what should the assignee do next?"
+                  value={issueDraft.description}
+                />
+                <small className="issue-dialog-hint">
+                  Background, acceptance criteria, and bootstrap instructions
+                  all live here.
+                </small>
+              </label>
+
+              {issueEditorError ? (
+                <div className="issue-dialog-alert">{issueEditorError}</div>
+              ) : null}
+
+              <div className="issue-edit-footer">
                 <button
-                  className="file-list-button"
-                  key={approval.id}
-                  onClick={() => onLinkedApprovalSelect(approval.id)}
+                  className="secondary-button"
+                  disabled={isSavingIssue}
+                  onClick={onCancelEditing}
                   type="button"
                 >
-                  <strong>
-                    {priorityLabel(approval.approval_type ?? "approval")}
-                  </strong>
-                  <span>
-                    {priorityLabel(approval.status ?? "pending")}
-                    {approval.updated_at
-                      ? ` · ${formatIssueDate(approval.updated_at)}`
-                      : ""}
-                  </span>
+                  Cancel
                 </button>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        <section className="issues-detail-section">
-          <h3>Comments</h3>
-          {comments.length ? (
-            <div className="issues-comment-list">
-              {comments.map((comment) => (
-                <article className="issues-comment-card" key={comment.id}>
-                  <p>{comment.body}</p>
-                  <span>{formatIssueDate(comment.created_at)}</span>
-                </article>
-              ))}
-            </div>
+                <button
+                  className="primary-button"
+                  disabled={!canSaveIssueEdits}
+                  onClick={onSave}
+                  type="button"
+                >
+                  {isSavingIssue ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </section>
+          ) : issue.description ? (
+            <section className="issues-detail-section">
+              <h3>Description</h3>
+              <p className="issues-detail-copy">{issue.description}</p>
+            </section>
           ) : (
-            <p className="issues-detail-copy muted">No comments yet.</p>
+            <section className="issues-detail-section">
+              <h3>Description</h3>
+              <p className="issues-detail-copy muted">
+                No description yet. Add context here so the assignee and future
+                runs have the full brief.
+              </p>
+            </section>
           )}
 
-          <div className="issues-comment-composer">
-            <textarea
-              onChange={(event) => onNewCommentBodyChange(event.target.value)}
-              placeholder="Add a comment"
-              value={newCommentBody}
-            />
-            <button
-              className="secondary-button"
-              disabled={isWorking || !newCommentBody.trim()}
-              onClick={onAddComment}
-              type="button"
-            >
-              Add Comment
-            </button>
-          </div>
+          {subissues.length ? (
+            <section className="issues-detail-section">
+              <h3>Subissues</h3>
+              <div className="surface-list dense">
+                {subissues.map((child) => (
+                  <div
+                    className="surface-list-row issues-supporting-row"
+                    key={child.id}
+                  >
+                    <strong>{child.identifier ?? child.title}</strong>
+                    <span className="workspace-status-pill">
+                      {priorityLabel(child.status)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {linkedApprovals.length ? (
+            <section className="issues-detail-section">
+              <h3>Linked Approvals</h3>
+              <div className="surface-list dense">
+                {linkedApprovals.map((approval) => (
+                  <button
+                    className="file-list-button"
+                    key={approval.id}
+                    onClick={() => onLinkedApprovalSelect(approval.id)}
+                    type="button"
+                  >
+                    <strong>
+                      {priorityLabel(approval.approval_type ?? "approval")}
+                    </strong>
+                    <span>
+                      {priorityLabel(approval.status ?? "pending")}
+                      {approval.updated_at
+                        ? ` · ${formatIssueDate(approval.updated_at)}`
+                        : ""}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          <section className="issues-detail-section">
+            <h3>Comments</h3>
+            {comments.length ? (
+              <div className="issues-comment-list">
+                {comments.map((comment) => (
+                  <article className="issues-comment-card" key={comment.id}>
+                    <p>{comment.body}</p>
+                    <span>{formatIssueDate(comment.created_at)}</span>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="issues-detail-copy muted">No comments yet.</p>
+            )}
+
+            <div className="issues-comment-composer">
+              <textarea
+                onChange={(event) => onNewCommentBodyChange(event.target.value)}
+                placeholder="Add a comment"
+                value={newCommentBody}
+              />
+              <button
+                className="secondary-button"
+                disabled={isWorking || !newCommentBody.trim()}
+                onClick={onAddComment}
+                type="button"
+              >
+                Add Comment
+              </button>
+            </div>
+          </section>
         </section>
-      </section>
+
+        <aside className="surface-panel issues-detail-sidebar-panel">
+          {!isEditingIssue ? (
+            <section className="issues-sidebar-section">
+              <h3>Actions</h3>
+              <div className="issues-sidebar-actions">
+                {canStartWorkspace ? (
+                  <button
+                    className="primary-button"
+                    disabled={isWorking}
+                    onClick={onStartWorkspace}
+                    type="button"
+                  >
+                    Start Workspace
+                  </button>
+                ) : null}
+                <button
+                  className="secondary-button"
+                  onClick={onBeginEditing}
+                  type="button"
+                >
+                  Edit Issue
+                </button>
+              </div>
+            </section>
+          ) : (
+            <section className="issues-sidebar-section">
+              <h3>Editing</h3>
+              <p className="issues-detail-copy muted">
+                Linear-style issue properties live in the right rail while you
+                edit the core brief on the left.
+              </p>
+            </section>
+          )}
+
+          <section className="issues-sidebar-section">
+            <h3>Properties</h3>
+            {isEditingIssue ? (
+              <div className="issues-sidebar-fields">
+                <IssueDialogSelectField
+                  hint="Moves the issue through the board lifecycle."
+                  label="Status"
+                  onChange={(value) =>
+                    onIssueDraftChange({
+                      status: value,
+                    })
+                  }
+                  value={issueDraft.status}
+                >
+                  {availableStatusOptions.map((status) => (
+                    <option key={status} value={status}>
+                      {priorityLabel(status)}
+                    </option>
+                  ))}
+                </IssueDialogSelectField>
+
+                <IssueDialogSelectField
+                  hint="Controls ordering and urgency in issue views."
+                  label="Priority"
+                  onChange={(value) =>
+                    onIssueDraftChange({
+                      priority: value,
+                    })
+                  }
+                  value={issueDraft.priority}
+                >
+                  {availablePriorityOptions.map((priority) => (
+                    <option key={priority} value={priority}>
+                      {priorityLabel(priority)}
+                    </option>
+                  ))}
+                </IssueDialogSelectField>
+
+                <IssueDialogSelectField
+                  hint="Optional project anchor for execution routing and repo context."
+                  label="Project"
+                  onChange={onProjectSelect}
+                  value={issueDraft.projectId}
+                >
+                  <option value="">No project</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name ?? project.title ?? project.id}
+                    </option>
+                  ))}
+                </IssueDialogSelectField>
+
+                <IssueDialogSelectField
+                  hint="Choose the agent who owns this work."
+                  label="Assignee"
+                  onChange={(value) =>
+                    onIssueDraftChange({
+                      assigneeAgentId: value,
+                    })
+                  }
+                  value={issueDraft.assigneeAgentId}
+                >
+                  <option value="">Unassigned</option>
+                  {agents.map((agent) => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.name || agent.title || agent.role || agent.id}
+                    </option>
+                  ))}
+                </IssueDialogSelectField>
+
+                <IssueDialogSelectField
+                  hint="Nest the issue under another issue or clear the parent."
+                  label="Parent Issue"
+                  onChange={onParentIssueSelect}
+                  value={issueDraft.parentId}
+                >
+                  <option value="">No parent issue</option>
+                  {selectableParentIssues.map((parentIssue) => (
+                    <option key={parentIssue.id} value={parentIssue.id}>
+                      {parentIssue.identifier ?? parentIssue.title}
+                    </option>
+                  ))}
+                </IssueDialogSelectField>
+              </div>
+            ) : (
+              <div className="surface-list">
+                <DetailRow label="Status" value={priorityLabel(issue.status)} />
+                <DetailRow
+                  label="Priority"
+                  value={priorityLabel(issue.priority)}
+                />
+                <DetailRow
+                  label="Project"
+                  value={projectLabel(issue.project_id)}
+                />
+                <DetailRow
+                  label="Assignee"
+                  value={assigneeLabel(issue.assignee_agent_id)}
+                />
+                <DetailRow
+                  label="Parent"
+                  value={parentIssueLabel(issue.parent_id)}
+                />
+              </div>
+            )}
+          </section>
+
+          <section className="issues-sidebar-section">
+            <h3>Metadata</h3>
+            <div className="surface-list">
+              <DetailRow label="Issue" value={issue.identifier ?? issue.id} />
+              <DetailRow label="Depth" value={String(issue.request_depth)} />
+              <DetailRow
+                label="Created"
+                value={formatBoardDate(issue.created_at)}
+              />
+              <DetailRow
+                label="Updated"
+                value={formatBoardDate(issue.updated_at)}
+              />
+            </div>
+          </section>
+        </aside>
+      </div>
     </section>
   );
 }
