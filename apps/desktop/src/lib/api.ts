@@ -12,10 +12,13 @@ import type {
   GitDiffResult,
   GitLogResult,
   GitStatusResult,
+  IssueCommentRecord,
+  IssueRecord,
   RepositoryRecord,
   SessionMessage,
   SessionRecord,
   SessionStreamPayload,
+  WorkspaceRecord,
 } from "./types";
 
 async function invokeCommand<T>(command: string, args?: Record<string, unknown>) {
@@ -45,10 +48,28 @@ export const boardCreateProject = (params: Record<string, unknown>) =>
   invokeCommand<Record<string, unknown>>("board_create_project", { params });
 
 export const boardCreateIssue = (params: Record<string, unknown>) =>
-  invokeCommand<Record<string, unknown>>("board_create_issue", { params });
+  invokeCommand<IssueRecord>("board_create_issue", { params });
+
+export const boardGetIssue = (issueId: string) =>
+  invokeCommand<IssueRecord>("board_get_issue", {
+    issue_id: issueId,
+  });
 
 export const boardUpdateIssue = (params: Record<string, unknown>) =>
-  invokeCommand<Record<string, unknown>>("board_update_issue", { params });
+  invokeCommand<IssueRecord>("board_update_issue", { params });
+
+export const boardListIssueComments = (issueId: string) =>
+  invokeCommand<IssueCommentRecord[]>("board_list_issue_comments", {
+    issue_id: issueId,
+  });
+
+export const boardAddIssueComment = (params: Record<string, unknown>) =>
+  invokeCommand<IssueCommentRecord>("board_add_issue_comment", { params });
+
+export const boardCheckoutIssue = (issueId: string) =>
+  invokeCommand<WorkspaceRecord>("board_checkout_issue", {
+    issue_id: issueId,
+  });
 
 export const boardApproveApproval = (params: Record<string, unknown>) =>
   invokeCommand<Record<string, unknown>>("board_approve_approval", { params });

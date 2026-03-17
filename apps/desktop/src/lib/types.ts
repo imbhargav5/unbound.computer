@@ -73,16 +73,63 @@ export interface ProjectRecord {
 
 export interface IssueRecord {
   id: string;
+  company_id: string;
+  project_id?: string | null;
+  goal_id?: string | null;
+  parent_id?: string | null;
   title: string;
-  status?: string | null;
-  priority?: string | null;
+  description?: string | null;
+  status: string;
+  priority: string;
+  assignee_agent_id?: string | null;
+  assignee_user_id?: string | null;
+  checkout_run_id?: string | null;
+  execution_run_id?: string | null;
+  execution_agent_name_key?: string | null;
+  execution_locked_at?: string | null;
+  created_by_agent_id?: string | null;
+  created_by_user_id?: string | null;
+  issue_number?: number | null;
+  identifier?: string | null;
+  request_depth: number;
+  billing_code?: string | null;
+  assignee_adapter_overrides?: Record<string, unknown> | null;
+  execution_workspace_settings?: Record<string, unknown> | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  cancelled_at?: string | null;
+  hidden_at?: string | null;
+  workspace_session_id?: string | null;
+  created_at: string;
+  updated_at: string;
+  [key: string]: unknown;
+}
+
+export interface IssueCommentRecord {
+  id: string;
+  company_id: string;
+  issue_id: string;
+  author_agent_id?: string | null;
+  author_user_id?: string | null;
+  body: string;
+  created_at: string;
+  updated_at: string;
   [key: string]: unknown;
 }
 
 export interface ApprovalRecord {
   id: string;
+  company_id?: string | null;
+  approval_type?: string | null;
+  requested_by_agent_id?: string | null;
+  requested_by_user_id?: string | null;
   status?: string | null;
-  type?: string | null;
+  payload?: Record<string, unknown> | null;
+  decision_note?: string | null;
+  decided_by_user_id?: string | null;
+  decided_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
   [key: string]: unknown;
 }
 

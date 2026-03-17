@@ -10,11 +10,16 @@ import {
   useState,
 } from "react";
 import {
+  boardAddIssueComment,
+  boardCheckoutIssue,
   boardCompanySnapshot,
   boardCreateCompany,
   boardCreateIssue,
   boardCreateProject,
+  boardGetIssue,
   boardListCompanies,
+  boardListIssueComments,
+  boardUpdateIssue,
   claudeSend,
   claudeStatus,
   desktopBootstrap,
@@ -48,6 +53,8 @@ import {
   terminalStop,
 } from "./lib/api";
 import type {
+  AgentRecord,
+  ApprovalRecord,
   Company,
   CompanySnapshot,
   DesktopBootstrapStatus,
@@ -59,6 +66,9 @@ import type {
   GitLogResult,
   GitStatusFile,
   GitStatusResult,
+  IssueCommentRecord,
+  IssueRecord,
+  ProjectRecord,
   RepositoryRecord,
   SessionMessage,
   SessionRecord,
@@ -89,10 +99,22 @@ type SettingsSection =
 
 type ThemeMode = "system" | "light" | "dark";
 type FontSizePreset = "small" | "medium" | "large";
+type IssuesListTab = "new" | "all";
+type IssuesRouteMode = "list" | "detail";
 
 type BoardRootLayout = "companyDashboard" | "workspace" | "settings";
 type WorkspaceCenterTab = "conversation" | "terminal" | "preview";
 type WorkspaceSidebarTab = "changes" | "files" | "commits";
+
+interface IssueEditDraft {
+  title: string;
+  description: string;
+  status: string;
+  priority: string;
+  projectId: string;
+  assigneeAgentId: string;
+  parentId: string;
+}
 
 const primaryBoardSections: Array<{ title: string; screens: AppScreen[] }> = [
   { title: "Work", screens: ["issues", "approvals", "workspaces"] },
@@ -137,7 +159,15 @@ export function App() {
   const [selectedRepositoryId, setSelectedRepositoryId] = useState<string | null>(null);
   const [selectedBoardWorkspaceId, setSelectedBoardWorkspaceId] = useState<string | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(null);
+  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
+  const [selectedIssuesListTab, setSelectedIssuesListTab] =
+    useState<IssuesListTab>("new");
+  const [issuesRouteMode, setIssuesRouteMode] = useState<IssuesRouteMode>("list");
   const [companySnapshot, setCompanySnapshot] = useState<CompanySnapshot | null>(null);
+  const [issueCommentsByIssueId, setIssueCommentsByIssueId] = useState<
+    Record<string, IssueCommentRecord[]>
+  >({});
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<SessionMessage[]>([]);
@@ -162,6 +192,11 @@ export function App() {
   const [terminalCommand, setTerminalCommand] = useState("");
   const [newProjectTitle, setNewProjectTitle] = useState("");
   const [newIssueTitle, setNewIssueTitle] = useState("");
+  const [newIssueCommentBody, setNewIssueCommentBody] = useState("");
+  const [isEditingIssue, setIsEditingIssue] = useState(false);
+  const [issueDraft, setIssueDraft] = useState<IssueEditDraft>(createEmptyIssueDraft());
+  const [isSavingIssue, setIsSavingIssue] = useState(false);
+  const [issueEditorError, setIssueEditorError] = useState<string | null>(null);
   const [isWorking, setIsWorking] = useState(false);
 
   const terminalContainerRef = useRef<HTMLDivElement | null>(null);
@@ -173,6 +208,36 @@ export function App() {
     (repository) => repository.id === selectedRepositoryId
   );
   const selectedCompany = companySnapshot?.company ?? null;
+  const boardIssues = companySnapshot?.issues ?? [];
+  const selectedIssue =
+    boardIssues.find((issue) => issue.id === selectedIssueId) ?? null;
+  const visibleIssues = useMemo(
+    () => issuesVisible(boardIssues, selectedIssuesListTab),
+    [boardIssues, selectedIssuesListTab]
+  );
+  const issueSummaryText = useMemo(() => {
+    const suffix = visibleIssues.length === 1 ? "issue" : "issues";
+    return `${issuesListTabTitle(selectedIssuesListTab)} · ${visibleIssues.length} ${suffix}`;
+  }, [selectedIssuesListTab, visibleIssues.length]);
+  const issueSubissues = useMemo(
+    () =>
+      selectedIssue
+        ? boardIssues.filter((issue) => issue.parent_id === selectedIssue.id)
+        : [],
+    [boardIssues, selectedIssue]
+  );
+  const linkedIssueApprovals = useMemo(
+    () =>
+      selectedIssue
+        ? (companySnapshot?.approvals ?? []).filter((approval) =>
+            approvalLinksIssue(approval, selectedIssue.id)
+          )
+        : [],
+    [companySnapshot?.approvals, selectedIssue]
+  );
+  const selectedIssueComments = selectedIssue
+    ? issueCommentsByIssueId[selectedIssue.id] ?? []
+    : [];
   const companyWorkspaces = companySnapshot?.workspaces ?? [];
   const selectedBoardWorkspace =
     companyWorkspaces.find((workspace) => workspace.id === selectedBoardWorkspaceId) ??
@@ -204,6 +269,22 @@ export function App() {
     branchState?.local.find((branch) => branch.name === currentBranchName) ?? null;
   const hasUncommittedChanges = (gitState?.files.length ?? 0) > 0;
   const hasUnpushedCommits = (currentBranch?.ahead ?? 0) > 0;
+  const issueStatusOptions = useMemo(
+    () =>
+      mergeIssueOptions(
+        ["backlog", "in_progress", "blocked", "done", "cancelled"],
+        issueDraft.status
+      ),
+    [issueDraft.status]
+  );
+  const issuePriorityOptions = useMemo(
+    () => mergeIssueOptions(["low", "medium", "high", "urgent"], issueDraft.priority),
+    [issueDraft.priority]
+  );
+  const selectableParentIssues = useMemo(
+    () => boardIssues.filter((issue) => issue.id !== selectedIssue?.id),
+    [boardIssues, selectedIssue?.id]
+  );
   const layout = boardRootLayout(selectedScreen);
 
   useEffect(() => {
@@ -337,6 +418,8 @@ export function App() {
   useEffect(() => {
     const nextWorkspaces = companySnapshot?.workspaces ?? [];
     const nextAgents = companySnapshot?.agents ?? [];
+    const nextIssues = companySnapshot?.issues ?? [];
+    const nextApprovals = companySnapshot?.approvals ?? [];
 
     setSelectedBoardWorkspaceId((current) => {
       if (current && nextWorkspaces.some((workspace) => workspace.id === current)) {
@@ -351,7 +434,91 @@ export function App() {
       }
       return nextAgents[0]?.id ?? null;
     });
+
+    setSelectedIssueId((current) => {
+      if (current && nextIssues.some((issue) => issue.id === current)) {
+        return current;
+      }
+      return null;
+    });
+
+    setSelectedApprovalId((current) => {
+      if (current && nextApprovals.some((approval) => approval.id === current)) {
+        return current;
+      }
+      return null;
+    });
+
+    setIssueCommentsByIssueId((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(([issueId]) =>
+          nextIssues.some((issue) => issue.id === issueId)
+        )
+      )
+    );
   }, [companySnapshot]);
+
+  useEffect(() => {
+    if (issuesRouteMode === "detail" && !selectedIssueId) {
+      setIssuesRouteMode("list");
+    }
+  }, [issuesRouteMode, selectedIssueId]);
+
+  useEffect(() => {
+    if (!selectedIssue || issuesRouteMode !== "detail") {
+      setNewIssueCommentBody("");
+      setIsEditingIssue(false);
+      setIssueEditorError(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadIssueDetailState = async () => {
+      try {
+        const [freshIssue, comments] = await Promise.all([
+          boardGetIssue(selectedIssue.id),
+          boardListIssueComments(selectedIssue.id),
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        const detailIssue = freshIssue as IssueRecord;
+        setCompanySnapshot((current) => {
+          if (!current) {
+            return current;
+          }
+
+          return {
+            ...current,
+            issues: current.issues.map((issue) =>
+              issue.id === detailIssue.id ? detailIssue : issue
+            ),
+          };
+        });
+        setIssueDraft(createIssueDraft(detailIssue));
+        setIssueCommentsByIssueId((current) => ({
+          ...current,
+          [selectedIssue.id]: comments as IssueCommentRecord[],
+        }));
+        setIsEditingIssue(false);
+        setIssueEditorError(null);
+        setNewIssueCommentBody("");
+      } catch (error) {
+        if (!cancelled) {
+          setStatusMessage(error instanceof Error ? error.message : String(error));
+        }
+      }
+    };
+
+    void loadIssueDetailState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [issuesRouteMode, selectedIssue?.id]);
 
   useEffect(() => {
     if (!selectedBoardWorkspace) {
@@ -639,6 +806,9 @@ export function App() {
   };
 
   const handleSelectScreen = (screen: AppScreen) => {
+    if (screen === "issues") {
+      setIssuesRouteMode("list");
+    }
     setSelectedScreen(screen);
     void persistSettings({
       ...settings,
@@ -650,6 +820,10 @@ export function App() {
     startTransition(() => {
       setSelectedCompanyId(companyId);
       setSelectedScreen("dashboard");
+      setSelectedIssueId(null);
+      setIssuesRouteMode("list");
+      setIssueCommentsByIssueId({});
+      setSelectedApprovalId(null);
     });
     void persistSettings({
       ...settings,
@@ -677,6 +851,142 @@ export function App() {
   const handleSelectAgent = (agentId: string) => {
     setSelectedAgentId(agentId);
     handleSelectScreen("agents");
+  };
+
+  const handleShowIssuesList = (tab?: IssuesListTab) => {
+    if (tab) {
+      setSelectedIssuesListTab(tab);
+    }
+    setIssuesRouteMode("list");
+    setSelectedScreen("issues");
+    void persistSettings({
+      ...settings,
+      preferred_view: preferredViewForScreen("issues"),
+    });
+  };
+
+  const handleSelectIssue = async (issueId: string) => {
+    setStatusMessage(null);
+    try {
+      const issue = await boardGetIssue(issueId);
+      setSelectedIssueId((issue as IssueRecord).id);
+      setIssueDraft(createIssueDraft(issue as IssueRecord));
+      setIssuesRouteMode("detail");
+      setSelectedScreen("issues");
+      void persistSettings({
+        ...settings,
+        preferred_view: preferredViewForScreen("issues"),
+      });
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const beginEditingIssue = (issue: IssueRecord) => {
+    setIssueDraft(createIssueDraft(issue));
+    setIssueEditorError(null);
+    setIsEditingIssue(true);
+  };
+
+  const discardIssueEdits = (issue: IssueRecord) => {
+    setIssueDraft(createIssueDraft(issue));
+    setIssueEditorError(null);
+    setIsEditingIssue(false);
+  };
+
+  const handleSaveIssueEdits = async (issue: IssueRecord) => {
+    const trimmedTitle = issueDraft.title.trim();
+    if (!trimmedTitle) {
+      setIssueEditorError("Issue title is required.");
+      return;
+    }
+
+    setIsSavingIssue(true);
+    setIssueEditorError(null);
+
+    try {
+      const updatedIssue = await boardUpdateIssue({
+        issue_id: issue.id,
+        title: trimmedTitle,
+        status: issueDraft.status,
+        priority: issueDraft.priority,
+        description: issueDraft.description.trim() ? issueDraft.description.trim() : null,
+        project_id: issueDraft.projectId.trim() ? issueDraft.projectId : null,
+        assignee_agent_id: issueDraft.assigneeAgentId.trim()
+          ? issueDraft.assigneeAgentId
+          : null,
+        parent_id: issueDraft.parentId.trim() ? issueDraft.parentId : null,
+      });
+      const refreshedSnapshot = await boardCompanySnapshot(issue.company_id);
+      setCompanySnapshot(refreshedSnapshot);
+      setSelectedIssueId((updatedIssue as IssueRecord).id);
+      setIssueDraft(createIssueDraft(updatedIssue as IssueRecord));
+      setIsEditingIssue(false);
+      setIssuesRouteMode("detail");
+    } catch (error) {
+      setIssueEditorError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsSavingIssue(false);
+    }
+  };
+
+  const handleAddIssueComment = async (issue: IssueRecord) => {
+    const body = newIssueCommentBody.trim();
+    if (!body) {
+      return;
+    }
+
+    setIsWorking(true);
+    setStatusMessage(null);
+    try {
+      await boardAddIssueComment({
+        company_id: issue.company_id,
+        issue_id: issue.id,
+        body,
+      });
+      const [comments, snapshot] = await Promise.all([
+        boardListIssueComments(issue.id),
+        boardCompanySnapshot(issue.company_id),
+      ]);
+      setCompanySnapshot(snapshot);
+      setIssueCommentsByIssueId((current) => ({
+        ...current,
+        [issue.id]: comments as IssueCommentRecord[],
+      }));
+      setNewIssueCommentBody("");
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsWorking(false);
+    }
+  };
+
+  const handleStartIssueWorkspace = async (issue: IssueRecord) => {
+    setIsWorking(true);
+    setStatusMessage(null);
+    try {
+      const workspace = await boardCheckoutIssue(issue.id);
+      const [nextRepositories, snapshot] = await Promise.all([
+        repositoryList(),
+        boardCompanySnapshot(issue.company_id),
+      ]);
+      setRepositories(nextRepositories as RepositoryRecord[]);
+      setCompanySnapshot(snapshot);
+      setSelectedBoardWorkspaceId((workspace as WorkspaceRecord).id);
+      setSelectedRepositoryId((workspace as WorkspaceRecord).repository_id);
+      setSelectedSessionId((workspace as WorkspaceRecord).session_id);
+      setSelectedScreen("workspaces");
+      setWorkspaceCenterTab("conversation");
+      void persistSettings({
+        ...settings,
+        preferred_repository_id: (workspace as WorkspaceRecord).repository_id,
+        preferred_view: preferredViewForScreen("workspaces"),
+      });
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsWorking(false);
+    }
   };
 
   const handleOpenDirectory = async (relativePath: string) => {
@@ -812,12 +1122,20 @@ export function App() {
 
     setIsWorking(true);
     try {
-      await boardCreateIssue({
+      const createdIssue = await boardCreateIssue({
         company_id: selectedCompanyId,
         title: newIssueTitle.trim(),
       });
       const snapshot = await boardCompanySnapshot(selectedCompanyId);
       setCompanySnapshot(snapshot);
+      setSelectedIssueId((createdIssue as IssueRecord).id);
+      setIssueDraft(createIssueDraft(createdIssue as IssueRecord));
+      setIssuesRouteMode("detail");
+      setSelectedScreen("issues");
+      void persistSettings({
+        ...settings,
+        preferred_view: preferredViewForScreen("issues"),
+      });
       setNewIssueTitle("");
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : String(error));
@@ -1317,41 +1635,79 @@ export function App() {
             ) : null}
 
             {selectedScreen === "issues" ? (
-              <section className="route-scroll">
-                <div className="route-header compact">
-                  <span className="route-kicker">Issues</span>
-                  <h1>Open work</h1>
-                </div>
-                <div className="surface-grid">
-                  <section className="surface-panel">
-                    <h3>Create issue</h3>
-                    <form className="stack-form" onSubmit={handleCreateIssue}>
-                      <input
-                        onChange={(event) => setNewIssueTitle(event.target.value)}
-                        placeholder="New issue title"
-                        value={newIssueTitle}
-                      />
-                      <button className="secondary-button" type="submit">
-                        Create
-                      </button>
-                    </form>
-                  </section>
-                  <section className="surface-panel wide">
-                    <h3>Issue list</h3>
-                    <div className="surface-list">
-                      {(companySnapshot?.issues ?? []).map((issue) => (
-                        <div className="surface-list-row" key={issue.id}>
-                          <strong>{issue.title}</strong>
-                          <span>
-                            {issue.status ?? "backlog"}
-                            {issue.priority ? ` · ${issue.priority}` : ""}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                </div>
-              </section>
+              issuesRouteMode === "detail" && selectedIssue ? (
+                <IssueDetailView
+                  assigneeLabel={(assigneeAgentId) =>
+                    issueAssigneeLabel(companySnapshot?.agents ?? [], assigneeAgentId)
+                  }
+                  availablePriorityOptions={issuePriorityOptions}
+                  availableStatusOptions={issueStatusOptions}
+                  canStartWorkspace={
+                    Boolean(selectedIssue.assignee_agent_id) &&
+                    Boolean(selectedIssue.project_id) &&
+                    !isEditingIssue
+                  }
+                  comments={selectedIssueComments}
+                  isSavingIssue={isSavingIssue}
+                  isWorking={isWorking}
+                  issue={selectedIssue}
+                  issueDraft={issueDraft}
+                  issueEditorError={issueEditorError}
+                  isEditingIssue={isEditingIssue}
+                  linkedApprovals={linkedIssueApprovals}
+                  newCommentBody={newIssueCommentBody}
+                  onAddComment={() => void handleAddIssueComment(selectedIssue)}
+                  onBack={() => handleShowIssuesList()}
+                  onBeginEditing={() => beginEditingIssue(selectedIssue)}
+                  onCancelEditing={() => discardIssueEdits(selectedIssue)}
+                  onIssueDraftChange={(patch) =>
+                    setIssueDraft((current) => ({
+                      ...current,
+                      ...patch,
+                    }))
+                  }
+                  onLinkedApprovalSelect={(approvalId) => {
+                    setSelectedApprovalId(approvalId);
+                    handleSelectScreen("approvals");
+                  }}
+                  onNewCommentBodyChange={setNewIssueCommentBody}
+                  onParentIssueSelect={(parentIssueId) =>
+                    setIssueDraft((current) => ({
+                      ...current,
+                      parentId: parentIssueId,
+                    }))
+                  }
+                  onProjectSelect={(projectId) =>
+                    setIssueDraft((current) => ({
+                      ...current,
+                      projectId,
+                    }))
+                  }
+                  onSave={() => void handleSaveIssueEdits(selectedIssue)}
+                  onStartWorkspace={() => void handleStartIssueWorkspace(selectedIssue)}
+                  parentIssueLabel={(parentIssueId) =>
+                    issueParentLabel(boardIssues, parentIssueId)
+                  }
+                  priorityLabel={humanizeIssueValue}
+                  projects={companySnapshot?.projects ?? []}
+                  projectLabel={(projectId) =>
+                    issueProjectLabel(companySnapshot?.projects ?? [], projectId)
+                  }
+                  agents={companySnapshot?.agents ?? []}
+                  selectableParentIssues={selectableParentIssues}
+                  subissues={issueSubissues}
+                />
+              ) : (
+                <IssuesListView
+                  activeTab={selectedIssuesListTab}
+                  emptyTitle={`No issues in ${issuesListTabTitle(selectedIssuesListTab).toLowerCase()}`}
+                  issues={visibleIssues}
+                  onSelectIssue={(issueId) => void handleSelectIssue(issueId)}
+                  onTabChange={setSelectedIssuesListTab}
+                  selectedIssueId={selectedIssueId}
+                  summaryText={issueSummaryText}
+                />
+              )
             ) : null}
 
             {selectedScreen === "approvals" ? (
@@ -1364,10 +1720,19 @@ export function App() {
                   <section className="surface-panel">
                     <div className="surface-list">
                       {(companySnapshot?.approvals ?? []).map((approval) => (
-                        <div className="surface-list-row" key={approval.id}>
-                          <strong>{approval.type ?? "Approval"}</strong>
-                          <span>{approval.status ?? "pending"}</span>
-                        </div>
+                        <button
+                          className={
+                            selectedApprovalId === approval.id
+                              ? "file-list-button active"
+                              : "file-list-button"
+                          }
+                          key={approval.id}
+                          onClick={() => setSelectedApprovalId(approval.id)}
+                          type="button"
+                        >
+                          <strong>{humanizeIssueValue(approval.approval_type ?? "approval")}</strong>
+                          <span>{humanizeIssueValue(approval.status ?? "pending")}</span>
+                        </button>
                       ))}
                     </div>
                   </section>
@@ -2173,6 +2538,428 @@ function BoardSidebarButton({
   );
 }
 
+function IssuesListView({
+  activeTab,
+  issues,
+  selectedIssueId,
+  summaryText,
+  emptyTitle,
+  onTabChange,
+  onSelectIssue,
+}: {
+  activeTab: IssuesListTab;
+  issues: IssueRecord[];
+  selectedIssueId: string | null;
+  summaryText: string;
+  emptyTitle: string;
+  onTabChange: (tab: IssuesListTab) => void;
+  onSelectIssue: (issueId: string) => void;
+}) {
+  return (
+    <section className="issues-route">
+      <div className="issues-route-header">
+        <div className="issues-route-header-inner">
+          <span>ISSUES</span>
+        </div>
+      </div>
+
+      <div className="issues-tab-bar">
+        <div className="issues-tab-bar-inner">
+          {(["new", "all"] as const).map((tab) => (
+            <button
+              className={activeTab === tab ? "issues-tab-button active" : "issues-tab-button"}
+              key={tab}
+              onClick={() => onTabChange(tab)}
+              type="button"
+            >
+              {issuesListTabTitle(tab)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="issues-summary-bar">
+        <div className="issues-summary-bar-inner">
+          <span>{summaryText}</span>
+        </div>
+      </div>
+
+      <div className="issues-list-scroll">
+        {issues.length ? (
+          <div className="issues-list">
+            {issues.map((issue) => {
+              const isSelected = selectedIssueId === issue.id;
+              return (
+                <button
+                  className={isSelected ? "issues-list-row active" : "issues-list-row"}
+                  key={issue.id}
+                  onClick={() => onSelectIssue(issue.id)}
+                  type="button"
+                >
+                  <span
+                    className="issues-list-row-title"
+                    style={{ paddingLeft: `${20 + issue.request_depth * 12}px` }}
+                  >
+                    {issuesListRowTitle(issue)}
+                  </span>
+                  <span className="issues-list-row-timestamp">
+                    {formatCompactIssueTimestamp(issue.updated_at)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="issues-empty-state">
+            <h2>{emptyTitle}</h2>
+            <p>Issues own workspaces. Create one from the sidebar to start agent work.</p>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function IssueDetailView({
+  issue,
+  issueDraft,
+  isEditingIssue,
+  isSavingIssue,
+  isWorking,
+  canStartWorkspace,
+  availableStatusOptions,
+  availablePriorityOptions,
+  projects,
+  agents,
+  selectableParentIssues,
+  linkedApprovals,
+  subissues,
+  comments,
+  issueEditorError,
+  newCommentBody,
+  onBack,
+  onBeginEditing,
+  onCancelEditing,
+  onSave,
+  onStartWorkspace,
+  onIssueDraftChange,
+  onProjectSelect,
+  onParentIssueSelect,
+  onLinkedApprovalSelect,
+  onNewCommentBodyChange,
+  onAddComment,
+  projectLabel,
+  assigneeLabel,
+  parentIssueLabel,
+  priorityLabel,
+}: {
+  issue: IssueRecord;
+  issueDraft: IssueEditDraft;
+  isEditingIssue: boolean;
+  isSavingIssue: boolean;
+  isWorking: boolean;
+  canStartWorkspace: boolean;
+  availableStatusOptions: string[];
+  availablePriorityOptions: string[];
+  projects: ProjectRecord[];
+  agents: AgentRecord[];
+  selectableParentIssues: IssueRecord[];
+  linkedApprovals: ApprovalRecord[];
+  subissues: IssueRecord[];
+  comments: IssueCommentRecord[];
+  issueEditorError: string | null;
+  newCommentBody: string;
+  onBack: () => void;
+  onBeginEditing: () => void;
+  onCancelEditing: () => void;
+  onSave: () => void;
+  onStartWorkspace: () => void;
+  onIssueDraftChange: (patch: Partial<IssueEditDraft>) => void;
+  onProjectSelect: (projectId: string) => void;
+  onParentIssueSelect: (parentIssueId: string) => void;
+  onLinkedApprovalSelect: (approvalId: string) => void;
+  onNewCommentBodyChange: (value: string) => void;
+  onAddComment: () => void;
+  projectLabel: (projectId?: string | null) => string;
+  assigneeLabel: (assigneeAgentId?: string | null) => string;
+  parentIssueLabel: (parentIssueId?: string | null) => string;
+  priorityLabel: (value: string) => string;
+}) {
+  const canSaveIssueEdits = !isSavingIssue && issueDraft.title.trim().length > 0;
+
+  return (
+    <section className="route-scroll issues-detail-route">
+      <div className="route-header compact">
+        <button className="issues-back-button" onClick={onBack} type="button">
+          <span>‹</span>
+          <span>Back to Issues</span>
+        </button>
+        <span className="route-kicker">Issues</span>
+        <h1>Issue Details</h1>
+      </div>
+
+      <section className="surface-panel issues-detail-panel">
+        <div className="issues-detail-title-row">
+          <div className="issues-detail-title-block">
+            <span className="route-kicker">
+              {issue.identifier ?? issue.title}
+            </span>
+            {isEditingIssue ? (
+              <input
+                className="issues-title-input"
+                onChange={(event) =>
+                  onIssueDraftChange({
+                    title: event.target.value,
+                  })
+                }
+                placeholder="Issue title"
+                value={issueDraft.title}
+              />
+            ) : (
+              <h2>{issue.title}</h2>
+            )}
+          </div>
+
+          <div className="issues-detail-actions">
+            {canStartWorkspace ? (
+              <button
+                className="primary-button"
+                disabled={isWorking}
+                onClick={onStartWorkspace}
+                type="button"
+              >
+                Start Workspace
+              </button>
+            ) : null}
+
+            {isEditingIssue ? (
+              <>
+                <button
+                  className="secondary-button"
+                  disabled={isSavingIssue}
+                  onClick={onCancelEditing}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button
+                  className="primary-button"
+                  disabled={!canSaveIssueEdits}
+                  onClick={onSave}
+                  type="button"
+                >
+                  {isSavingIssue ? "Saving..." : "Save Changes"}
+                </button>
+              </>
+            ) : (
+              <button className="secondary-button" onClick={onBeginEditing} type="button">
+                Edit Issue
+              </button>
+            )}
+          </div>
+        </div>
+
+        {isEditingIssue ? (
+          <label className="form-field">
+            <span>Description</span>
+            <textarea
+              className="issues-description-input"
+              onChange={(event) =>
+                onIssueDraftChange({
+                  description: event.target.value,
+                })
+              }
+              placeholder="What needs to happen, what context matters, and what should the assignee do next?"
+              value={issueDraft.description}
+            />
+            <small>
+              Background, acceptance criteria, and bootstrap instructions all live here.
+            </small>
+          </label>
+        ) : issue.description ? (
+          <section className="issues-detail-section">
+            <h3>Description</h3>
+            <p className="issues-detail-copy">{issue.description}</p>
+          </section>
+        ) : null}
+
+        {isEditingIssue ? (
+          <div className="issues-edit-grid">
+            <label className="form-field">
+              <span>Status</span>
+              <select
+                onChange={(event) =>
+                  onIssueDraftChange({
+                    status: event.target.value,
+                  })
+                }
+                value={issueDraft.status}
+              >
+                {availableStatusOptions.map((status) => (
+                  <option key={status} value={status}>
+                    {priorityLabel(status)}
+                  </option>
+                ))}
+              </select>
+              <small>Moves the issue through the board lifecycle.</small>
+            </label>
+
+            <label className="form-field">
+              <span>Priority</span>
+              <select
+                onChange={(event) =>
+                  onIssueDraftChange({
+                    priority: event.target.value,
+                  })
+                }
+                value={issueDraft.priority}
+              >
+                {availablePriorityOptions.map((priority) => (
+                  <option key={priority} value={priority}>
+                    {priorityLabel(priority)}
+                  </option>
+                ))}
+              </select>
+              <small>Controls ordering and urgency in issue views.</small>
+            </label>
+
+            <label className="form-field">
+              <span>Project</span>
+              <select
+                onChange={(event) => onProjectSelect(event.target.value)}
+                value={issueDraft.projectId}
+              >
+                <option value="">No project</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name ?? project.title ?? project.id}
+                  </option>
+                ))}
+              </select>
+              <small>Optional project anchor for execution routing and repo context.</small>
+            </label>
+
+            <label className="form-field">
+              <span>Assignee</span>
+              <select
+                onChange={(event) =>
+                  onIssueDraftChange({
+                    assigneeAgentId: event.target.value,
+                  })
+                }
+                value={issueDraft.assigneeAgentId}
+              >
+                <option value="">Unassigned</option>
+                {agents.map((agent) => (
+                  <option key={agent.id} value={agent.id}>
+                    {agent.name || agent.title || agent.role || agent.id}
+                  </option>
+                ))}
+              </select>
+              <small>Choose the agent who owns this work.</small>
+            </label>
+
+            <label className="form-field">
+              <span>Parent Issue</span>
+              <select
+                onChange={(event) => onParentIssueSelect(event.target.value)}
+                value={issueDraft.parentId}
+              >
+                <option value="">No parent issue</option>
+                {selectableParentIssues.map((parentIssue) => (
+                  <option key={parentIssue.id} value={parentIssue.id}>
+                    {parentIssue.identifier ?? parentIssue.title}
+                  </option>
+                ))}
+              </select>
+              <small>Nest the issue under another issue or clear the parent.</small>
+            </label>
+          </div>
+        ) : (
+          <div className="issues-detail-grid">
+            <DetailRow label="Status" value={priorityLabel(issue.status)} />
+            <DetailRow label="Priority" value={priorityLabel(issue.priority)} />
+            <DetailRow label="Project" value={projectLabel(issue.project_id)} />
+            <DetailRow label="Assignee" value={assigneeLabel(issue.assignee_agent_id)} />
+            <DetailRow label="Parent" value={parentIssueLabel(issue.parent_id)} />
+            <DetailRow label="Depth" value={String(issue.request_depth)} />
+          </div>
+        )}
+
+        {issueEditorError ? <div className="status-banner">{issueEditorError}</div> : null}
+
+        {subissues.length ? (
+          <section className="issues-detail-section">
+            <h3>Subissues</h3>
+            <div className="surface-list dense">
+              {subissues.map((child) => (
+                <div className="surface-list-row issues-supporting-row" key={child.id}>
+                  <strong>{child.identifier ?? child.title}</strong>
+                  <span className="workspace-status-pill">{priorityLabel(child.status)}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {linkedApprovals.length ? (
+          <section className="issues-detail-section">
+            <h3>Linked Approvals</h3>
+            <div className="surface-list dense">
+              {linkedApprovals.map((approval) => (
+                <button
+                  className="file-list-button"
+                  key={approval.id}
+                  onClick={() => onLinkedApprovalSelect(approval.id)}
+                  type="button"
+                >
+                  <strong>{priorityLabel(approval.approval_type ?? "approval")}</strong>
+                  <span>
+                    {priorityLabel(approval.status ?? "pending")}
+                    {approval.updated_at ? ` · ${formatIssueDate(approval.updated_at)}` : ""}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <section className="issues-detail-section">
+          <h3>Comments</h3>
+          {comments.length ? (
+            <div className="issues-comment-list">
+              {comments.map((comment) => (
+                <article className="issues-comment-card" key={comment.id}>
+                  <p>{comment.body}</p>
+                  <span>{formatIssueDate(comment.created_at)}</span>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="issues-detail-copy muted">No comments yet.</p>
+          )}
+
+          <div className="issues-comment-composer">
+            <textarea
+              onChange={(event) => onNewCommentBodyChange(event.target.value)}
+              placeholder="Add a comment"
+              value={newCommentBody}
+            />
+            <button
+              className="secondary-button"
+              disabled={isWorking || !newCommentBody.trim()}
+              onClick={onAddComment}
+              type="button"
+            >
+              Add Comment
+            </button>
+          </div>
+        </section>
+      </section>
+    </section>
+  );
+}
+
 function RoutePlaceholder({ title, body }: { title: string; body: string }) {
   return (
     <section className="route-scroll">
@@ -2688,6 +3475,76 @@ function capitalize(value: string) {
   return value.slice(0, 1).toUpperCase() + value.slice(1);
 }
 
+function createEmptyIssueDraft(): IssueEditDraft {
+  return {
+    title: "",
+    description: "",
+    status: "backlog",
+    priority: "medium",
+    projectId: "",
+    assigneeAgentId: "",
+    parentId: "",
+  };
+}
+
+function createIssueDraft(issue: IssueRecord): IssueEditDraft {
+  return {
+    title: issue.title,
+    description: issue.description ?? "",
+    status: issue.status,
+    priority: issue.priority,
+    projectId: issue.project_id ?? "",
+    assigneeAgentId: issue.assignee_agent_id ?? "",
+    parentId: issue.parent_id ?? "",
+  };
+}
+
+function issuesListTabTitle(tab: IssuesListTab) {
+  return tab === "new" ? "New" : "All";
+}
+
+function mergeIssueOptions(defaults: string[], selected: string) {
+  const trimmedSelected = selected.trim();
+  const options = trimmedSelected ? [trimmedSelected] : [];
+  for (const value of defaults) {
+    if (!options.includes(value)) {
+      options.push(value);
+    }
+  }
+  return options;
+}
+
+function humanizeIssueValue(value: string) {
+  return value.replaceAll("_", " ").replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
+function issueProjectLabel(projects: ProjectRecord[], projectId?: string | null) {
+  if (!projectId) {
+    return "No project";
+  }
+
+  const project = projects.find((entry) => entry.id === projectId);
+  return project?.name ?? project?.title ?? projectId;
+}
+
+function issueAssigneeLabel(agents: AgentRecord[], assigneeAgentId?: string | null) {
+  if (!assigneeAgentId) {
+    return "Unassigned";
+  }
+
+  const agent = agents.find((entry) => entry.id === assigneeAgentId);
+  return agent?.name || agent?.title || agent?.role || assigneeAgentId;
+}
+
+function issueParentLabel(issues: IssueRecord[], parentIssueId?: string | null) {
+  if (!parentIssueId) {
+    return "No parent issue";
+  }
+
+  const issue = issues.find((entry) => entry.id === parentIssueId);
+  return issue?.identifier ?? issue?.title ?? parentIssueId;
+}
+
 function formatCents(value: number | null | undefined) {
   if (typeof value !== "number" || Number.isNaN(value)) {
     return "n/a";
@@ -2705,8 +3562,27 @@ function formatTimestamp(value: string | null | undefined) {
     return "n/a";
   }
 
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
+  const date = parseIssueDate(value);
+  if (!date) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatIssueDate(value: string | null | undefined) {
+  if (!value) {
+    return "Unknown";
+  }
+
+  const date = parseIssueDate(value);
+  if (!date) {
     return value;
   }
 
@@ -2803,6 +3679,98 @@ function formatRelativeTimestamp(timestamp: number) {
   }
 
   return formatter.format(deltaSeconds, "second");
+}
+
+function issuesVisible(
+  issues: IssueRecord[],
+  tab: IssuesListTab,
+  now = new Date()
+) {
+  const visibleIssues = issues.filter((issue) => !issue.hidden_at);
+  if (tab === "all") {
+    return visibleIssues;
+  }
+
+  const threshold = new Date(now);
+  threshold.setDate(threshold.getDate() - 7);
+
+  return visibleIssues.filter((issue) => {
+    const createdAt = parseIssueDate(issue.created_at);
+    return createdAt ? createdAt >= threshold : false;
+  });
+}
+
+function issuesListRowTitle(issue: IssueRecord) {
+  if (!issue.identifier) {
+    return issue.title;
+  }
+
+  return `${issue.identifier}  ${issue.title}`;
+}
+
+function formatCompactIssueTimestamp(value: string | null | undefined, now = new Date()) {
+  const date = parseIssueDate(value);
+  if (!date) {
+    return "Unknown";
+  }
+
+  const seconds = (now.getTime() - date.getTime()) / 1000;
+  if (seconds < 60) {
+    return "Just now";
+  }
+  if (seconds < 3600) {
+    return `${Math.max(Math.floor(seconds / 60), 1)}m`;
+  }
+  if (seconds < 86_400) {
+    return `${Math.max(Math.floor(seconds / 3600), 1)}h`;
+  }
+
+  const startOfNow = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const dayDelta = Math.round(
+    (startOfNow.getTime() - startOfDate.getTime()) / (24 * 60 * 60 * 1000)
+  );
+
+  if (dayDelta === 1) {
+    return "Yesterday";
+  }
+  if (dayDelta < 7) {
+    return new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date);
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
+function parseIssueDate(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date;
+}
+
+function approvalLinksIssue(approval: ApprovalRecord, issueId: string) {
+  const payload = approval.payload;
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+
+  if (payload.source_issue_id === issueId) {
+    return true;
+  }
+
+  const sourceIssueIds = payload.source_issue_ids;
+  return Array.isArray(sourceIssueIds)
+    ? sourceIssueIds.some((value) => value === issueId)
+    : false;
 }
 
 function buildTerminalTranscript(messages: SessionMessage[]) {

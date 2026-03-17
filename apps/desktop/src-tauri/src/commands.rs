@@ -184,9 +184,37 @@ pub async fn board_create_issue(params: Value) -> Result<Value, String> {
 }
 
 #[tauri::command]
+pub async fn board_get_issue(issue_id: String) -> Result<Value, String> {
+    let value = call_daemon(Method::IssueGet, Some(json!({ "issue_id": issue_id }))).await?;
+    Ok(extract_field(value, "issue"))
+}
+
+#[tauri::command]
 pub async fn board_update_issue(params: Value) -> Result<Value, String> {
     let value = call_daemon(Method::IssueUpdate, Some(params)).await?;
     Ok(extract_field(value, "issue"))
+}
+
+#[tauri::command]
+pub async fn board_list_issue_comments(issue_id: String) -> Result<Value, String> {
+    let value = call_daemon(
+        Method::IssueCommentList,
+        Some(json!({ "issue_id": issue_id })),
+    )
+    .await?;
+    Ok(extract_field(value, "comments"))
+}
+
+#[tauri::command]
+pub async fn board_add_issue_comment(params: Value) -> Result<Value, String> {
+    let value = call_daemon(Method::IssueCommentAdd, Some(params)).await?;
+    Ok(extract_field(value, "comment"))
+}
+
+#[tauri::command]
+pub async fn board_checkout_issue(issue_id: String) -> Result<Value, String> {
+    let value = call_daemon(Method::IssueCheckout, Some(json!({ "issue_id": issue_id }))).await?;
+    Ok(extract_field(value, "workspace"))
 }
 
 #[tauri::command]
