@@ -4248,9 +4248,13 @@ function AgentsRouteView({
                   <h2>{selectedAgent.name}</h2>
                   <p>{selectedAgent.title ?? selectedAgent.role ?? "Agent"}</p>
                 </div>
-                <RunStatusBadge
-                  status={normalizeAgentStatusTone(selectedAgent.status)}
-                />
+                <span
+                  className={`agent-run-status-badge ${normalizeAgentStatusTone(
+                    selectedAgent.status
+                  )}`}
+                >
+                  {humanizeIssueValue(selectedAgent.status ?? "unknown")}
+                </span>
               </div>
 
               <div className="agents-tab-strip" role="tablist" aria-label="Agent views">
