@@ -3297,6 +3297,9 @@ function DashboardCanvasRouteView({
                           <span>{humanizeIssueValue(column.status)}</span>
                           <strong>{column.issues.length}</strong>
                         </div>
+                      </div>
+
+                      <div className="project-kanban-cards">
                         <button
                           className="project-kanban-column-create"
                           onClick={() =>
@@ -3304,14 +3307,19 @@ function DashboardCanvasRouteView({
                           }
                           type="button"
                         >
-                          <span aria-hidden="true">+</span>
-                          <span>New issue</span>
+                          <span className="project-kanban-column-create-icon" aria-hidden="true">
+                            +
+                          </span>
+                          <span className="project-kanban-column-create-copy">
+                            <strong>New issue</strong>
+                            <small>
+                              Add work directly to {humanizeIssueValue(column.status)}
+                            </small>
+                          </span>
                         </button>
-                      </div>
 
-                      {column.issues.length ? (
-                        <div className="project-kanban-cards">
-                          {column.issues.map((issue) => (
+                        {column.issues.length ? (
+                          column.issues.map((issue) => (
                             <button
                               className="project-kanban-card"
                               data-priority={normalizeBoardIssueValue(issue.priority)}
@@ -3328,11 +3336,13 @@ function DashboardCanvasRouteView({
                                 </span>
                               </div>
                             </button>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="project-kanban-column-empty">No issues</div>
-                      )}
+                          ))
+                        ) : (
+                          <div className="project-kanban-column-empty">
+                            No issues yet
+                          </div>
+                        )}
+                      </div>
                     </section>
                   ))}
                 </div>
