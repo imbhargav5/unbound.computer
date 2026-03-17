@@ -1356,6 +1356,122 @@ p {
   font-size: 14px;
 }
 
+.agent-page-header {
+  display: grid;
+  gap: 20px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid #1b1b1f;
+}
+
+.agent-page-header-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.agent-page-header-identity {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.agent-page-header-icon {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 1px solid #2a2a30;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #18181b 0%, #111113 100%);
+  color: #f4f4f5;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.agent-page-header-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.agent-page-header-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.agent-page-header-copy h2 {
+  margin: 0;
+  color: #fafafa;
+  font-size: 32px;
+  line-height: 1;
+  letter-spacing: -0.06em;
+}
+
+.agent-page-header-copy p {
+  margin: 0;
+  color: #9d9da6;
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.agent-page-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.agent-page-header-action-chip,
+.agent-page-header-icon-chip {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #232325;
+  border-radius: 14px;
+  background: #141416;
+  color: #f5f5f5;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.agent-page-header-action-chip {
+  gap: 8px;
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.agent-page-header-action-icon {
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  color: #e4e4e7;
+}
+
+.agent-page-header-action-icon svg,
+.agent-page-header-icon-chip svg {
+  width: 16px;
+  height: 16px;
+}
+
+.agent-page-header-icon-chip {
+  width: 38px;
+  padding: 0;
+  flex: 0 0 auto;
+}
+
+.agent-page-header-status {
+  min-height: 38px;
+  padding: 0 12px;
+  font-size: 12px;
+  text-transform: lowercase;
+}
+
 .agents-route-header-row {
   display: flex;
   align-items: flex-start;
@@ -1380,7 +1496,6 @@ p {
   flex-wrap: wrap;
 }
 
-.agents-tab-strip,
 .agents-tab-panel,
 .agents-config-form {
   display: grid;
@@ -1388,7 +1503,37 @@ p {
 }
 
 .agents-tab-strip {
-  padding-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding-top: 0;
+  overflow-x: auto;
+}
+
+.agents-tab-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #8f8f97;
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease;
+}
+
+.agents-tab-button:hover {
+  color: #f5f5f5;
+}
+
+.agents-tab-button.active {
+  color: #f5f5f5;
+  border-color: #f5f5f5;
 }
 
 .agent-config-section {
@@ -1611,6 +1756,12 @@ p {
   border-color: rgba(34, 197, 94, 0.24);
   background: rgba(20, 83, 45, 0.35);
   color: #bbf7d0;
+}
+
+.agent-run-status-badge.idle {
+  border-color: rgba(245, 158, 11, 0.24);
+  background: rgba(120, 53, 15, 0.35);
+  color: #fcd34d;
 }
 
 .agent-run-status-badge.failed {
@@ -4259,6 +4410,15 @@ p {
 }
 
 @media (max-width: 900px) {
+  .agent-page-header-main {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .agent-page-header-actions {
+    justify-content: flex-start;
+  }
+
   .agent-config-grid,
   .agent-config-toggle-grid,
   .agent-config-env-row {
@@ -4271,6 +4431,18 @@ p {
 }
 
 @media (max-width: 720px) {
+  .agent-page-header-identity {
+    align-items: flex-start;
+  }
+
+  .agent-page-header-copy h2 {
+    font-size: 28px;
+  }
+
+  .agents-tab-strip {
+    gap: 16px;
+  }
+
   .issues-detail-identity-row,
   .issues-detail-inline-meta {
     align-items: flex-start;
