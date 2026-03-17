@@ -63,11 +63,51 @@ export interface AgentRecord {
   [key: string]: unknown;
 }
 
+export interface GoalRecord {
+  id: string;
+  company_id?: string | null;
+  title: string;
+  description?: string | null;
+  level?: string | null;
+  status?: string | null;
+  parent_id?: string | null;
+  owner_agent_id?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ProjectWorkspaceRecord {
+  id: string;
+  company_id?: string | null;
+  project_id?: string | null;
+  name: string;
+  cwd?: string | null;
+  repo_url?: string | null;
+  repo_ref?: string | null;
+  metadata?: Record<string, unknown> | null;
+  is_primary?: boolean | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  [key: string]: unknown;
+}
+
 export interface ProjectRecord {
   id: string;
+  company_id?: string | null;
+  goal_id?: string | null;
   title?: string | null;
-  name?: string | null;
-  status?: string | null;
+  name: string;
+  description?: string | null;
+  status: string;
+  lead_agent_id?: string | null;
+  target_date?: string | null;
+  color?: string | null;
+  execution_workspace_policy?: Record<string, unknown> | null;
+  archived_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  primary_workspace?: ProjectWorkspaceRecord | null;
   [key: string]: unknown;
 }
 
@@ -161,7 +201,7 @@ export interface WorkspaceRecord {
 export interface CompanySnapshot {
   company: Company;
   agents: AgentRecord[];
-  goals: Array<Record<string, unknown>>;
+  goals: GoalRecord[];
   projects: ProjectRecord[];
   issues: IssueRecord[];
   approvals: ApprovalRecord[];

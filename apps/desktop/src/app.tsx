@@ -65,6 +65,7 @@ import type {
   GitBranchesResult,
   GitDiffResult,
   GitLogResult,
+  GoalRecord,
   GitStatusFile,
   GitStatusResult,
   IssueCommentRecord,
@@ -161,6 +162,7 @@ export function App() {
   const [selectedBoardWorkspaceId, setSelectedBoardWorkspaceId] = useState<string | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [selectedIssuesListTab, setSelectedIssuesListTab] =
     useState<IssuesListTab>("new");
@@ -193,6 +195,13 @@ export function App() {
   const [terminalCommand, setTerminalCommand] = useState("");
   const [newProjectTitle, setNewProjectTitle] = useState("");
   const [newIssueTitle, setNewIssueTitle] = useState("");
+  const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] = useState(false);
+  const [projectDialogRepoPath, setProjectDialogRepoPath] = useState("");
+  const [projectDialogStatus, setProjectDialogStatus] = useState("planned");
+  const [projectDialogGoalId, setProjectDialogGoalId] = useState("");
+  const [projectDialogTargetDate, setProjectDialogTargetDate] = useState("");
+  const [projectDialogError, setProjectDialogError] = useState<string | null>(null);
+  const [isProjectDialogSaving, setIsProjectDialogSaving] = useState(false);
   const [newIssueCommentBody, setNewIssueCommentBody] = useState("");
   const [isEditingIssue, setIsEditingIssue] = useState(false);
   const [issueDraft, setIssueDraft] = useState<IssueEditDraft>(createEmptyIssueDraft());
@@ -239,6 +248,12 @@ export function App() {
   const selectedIssueComments = selectedIssue
     ? issueCommentsByIssueId[selectedIssue.id] ?? []
     : [];
+  const boardGoals = companySnapshot?.goals ?? [];
+  const boardProjects = companySnapshot?.projects ?? [];
+  const selectedProject =
+    boardProjects.find((project) => project.id === selectedProjectId) ??
+    boardProjects[0] ??
+    null;
   const boardApprovals = companySnapshot?.approvals ?? [];
   const selectedApproval =
     boardApprovals.find((approval) => approval.id === selectedApprovalId) ??
@@ -275,6 +290,10 @@ export function App() {
     branchState?.local.find((branch) => branch.name === currentBranchName) ?? null;
   const hasUncommittedChanges = (gitState?.files.length ?? 0) > 0;
   const hasUnpushedCommits = (currentBranch?.ahead ?? 0) > 0;
+  const projectDialogDerivedName = useMemo(
+    () => deriveProjectName(projectDialogRepoPath),
+    [projectDialogRepoPath]
+  );
   const issueStatusOptions = useMemo(
     () =>
       mergeIssueOptions(
@@ -426,6 +445,7 @@ export function App() {
     const nextAgents = companySnapshot?.agents ?? [];
     const nextIssues = companySnapshot?.issues ?? [];
     const nextApprovals = companySnapshot?.approvals ?? [];
+    const nextProjects = companySnapshot?.projects ?? [];
 
     setSelectedBoardWorkspaceId((current) => {
       if (current && nextWorkspaces.some((workspace) => workspace.id === current)) {
@@ -453,6 +473,13 @@ export function App() {
         return current;
       }
       return null;
+    });
+
+    setSelectedProjectId((current) => {
+      if (current && nextProjects.some((project) => project.id === current)) {
+        return current;
+      }
+      return nextProjects[0]?.id ?? null;
     });
 
     setIssueCommentsByIssueId((current) =>
@@ -859,6 +886,73 @@ export function App() {
     handleSelectScreen("agents");
   };
 
+  const resetProjectDialog = () => {
+    setProjectDialogRepoPath("");
+    setProjectDialogStatus("planned");
+    setProjectDialogGoalId("");
+    setProjectDialogTargetDate("");
+    setProjectDialogError(null);
+    setIsProjectDialogSaving(false);
+  };
+
+  const handleOpenCreateProjectDialog = () => {
+    resetProjectDialog();
+    setIsCreateProjectDialogOpen(true);
+  };
+
+  const handleCloseCreateProjectDialog = () => {
+    setIsCreateProjectDialogOpen(false);
+    resetProjectDialog();
+  };
+
+  const handleChooseProjectFolder = async () => {
+    setProjectDialogError(null);
+    try {
+      const path = await desktopPickRepositoryDirectory();
+      if (path) {
+        setProjectDialogRepoPath(path);
+      }
+    } catch (error) {
+      setProjectDialogError(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const handleCreateProjectFromDialog = async () => {
+    if (!selectedCompanyId || !projectDialogDerivedName || isProjectDialogSaving) {
+      return;
+    }
+
+    setIsProjectDialogSaving(true);
+    setProjectDialogError(null);
+
+    try {
+      const params: Record<string, unknown> = {
+        company_id: selectedCompanyId,
+        name: projectDialogDerivedName,
+        repo_path: projectDialogRepoPath.trim(),
+        status: projectDialogStatus,
+      };
+
+      if (projectDialogGoalId) {
+        params.goal_id = projectDialogGoalId;
+      }
+
+      if (projectDialogTargetDate) {
+        params.target_date = new Date(`${projectDialogTargetDate}T00:00:00`).toISOString();
+      }
+
+      const project = await boardCreateProject(params);
+      const snapshot = await boardCompanySnapshot(selectedCompanyId);
+      setCompanySnapshot(snapshot);
+      setSelectedProjectId(project.id);
+      setSelectedScreen("projects");
+      handleCloseCreateProjectDialog();
+    } catch (error) {
+      setProjectDialogError(error instanceof Error ? error.message : String(error));
+      setIsProjectDialogSaving(false);
+    }
+  };
+
   const handleShowIssuesList = (tab?: IssuesListTab) => {
     if (tab) {
       setSelectedIssuesListTab(tab);
@@ -1128,12 +1222,13 @@ export function App() {
 
     setIsWorking(true);
     try {
-      await boardCreateProject({
+      const project = await boardCreateProject({
         company_id: selectedCompanyId,
         name: newProjectTitle.trim(),
       });
       const snapshot = await boardCompanySnapshot(selectedCompanyId);
       setCompanySnapshot(snapshot);
+      setSelectedProjectId(project.id);
       setNewProjectTitle("");
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : String(error));
@@ -1749,38 +1844,13 @@ export function App() {
             ) : null}
 
             {selectedScreen === "projects" ? (
-              <section className="route-scroll">
-                <div className="route-header compact">
-                  <span className="route-kicker">Projects</span>
-                  <h1>Active projects</h1>
-                </div>
-                <div className="surface-grid">
-                  <section className="surface-panel">
-                    <h3>Create project</h3>
-                    <form className="stack-form" onSubmit={handleCreateProject}>
-                      <input
-                        onChange={(event) => setNewProjectTitle(event.target.value)}
-                        placeholder="Project name"
-                        value={newProjectTitle}
-                      />
-                      <button className="secondary-button" type="submit">
-                        Create
-                      </button>
-                    </form>
-                  </section>
-                  <section className="surface-panel wide">
-                    <h3>Project list</h3>
-                    <div className="surface-list">
-                      {(companySnapshot?.projects ?? []).map((project) => (
-                        <div className="surface-list-row" key={project.id}>
-                          <strong>{project.name ?? project.title ?? "Untitled project"}</strong>
-                          <span>{project.status ?? "pending"}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                </div>
-              </section>
+              <ProjectsRouteView
+                currentProject={selectedProject}
+                goals={boardGoals}
+                onOpenCreateProject={handleOpenCreateProjectDialog}
+                onSelectProject={setSelectedProjectId}
+                projects={boardProjects}
+              />
             ) : null}
 
             {selectedScreen === "goals" ? (
@@ -2504,6 +2574,25 @@ export function App() {
           </main>
         </>
       ) : null}
+
+      {isCreateProjectDialogOpen ? (
+        <CreateProjectDialogView
+          derivedProjectName={projectDialogDerivedName}
+          errorMessage={projectDialogError}
+          goals={boardGoals}
+          isSaving={isProjectDialogSaving}
+          repoPath={projectDialogRepoPath}
+          selectedGoalId={projectDialogGoalId}
+          selectedStatus={projectDialogStatus}
+          targetDate={projectDialogTargetDate}
+          onChooseFolder={() => void handleChooseProjectFolder()}
+          onClose={handleCloseCreateProjectDialog}
+          onCreate={() => void handleCreateProjectFromDialog()}
+          onGoalChange={setProjectDialogGoalId}
+          onStatusChange={setProjectDialogStatus}
+          onTargetDateChange={setProjectDialogTargetDate}
+        />
+      ) : null}
     </div>
   );
 }
@@ -3080,6 +3169,248 @@ function ApprovalsRouteView({
         )}
       </div>
     </section>
+  );
+}
+
+function ProjectsRouteView({
+  projects,
+  goals,
+  currentProject,
+  onSelectProject,
+  onOpenCreateProject,
+}: {
+  projects: ProjectRecord[];
+  goals: GoalRecord[];
+  currentProject: ProjectRecord | null;
+  onSelectProject: (projectId: string) => void;
+  onOpenCreateProject: () => void;
+}) {
+  return (
+    <section className="route-scroll">
+      <div className="route-header compact projects-route-header">
+        <div>
+          <span className="route-kicker">Projects</span>
+          <h1>Repo anchors and ownership</h1>
+        </div>
+
+        <button className="primary-button" onClick={onOpenCreateProject} type="button">
+          New Project
+        </button>
+      </div>
+
+      <section className="surface-panel projects-panel">
+        <div className="surface-header">
+          <h3>Projects</h3>
+        </div>
+        {projects.length ? (
+          <div className="surface-list">
+            {projects.map((project) => (
+              <ProjectQueueRow
+                isSelected={currentProject?.id === project.id}
+                key={project.id}
+                onClick={() => onSelectProject(project.id)}
+                project={project}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="projects-empty-text">
+            Projects define the main repo anchor that issue workspaces run inside.
+          </p>
+        )}
+      </section>
+
+      {currentProject ? (
+        <section className="surface-panel projects-panel">
+          <div className="surface-header">
+            <h3>Project Details</h3>
+          </div>
+
+          <div className="projects-detail-stack">
+            <h2>{currentProject.name}</h2>
+
+            {currentProject.description ? (
+              <section className="projects-detail-section">
+                <h3>Description</h3>
+                <p>{currentProject.description}</p>
+              </section>
+            ) : null}
+
+            <div className="projects-detail-grid">
+              <DetailRow label="Status" value={currentProject.status} />
+              <DetailRow
+                label="Lead Agent"
+                value={currentProject.lead_agent_id ?? "Unassigned"}
+              />
+              <DetailRow
+                label="Goal"
+                value={goalTitleForProject(goals, currentProject.goal_id)}
+              />
+              <DetailRow
+                label="Repo Path"
+                value={currentProject.primary_workspace?.cwd ?? "Missing"}
+              />
+              <DetailRow
+                label="Repo URL"
+                value={currentProject.primary_workspace?.repo_url ?? "Local only"}
+              />
+              <DetailRow
+                label="Repo Ref"
+                value={currentProject.primary_workspace?.repo_ref ?? "main"}
+              />
+            </div>
+          </div>
+        </section>
+      ) : (
+        <section className="surface-panel projects-panel">
+          <div className="surface-header">
+            <h3>Project Details</h3>
+          </div>
+          <div className="workspace-empty-state projects-empty-state-panel">
+            <h3>Select a project</h3>
+            <p>Project repo-anchor configuration appears here.</p>
+          </div>
+        </section>
+      )}
+    </section>
+  );
+}
+
+function ProjectQueueRow({
+  project,
+  isSelected,
+  onClick,
+}: {
+  project: ProjectRecord;
+  isSelected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={isSelected ? "project-queue-row active" : "project-queue-row"}
+      onClick={onClick}
+      type="button"
+    >
+      <div className="project-queue-row-main">
+        <strong>{project.name}</strong>
+        <span>{project.primary_workspace?.cwd ?? "Missing repo path"}</span>
+      </div>
+      <span className="project-queue-row-trailing">{project.status}</span>
+    </button>
+  );
+}
+
+function CreateProjectDialogView({
+  repoPath,
+  derivedProjectName,
+  selectedStatus,
+  selectedGoalId,
+  targetDate,
+  goals,
+  isSaving,
+  errorMessage,
+  onChooseFolder,
+  onStatusChange,
+  onGoalChange,
+  onTargetDateChange,
+  onCreate,
+  onClose,
+}: {
+  repoPath: string;
+  derivedProjectName: string;
+  selectedStatus: string;
+  selectedGoalId: string;
+  targetDate: string;
+  goals: GoalRecord[];
+  isSaving: boolean;
+  errorMessage: string | null;
+  onChooseFolder: () => void;
+  onStatusChange: (value: string) => void;
+  onGoalChange: (value: string) => void;
+  onTargetDateChange: (value: string) => void;
+  onCreate: () => void;
+  onClose: () => void;
+}) {
+  const canCreate = Boolean(derivedProjectName) && !isSaving;
+
+  return (
+    <div className="modal-backdrop" onClick={onClose} role="presentation">
+      <div
+        aria-modal="true"
+        className="project-dialog"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <div className="project-dialog-header">
+          <div className="project-dialog-header-copy">
+            <span className="project-dialog-badge">PRO</span>
+            <h2>New project</h2>
+          </div>
+
+          <button className="project-dialog-close" onClick={onClose} type="button">
+            ✕
+          </button>
+        </div>
+
+        <div className="project-dialog-body">
+          <div className="project-dialog-divider" />
+
+          <div className="project-folder-row">
+            <div className="project-folder-pill">
+              <span>{repoPath || "Choose a project folder"}</span>
+            </div>
+
+            <button className="secondary-button" onClick={onChooseFolder} type="button">
+              Choose folder
+            </button>
+          </div>
+
+          {errorMessage ? <div className="status-banner">{errorMessage}</div> : null}
+
+          <div className="project-dialog-controls">
+            <div className="project-dialog-chip-row">
+              <select
+                onChange={(event) => onStatusChange(event.target.value)}
+                value={selectedStatus}
+              >
+                {["planned", "active", "completed"].map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                onChange={(event) => onGoalChange(event.target.value)}
+                value={selectedGoalId}
+              >
+                <option value="">Goal</option>
+                {goals.map((goal) => (
+                  <option key={goal.id} value={goal.id}>
+                    {goal.title}
+                  </option>
+                ))}
+              </select>
+
+              <input
+                onChange={(event) => onTargetDateChange(event.target.value)}
+                type="date"
+                value={targetDate}
+              />
+            </div>
+
+            <button
+              className="project-dialog-create-button"
+              disabled={!canCreate}
+              onClick={onCreate}
+              type="button"
+            >
+              {isSaving ? "Creating..." : "Create project"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -3672,6 +4003,25 @@ function issueProjectLabel(projects: ProjectRecord[], projectId?: string | null)
 
   const project = projects.find((entry) => entry.id === projectId);
   return project?.name ?? project?.title ?? projectId;
+}
+
+function goalTitleForProject(goals: GoalRecord[], goalId?: string | null) {
+  if (!goalId) {
+    return "None";
+  }
+
+  const goal = goals.find((entry) => entry.id === goalId);
+  return goal?.title ?? goalId;
+}
+
+function deriveProjectName(repoPath: string) {
+  const trimmedPath = repoPath.trim();
+  if (!trimmedPath) {
+    return "";
+  }
+
+  const parts = trimmedPath.split("/").filter(Boolean);
+  return parts.at(-1)?.trim() ?? "";
 }
 
 function issueAssigneeLabel(agents: AgentRecord[], assigneeAgentId?: string | null) {

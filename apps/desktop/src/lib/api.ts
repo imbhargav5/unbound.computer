@@ -14,6 +14,7 @@ import type {
   GitStatusResult,
   IssueCommentRecord,
   IssueRecord,
+  ProjectRecord,
   RepositoryRecord,
   SessionMessage,
   SessionRecord,
@@ -45,7 +46,7 @@ export const boardCompanySnapshot = (companyId: string) =>
   });
 
 export const boardCreateProject = (params: Record<string, unknown>) =>
-  invokeCommand<Record<string, unknown>>("board_create_project", { params });
+  invokeCommand<ProjectRecord>("board_create_project", { params });
 
 export const boardCreateIssue = (params: Record<string, unknown>) =>
   invokeCommand<IssueRecord>("board_create_issue", { params });
