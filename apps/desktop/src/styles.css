@@ -1261,6 +1261,71 @@ p {
   color: #8a8a8a;
 }
 
+.activity-panel {
+  gap: 18px;
+}
+
+.activity-feed-list {
+  display: grid;
+  gap: 10px;
+}
+
+.activity-feed-row {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid #1b1b1d;
+  border-radius: 16px;
+  background: #0c0c0d;
+  text-align: left;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.activity-feed-row:hover {
+  border-color: #2a2a2d;
+  background: #151517;
+}
+
+.activity-feed-row-main {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.activity-feed-row-main strong {
+  color: #f5f5f5;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.activity-feed-row-main span {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #8a8a8a;
+  font-size: 12px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.activity-feed-row-trailing {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border: 1px solid #25252a;
+  border-radius: 999px;
+  background: #181818;
+  color: #a3a3a3;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.activity-empty-text {
+  color: #8a8a8a;
+}
+
 .approval-queue-row {
   width: 100%;
   display: flex;

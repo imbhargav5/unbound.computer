@@ -164,6 +164,19 @@ interface IssueEditDraft {
   parentId: string;
 }
 
+type ActivityFeedTarget =
+  | { kind: "approval"; approvalId: string }
+  | { kind: "issue"; issueId: string };
+
+interface ActivityFeedItem {
+  id: string;
+  timestamp: Date;
+  title: string;
+  subtitle: string;
+  trailingLabel: string;
+  target: ActivityFeedTarget;
+}
+
 const primaryBoardSections: Array<{ title: string; screens: AppScreen[] }> = [
   { title: "Work", screens: ["issues", "approvals", "workspaces"] },
   { title: "Projects", screens: ["projects", "goals"] },
@@ -316,6 +329,17 @@ export function App() {
   const visibleIssues = useMemo(
     () => issuesVisible(boardIssues, selectedIssuesListTab),
     [boardIssues, selectedIssuesListTab]
+  );
+  const activityVisibleIssues = useMemo(
+    () => boardIssues.filter((issue) => !issue.hidden_at),
+    [boardIssues]
+  );
+  const activityMissingCommentIssueIds = useMemo(
+    () =>
+      activityVisibleIssues
+        .filter((issue) => issueCommentsByIssueId[issue.id] === undefined)
+        .map((issue) => issue.id),
+    [activityVisibleIssues, issueCommentsByIssueId]
   );
   const issueSummaryText = useMemo(() => {
     const suffix = visibleIssues.length === 1 ? "issue" : "issues";
@@ -811,6 +835,68 @@ export function App() {
       cancelled = true;
     };
   }, [issuesRouteMode, selectedIssue?.id]);
+
+  useEffect(() => {
+    if (selectedScreen !== "activity") {
+      return;
+    }
+
+    if (activityMissingCommentIssueIds.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadActivityComments = async () => {
+      const results = await Promise.allSettled(
+        activityMissingCommentIssueIds.map(async (issueId) => [
+          issueId,
+          await boardListIssueComments(issueId),
+        ] as const)
+      );
+
+      if (cancelled) {
+        return;
+      }
+
+      const nextComments: Array<[string, IssueCommentRecord[]]> = [];
+      let nextError: string | null = null;
+
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          nextComments.push([result.value[0], result.value[1] as IssueCommentRecord[]]);
+          continue;
+        }
+
+        if (!nextError) {
+          nextError =
+            result.reason instanceof Error ? result.reason.message : String(result.reason);
+        }
+      }
+
+      if (nextComments.length > 0) {
+        startTransition(() => {
+          setIssueCommentsByIssueId((current) => {
+            const merged = { ...current };
+            for (const [issueId, comments] of nextComments) {
+              merged[issueId] = comments;
+            }
+            return merged;
+          });
+        });
+      }
+
+      if (nextError) {
+        setStatusMessage(nextError);
+      }
+    };
+
+    void loadActivityComments();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activityMissingCommentIssueIds, selectedScreen]);
 
   useEffect(() => {
     if (!selectedBoardWorkspace) {
@@ -2470,9 +2556,15 @@ export function App() {
             ) : null}
 
             {selectedScreen === "activity" ? (
-              <RoutePlaceholder
-                body="Activity is positioned where the Swift app expects it. The Tauri shell keeps the same route even though the activity feed is not wired yet."
-                title="Activity"
+              <ActivityRouteView
+                approvals={boardApprovals}
+                issueCommentsByIssueId={issueCommentsByIssueId}
+                issues={activityVisibleIssues}
+                onOpenApproval={(approvalId) => {
+                  setSelectedApprovalId(approvalId);
+                  handleSelectScreen("approvals");
+                }}
+                onOpenIssue={(issueId) => void handleSelectIssue(issueId)}
               />
             ) : null}
 
@@ -4066,6 +4158,85 @@ function ApprovalsRouteView({
   );
 }
 
+function ActivityRouteView({
+  approvals,
+  issues,
+  issueCommentsByIssueId,
+  onOpenApproval,
+  onOpenIssue,
+}: {
+  approvals: ApprovalRecord[];
+  issues: IssueRecord[];
+  issueCommentsByIssueId: Record<string, IssueCommentRecord[]>;
+  onOpenApproval: (approvalId: string) => void;
+  onOpenIssue: (issueId: string) => void;
+}) {
+  const feedItems = useMemo(
+    () => buildActivityFeedItems(approvals, issues, issueCommentsByIssueId),
+    [approvals, issues, issueCommentsByIssueId]
+  );
+
+  return (
+    <section className="route-scroll">
+      <div className="route-header compact">
+        <span className="route-kicker">Activity</span>
+        <h1>Approvals and recent issue activity</h1>
+      </div>
+
+      <div className="surface-grid single">
+        <section className="surface-panel activity-panel">
+          <div className="surface-header">
+            <h3>Activity</h3>
+          </div>
+
+          {feedItems.length ? (
+            <div className="surface-list activity-feed-list">
+              {feedItems.map((item) => (
+                <ActivityFeedRow
+                  item={item}
+                  key={item.id}
+                  onClick={() => {
+                    if (item.target.kind === "approval") {
+                      onOpenApproval(item.target.approvalId);
+                      return;
+                    }
+
+                    onOpenIssue(item.target.issueId);
+                  }}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="activity-empty-text">
+              Pending approvals and recent issue activity will appear here.
+            </p>
+          )}
+        </section>
+      </div>
+    </section>
+  );
+}
+
+function ActivityFeedRow({
+  item,
+  onClick,
+}: {
+  item: ActivityFeedItem;
+  onClick: () => void;
+}) {
+  return (
+    <button className="activity-feed-row" onClick={onClick} type="button">
+      <div className="activity-feed-row-main">
+        <strong>{item.title}</strong>
+        <span>{item.subtitle}</span>
+      </div>
+      <span className="activity-feed-row-trailing">
+        {item.trailingLabel.replaceAll("_", " ")}
+      </span>
+    </button>
+  );
+}
+
 function ProjectsRouteView({
   projects,
   goals,
@@ -5349,6 +5520,10 @@ function preferredViewForScreen(screen: AppScreen) {
     return "workspaces";
   }
 
+  if (screen === "activity") {
+    return "activity";
+  }
+
   if (screen === "appSettings") {
     return "settings";
   }
@@ -5367,6 +5542,10 @@ function preferredViewForScreen(screen: AppScreen) {
 function normalizeScreen(view: string | null | undefined): AppScreen {
   if (view === "settings") {
     return "appSettings";
+  }
+
+  if (view === "activity") {
+    return "activity";
   }
 
   if (view === "company_settings") {
@@ -5956,6 +6135,72 @@ function approvalLinksIssue(approval: ApprovalRecord, issueId: string) {
   return Array.isArray(sourceIssueIds)
     ? sourceIssueIds.some((value) => value === issueId)
     : false;
+}
+
+function buildActivityFeedItems(
+  approvals: ApprovalRecord[],
+  issues: IssueRecord[],
+  issueCommentsByIssueId: Record<string, IssueCommentRecord[]>
+) {
+  const approvalFeedItems: ActivityFeedItem[] = approvals
+    .filter((approval) => approval.status === "pending")
+    .map((approval) => ({
+      id: `approval-${approval.id}`,
+      timestamp: parseIssueDate(approval.updated_at) ?? new Date(0),
+      title: humanizeIssueValue(approval.approval_type ?? "approval"),
+      subtitle: `Pending approval · ${formatBoardDate(approval.updated_at)}`,
+      trailingLabel: approval.status ?? "pending",
+      target: { kind: "approval", approvalId: approval.id },
+    }));
+
+  const issueActivityFeedItems: ActivityFeedItem[] = issues.flatMap((issue) => {
+    const issueTitle = issue.identifier ?? issue.title;
+    const comments = issueCommentsByIssueId[issue.id] ?? [];
+    const commentItems: ActivityFeedItem[] = comments.map((comment) => ({
+      id: `comment-${comment.id}`,
+      timestamp: parseIssueDate(comment.created_at) ?? new Date(0),
+      title: issueTitle,
+      subtitle: `${formatBoardDate(comment.created_at)} · ${comment.body.trim() || "Comment added"}`,
+      trailingLabel: "comment",
+      target: { kind: "issue", issueId: issue.id },
+    }));
+
+    return [
+      ...commentItems,
+      {
+        id: `issue-update-${issue.id}`,
+        timestamp: parseIssueDate(issue.updated_at) ?? new Date(0),
+        title: issueTitle,
+        subtitle: `${formatBoardDate(issue.updated_at)} · ${issueActivitySummary(issue)}`,
+        trailingLabel: issue.status,
+        target: { kind: "issue", issueId: issue.id },
+      },
+    ];
+  });
+
+  return [...approvalFeedItems, ...issueActivityFeedItems]
+    .sort((left, right) => right.timestamp.getTime() - left.timestamp.getTime())
+    .slice(0, 50);
+}
+
+function issueActivitySummary(issue: IssueRecord) {
+  if (issue.completed_at) {
+    return "Issue completed";
+  }
+
+  if (issue.cancelled_at) {
+    return "Issue cancelled";
+  }
+
+  if (issue.started_at) {
+    return "Work started";
+  }
+
+  if (issue.workspace_session_id) {
+    return "Workspace attached";
+  }
+
+  return "Issue updated";
 }
 
 function buildTerminalTranscript(messages: SessionMessage[]) {
