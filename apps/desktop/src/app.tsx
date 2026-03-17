@@ -2,7 +2,10 @@ import { Terminal } from "@xterm/xterm";
 import {
   type FormEvent,
   type MouseEvent,
+  type PointerEvent,
+  type RefObject,
   type ReactNode,
+  type WheelEvent,
   startTransition,
   useDeferredValue,
   useEffect,
@@ -88,6 +91,7 @@ type AppScreen =
   | "approvals"
   | "projects"
   | "goals"
+  | "stats"
   | "activity"
   | "costs"
   | "companySettings"
@@ -117,6 +121,24 @@ interface CompanyContextMenuState {
   y: number;
 }
 
+interface DashboardCanvasOffset {
+  x: number;
+  y: number;
+}
+
+interface DashboardProjectColumn {
+  status: string;
+  issues: IssueRecord[];
+}
+
+interface DashboardProjectBoardLayout {
+  project: ProjectRecord;
+  columns: DashboardProjectColumn[];
+  left: number;
+  top: number;
+  issueCount: number;
+}
+
 interface IssueEditDraft {
   title: string;
   description: string;
@@ -134,7 +156,7 @@ const primaryBoardSections: Array<{ title: string; screens: AppScreen[] }> = [
 
 const companyBoardSection: { title: string; screens: AppScreen[] } = {
   title: "Company",
-  screens: ["activity", "costs", "companySettings"],
+  screens: ["stats", "activity", "costs", "companySettings"],
 };
 
 const settingsSections: Array<{ id: SettingsSection; label: string }> = [
@@ -167,6 +189,11 @@ const companyContextMenuItems: Array<{
   { icon: "workspaces", label: "Workspaces", screen: "workspaces" },
   { icon: "companySettings", label: "Settings", screen: "companySettings" },
 ];
+
+const defaultDashboardCanvasOffset: DashboardCanvasOffset = {
+  x: 96,
+  y: 88,
+};
 
 export function App() {
   const [bootstrap, setBootstrap] = useState<DesktopBootstrapStatus | null>(null);
@@ -236,10 +263,21 @@ export function App() {
   const [isWorking, setIsWorking] = useState(false);
   const [companyContextMenu, setCompanyContextMenu] =
     useState<CompanyContextMenuState | null>(null);
+  const [dashboardCanvasOffset, setDashboardCanvasOffset] =
+    useState<DashboardCanvasOffset>(defaultDashboardCanvasOffset);
+  const [isDashboardCanvasDragging, setIsDashboardCanvasDragging] = useState(false);
 
   const terminalContainerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const refreshTimeoutRef = useRef<number | null>(null);
+  const dashboardCanvasViewportRef = useRef<HTMLDivElement | null>(null);
+  const dashboardCanvasPanRef = useRef<{
+    pointerId: number;
+    originX: number;
+    originY: number;
+    startX: number;
+    startY: number;
+  } | null>(null);
 
   const deferredMessages = useDeferredValue(messages);
   const selectedRepository = repositories.find(
@@ -278,6 +316,14 @@ export function App() {
     : [];
   const boardGoals = companySnapshot?.goals ?? [];
   const boardProjects = companySnapshot?.projects ?? [];
+  const dashboardProjectBoards = useMemo(
+    () => buildDashboardProjectBoards(boardProjects, boardIssues),
+    [boardIssues, boardProjects]
+  );
+  const dashboardCanvasBounds = useMemo(
+    () => buildDashboardCanvasBounds(dashboardProjectBoards),
+    [dashboardProjectBoards]
+  );
   const selectedProject =
     boardProjects.find((project) => project.id === selectedProjectId) ??
     boardProjects[0] ??
@@ -339,6 +385,22 @@ export function App() {
     [boardIssues, selectedIssue?.id]
   );
   const layout = boardRootLayout(selectedScreen);
+  const clampDashboardOffset = (next: DashboardCanvasOffset) => {
+    const viewport = dashboardCanvasViewportRef.current;
+    if (!viewport) {
+      return next;
+    }
+
+    return clampDashboardCanvasOffset(
+      next,
+      viewport.clientWidth,
+      viewport.clientHeight,
+      dashboardCanvasBounds
+    );
+  };
+  const resetDashboardCanvasView = () => {
+    setDashboardCanvasOffset(clampDashboardOffset(defaultDashboardCanvasOffset));
+  };
 
   useEffect(() => {
     const terminal = new Terminal({
@@ -441,6 +503,16 @@ export function App() {
     document.documentElement.dataset.fontSizePreset =
       settings.font_size_preset ?? "medium";
   }, [settings.font_size_preset, settings.theme_mode]);
+
+  useEffect(() => {
+    setDashboardCanvasOffset(defaultDashboardCanvasOffset);
+    setIsDashboardCanvasDragging(false);
+    dashboardCanvasPanRef.current = null;
+  }, [selectedCompanyId]);
+
+  useEffect(() => {
+    setDashboardCanvasOffset((current) => clampDashboardOffset(current));
+  }, [dashboardCanvasBounds.height, dashboardCanvasBounds.width]);
 
   useEffect(() => {
     if (!companyContextMenu) {
@@ -971,6 +1043,72 @@ export function App() {
       x: nextX,
       y: nextY,
     });
+  };
+
+  const handleDashboardCanvasPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    const target = event.target as HTMLElement | null;
+    if (target?.closest("button, a, input, textarea, select, label")) {
+      return;
+    }
+
+    dashboardCanvasPanRef.current = {
+      pointerId: event.pointerId,
+      originX: dashboardCanvasOffset.x,
+      originY: dashboardCanvasOffset.y,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+    setIsDashboardCanvasDragging(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleDashboardCanvasPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const panState = dashboardCanvasPanRef.current;
+    if (!panState || panState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    setDashboardCanvasOffset(
+      clampDashboardOffset({
+        x: panState.originX + event.clientX - panState.startX,
+        y: panState.originY + event.clientY - panState.startY,
+      })
+    );
+  };
+
+  const handleDashboardCanvasPointerEnd = (event: PointerEvent<HTMLDivElement>) => {
+    if (dashboardCanvasPanRef.current?.pointerId !== event.pointerId) {
+      return;
+    }
+
+    dashboardCanvasPanRef.current = null;
+    setIsDashboardCanvasDragging(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const handleDashboardCanvasWheel = (event: WheelEvent<HTMLDivElement>) => {
+    if (!dashboardProjectBoards.length) {
+      return;
+    }
+
+    const target = event.target as HTMLElement | null;
+    if (target?.closest(".project-kanban-columns")) {
+      return;
+    }
+
+    event.preventDefault();
+    setDashboardCanvasOffset((current) =>
+      clampDashboardOffset({
+        x: current.x - event.deltaX,
+        y: current.y - event.deltaY,
+      })
+    );
   };
 
   const handleSelectBoardWorkspace = (workspace: WorkspaceRecord) => {
@@ -1778,105 +1916,36 @@ export function App() {
             {statusMessage ? <div className="status-banner">{statusMessage}</div> : null}
 
             {selectedScreen === "dashboard" ? (
-              <section className="route-scroll">
-                <div className="route-header">
-                  <span className="route-kicker">Dashboard</span>
-                  <h1>{selectedCompany?.name ?? "Unbound"}</h1>
-                  <p>
-                    {selectedCompany?.description ??
-                      "The Tauri shell now follows the same multi-column board flow as the Swift app."}
-                  </p>
-                </div>
+              <DashboardCanvasRouteView
+                agents={companySnapshot?.agents ?? []}
+                canvasBounds={dashboardCanvasBounds}
+                canvasOffset={dashboardCanvasOffset}
+                company={selectedCompany}
+                isDragging={isDashboardCanvasDragging}
+                issues={boardIssues}
+                onCreateProject={handleOpenCreateProjectDialog}
+                onOpenIssue={(issueId) => void handleSelectIssue(issueId)}
+                onPointerCancel={handleDashboardCanvasPointerEnd}
+                onPointerDown={handleDashboardCanvasPointerDown}
+                onPointerMove={handleDashboardCanvasPointerMove}
+                onPointerUp={handleDashboardCanvasPointerEnd}
+                onResetView={resetDashboardCanvasView}
+                projectBoards={dashboardProjectBoards}
+                viewportRef={dashboardCanvasViewportRef}
+                onWheel={handleDashboardCanvasWheel}
+              />
+            ) : null}
 
-                <div className="metric-grid">
-                  <MetricCard label="Issues" value={companySnapshot?.issues.length ?? 0} />
-                  <MetricCard label="Projects" value={companySnapshot?.projects.length ?? 0} />
-                  <MetricCard label="Agents" value={companySnapshot?.agents.length ?? 0} />
-                  <MetricCard label="Approvals" value={companySnapshot?.approvals.length ?? 0} />
-                  <MetricCard label="Workspaces" value={companySnapshot?.workspaces.length ?? 0} />
-                  <MetricCard label="Repositories" value={repositories.length} />
-                </div>
-
-                <div className="surface-grid">
-                  <section className="surface-panel wide">
-                    <div className="surface-header">
-                      <h3>Production boundary preserved</h3>
-                      <button className="secondary-button" onClick={() => void loadDependencies()} type="button">
-                        Check dependencies
-                      </button>
-                    </div>
-                    <p>
-                      `unbound-daemon` stays separately installed and version-checked.
-                      The desktop app only connects over the existing local socket boundary.
-                    </p>
-                    <div className="summary-grid">
-                      <SummaryPill label="Daemon" value={bootstrap.daemon_info?.daemon_version ?? "unknown"} />
-                      <SummaryPill label="Protocol" value={bootstrap.daemon_info?.protocol_version ?? "unknown"} />
-                      <SummaryPill label="App" value={bootstrap.expected_app_version} />
-                    </div>
-                    {dependencyCheck ? <pre>{JSON.stringify(dependencyCheck, null, 2)}</pre> : null}
-                  </section>
-
-                  <section className="surface-panel">
-                    <h3>Projects</h3>
-                    {(companySnapshot?.projects ?? []).length ? (
-                      <div className="surface-list">
-                        {(companySnapshot?.projects ?? []).slice(0, 5).map((project) => (
-                          <div className="surface-list-row" key={project.id}>
-                            <strong>{project.name ?? project.title ?? "Untitled project"}</strong>
-                            <span>
-                              {project.primary_workspace?.cwd ??
-                                project.status ??
-                                "Missing repo path"}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="surface-empty-copy">
-                        Projects define the main repo path for workspaces.
-                      </p>
-                    )}
-                  </section>
-
-                  <section className="surface-panel">
-                    <h3>Agents</h3>
-                    <div className="surface-list">
-                      {(companySnapshot?.agents ?? []).map((agent) => (
-                        <div className="surface-list-row" key={agent.id}>
-                          <strong>{agent.name}</strong>
-                          <span>{agent.title ?? agent.role ?? "Agent"}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-
-                  <section className="surface-panel">
-                    <h3>Active Workspaces</h3>
-                    <div className="surface-list">
-                      {(companySnapshot?.workspaces ?? []).map((workspace) => (
-                        <button
-                          className="file-list-button"
-                          key={workspace.id}
-                          onClick={() => handleSelectBoardWorkspace(workspace)}
-                          type="button"
-                        >
-                          <strong>{workspace.issue_identifier ?? workspace.title}</strong>
-                          <span>
-                            {[
-                              workspace.issue_title,
-                              workspace.project_name,
-                              workspace.agent_name,
-                            ]
-                              .filter(Boolean)
-                              .join(" · ") || workspace.workspace_status || "workspace"}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </section>
-                </div>
-              </section>
+            {selectedScreen === "stats" ? (
+              <StatsRouteView
+                bootstrap={bootstrap}
+                company={selectedCompany}
+                dependencyCheck={dependencyCheck}
+                onCheckDependencies={() => void loadDependencies()}
+                onOpenWorkspace={handleSelectBoardWorkspace}
+                repositoriesCount={repositories.length}
+                snapshot={companySnapshot}
+              />
             ) : null}
 
             {selectedScreen === "inbox" ? (
@@ -2655,6 +2724,7 @@ export function App() {
                           value={preferredViewSelectValue(settings.preferred_view)}
                         >
                           <option value="dashboard">Dashboard</option>
+                          <option value="stats">Stats</option>
                           <option value="workspaces">Workspaces</option>
                           <option value="settings">Settings</option>
                         </select>
@@ -2842,6 +2912,322 @@ function SidebarLinkButton({
       <span className="sidebar-link-icon">+</span>
       <span>{label}</span>
     </button>
+  );
+}
+
+function DashboardCanvasRouteView({
+  agents,
+  canvasBounds,
+  canvasOffset,
+  company,
+  isDragging,
+  issues,
+  onCreateProject,
+  onOpenIssue,
+  onPointerCancel,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  onResetView,
+  onWheel,
+  projectBoards,
+  viewportRef,
+}: {
+  agents: AgentRecord[];
+  canvasBounds: { height: number; width: number };
+  canvasOffset: DashboardCanvasOffset;
+  company: Company | null;
+  isDragging: boolean;
+  issues: IssueRecord[];
+  onCreateProject: () => void;
+  onOpenIssue: (issueId: string) => void;
+  onPointerCancel: (event: PointerEvent<HTMLDivElement>) => void;
+  onPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
+  onPointerMove: (event: PointerEvent<HTMLDivElement>) => void;
+  onPointerUp: (event: PointerEvent<HTMLDivElement>) => void;
+  onResetView: () => void;
+  onWheel: (event: WheelEvent<HTMLDivElement>) => void;
+  projectBoards: DashboardProjectBoardLayout[];
+  viewportRef: RefObject<HTMLDivElement | null>;
+}) {
+  return (
+    <section className="dashboard-canvas-route">
+      <div className="dashboard-canvas-toolbar">
+        <div className="dashboard-canvas-toolbar-copy">
+          <span className="route-kicker">Dashboard</span>
+          <h1>{company?.name ?? "Project boards"}</h1>
+          <p>
+            Pan across the company canvas to see every project board and the issues
+            queued inside it.
+          </p>
+        </div>
+        <div className="dashboard-canvas-toolbar-actions">
+          <SummaryPill label="Projects" value={projectBoards.length} />
+          <SummaryPill label="Issues" value={issues.length} />
+          <button className="secondary-button" onClick={onResetView} type="button">
+            Reset view
+          </button>
+          <button className="primary-button" onClick={onCreateProject} type="button">
+            Create project
+          </button>
+        </div>
+      </div>
+
+      {projectBoards.length ? (
+        <div
+          className={
+            isDragging
+              ? "dashboard-canvas-viewport is-dragging"
+              : "dashboard-canvas-viewport"
+          }
+          onPointerCancel={onPointerCancel}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onWheel={onWheel}
+          ref={viewportRef}
+        >
+          <div className="dashboard-canvas-grid" />
+          <div
+            className="dashboard-canvas-stage"
+            style={{
+              height: canvasBounds.height,
+              transform: `translate(${canvasOffset.x}px, ${canvasOffset.y}px)`,
+              width: canvasBounds.width,
+            }}
+          >
+            {projectBoards.map((projectBoard) => (
+              <article
+                className="project-kanban-board"
+                key={projectBoard.project.id}
+                style={{
+                  left: projectBoard.left,
+                  top: projectBoard.top,
+                }}
+              >
+                <div className="project-kanban-board-header">
+                  <div>
+                    <span className="project-kanban-board-kicker">
+                      {humanizeIssueValue(projectBoard.project.status ?? "planned")}
+                    </span>
+                    <h2>
+                      {projectBoard.project.name ??
+                        projectBoard.project.title ??
+                        "Untitled project"}
+                    </h2>
+                    <p>
+                      {projectBoard.project.primary_workspace?.cwd ??
+                        "Choose a repository to anchor this project."}
+                    </p>
+                  </div>
+                  <div className="project-kanban-board-meta">
+                    <span>{projectBoard.issueCount} issues</span>
+                    <span>
+                      {projectBoard.project.target_date
+                        ? `Target ${formatShortDate(projectBoard.project.target_date)}`
+                        : "No target date"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="project-kanban-columns">
+                  {projectBoard.columns.map((column) => (
+                    <section className="project-kanban-column" key={column.status}>
+                      <div className="project-kanban-column-header">
+                        <span>{humanizeIssueValue(column.status)}</span>
+                        <strong>{column.issues.length}</strong>
+                      </div>
+
+                      {column.issues.length ? (
+                        <div className="project-kanban-cards">
+                          {column.issues.map((issue) => (
+                            <button
+                              className="project-kanban-card"
+                              data-priority={normalizeBoardIssueValue(issue.priority)}
+                              key={issue.id}
+                              onClick={() => onOpenIssue(issue.id)}
+                              type="button"
+                            >
+                              <strong>{issue.identifier ?? issue.title}</strong>
+                              <p>{issue.title}</p>
+                              <div className="project-kanban-card-meta">
+                                <span>{humanizeIssueValue(issue.priority)}</span>
+                                <span>
+                                  {issueAssigneeLabel(agents, issue.assignee_agent_id)}
+                                </span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="project-kanban-column-empty">No issues</div>
+                      )}
+                    </section>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="dashboard-canvas-empty-wrap">
+          <div className="dashboard-canvas-empty-card">
+            <div className="dashboard-canvas-empty-icon" aria-hidden="true">
+              <svg fill="none" viewBox="0 0 48 48">
+                <path
+                  d="M10 13.5h28A3.5 3.5 0 0 1 41.5 17v18A3.5 3.5 0 0 1 38 38.5H10A3.5 3.5 0 0 1 6.5 35V17A3.5 3.5 0 0 1 10 13.5Z"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                />
+                <path
+                  d="M16 24h16M24 16v16"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeWidth="2.4"
+                />
+              </svg>
+            </div>
+            <div className="dashboard-canvas-empty-copy">
+              <span className="dashboard-canvas-empty-badge">Projects required</span>
+              <h2>Create a project first</h2>
+              <p>
+                Each project gets its own kanban board on this canvas. Add a project
+                with a repository anchor to start laying out your board.
+              </p>
+            </div>
+            <button className="primary-button" onClick={onCreateProject} type="button">
+              Create project
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function StatsRouteView({
+  bootstrap,
+  company,
+  dependencyCheck,
+  onCheckDependencies,
+  onOpenWorkspace,
+  repositoriesCount,
+  snapshot,
+}: {
+  bootstrap: DesktopBootstrapStatus;
+  company: Company | null;
+  dependencyCheck: Record<string, unknown> | null;
+  onCheckDependencies: () => void;
+  onOpenWorkspace: (workspace: WorkspaceRecord) => void;
+  repositoriesCount: number;
+  snapshot: CompanySnapshot | null;
+}) {
+  return (
+    <section className="route-scroll">
+      <div className="route-header">
+        <span className="route-kicker">Stats</span>
+        <h1>{company?.name ?? "Unbound"}</h1>
+        <p>
+          {company?.description ??
+            "A quick board snapshot across issues, agents, approvals, projects, and active work."}
+        </p>
+      </div>
+
+      <div className="metric-grid">
+        <MetricCard label="Issues" value={snapshot?.issues.length ?? 0} />
+        <MetricCard label="Projects" value={snapshot?.projects.length ?? 0} />
+        <MetricCard label="Agents" value={snapshot?.agents.length ?? 0} />
+        <MetricCard label="Approvals" value={snapshot?.approvals.length ?? 0} />
+        <MetricCard label="Workspaces" value={snapshot?.workspaces.length ?? 0} />
+        <MetricCard label="Repositories" value={repositoriesCount} />
+      </div>
+
+      <div className="surface-grid">
+        <section className="surface-panel wide">
+          <div className="surface-header">
+            <h3>Production boundary preserved</h3>
+            <button className="secondary-button" onClick={onCheckDependencies} type="button">
+              Check dependencies
+            </button>
+          </div>
+          <p>
+            `unbound-daemon` stays separately installed and version-checked. The
+            desktop app only connects over the existing local socket boundary.
+          </p>
+          <div className="summary-grid">
+            <SummaryPill
+              label="Daemon"
+              value={bootstrap.daemon_info?.daemon_version ?? "unknown"}
+            />
+            <SummaryPill
+              label="Protocol"
+              value={bootstrap.daemon_info?.protocol_version ?? "unknown"}
+            />
+            <SummaryPill label="App" value={bootstrap.expected_app_version} />
+          </div>
+          {dependencyCheck ? <pre>{JSON.stringify(dependencyCheck, null, 2)}</pre> : null}
+        </section>
+
+        <section className="surface-panel">
+          <h3>Projects</h3>
+          {(snapshot?.projects ?? []).length ? (
+            <div className="surface-list">
+              {(snapshot?.projects ?? []).slice(0, 5).map((project) => (
+                <div className="surface-list-row" key={project.id}>
+                  <strong>{project.name ?? project.title ?? "Untitled project"}</strong>
+                  <span>
+                    {project.primary_workspace?.cwd ??
+                      project.status ??
+                      "Missing repo path"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="surface-empty-copy">
+              Projects define the main repo path for workspaces.
+            </p>
+          )}
+        </section>
+
+        <section className="surface-panel">
+          <h3>Agents</h3>
+          <div className="surface-list">
+            {(snapshot?.agents ?? []).map((agent) => (
+              <div className="surface-list-row" key={agent.id}>
+                <strong>{agent.name}</strong>
+                <span>{agent.title ?? agent.role ?? "Agent"}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="surface-panel">
+          <h3>Active Workspaces</h3>
+          <div className="surface-list">
+            {(snapshot?.workspaces ?? []).map((workspace) => (
+              <button
+                className="file-list-button"
+                key={workspace.id}
+                onClick={() => onOpenWorkspace(workspace)}
+                type="button"
+              >
+                <strong>{workspace.issue_identifier ?? workspace.title}</strong>
+                <span>
+                  {[
+                    workspace.issue_title,
+                    workspace.project_name,
+                    workspace.agent_name,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || workspace.workspace_status || "workspace"}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      </div>
+    </section>
   );
 }
 
@@ -4291,6 +4677,8 @@ function screenLabel(screen: AppScreen) {
   switch (screen) {
     case "dashboard":
       return "Dashboard";
+    case "stats":
+      return "Stats";
     case "inbox":
       return "Inbox";
     case "workspaces":
@@ -4340,6 +4728,10 @@ function preferredViewForScreen(screen: AppScreen) {
     return "company_settings";
   }
 
+  if (screen === "stats") {
+    return "stats";
+  }
+
   return "dashboard";
 }
 
@@ -4352,6 +4744,10 @@ function normalizeScreen(view: string | null | undefined): AppScreen {
     return "companySettings";
   }
 
+  if (view === "stats") {
+    return "stats";
+  }
+
   if (view === "workspace" || view === "workspaces") {
     return "workspaces";
   }
@@ -4362,6 +4758,10 @@ function normalizeScreen(view: string | null | undefined): AppScreen {
 function preferredViewSelectValue(view: string | null | undefined) {
   if (view === "settings") {
     return "settings";
+  }
+
+  if (view === "stats") {
+    return "stats";
   }
 
   if (view === "workspace" || view === "workspaces") {
@@ -4488,6 +4888,91 @@ function mergeIssueOptions(defaults: string[], selected: string) {
   return options;
 }
 
+function normalizeBoardIssueValue(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return "backlog";
+  }
+
+  return trimmed.toLowerCase().replaceAll(" ", "_");
+}
+
+function projectBoardColumnStatuses(issues: IssueRecord[]) {
+  const statuses = ["backlog", "in_progress", "blocked", "done"];
+  for (const issue of issues) {
+    const normalizedStatus = normalizeBoardIssueValue(issue.status);
+    if (!statuses.includes(normalizedStatus)) {
+      statuses.push(normalizedStatus);
+    }
+  }
+  return statuses;
+}
+
+function buildDashboardProjectBoards(
+  projects: ProjectRecord[],
+  issues: IssueRecord[]
+): DashboardProjectBoardLayout[] {
+  const boardWidth = 760;
+  const boardHeight = 540;
+  const columnCount = projects.length <= 1 ? 1 : 2;
+
+  return projects.map((project, index) => {
+    const col = index % columnCount;
+    const row = Math.floor(index / columnCount);
+    const projectIssues = issues.filter((issue) => issue.project_id === project.id);
+    const columns = projectBoardColumnStatuses(projectIssues).map((status) => ({
+      status,
+      issues: projectIssues.filter(
+        (issue) => normalizeBoardIssueValue(issue.status) === status
+      ),
+    }));
+
+    return {
+      project,
+      columns,
+      issueCount: projectIssues.length,
+      left: 120 + col * (boardWidth + 44),
+      top: 104 + row * (boardHeight + 44) + (col === 1 ? 42 : 0),
+    };
+  });
+}
+
+function buildDashboardCanvasBounds(projectBoards: DashboardProjectBoardLayout[]) {
+  if (!projectBoards.length) {
+    return { width: 2200, height: 1600 };
+  }
+
+  const boardWidth = 760;
+  const boardHeight = 540;
+  const maxRight = Math.max(...projectBoards.map((board) => board.left + boardWidth));
+  const maxBottom = Math.max(...projectBoards.map((board) => board.top + boardHeight));
+
+  return {
+    width: Math.max(maxRight + 160, 2200),
+    height: Math.max(maxBottom + 180, 1600),
+  };
+}
+
+function clampDashboardCanvasOffset(
+  next: DashboardCanvasOffset,
+  viewportWidth: number,
+  viewportHeight: number,
+  canvasBounds: { height: number; width: number }
+) {
+  const edgePadding = 120;
+  const minX = Math.min(edgePadding, viewportWidth - canvasBounds.width + edgePadding);
+  const minY = Math.min(edgePadding, viewportHeight - canvasBounds.height + edgePadding);
+
+  return {
+    x: clampNumber(next.x, minX, edgePadding),
+    y: clampNumber(next.y, minY, edgePadding),
+  };
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
 function humanizeIssueValue(value: string) {
   return value.replaceAll("_", " ").replace(/\b\w/g, (match) => match.toUpperCase());
 }
@@ -4566,6 +5051,22 @@ function formatTimestamp(value: string | null | undefined) {
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
+  }).format(date);
+}
+
+function formatShortDate(value: string | null | undefined) {
+  if (!value) {
+    return "n/a";
+  }
+
+  const date = parseIssueDate(value);
+  if (!date) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
   }).format(date);
 }
 

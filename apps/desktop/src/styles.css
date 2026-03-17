@@ -684,6 +684,322 @@ p {
   font-size: 24px;
 }
 
+.dashboard-canvas-route {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.1), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(245, 158, 11, 0.08), transparent 32%),
+    #0d0d0f;
+}
+
+.dashboard-canvas-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 28px 32px 24px;
+  border-bottom: 1px solid #1a1a1d;
+}
+
+.dashboard-canvas-toolbar-copy {
+  display: grid;
+  gap: 10px;
+  max-width: 720px;
+}
+
+.dashboard-canvas-toolbar-copy h1 {
+  margin: 0;
+  font-size: 32px;
+  letter-spacing: -0.04em;
+}
+
+.dashboard-canvas-toolbar-copy p {
+  margin: 0;
+  color: #8a8a8a;
+}
+
+.dashboard-canvas-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.dashboard-canvas-toolbar-actions .summary-pill {
+  min-width: 116px;
+}
+
+.dashboard-canvas-viewport {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+
+.dashboard-canvas-viewport.is-dragging {
+  cursor: grabbing;
+}
+
+.dashboard-canvas-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-position: center;
+  background-size: 40px 40px;
+  mask-image: radial-gradient(circle at center, black 55%, transparent 100%);
+  pointer-events: none;
+}
+
+.dashboard-canvas-stage {
+  position: absolute;
+  inset: 0 auto auto 0;
+  transform-origin: top left;
+  will-change: transform;
+}
+
+.dashboard-canvas-empty-wrap {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+}
+
+.dashboard-canvas-empty-card {
+  width: min(520px, 100%);
+  display: grid;
+  justify-items: center;
+  gap: 20px;
+  padding: 32px;
+  border: 1px solid #27272a;
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, rgba(24, 24, 27, 0.96), rgba(10, 10, 12, 0.98));
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.36);
+  text-align: center;
+}
+
+.dashboard-canvas-empty-icon {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #303036;
+  border-radius: 20px;
+  background: #141418;
+  color: #f59e0b;
+}
+
+.dashboard-canvas-empty-icon svg {
+  width: 30px;
+  height: 30px;
+}
+
+.dashboard-canvas-empty-copy {
+  display: grid;
+  gap: 10px;
+}
+
+.dashboard-canvas-empty-badge {
+  justify-self: center;
+  padding: 6px 10px;
+  border: 1px solid #2c2c31;
+  border-radius: 999px;
+  background: #17171b;
+  color: #a1a1aa;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dashboard-canvas-empty-copy h2 {
+  margin: 0;
+  color: #fafafa;
+  font-size: 28px;
+  letter-spacing: -0.05em;
+}
+
+.dashboard-canvas-empty-copy p,
+.surface-empty-copy {
+  margin: 0;
+  color: #8a8a8a;
+  line-height: 1.6;
+}
+
+.project-kanban-board {
+  position: absolute;
+  width: 760px;
+  height: 540px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid #27272a;
+  border-radius: 26px;
+  background:
+    linear-gradient(180deg, rgba(20, 20, 24, 0.96), rgba(11, 11, 14, 0.96));
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.34);
+}
+
+.project-kanban-board-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.project-kanban-board-header h2 {
+  margin: 6px 0 8px;
+  color: #fafafa;
+  font-size: 22px;
+  letter-spacing: -0.04em;
+}
+
+.project-kanban-board-header p,
+.project-kanban-board-meta {
+  margin: 0;
+  color: #8a8a8a;
+  font-size: 12px;
+}
+
+.project-kanban-board-kicker {
+  display: inline-flex;
+  padding: 5px 9px;
+  border: 1px solid #2d2d32;
+  border-radius: 999px;
+  background: #17171b;
+  color: #d4d4d8;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.project-kanban-board-meta {
+  display: grid;
+  gap: 6px;
+  text-align: right;
+}
+
+.project-kanban-columns {
+  flex: 1;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(170px, 1fr);
+  gap: 14px;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: 4px;
+}
+
+.project-kanban-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  padding: 12px;
+  border: 1px solid #1f1f23;
+  border-radius: 18px;
+  background: rgba(10, 10, 12, 0.92);
+}
+
+.project-kanban-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #d4d4d8;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.project-kanban-column-header strong {
+  color: #8a8a8a;
+  font-size: 11px;
+}
+
+.project-kanban-cards {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 10px;
+  overflow: auto;
+}
+
+.project-kanban-card {
+  width: 100%;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #242428;
+  border-radius: 16px;
+  background: #141418;
+  color: #f5f5f5;
+  text-align: left;
+  transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease;
+}
+
+.project-kanban-card:hover {
+  transform: translateY(-1px);
+  border-color: #34343a;
+  background: #17171d;
+}
+
+.project-kanban-card strong {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.project-kanban-card p {
+  margin: 0;
+  color: #d4d4d8;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.project-kanban-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #8a8a8a;
+  font-size: 11px;
+}
+
+.project-kanban-card[data-priority="urgent"] {
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+.project-kanban-card[data-priority="high"] {
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.project-kanban-card[data-priority="low"] {
+  border-color: rgba(59, 130, 246, 0.34);
+}
+
+.project-kanban-column-empty {
+  display: grid;
+  place-items: center;
+  flex: 1;
+  min-height: 120px;
+  border: 1px dashed #242428;
+  border-radius: 14px;
+  color: #666670;
+  font-size: 12px;
+}
+
 .metric-grid,
 .surface-grid,
 .settings-surface-grid {
@@ -2311,6 +2627,14 @@ p {
 }
 
 @media (max-width: 1440px) {
+  .dashboard-canvas-toolbar {
+    flex-direction: column;
+  }
+
+  .dashboard-canvas-toolbar-actions {
+    justify-content: flex-start;
+  }
+
   .workspace-inspector {
     width: 340px;
   }
