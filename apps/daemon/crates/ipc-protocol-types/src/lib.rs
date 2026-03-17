@@ -71,6 +71,8 @@ pub enum Method {
     AgentCreate,
     #[serde(rename = "agent_hire.create")]
     AgentHireCreate,
+    #[serde(rename = "agent.update")]
+    AgentUpdate,
     #[serde(rename = "agent.get")]
     AgentGet,
 

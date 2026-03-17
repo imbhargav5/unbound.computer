@@ -3,7 +3,7 @@ use crate::models::{
     AddIssueCommentInput, Agent, AgentRun, AgentRunEvent, Approval, ApprovalDecisionInput, Company,
     CreateAgentHireInput, CreateAgentInput, CreateCompanyInput, CreateIssueInput,
     CreateProjectInput, Goal, Issue, IssueComment, IssueListFilter, Project, ProjectWorkspace,
-    UpdateIssueInput, Workspace,
+    UpdateAgentInput, UpdateIssueInput, Workspace,
 };
 use agent_session_sqlite_persist_core::{NewSession, RepositoryId, SessionWriter};
 use chrono::Utc;
@@ -224,19 +224,144 @@ pub async fn get_agent(db: &AsyncDatabase, agent_id: &str) -> BoardResult<Option
     let agent_id = agent_id.to_string();
     Ok(db
         .call_with_operation("board.agent.get", move |conn| {
-            conn.query_row(
-                "SELECT
-                    id, company_id, name, slug, role, title, icon, status, reports_to, capabilities,
-                    adapter_type, adapter_config, runtime_config, budget_monthly_cents,
-                    spent_monthly_cents, permissions, last_heartbeat_at, metadata,
-                    home_path, instructions_path, created_at, updated_at
-                 FROM agents
-                 WHERE id = ?1",
-                params![agent_id],
-                row_to_agent,
-            )
-            .optional()
-            .map_err(Into::into)
+            get_agent_sync(conn, &agent_id).map_err(Into::into)
+        })
+        .await?)
+}
+
+pub async fn update_agent(db: &AsyncDatabase, input: UpdateAgentInput) -> BoardResult<Agent> {
+    let agent_id = require_name(&input.agent_id, "agent_id")?;
+    let name = match input.name {
+        Some(value) => Some(require_name(&value, "agent name")?),
+        None => None,
+    };
+    let title = normalize_optional_update(input.title);
+    let capabilities = normalize_optional_update(input.capabilities);
+    let adapter_type = input.adapter_type.map(|value| value.trim().to_string());
+    let adapter_config = input.adapter_config;
+    let runtime_config = input.runtime_config;
+    let budget_monthly_cents = input.budget_monthly_cents.map(|value| value.max(0));
+    let permissions = input.permissions;
+    let metadata = input.metadata;
+    let home_path = normalize_optional_update(input.home_path);
+    let instructions_path = normalize_optional_update(input.instructions_path);
+    let now = now_rfc3339();
+
+    Ok(db
+        .call_with_operation("board.agent.update", move |conn| {
+            let tx = conn.unchecked_transaction()?;
+            let current = get_agent_sync(&tx, &agent_id)?
+                .ok_or_else(|| DatabaseError::NotFound("Agent not found".to_string()))?;
+
+            let next_name = name.unwrap_or_else(|| current.name.clone());
+            let next_title = title.unwrap_or_else(|| current.title.clone());
+            let next_capabilities = capabilities.unwrap_or_else(|| current.capabilities.clone());
+            let next_adapter_type = adapter_type
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| current.adapter_type.clone());
+            let next_adapter_config =
+                adapter_config.unwrap_or_else(|| current.adapter_config.clone());
+            let next_runtime_config =
+                runtime_config.unwrap_or_else(|| current.runtime_config.clone());
+            let next_budget_monthly_cents =
+                budget_monthly_cents.unwrap_or(current.budget_monthly_cents);
+            let next_permissions = permissions.unwrap_or_else(|| current.permissions.clone());
+            let next_metadata = metadata.unwrap_or_else(|| current.metadata.clone());
+            let next_home_path = home_path.unwrap_or_else(|| current.home_path.clone());
+            let next_instructions_path =
+                instructions_path.unwrap_or_else(|| current.instructions_path.clone());
+
+            let mut changed_fields = Vec::new();
+            if next_name != current.name {
+                changed_fields.push("name");
+            }
+            if next_title != current.title {
+                changed_fields.push("title");
+            }
+            if next_capabilities != current.capabilities {
+                changed_fields.push("capabilities");
+            }
+            if next_adapter_type != current.adapter_type {
+                changed_fields.push("adapter_type");
+            }
+            if next_adapter_config != current.adapter_config {
+                changed_fields.push("adapter_config");
+            }
+            if next_runtime_config != current.runtime_config {
+                changed_fields.push("runtime_config");
+            }
+            if next_budget_monthly_cents != current.budget_monthly_cents {
+                changed_fields.push("budget_monthly_cents");
+            }
+            if next_permissions != current.permissions {
+                changed_fields.push("permissions");
+            }
+            if next_metadata != current.metadata {
+                changed_fields.push("metadata");
+            }
+            if next_home_path != current.home_path {
+                changed_fields.push("home_path");
+            }
+            if next_instructions_path != current.instructions_path {
+                changed_fields.push("instructions_path");
+            }
+
+            if changed_fields.is_empty() {
+                return Ok(current);
+            }
+
+            tx.execute(
+                "UPDATE agents
+                 SET name = ?1,
+                     title = ?2,
+                     capabilities = ?3,
+                     adapter_type = ?4,
+                     adapter_config = ?5,
+                     runtime_config = ?6,
+                     budget_monthly_cents = ?7,
+                     permissions = ?8,
+                     metadata = ?9,
+                     home_path = ?10,
+                     instructions_path = ?11,
+                     updated_at = ?12
+                 WHERE id = ?13",
+                params![
+                    next_name,
+                    next_title,
+                    next_capabilities,
+                    next_adapter_type,
+                    next_adapter_config.to_string(),
+                    next_runtime_config.to_string(),
+                    next_budget_monthly_cents,
+                    next_permissions.to_string(),
+                    next_metadata.as_ref().map(Value::to_string),
+                    next_home_path,
+                    next_instructions_path,
+                    now,
+                    agent_id,
+                ],
+            )?;
+
+            insert_activity_sync(
+                &tx,
+                &current.company_id,
+                "user",
+                LOCAL_BOARD_USER_ID,
+                "agent.updated",
+                "agent",
+                &current.id,
+                Some(&current.id),
+                Some(json!({
+                    "changed_fields": changed_fields,
+                })),
+                &now,
+            )?;
+
+            let agent = get_agent_sync(&tx, &current.id)?
+                .ok_or_else(|| DatabaseError::NotFound("Agent missing after update".to_string()))?;
+
+            tx.commit()?;
+            Ok(agent)
         })
         .await?)
 }
@@ -1967,6 +2092,21 @@ fn row_to_company(row: &Row<'_>) -> rusqlite::Result<Company> {
     })
 }
 
+fn get_agent_sync(conn: &Connection, agent_id: &str) -> rusqlite::Result<Option<Agent>> {
+    conn.query_row(
+        "SELECT
+            id, company_id, name, slug, role, title, icon, status, reports_to, capabilities,
+            adapter_type, adapter_config, runtime_config, budget_monthly_cents,
+            spent_monthly_cents, permissions, last_heartbeat_at, metadata,
+            home_path, instructions_path, created_at, updated_at
+         FROM agents
+         WHERE id = ?1",
+        params![agent_id],
+        row_to_agent,
+    )
+    .optional()
+}
+
 fn row_to_agent(row: &Row<'_>) -> rusqlite::Result<Agent> {
     Ok(Agent {
         id: row.get(0)?,
@@ -2903,6 +3043,109 @@ mod tests {
         assert!(
             Path::new(agent.instructions_path.as_ref().unwrap()).exists(),
             "Non-CEO agents should keep the existing scaffolded local files"
+        );
+    }
+
+    #[tokio::test]
+    async fn update_agent_persists_configuration_changes() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let agent = create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "Operator".to_string(),
+                role: Some("general".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let updated = update_agent(
+            &db,
+            UpdateAgentInput {
+                agent_id: agent.id.clone(),
+                name: Some("CEO".to_string()),
+                title: Some(Some("Chief Executive Officer".to_string())),
+                capabilities: Some(Some("Own strategy".to_string())),
+                adapter_type: Some("process".to_string()),
+                adapter_config: Some(json!({
+                    "command": "claude",
+                    "model": "default",
+                    "thinkingEffort": "auto",
+                    "extraArgs": ["--verbose"],
+                })),
+                runtime_config: Some(json!({
+                    "maxTurns": 80,
+                    "heartbeat": {
+                        "enabled": true,
+                        "intervalSec": 3600,
+                        "wakeOnDemand": true,
+                        "cooldownSec": 15,
+                        "maxConcurrentRuns": 1
+                    }
+                })),
+                permissions: Some(json!({
+                    "canCreateAgents": true,
+                })),
+                metadata: Some(Some(json!({
+                    "promptTemplate": "You are {{ agent.name }}.",
+                }))),
+                home_path: Some(Some("/tmp/ceo".to_string())),
+                instructions_path: Some(Some("/tmp/ceo/AGENTS.md".to_string())),
+                ..UpdateAgentInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(updated.name, "CEO");
+        assert_eq!(updated.title.as_deref(), Some("Chief Executive Officer"));
+        assert_eq!(updated.capabilities.as_deref(), Some("Own strategy"));
+        assert_eq!(updated.home_path.as_deref(), Some("/tmp/ceo"));
+        assert_eq!(
+            updated.instructions_path.as_deref(),
+            Some("/tmp/ceo/AGENTS.md")
+        );
+        assert_eq!(
+            updated
+                .metadata
+                .as_ref()
+                .and_then(|value| value.get("promptTemplate"))
+                .and_then(Value::as_str),
+            Some("You are {{ agent.name }}.")
+        );
+        assert_eq!(
+            updated
+                .runtime_config
+                .get("heartbeat")
+                .and_then(|value| value.get("intervalSec"))
+                .and_then(Value::as_i64),
+            Some(3600)
+        );
+        assert_eq!(
+            updated
+                .permissions
+                .get("canCreateAgents")
+                .and_then(Value::as_bool),
+            Some(true)
         );
     }
 

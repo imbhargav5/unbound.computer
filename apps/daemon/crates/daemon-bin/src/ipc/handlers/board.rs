@@ -5,7 +5,7 @@ use daemon_board::service;
 use daemon_board::{
     AddIssueCommentInput, ApprovalDecisionInput, BoardError, CreateAgentHireInput,
     CreateAgentInput, CreateCompanyInput, CreateIssueInput, CreateProjectInput, Issue,
-    IssueListFilter, UpdateIssueInput,
+    IssueListFilter, UpdateAgentInput, UpdateIssueInput,
 };
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use serde::de::DeserializeOwned;
@@ -161,6 +161,23 @@ async fn register_agent_handlers(server: &IpcServer, state: DaemonState) {
                     Err(response) => return response,
                 };
                 match service::create_agent(&db, &paths, input).await {
+                    Ok(agent) => json_response(&req.id, &serde_json::json!({ "agent": agent })),
+                    Err(error) => board_error_response(&req.id, error),
+                }
+            }
+        })
+        .await;
+
+    let update_db = state.db.clone();
+    server
+        .register_handler(Method::AgentUpdate, move |req| {
+            let db = update_db.clone();
+            async move {
+                let input = match parse_params::<UpdateAgentInput>(&req.id, req.params.as_ref()) {
+                    Ok(input) => input,
+                    Err(response) => return response,
+                };
+                match service::update_agent(&db, input).await {
                     Ok(agent) => json_response(&req.id, &serde_json::json!({ "agent": agent })),
                     Err(error) => board_error_response(&req.id, error),
                 }

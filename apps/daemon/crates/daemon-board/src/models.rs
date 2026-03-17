@@ -258,6 +258,22 @@ pub struct CreateAgentInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct UpdateAgentInput {
+    pub agent_id: String,
+    pub name: Option<String>,
+    pub title: Option<Option<String>>,
+    pub capabilities: Option<Option<String>>,
+    pub adapter_type: Option<String>,
+    pub adapter_config: Option<serde_json::Value>,
+    pub runtime_config: Option<serde_json::Value>,
+    pub budget_monthly_cents: Option<i64>,
+    pub permissions: Option<serde_json::Value>,
+    pub metadata: Option<Option<serde_json::Value>>,
+    pub home_path: Option<Option<String>>,
+    pub instructions_path: Option<Option<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CreateAgentHireInput {
     pub company_id: String,
     pub name: String,

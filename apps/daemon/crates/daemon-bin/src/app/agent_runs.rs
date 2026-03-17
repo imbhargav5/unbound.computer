@@ -591,9 +591,25 @@ impl AgentRunCoordinator {
             .await?;
 
         for (agent_id, company_id, runtime_config_text) in agents {
-            let interval_sec = serde_json::from_str::<Value>(&runtime_config_text)
-                .ok()
-                .and_then(|config| config.get("intervalSec").and_then(Value::as_i64));
+            let runtime_config = serde_json::from_str::<Value>(&runtime_config_text).ok();
+            let heartbeat_config =
+                runtime_config.as_ref().and_then(|config| config.get("heartbeat"));
+            let heartbeat_enabled = heartbeat_config
+                .and_then(|config| config.get("enabled"))
+                .and_then(Value::as_bool)
+                .unwrap_or(true);
+            let interval_sec = heartbeat_config
+                .and_then(|config| config.get("intervalSec"))
+                .and_then(Value::as_i64)
+                .or_else(|| {
+                    runtime_config
+                        .as_ref()
+                        .and_then(|config| config.get("intervalSec"))
+                        .and_then(Value::as_i64)
+                });
+            if !heartbeat_enabled {
+                continue;
+            }
             let Some(interval_sec) = interval_sec else {
                 continue;
             };

@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
+  AgentRecord,
   AgentRunEventRecord,
   AgentRunLogChunk,
   AgentRunRecord,
@@ -49,6 +50,9 @@ export const boardCreateCompany = (params: Record<string, unknown>) =>
 
 export const boardUpdateCompany = (params: Record<string, unknown>) =>
   invokeCommand<Company>("board_update_company", { params });
+
+export const boardUpdateAgent = (params: Record<string, unknown>) =>
+  invokeCommand<AgentRecord>("board_update_agent", { params });
 
 export const boardCompanySnapshot = (companyId: string) =>
   invokeCommand<CompanySnapshot>("board_company_snapshot", {
@@ -337,6 +341,9 @@ export const settingsUpdate = (settings: DesktopSettings) =>
 
 export const desktopPickRepositoryDirectory = () =>
   invokeCommand<string | null>("desktop_pick_repository_directory");
+
+export const desktopPickFile = () =>
+  invokeCommand<string | null>("desktop_pick_file");
 
 export const desktopRevealInFinder = (path: string) =>
   invokeCommand<void>("desktop_reveal_in_finder", { path });

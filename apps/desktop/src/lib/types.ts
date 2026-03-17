@@ -58,10 +58,15 @@ export interface AgentRecord {
   id: string;
   company_id?: string | null;
   name: string;
+  slug?: string | null;
   role?: string | null;
   title?: string | null;
+  icon?: string | null;
   status?: string | null;
   adapter_type?: string | null;
+  adapter_config?: Record<string, unknown> | null;
+  runtime_config?: Record<string, unknown> | null;
+  permissions?: Record<string, unknown> | null;
   reports_to?: string | null;
   home_path?: string | null;
   instructions_path?: string | null;
@@ -70,6 +75,8 @@ export interface AgentRecord {
   last_heartbeat_at?: string | null;
   capabilities?: string | null;
   metadata?: Record<string, unknown> | null;
+  created_at?: string | null;
+  updated_at?: string | null;
   [key: string]: unknown;
 }
 

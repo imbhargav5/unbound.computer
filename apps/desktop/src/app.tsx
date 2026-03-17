@@ -31,12 +31,14 @@ import {
   boardReadAgentRunLog,
   boardResumeAgentRun,
   boardRetryAgentRun,
+  boardUpdateAgent,
   boardUpdateCompany,
   boardUpdateIssue,
   claudeSend,
   claudeStatus,
   desktopBootstrap,
   desktopOpenExternal,
+  desktopPickFile,
   desktopPickRepositoryDirectory,
   desktopRevealInFinder,
   gitCommit,
@@ -119,7 +121,7 @@ type FontSizePreset = "small" | "medium" | "large";
 type IssuesListTab = "new" | "all";
 type IssuesRouteMode = "list" | "detail";
 type IssueDetailTab = "conversation" | "runs" | "subissues";
-type AgentsRouteMode = "details" | "runs";
+type AgentsRouteMode = "dashboard" | "configuration" | "runs";
 
 interface IssueLinkedRun {
   label: string;
@@ -176,6 +178,41 @@ interface IssueEditDraft {
   projectId: string;
   assigneeAgentId: string;
   parentId: string;
+}
+
+interface AgentConfigEnvVarDraft {
+  id: string;
+  key: string;
+  value: string;
+  mode: "plain" | "secret";
+}
+
+interface AgentConfigDraft {
+  name: string;
+  title: string;
+  capabilities: string;
+  promptTemplate: string;
+  adapterType: string;
+  workingDirectory: string;
+  instructionsPath: string;
+  command: string;
+  model: string;
+  thinkingEffort: string;
+  bootstrapPrompt: string;
+  enableChrome: boolean;
+  skipPermissions: boolean;
+  maxTurns: string;
+  extraArgs: string;
+  envVars: AgentConfigEnvVarDraft[];
+  timeoutSec: string;
+  interruptGraceSec: string;
+  heartbeatEnabled: boolean;
+  heartbeatIntervalSec: string;
+  wakeOnDemand: boolean;
+  heartbeatCooldownSec: string;
+  maxConcurrentRuns: string;
+  canCreateAgents: boolean;
+  monthlyBudget: string;
 }
 
 type ActivityFeedTarget =
@@ -283,7 +320,7 @@ export function App() {
   const [issuesRouteMode, setIssuesRouteMode] =
     useState<IssuesRouteMode>("list");
   const [agentsRouteMode, setAgentsRouteMode] =
-    useState<AgentsRouteMode>("details");
+    useState<AgentsRouteMode>("dashboard");
   const [companySnapshot, setCompanySnapshot] =
     useState<CompanySnapshot | null>(null);
   const [agentRuns, setAgentRuns] = useState<AgentRunRecord[]>([]);
@@ -379,6 +416,11 @@ export function App() {
   const [companyBrandColorError, setCompanyBrandColorError] = useState<
     string | null
   >(null);
+  const [agentConfigDraft, setAgentConfigDraft] = useState<AgentConfigDraft>(
+    createEmptyAgentConfigDraft()
+  );
+  const [isSavingAgentConfig, setIsSavingAgentConfig] = useState(false);
+  const [agentConfigError, setAgentConfigError] = useState<string | null>(null);
   const [dashboardCanvasOffset, setDashboardCanvasOffset] =
     useState<DashboardCanvasOffset>(defaultDashboardCanvasOffset);
   const [isDashboardCanvasDragging, setIsDashboardCanvasDragging] =
@@ -1084,6 +1126,16 @@ export function App() {
   }, [issuesRouteMode, selectedIssue?.id]);
 
   useEffect(() => {
+    if (selectedAgent) {
+      setAgentConfigDraft(createAgentConfigDraft(selectedAgent));
+    } else {
+      setAgentConfigDraft(createEmptyAgentConfigDraft());
+    }
+    setAgentConfigError(null);
+    setIsSavingAgentConfig(false);
+  }, [selectedAgent?.id, selectedAgent?.updated_at]);
+
+  useEffect(() => {
     selectedAgentIdRef.current = selectedAgent?.id ?? null;
   }, [selectedAgent?.id]);
 
@@ -1096,7 +1148,7 @@ export function App() {
       return;
     }
 
-    setAgentsRouteMode("details");
+    setAgentsRouteMode("dashboard");
     resetAgentRunsState();
   }, [selectedScreen]);
 
@@ -1625,7 +1677,7 @@ export function App() {
       setSelectedCompanyId(companyId);
       setSelectedAgentId(agentId);
       setSelectedScreen("agents");
-      setAgentsRouteMode("details");
+      setAgentsRouteMode("dashboard");
       setSelectedIssueId(null);
       setSelectedApprovalId(null);
       setIssuesRouteMode("list");
@@ -1773,13 +1825,8 @@ export function App() {
     handleSelectScreen("agents");
   };
 
-  const handleShowAgentRuns = () => {
-    setAgentsRouteMode("runs");
-  };
-
-  const handleBackToAgentDetails = () => {
-    setAgentsRouteMode("details");
-    resetAgentRunsState();
+  const handleSelectAgentTab = (tab: AgentsRouteMode) => {
+    setAgentsRouteMode(tab);
   };
 
   const handleRefreshAgentRuns = async () => {
@@ -1813,6 +1860,98 @@ export function App() {
     }
 
     await performAgentRunAction(() => boardResumeAgentRun(selectedAgentRun.id));
+  };
+
+  const handleChooseAgentWorkingDirectory = async () => {
+    setAgentConfigError(null);
+    try {
+      const path = await desktopPickRepositoryDirectory();
+      if (path) {
+        setAgentConfigDraft((current) => ({
+          ...current,
+          workingDirectory: path,
+        }));
+      }
+    } catch (error) {
+      setAgentConfigError(
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+  };
+
+  const handleChooseAgentInstructionsFile = async () => {
+    setAgentConfigError(null);
+    try {
+      const path = await desktopPickFile();
+      if (path) {
+        setAgentConfigDraft((current) => ({
+          ...current,
+          instructionsPath: path,
+        }));
+      }
+    } catch (error) {
+      setAgentConfigError(
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+  };
+
+  const handleAgentConfigEnvVarChange = (
+    envId: string,
+    patch: Partial<AgentConfigEnvVarDraft>
+  ) => {
+    setAgentConfigDraft((current) => ({
+      ...current,
+      envVars: current.envVars.map((envVar) =>
+        envVar.id === envId ? { ...envVar, ...patch } : envVar
+      ),
+    }));
+  };
+
+  const handleAddAgentConfigEnvVar = () => {
+    setAgentConfigDraft((current) => ({
+      ...current,
+      envVars: [...current.envVars, createAgentConfigEnvVarDraft()],
+    }));
+  };
+
+  const handleRemoveAgentConfigEnvVar = (envId: string) => {
+    setAgentConfigDraft((current) => ({
+      ...current,
+      envVars: current.envVars.filter((envVar) => envVar.id !== envId),
+    }));
+  };
+
+  const handleSaveAgentConfiguration = async () => {
+    if (!selectedAgent) {
+      return;
+    }
+
+    setIsSavingAgentConfig(true);
+    setAgentConfigError(null);
+
+    try {
+      const updatedAgent = await boardUpdateAgent(
+        buildAgentConfigUpdateParams(selectedAgent, agentConfigDraft)
+      );
+      setCompanySnapshot((current) =>
+        current
+          ? {
+              ...current,
+              agents: current.agents.map((agent) =>
+                agent.id === updatedAgent.id ? updatedAgent : agent
+              ),
+            }
+          : current
+      );
+      setAgentConfigDraft(createAgentConfigDraft(updatedAgent));
+    } catch (error) {
+      setAgentConfigError(
+        error instanceof Error ? error.message : String(error)
+      );
+    } finally {
+      setIsSavingAgentConfig(false);
+    }
   };
 
   const handleCompanyBrandColorChange = async (nextColor: string) => {
@@ -2635,25 +2774,36 @@ export function App() {
           <span>u</span>
         </div>
         <div className="company-rail-list">
-          {companies.map((company) => (
-            <button
-              aria-label={company.name}
-              className={
-                company.id === selectedCompanyId
-                  ? "company-rail-button active"
-                  : "company-rail-button"
-              }
-              key={company.id}
-              onClick={() => handleSelectCompany(company.id)}
-              onContextMenu={(event) =>
-                handleOpenCompanyContextMenu(event, company)
-              }
-              title={company.name}
-              type="button"
-            >
-              {company.name.slice(0, 1).toUpperCase()}
-            </button>
-          ))}
+          {companies.map((company) => {
+            const companyRailColor = normalizeHexColor(company.brand_color);
+            const isSelected = company.id === selectedCompanyId;
+
+            return (
+              <button
+                aria-label={company.name}
+                className={
+                  isSelected
+                    ? "company-rail-button company-rail-company active"
+                    : "company-rail-button company-rail-company"
+                }
+                key={company.id}
+                onClick={() => handleSelectCompany(company.id)}
+                onContextMenu={(event) =>
+                  handleOpenCompanyContextMenu(event, company)
+                }
+                style={{
+                  backgroundColor: companyRailColor,
+                  borderColor: isSelected ? "#FFFFFF" : "transparent",
+                  color: companyRailForegroundColor(companyRailColor),
+                  opacity: isSelected ? 1 : 0.75,
+                }}
+                title={company.name}
+                type="button"
+              >
+                {company.name.slice(0, 1).toUpperCase()}
+              </button>
+            );
+          })}
           <button
             className="company-rail-button add"
             onClick={() => {
@@ -2942,15 +3092,33 @@ export function App() {
                 isLoadingAgentRunDetail={isLoadingAgentRunDetail}
                 isLoadingAgentRuns={isLoadingAgentRuns}
                 isPerformingAgentRunAction={isPerformingAgentRunAction}
+                isSavingConfiguration={isSavingAgentConfig}
+                configurationDraft={agentConfigDraft}
+                configurationError={agentConfigError}
                 mode={agentsRouteMode}
-                onBackToAgentDetails={handleBackToAgentDetails}
+                onAddEnvVar={handleAddAgentConfigEnvVar}
                 onCancelSelectedRun={() => void handleCancelSelectedAgentRun()}
+                onChooseInstructionsFile={() =>
+                  void handleChooseAgentInstructionsFile()
+                }
+                onChooseWorkingDirectory={() =>
+                  void handleChooseAgentWorkingDirectory()
+                }
+                onConfigurationDraftChange={(patch) =>
+                  setAgentConfigDraft((current) => ({
+                    ...current,
+                    ...patch,
+                  }))
+                }
+                onConfigurationEnvVarChange={handleAgentConfigEnvVarChange}
+                onRemoveEnvVar={handleRemoveAgentConfigEnvVar}
                 onRefreshRuns={() => void handleRefreshAgentRuns()}
                 onResumeSelectedRun={() => void handleResumeSelectedAgentRun()}
                 onRetrySelectedRun={() => void handleRetrySelectedAgentRun()}
+                onSaveConfiguration={() => void handleSaveAgentConfiguration()}
                 onSelectAgent={handleSelectAgent}
                 onSelectRun={handleSelectAgentRun}
-                onShowRuns={handleShowAgentRuns}
+                onSelectTab={handleSelectAgentTab}
                 selectedAgent={selectedAgent}
                 selectedAgentId={selectedAgentId}
                 selectedRun={selectedAgentRun}
@@ -3990,18 +4158,27 @@ function AgentsRouteView({
   agentRunLogContent,
   agentRuns,
   companyName,
+  configurationDraft,
+  configurationError,
   isLoadingAgentRunDetail,
   isLoadingAgentRuns,
   isPerformingAgentRunAction,
+  isSavingConfiguration,
   mode,
-  onBackToAgentDetails,
+  onAddEnvVar,
   onCancelSelectedRun,
+  onChooseInstructionsFile,
+  onChooseWorkingDirectory,
+  onConfigurationDraftChange,
+  onConfigurationEnvVarChange,
+  onRemoveEnvVar,
   onRefreshRuns,
   onResumeSelectedRun,
   onRetrySelectedRun,
+  onSaveConfiguration,
   onSelectAgent,
   onSelectRun,
-  onShowRuns,
+  onSelectTab,
   selectedAgent,
   selectedAgentId,
   selectedRun,
@@ -4012,44 +4189,34 @@ function AgentsRouteView({
   agentRunLogContent: string;
   agentRuns: AgentRunRecord[];
   companyName: string;
+  configurationDraft: AgentConfigDraft;
+  configurationError: string | null;
   isLoadingAgentRunDetail: boolean;
   isLoadingAgentRuns: boolean;
   isPerformingAgentRunAction: boolean;
+  isSavingConfiguration: boolean;
   mode: AgentsRouteMode;
-  onBackToAgentDetails: () => void;
+  onAddEnvVar: () => void;
   onCancelSelectedRun: () => void;
+  onChooseInstructionsFile: () => void;
+  onChooseWorkingDirectory: () => void;
+  onConfigurationDraftChange: (patch: Partial<AgentConfigDraft>) => void;
+  onConfigurationEnvVarChange: (
+    envId: string,
+    patch: Partial<AgentConfigEnvVarDraft>
+  ) => void;
+  onRemoveEnvVar: (envId: string) => void;
   onRefreshRuns: () => void;
   onResumeSelectedRun: () => void;
   onRetrySelectedRun: () => void;
+  onSaveConfiguration: () => void;
   onSelectAgent: (agentId: string) => void;
   onSelectRun: (runId: string) => void;
-  onShowRuns: () => void;
+  onSelectTab: (tab: AgentsRouteMode) => void;
   selectedAgent: AgentRecord | null;
   selectedAgentId: string | null;
   selectedRun: AgentRunRecord | null;
 }) {
-  if (mode === "runs") {
-    return (
-      <AgentRunsRouteView
-        agentRunError={agentRunError}
-        agentRunEvents={agentRunEvents}
-        agentRunLogContent={agentRunLogContent}
-        agentRuns={agentRuns}
-        isLoadingAgentRunDetail={isLoadingAgentRunDetail}
-        isLoadingAgentRuns={isLoadingAgentRuns}
-        isPerformingAgentRunAction={isPerformingAgentRunAction}
-        onBack={onBackToAgentDetails}
-        onCancelSelectedRun={onCancelSelectedRun}
-        onRefreshRuns={onRefreshRuns}
-        onResumeSelectedRun={onResumeSelectedRun}
-        onRetrySelectedRun={onRetrySelectedRun}
-        onSelectRun={onSelectRun}
-        selectedAgent={selectedAgent}
-        selectedRun={selectedRun}
-      />
-    );
-  }
-
   return (
     <section className="route-scroll">
       <div className="route-header compact">
@@ -4066,8 +4233,8 @@ function AgentsRouteView({
         <span className="route-kicker">Agents</span>
         <h1>{selectedAgent?.name ?? "Company roster"}</h1>
         <p>
-          Review the selected agent, verify its board wiring, and jump directly
-          into its historical runs.
+          Review the selected agent, adjust its configuration, and inspect its
+          run history from one shared workspace.
         </p>
       </div>
 
@@ -4079,73 +4246,77 @@ function AgentsRouteView({
                 <div>
                   <span className="route-kicker">Selected agent</span>
                   <h2>{selectedAgent.name}</h2>
+                  <p>{selectedAgent.title ?? selectedAgent.role ?? "Agent"}</p>
                 </div>
-                <button
-                  className="secondary-button"
-                  onClick={onShowRuns}
-                  type="button"
-                >
-                  View runs
-                </button>
-              </div>
-
-              <div className="summary-grid">
-                <SummaryPill
-                  label="Role"
-                  value={selectedAgent.title ?? selectedAgent.role ?? "Agent"}
-                />
-                <SummaryPill
-                  label="Status"
-                  value={String(selectedAgent.status ?? "active")}
-                />
-                <SummaryPill label="Company" value={companyName} />
-              </div>
-
-              <div className="surface-list">
-                <DetailRow
-                  label="Adapter"
-                  value={selectedAgent.adapter_type ?? "Not configured"}
-                />
-                <DetailRow
-                  label="Reports to"
-                  value={selectedAgent.reports_to ?? "CEO"}
-                />
-                <DetailRow
-                  label="Home"
-                  value={selectedAgent.home_path ?? "Missing"}
-                />
-                <DetailRow
-                  label="Instructions"
-                  value={selectedAgent.instructions_path ?? "Missing"}
-                />
-                <DetailRow
-                  label="Monthly budget"
-                  value={formatCents(selectedAgent.budget_monthly_cents)}
-                />
-                <DetailRow
-                  label="Monthly spend"
-                  value={formatCents(selectedAgent.spent_monthly_cents)}
-                />
-                <DetailRow
-                  label="Last heartbeat"
-                  value={formatIssueDate(selectedAgent.last_heartbeat_at)}
+                <RunStatusBadge
+                  status={normalizeAgentStatusTone(selectedAgent.status)}
                 />
               </div>
 
-              {selectedAgent.capabilities ? (
-                <section className="agent-run-section">
-                  <h3>Capabilities</h3>
-                  <p>{selectedAgent.capabilities}</p>
-                </section>
+              <div className="agents-tab-strip" role="tablist" aria-label="Agent views">
+                {(
+                  [
+                    ["dashboard", "Dashboard"],
+                    ["configuration", "Configuration"],
+                    ["runs", "Runs"],
+                  ] as const
+                ).map(([tabId, label]) => (
+                  <button
+                    aria-selected={mode === tabId}
+                    className={
+                      mode === tabId
+                        ? "issues-detail-tab-button active"
+                        : "issues-detail-tab-button"
+                    }
+                    key={tabId}
+                    onClick={() => onSelectTab(tabId)}
+                    role="tab"
+                    type="button"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {mode === "dashboard" ? (
+                <AgentDashboardTab
+                  agent={selectedAgent}
+                  companyName={companyName}
+                />
               ) : null}
 
-              {selectedAgent.metadata ? (
-                <section className="agent-run-section">
-                  <h3>Metadata</h3>
-                  <pre className="agent-run-json-block">
-                    {formatJsonBlock(selectedAgent.metadata)}
-                  </pre>
-                </section>
+              {mode === "configuration" ? (
+                <AgentConfigurationTab
+                  draft={configurationDraft}
+                  errorMessage={configurationError}
+                  isSaving={isSavingConfiguration}
+                  onAddEnvVar={onAddEnvVar}
+                  onChooseInstructionsFile={onChooseInstructionsFile}
+                  onChooseWorkingDirectory={onChooseWorkingDirectory}
+                  onDraftChange={onConfigurationDraftChange}
+                  onEnvVarChange={onConfigurationEnvVarChange}
+                  onRemoveEnvVar={onRemoveEnvVar}
+                  onSave={onSaveConfiguration}
+                />
+              ) : null}
+
+              {mode === "runs" ? (
+                <AgentRunsTabPanel
+                  agentRunError={agentRunError}
+                  agentRunEvents={agentRunEvents}
+                  agentRunLogContent={agentRunLogContent}
+                  agentRuns={agentRuns}
+                  isLoadingAgentRunDetail={isLoadingAgentRunDetail}
+                  isLoadingAgentRuns={isLoadingAgentRuns}
+                  isPerformingAgentRunAction={isPerformingAgentRunAction}
+                  onCancelSelectedRun={onCancelSelectedRun}
+                  onRefreshRuns={onRefreshRuns}
+                  onResumeSelectedRun={onResumeSelectedRun}
+                  onRetrySelectedRun={onRetrySelectedRun}
+                  onSelectRun={onSelectRun}
+                  selectedAgent={selectedAgent}
+                  selectedRun={selectedRun}
+                />
               ) : null}
             </>
           ) : (
@@ -4186,7 +4357,522 @@ function AgentsRouteView({
   );
 }
 
-function AgentRunsRouteView({
+function AgentDashboardTab({
+  agent,
+  companyName,
+}: {
+  agent: AgentRecord;
+  companyName: string;
+}) {
+  return (
+    <div className="agents-tab-panel">
+      <div className="summary-grid">
+        <SummaryPill
+          label="Role"
+          value={agent.title ?? agent.role ?? "Agent"}
+        />
+        <SummaryPill
+          label="Status"
+          value={humanizeIssueValue(String(agent.status ?? "active"))}
+        />
+        <SummaryPill label="Company" value={companyName} />
+      </div>
+
+      <div className="surface-list">
+        <DetailRow
+          label="Adapter"
+          value={agentAdapterTypeLabel(agent.adapter_type)}
+        />
+        <DetailRow label="Reports to" value={agent.reports_to ?? "CEO"} />
+        <DetailRow label="Home" value={agent.home_path ?? "Missing"} />
+        <DetailRow
+          label="Instructions"
+          value={agent.instructions_path ?? "Missing"}
+        />
+        <DetailRow
+          label="Monthly budget"
+          value={formatCents(agent.budget_monthly_cents)}
+        />
+        <DetailRow
+          label="Monthly spend"
+          value={formatCents(agent.spent_monthly_cents)}
+        />
+        <DetailRow
+          label="Last heartbeat"
+          value={formatIssueDate(agent.last_heartbeat_at)}
+        />
+        <DetailRow label="Created" value={formatIssueDate(agent.created_at)} />
+        <DetailRow label="Updated" value={formatIssueDate(agent.updated_at)} />
+      </div>
+
+      {agent.capabilities ? (
+        <section className="agent-run-section">
+          <h3>Capabilities</h3>
+          <p>{agent.capabilities}</p>
+        </section>
+      ) : null}
+
+      {agent.metadata ? (
+        <section className="agent-run-section">
+          <h3>Metadata</h3>
+          <pre className="agent-run-json-block">
+            {formatJsonBlock(agent.metadata)}
+          </pre>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+function AgentConfigurationTab({
+  draft,
+  errorMessage,
+  isSaving,
+  onAddEnvVar,
+  onChooseInstructionsFile,
+  onChooseWorkingDirectory,
+  onDraftChange,
+  onEnvVarChange,
+  onRemoveEnvVar,
+  onSave,
+}: {
+  draft: AgentConfigDraft;
+  errorMessage: string | null;
+  isSaving: boolean;
+  onAddEnvVar: () => void;
+  onChooseInstructionsFile: () => void;
+  onChooseWorkingDirectory: () => void;
+  onDraftChange: (patch: Partial<AgentConfigDraft>) => void;
+  onEnvVarChange: (
+    envId: string,
+    patch: Partial<AgentConfigEnvVarDraft>
+  ) => void;
+  onRemoveEnvVar: (envId: string) => void;
+  onSave: () => void;
+}) {
+  const canSave = !isSaving && draft.name.trim().length > 0;
+  const adapterTypeOptions = mergeIssueOptions(["process"], draft.adapterType);
+  const modelOptions = mergeIssueOptions(["default"], draft.model);
+  const thinkingEffortOptions = mergeIssueOptions(
+    ["auto", "low", "medium", "high"],
+    draft.thinkingEffort
+  );
+
+  return (
+    <form
+      className="agents-config-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSave();
+      }}
+    >
+      <div className="agents-route-actions">
+        <span className="agents-run-loading">
+          {isSaving ? "Saving configuration…" : "Edit and save agent settings"}
+        </span>
+        <button className="primary-button" disabled={!canSave} type="submit">
+          {isSaving ? "Saving…" : "Save changes"}
+        </button>
+      </div>
+
+      {errorMessage ? (
+        <div className="issue-dialog-alert">{errorMessage}</div>
+      ) : null}
+
+      <section className="agent-config-section">
+        <div className="surface-header">
+          <h3>Identity</h3>
+        </div>
+        <div className="agent-config-grid">
+          <label className="form-field">
+            <span>Name</span>
+            <input
+              onChange={(event) => onDraftChange({ name: event.target.value })}
+              placeholder="CEO"
+              value={draft.name}
+            />
+          </label>
+          <label className="form-field">
+            <span>Title</span>
+            <input
+              onChange={(event) => onDraftChange({ title: event.target.value })}
+              placeholder="VP of Engineering"
+              value={draft.title}
+            />
+          </label>
+          <label className="form-field agent-config-field-full">
+            <span>Capabilities</span>
+            <textarea
+              onChange={(event) =>
+                onDraftChange({ capabilities: event.target.value })
+              }
+              placeholder="Describe what this agent can do…"
+              value={draft.capabilities}
+            />
+          </label>
+          <label className="form-field agent-config-field-full">
+            <span>Prompt template</span>
+            <textarea
+              onChange={(event) =>
+                onDraftChange({ promptTemplate: event.target.value })
+              }
+              placeholder="You are agent {{ agent.name }}. Your role is {{ agent.role }}…"
+              value={draft.promptTemplate}
+            />
+          </label>
+        </div>
+      </section>
+
+      <section className="agent-config-section">
+        <div className="surface-header">
+          <h3>Adapter</h3>
+        </div>
+        <div className="agent-config-grid">
+          <label className="form-field">
+            <span>Adapter type</span>
+            <select
+              onChange={(event) =>
+                onDraftChange({ adapterType: event.target.value })
+              }
+              value={draft.adapterType}
+            >
+              {adapterTypeOptions.map((option) => (
+                <option key={option} value={option}>
+                  {agentAdapterTypeLabel(option)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="form-field agent-config-field-full">
+            <span>Working directory</span>
+            <div className="agent-config-path-row">
+              <input
+                onChange={(event) =>
+                  onDraftChange({ workingDirectory: event.target.value })
+                }
+                placeholder="/Users/you/agents/ceo"
+                value={draft.workingDirectory}
+              />
+              <button
+                className="secondary-button compact-button"
+                onClick={onChooseWorkingDirectory}
+                type="button"
+              >
+                Choose
+              </button>
+            </div>
+          </label>
+
+          <label className="form-field agent-config-field-full">
+            <span>Agent instructions file</span>
+            <div className="agent-config-path-row">
+              <input
+                onChange={(event) =>
+                  onDraftChange({ instructionsPath: event.target.value })
+                }
+                placeholder="/Users/you/agents/ceo/AGENTS.md"
+                value={draft.instructionsPath}
+              />
+              <button
+                className="secondary-button compact-button"
+                onClick={onChooseInstructionsFile}
+                type="button"
+              >
+                Choose
+              </button>
+            </div>
+          </label>
+        </div>
+      </section>
+
+      <section className="agent-config-section">
+        <div className="surface-header">
+          <h3>Permissions &amp; configuration</h3>
+        </div>
+        <div className="agent-config-grid">
+          <label className="form-field">
+            <span>Command</span>
+            <input
+              onChange={(event) =>
+                onDraftChange({ command: event.target.value })
+              }
+              placeholder="claude"
+              value={draft.command}
+            />
+          </label>
+          <label className="form-field">
+            <span>Model</span>
+            <select
+              onChange={(event) => onDraftChange({ model: event.target.value })}
+              value={draft.model}
+            >
+              {modelOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option === "default" ? "Default" : option}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="form-field">
+            <span>Thinking effort</span>
+            <select
+              onChange={(event) =>
+                onDraftChange({ thinkingEffort: event.target.value })
+              }
+              value={draft.thinkingEffort}
+            >
+              {thinkingEffortOptions.map((option) => (
+                <option key={option} value={option}>
+                  {capitalize(option)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="form-field agent-config-field-full">
+            <span>Bootstrap prompt (first run)</span>
+            <textarea
+              onChange={(event) =>
+                onDraftChange({ bootstrapPrompt: event.target.value })
+              }
+              placeholder="Optional initial setup prompt for the first run"
+              value={draft.bootstrapPrompt}
+            />
+          </label>
+
+          <div className="agent-config-toggle-grid agent-config-field-full">
+            <AgentConfigToggleField
+              checked={draft.enableChrome}
+              description="Allow browser automation inside runs."
+              label="Enable Chrome"
+              onChange={(checked) => onDraftChange({ enableChrome: checked })}
+            />
+            <AgentConfigToggleField
+              checked={draft.skipPermissions}
+              description="Skip interactive permission pauses during execution."
+              label="Skip permissions"
+              onChange={(checked) =>
+                onDraftChange({ skipPermissions: checked })
+              }
+            />
+          </div>
+
+          <label className="form-field">
+            <span>Monthly budget (USD)</span>
+            <input
+              inputMode="decimal"
+              onChange={(event) =>
+                onDraftChange({ monthlyBudget: event.target.value })
+              }
+              placeholder="0"
+              value={draft.monthlyBudget}
+            />
+          </label>
+          <label className="form-field">
+            <span>Max turns per run</span>
+            <input
+              inputMode="numeric"
+              onChange={(event) =>
+                onDraftChange({ maxTurns: event.target.value })
+              }
+              placeholder="80"
+              value={draft.maxTurns}
+            />
+          </label>
+          <label className="form-field agent-config-field-full">
+            <span>Extra args (comma-separated)</span>
+            <input
+              onChange={(event) =>
+                onDraftChange({ extraArgs: event.target.value })
+              }
+              placeholder="--verbose, --foo=bar"
+              value={draft.extraArgs}
+            />
+          </label>
+
+          <div className="agent-config-field-full agent-config-env-section">
+            <div className="surface-header">
+              <h3>Environment variables</h3>
+              <button
+                className="secondary-button compact-button"
+                onClick={onAddEnvVar}
+                type="button"
+              >
+                Add variable
+              </button>
+            </div>
+
+            {draft.envVars.length ? (
+              <div className="agent-config-env-list">
+                {draft.envVars.map((envVar) => (
+                  <div className="agent-config-env-row" key={envVar.id}>
+                    <input
+                      onChange={(event) =>
+                        onEnvVarChange(envVar.id, { key: event.target.value })
+                      }
+                      placeholder="KEY"
+                      value={envVar.key}
+                    />
+                    <select
+                      onChange={(event) =>
+                        onEnvVarChange(envVar.id, {
+                          mode: event.target.value as "plain" | "secret",
+                        })
+                      }
+                      value={envVar.mode}
+                    >
+                      <option value="plain">Plain</option>
+                      <option value="secret">Secret</option>
+                    </select>
+                    <input
+                      onChange={(event) =>
+                        onEnvVarChange(envVar.id, { value: event.target.value })
+                      }
+                      placeholder="value"
+                      value={envVar.value}
+                    />
+                    <button
+                      className="secondary-button compact-button"
+                      onClick={() => onRemoveEnvVar(envVar.id)}
+                      type="button"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="surface-empty-copy">
+                No custom environment variables yet.
+              </p>
+            )}
+          </div>
+
+          <label className="form-field">
+            <span>Timeout (sec)</span>
+            <input
+              inputMode="numeric"
+              onChange={(event) =>
+                onDraftChange({ timeoutSec: event.target.value })
+              }
+              placeholder="0"
+              value={draft.timeoutSec}
+            />
+          </label>
+          <label className="form-field">
+            <span>Interrupt grace period (sec)</span>
+            <input
+              inputMode="numeric"
+              onChange={(event) =>
+                onDraftChange({ interruptGraceSec: event.target.value })
+              }
+              placeholder="15"
+              value={draft.interruptGraceSec}
+            />
+          </label>
+        </div>
+      </section>
+
+      <section className="agent-config-section">
+        <div className="surface-header">
+          <h3>Run policy</h3>
+        </div>
+        <div className="agent-config-grid">
+          <AgentConfigToggleField
+            checked={draft.heartbeatEnabled}
+            description="Schedule recurring heartbeat runs for this agent."
+            label="Heartbeat on interval"
+            onChange={(checked) =>
+              onDraftChange({ heartbeatEnabled: checked })
+            }
+          />
+          <AgentConfigToggleField
+            checked={draft.wakeOnDemand}
+            description="Allow the daemon to wake the agent outside the timer loop."
+            label="Wake on demand"
+            onChange={(checked) => onDraftChange({ wakeOnDemand: checked })}
+          />
+          <label className="form-field">
+            <span>Run heartbeat every (sec)</span>
+            <input
+              inputMode="numeric"
+              onChange={(event) =>
+                onDraftChange({ heartbeatIntervalSec: event.target.value })
+              }
+              placeholder="3600"
+              value={draft.heartbeatIntervalSec}
+            />
+          </label>
+          <label className="form-field">
+            <span>Cooldown (sec)</span>
+            <input
+              inputMode="numeric"
+              onChange={(event) =>
+                onDraftChange({ heartbeatCooldownSec: event.target.value })
+              }
+              placeholder="10"
+              value={draft.heartbeatCooldownSec}
+            />
+          </label>
+          <label className="form-field">
+            <span>Max concurrent runs</span>
+            <input
+              inputMode="numeric"
+              onChange={(event) =>
+                onDraftChange({ maxConcurrentRuns: event.target.value })
+              }
+              placeholder="1"
+              value={draft.maxConcurrentRuns}
+            />
+          </label>
+        </div>
+      </section>
+
+      <section className="agent-config-section">
+        <div className="surface-header">
+          <h3>Permissions</h3>
+        </div>
+        <AgentConfigToggleField
+          checked={draft.canCreateAgents}
+          description="Permit this agent to create and manage new agents."
+          label="Can create new agents"
+          onChange={(checked) => onDraftChange({ canCreateAgents: checked })}
+        />
+      </section>
+    </form>
+  );
+}
+
+function AgentConfigToggleField({
+  checked,
+  description,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  description: string;
+  label: string;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="agent-config-toggle-card">
+      <div>
+        <strong>{label}</strong>
+        <span>{description}</span>
+      </div>
+      <button
+        aria-pressed={checked}
+        className={checked ? "agent-config-toggle active" : "agent-config-toggle"}
+        onClick={() => onChange(!checked)}
+        type="button"
+      >
+        <span />
+      </button>
+    </label>
+  );
+}
+
+function AgentRunsTabPanel({
   agentRunError,
   agentRunEvents,
   agentRunLogContent,
@@ -4194,7 +4880,6 @@ function AgentRunsRouteView({
   isLoadingAgentRunDetail,
   isLoadingAgentRuns,
   isPerformingAgentRunAction,
-  onBack,
   onCancelSelectedRun,
   onRefreshRuns,
   onResumeSelectedRun,
@@ -4210,7 +4895,6 @@ function AgentRunsRouteView({
   isLoadingAgentRunDetail: boolean;
   isLoadingAgentRuns: boolean;
   isPerformingAgentRunAction: boolean;
-  onBack: () => void;
   onCancelSelectedRun: () => void;
   onRefreshRuns: () => void;
   onResumeSelectedRun: () => void;
@@ -4220,51 +4904,22 @@ function AgentRunsRouteView({
   selectedRun: AgentRunRecord | null;
 }) {
   return (
-    <section className="route-scroll">
-      <div className="route-header compact">
-        <DashboardBreadcrumbs
-          items={[
-            { label: "Agents", onClick: onBack },
-            {
-              label: selectedAgent
-                ? `${selectedAgent.name} run history`
-                : "Run history",
-            },
-          ]}
-        />
-        <span className="route-kicker">Agent runs</span>
-        <div className="agents-route-header-row">
-          <div>
-            <h1>
-              {selectedAgent
-                ? `${selectedAgent.name} run history`
-                : "Run history"}
-            </h1>
-            <p>
-              Queued, running, and completed runs for this agent appear here.
-            </p>
-          </div>
-          <div className="agents-route-actions">
-            {isLoadingAgentRuns || isLoadingAgentRunDetail ? (
-              <span className="agents-run-loading">Loading…</span>
-            ) : null}
-            <button
-              className="secondary-button compact-button"
-              onClick={onRefreshRuns}
-              type="button"
-            >
-              Refresh
-            </button>
-          </div>
-        </div>
+    <div className="agents-tab-panel">
+      <div className="agents-route-actions">
+        {isLoadingAgentRuns || isLoadingAgentRunDetail ? (
+          <span className="agents-run-loading">Loading…</span>
+        ) : null}
+        <button
+          className="secondary-button compact-button"
+          onClick={onRefreshRuns}
+          type="button"
+        >
+          Refresh
+        </button>
       </div>
 
       {!selectedAgent ? (
-        <div className="surface-grid single">
-          <section className="surface-panel">
-            <p>Select an agent to review its runs.</p>
-          </section>
-        </div>
+        <p>Select an agent to review its runs.</p>
       ) : (
         <div className="agents-runs-layout">
           <section className="surface-panel agents-runs-list-panel">
@@ -4490,7 +5145,7 @@ function AgentRunsRouteView({
           </section>
         </div>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -8020,6 +8675,304 @@ function createIssueDraft(issue: IssueRecord): IssueEditDraft {
   };
 }
 
+function createEmptyAgentConfigDraft(): AgentConfigDraft {
+  return {
+    name: "",
+    title: "",
+    capabilities: "",
+    promptTemplate: "",
+    adapterType: "process",
+    workingDirectory: "",
+    instructionsPath: "",
+    command: "claude",
+    model: "default",
+    thinkingEffort: "auto",
+    bootstrapPrompt: "",
+    enableChrome: false,
+    skipPermissions: false,
+    maxTurns: "",
+    extraArgs: "",
+    envVars: [],
+    timeoutSec: "",
+    interruptGraceSec: "",
+    heartbeatEnabled: false,
+    heartbeatIntervalSec: "",
+    wakeOnDemand: false,
+    heartbeatCooldownSec: "",
+    maxConcurrentRuns: "",
+    canCreateAgents: false,
+    monthlyBudget: "",
+  };
+}
+
+function createAgentConfigDraft(agent: AgentRecord): AgentConfigDraft {
+  const adapterConfig = objectFromUnknown(agent.adapter_config);
+  const runtimeConfig = objectFromUnknown(agent.runtime_config);
+  const heartbeatConfig = objectFromUnknown(
+    runtimeConfig.heartbeat ?? runtimeConfig.heartbeatConfig
+  );
+  const permissions = objectFromUnknown(agent.permissions);
+  const metadata = objectFromUnknown(agent.metadata);
+  const intervalSec =
+    numberFromUnknown(heartbeatConfig.intervalSec) ??
+    numberFromUnknown(runtimeConfig.intervalSec);
+  const heartbeatEnabledValue = heartbeatConfig.enabled;
+
+  return {
+    name: agent.name ?? "",
+    title: agent.title ?? "",
+    capabilities: agent.capabilities ?? "",
+    promptTemplate: stringFromUnknown(metadata.promptTemplate),
+    adapterType: stringFromUnknown(agent.adapter_type, "process"),
+    workingDirectory: agent.home_path ?? "",
+    instructionsPath: agent.instructions_path ?? "",
+    command: stringFromUnknown(adapterConfig.command, "claude"),
+    model: stringFromUnknown(adapterConfig.model, "default"),
+    thinkingEffort: stringFromUnknown(adapterConfig.thinkingEffort, "auto"),
+    bootstrapPrompt: stringFromUnknown(runtimeConfig.bootstrapPrompt),
+    enableChrome: booleanFromUnknown(adapterConfig.enableChrome),
+    skipPermissions: booleanFromUnknown(adapterConfig.skipPermissions),
+    maxTurns: numericInputValue(runtimeConfig.maxTurns),
+    extraArgs: arrayFromUnknown(adapterConfig.extraArgs)
+      .map((value) => stringFromUnknown(value))
+      .filter(Boolean)
+      .join(", "),
+    envVars: parseAgentConfigEnvVars(
+      adapterConfig.environmentVariables ?? adapterConfig.envVars
+    ),
+    timeoutSec: numericInputValue(runtimeConfig.timeoutSec),
+    interruptGraceSec: numericInputValue(runtimeConfig.interruptGraceSec),
+    heartbeatEnabled:
+      typeof heartbeatEnabledValue === "boolean"
+        ? heartbeatEnabledValue
+        : typeof intervalSec === "number",
+    heartbeatIntervalSec:
+      typeof intervalSec === "number" ? String(intervalSec) : "",
+    wakeOnDemand: booleanFromUnknown(heartbeatConfig.wakeOnDemand),
+    heartbeatCooldownSec: numericInputValue(heartbeatConfig.cooldownSec),
+    maxConcurrentRuns: numericInputValue(heartbeatConfig.maxConcurrentRuns),
+    canCreateAgents: booleanFromUnknown(permissions.canCreateAgents),
+    monthlyBudget: budgetInputValue(agent.budget_monthly_cents),
+  };
+}
+
+function createAgentConfigEnvVarDraft(
+  value?: Partial<AgentConfigEnvVarDraft>
+): AgentConfigEnvVarDraft {
+  return {
+    id:
+      value?.id ??
+      (typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `env-${Math.random().toString(36).slice(2, 10)}`),
+    key: value?.key ?? "",
+    value: value?.value ?? "",
+    mode: value?.mode ?? "plain",
+  };
+}
+
+function buildAgentConfigUpdateParams(
+  agent: AgentRecord,
+  draft: AgentConfigDraft
+) {
+  const adapterConfig = {
+    ...objectFromUnknown(agent.adapter_config),
+    command: normalizeOptionalDraftString(draft.command) ?? "claude",
+    model: normalizeOptionalDraftString(draft.model) ?? "default",
+    thinkingEffort: normalizeOptionalDraftString(draft.thinkingEffort) ?? "auto",
+    enableChrome: draft.enableChrome,
+    skipPermissions: draft.skipPermissions,
+  } as Record<string, unknown>;
+  const extraArgs = commaSeparatedValues(draft.extraArgs);
+  if (extraArgs.length) {
+    adapterConfig.extraArgs = extraArgs;
+  } else {
+    delete adapterConfig.extraArgs;
+  }
+  const envVars = serializeAgentConfigEnvVars(draft.envVars);
+  if (envVars.length) {
+    adapterConfig.environmentVariables = envVars;
+  } else {
+    delete adapterConfig.environmentVariables;
+  }
+
+  const heartbeat: Record<string, unknown> = {
+    enabled: draft.heartbeatEnabled,
+    wakeOnDemand: draft.wakeOnDemand,
+  };
+  const heartbeatIntervalSec = integerFromDraft(draft.heartbeatIntervalSec);
+  const heartbeatCooldownSec = integerFromDraft(draft.heartbeatCooldownSec);
+  const maxConcurrentRuns = integerFromDraft(draft.maxConcurrentRuns);
+  if (heartbeatIntervalSec !== undefined) {
+    heartbeat.intervalSec = heartbeatIntervalSec;
+  }
+  if (heartbeatCooldownSec !== undefined) {
+    heartbeat.cooldownSec = heartbeatCooldownSec;
+  }
+  if (maxConcurrentRuns !== undefined) {
+    heartbeat.maxConcurrentRuns = maxConcurrentRuns;
+  }
+
+  const runtimeConfig = {
+    ...objectFromUnknown(agent.runtime_config),
+    heartbeat,
+  } as Record<string, unknown>;
+  const maxTurns = integerFromDraft(draft.maxTurns);
+  if (maxTurns !== undefined) {
+    runtimeConfig.maxTurns = maxTurns;
+  } else {
+    delete runtimeConfig.maxTurns;
+  }
+  const timeoutSec = integerFromDraft(draft.timeoutSec);
+  if (timeoutSec !== undefined) {
+    runtimeConfig.timeoutSec = timeoutSec;
+  } else {
+    delete runtimeConfig.timeoutSec;
+  }
+  const interruptGraceSec = integerFromDraft(draft.interruptGraceSec);
+  if (interruptGraceSec !== undefined) {
+    runtimeConfig.interruptGraceSec = interruptGraceSec;
+  } else {
+    delete runtimeConfig.interruptGraceSec;
+  }
+  const bootstrapPrompt = normalizeOptionalDraftString(draft.bootstrapPrompt);
+  if (bootstrapPrompt) {
+    runtimeConfig.bootstrapPrompt = bootstrapPrompt;
+  } else {
+    delete runtimeConfig.bootstrapPrompt;
+  }
+  if (heartbeatIntervalSec !== undefined) {
+    runtimeConfig.intervalSec = heartbeatIntervalSec;
+  } else {
+    delete runtimeConfig.intervalSec;
+  }
+
+  const permissions = {
+    ...objectFromUnknown(agent.permissions),
+    canCreateAgents: draft.canCreateAgents,
+  };
+
+  const metadata = {
+    ...objectFromUnknown(agent.metadata),
+  } as Record<string, unknown>;
+  const promptTemplate = normalizeOptionalDraftString(draft.promptTemplate);
+  if (promptTemplate) {
+    metadata.promptTemplate = promptTemplate;
+  } else {
+    delete metadata.promptTemplate;
+  }
+
+  return {
+    agent_id: agent.id,
+    name: draft.name.trim(),
+    title: normalizeOptionalDraftString(draft.title),
+    capabilities: normalizeOptionalDraftString(draft.capabilities),
+    adapter_type: normalizeOptionalDraftString(draft.adapterType) ?? "process",
+    adapter_config: adapterConfig,
+    runtime_config: runtimeConfig,
+    budget_monthly_cents: budgetInputToCents(draft.monthlyBudget),
+    permissions,
+    metadata: Object.keys(metadata).length ? metadata : null,
+    home_path: normalizeOptionalDraftString(draft.workingDirectory),
+    instructions_path: normalizeOptionalDraftString(draft.instructionsPath),
+  };
+}
+
+function parseAgentConfigEnvVars(value: unknown): AgentConfigEnvVarDraft[] {
+  return arrayFromUnknown(value)
+    .map((entry) => {
+      const record = objectFromUnknown(entry);
+      const key = stringFromUnknown(record.key);
+      const envValue = stringFromUnknown(record.value);
+      if (!key && !envValue) {
+        return null;
+      }
+      return createAgentConfigEnvVarDraft({
+        key,
+        value: envValue,
+        mode: booleanFromUnknown(record.secret) ||
+          stringFromUnknown(record.mode) === "secret"
+          ? "secret"
+          : "plain",
+      });
+    })
+    .filter((entry): entry is AgentConfigEnvVarDraft => entry !== null);
+}
+
+function serializeAgentConfigEnvVars(envVars: AgentConfigEnvVarDraft[]) {
+  return envVars
+    .map((envVar) => ({
+      key: envVar.key.trim(),
+      value: envVar.value,
+      mode: envVar.mode,
+      secret: envVar.mode === "secret",
+    }))
+    .filter((envVar) => envVar.key.length > 0 || envVar.value.length > 0);
+}
+
+function objectFromUnknown(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function arrayFromUnknown(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function stringFromUnknown(value: unknown, fallback = "") {
+  return typeof value === "string" ? value : fallback;
+}
+
+function booleanFromUnknown(value: unknown) {
+  return value === true;
+}
+
+function numberFromUnknown(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function numericInputValue(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+}
+
+function budgetInputValue(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return "";
+  }
+
+  const dollars = value / 100;
+  return Number.isInteger(dollars) ? String(dollars) : dollars.toFixed(2);
+}
+
+function budgetInputToCents(value: string) {
+  const amount = Number.parseFloat(value.trim());
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return 0;
+  }
+
+  return Math.round(amount * 100);
+}
+
+function integerFromDraft(value: string) {
+  const parsed = Number.parseInt(value.trim(), 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+function commaSeparatedValues(value: string) {
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function normalizeOptionalDraftString(value: string) {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
 function issuesListTabTitle(tab: IssuesListTab) {
   return tab === "new" ? "New" : "All";
 }
@@ -8046,6 +8999,16 @@ function normalizeHexColor(
   }
 
   return fallback;
+}
+
+function companyRailForegroundColor(value: string | null | undefined) {
+  const normalized = normalizeHexColor(value);
+  const red = Number.parseInt(normalized.slice(1, 3), 16);
+  const green = Number.parseInt(normalized.slice(3, 5), 16);
+  const blue = Number.parseInt(normalized.slice(5, 7), 16);
+  const perceivedBrightness = (red * 299 + green * 587 + blue * 114) / 1000;
+
+  return perceivedBrightness >= 170 ? "#081018" : "#FFFFFF";
 }
 
 function normalizeBoardIssueValue(value: string | null | undefined) {
@@ -8378,6 +9341,37 @@ function agentRunStatusTone(status: string) {
     default:
       return "neutral";
   }
+}
+
+function normalizeAgentStatusTone(status: string | null | undefined) {
+  switch (status) {
+    case "running":
+      return "running";
+    case "idle":
+    case "active":
+      return "succeeded";
+    case "pending_approval":
+      return "queued";
+    case "failed":
+    case "error":
+      return "failed";
+    case "disabled":
+      return "cancelled";
+    default:
+      return "neutral";
+  }
+}
+
+function agentAdapterTypeLabel(value: string | null | undefined) {
+  if (!value) {
+    return "Not configured";
+  }
+
+  if (value === "process") {
+    return "Claude (local)";
+  }
+
+  return humanizeIssueValue(value);
 }
 
 function agentRunInvocationSourceLabel(source: string) {

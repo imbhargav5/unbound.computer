@@ -149,6 +149,12 @@ pub async fn board_update_company(params: Value) -> Result<Value, String> {
 }
 
 #[tauri::command]
+pub async fn board_update_agent(params: Value) -> Result<Value, String> {
+    let value = call_daemon(Method::AgentUpdate, Some(params)).await?;
+    Ok(extract_field(value, "agent"))
+}
+
+#[tauri::command]
 pub async fn board_company_snapshot(company_id: String) -> Result<Value, String> {
     let company_params = json!({ "company_id": company_id });
     let company_request = call_daemon(Method::CompanyGet, Some(company_params.clone()));
@@ -745,6 +751,14 @@ pub async fn settings_update(settings: DesktopSettings) -> Result<DesktopSetting
 pub async fn desktop_pick_repository_directory() -> Result<Option<String>, String> {
     Ok(rfd::AsyncFileDialog::new()
         .pick_folder()
+        .await
+        .map(|handle| handle.path().display().to_string()))
+}
+
+#[tauri::command]
+pub async fn desktop_pick_file() -> Result<Option<String>, String> {
+    Ok(rfd::AsyncFileDialog::new()
+        .pick_file()
         .await
         .map(|handle| handle.path().display().to_string()))
 }

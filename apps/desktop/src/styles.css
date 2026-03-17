@@ -230,13 +230,22 @@ p {
   transition:
     background-color 140ms ease,
     color 140ms ease,
-    border-color 140ms ease;
+    border-color 140ms ease,
+    opacity 140ms ease;
 }
 
 .company-rail-button.active {
   background: #1d4ed8;
   border-color: #3b82f6;
   color: #ffffff;
+}
+
+.company-rail-button.company-rail-company {
+  border-width: 2px;
+}
+
+.company-rail-button.company-rail-company.active {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.24);
 }
 
 .company-rail-button.settings {
@@ -504,6 +513,7 @@ p {
 .git-commit-field input,
 .settings-form input,
 .settings-form select,
+.form-field textarea,
 .composer textarea,
 .form-field select,
 .issues-title-input,
@@ -515,6 +525,11 @@ p {
   border-radius: 14px;
   background: #111113;
   color: inherit;
+}
+
+.form-field textarea {
+  min-height: 120px;
+  resize: vertical;
 }
 
 .stack-form textarea {
@@ -1365,9 +1380,126 @@ p {
   flex-wrap: wrap;
 }
 
+.agents-tab-strip,
+.agents-tab-panel,
+.agents-config-form {
+  display: grid;
+  gap: 18px;
+}
+
+.agents-tab-strip {
+  padding-top: 2px;
+}
+
+.agent-config-section {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid #1f1f1f;
+  border-radius: 22px;
+  background: #0c0c0d;
+}
+
+.agent-config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.agent-config-field-full {
+  grid-column: 1 / -1;
+}
+
+.agent-config-path-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.agent-config-toggle-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.agent-config-toggle-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid #1b1b1d;
+  border-radius: 18px;
+  background: #111113;
+}
+
+.agent-config-toggle-card > div {
+  display: grid;
+  gap: 4px;
+}
+
+.agent-config-toggle-card strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.agent-config-toggle-card span {
+  color: #8a8a8a;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.agent-config-toggle {
+  width: 42px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border: 1px solid #2a2a2e;
+  border-radius: 999px;
+  background: #18181b;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+.agent-config-toggle span {
+  width: 18px;
+  height: 18px;
+  display: block;
+  border-radius: 999px;
+  background: #f4f4f5;
+  transition: transform 140ms ease;
+}
+
+.agent-config-toggle.active {
+  border-color: rgba(16, 185, 129, 0.42);
+  background: rgba(5, 150, 105, 0.8);
+}
+
+.agent-config-toggle.active span {
+  transform: translateX(18px);
+}
+
+.agent-config-env-section {
+  display: grid;
+  gap: 14px;
+}
+
+.agent-config-env-list {
+  display: grid;
+  gap: 10px;
+}
+
+.agent-config-env-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px minmax(0, 1.4fr) auto;
+  gap: 10px;
+}
+
 .agents-runs-layout {
   display: grid;
-  grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
   gap: 20px;
   align-items: start;
 }
@@ -4057,7 +4189,7 @@ p {
   background: #1d4ed8;
 }
 
-@media (max-width: 1440px) {
+@media (max-width: 1180px) {
   .issues-detail-sidebar-panel {
     position: static;
   }
@@ -4084,6 +4216,18 @@ p {
 
   .surface-panel.wide {
     grid-column: span 12;
+  }
+}
+
+@media (max-width: 900px) {
+  .agent-config-grid,
+  .agent-config-toggle-grid,
+  .agent-config-env-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .agent-config-path-row {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

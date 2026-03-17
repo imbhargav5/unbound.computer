@@ -13,6 +13,7 @@ fn main() {
             commands::board_list_companies,
             commands::board_create_company,
             commands::board_update_company,
+            commands::board_update_agent,
             commands::board_company_snapshot,
             commands::board_create_project,
             commands::board_create_issue,
@@ -63,6 +64,7 @@ fn main() {
             commands::settings_get,
             commands::settings_update,
             commands::desktop_pick_repository_directory,
+            commands::desktop_pick_file,
             commands::desktop_reveal_in_finder,
             commands::desktop_open_external
         ])
