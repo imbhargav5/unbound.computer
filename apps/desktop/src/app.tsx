@@ -1,6 +1,7 @@
 import { Terminal } from "@xterm/xterm";
 import {
   type FormEvent,
+  type MouseEvent,
   type ReactNode,
   startTransition,
   useDeferredValue,
@@ -107,6 +108,14 @@ type IssuesRouteMode = "list" | "detail";
 type BoardRootLayout = "companyDashboard" | "workspace" | "settings";
 type WorkspaceCenterTab = "conversation" | "terminal" | "preview";
 type WorkspaceSidebarTab = "changes" | "files" | "commits";
+type CompanyContextMenuScreen = "dashboard" | "workspaces" | "companySettings";
+
+interface CompanyContextMenuState {
+  companyId: string;
+  companyName: string;
+  x: number;
+  y: number;
+}
 
 interface IssueEditDraft {
   title: string;
@@ -148,6 +157,16 @@ const defaultSettings: DesktopSettings = {
   theme_mode: "dark",
   font_size_preset: "medium",
 };
+
+const companyContextMenuItems: Array<{
+  icon: CompanyContextMenuScreen;
+  label: string;
+  screen: CompanyContextMenuScreen;
+}> = [
+  { icon: "dashboard", label: "Dashboard", screen: "dashboard" },
+  { icon: "workspaces", label: "Workspaces", screen: "workspaces" },
+  { icon: "companySettings", label: "Settings", screen: "companySettings" },
+];
 
 export function App() {
   const [bootstrap, setBootstrap] = useState<DesktopBootstrapStatus | null>(null);
@@ -216,6 +235,8 @@ export function App() {
   const [isSavingIssue, setIsSavingIssue] = useState(false);
   const [issueEditorError, setIssueEditorError] = useState<string | null>(null);
   const [isWorking, setIsWorking] = useState(false);
+  const [companyContextMenu, setCompanyContextMenu] =
+    useState<CompanyContextMenuState | null>(null);
 
   const terminalContainerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -421,6 +442,33 @@ export function App() {
     document.documentElement.dataset.fontSizePreset =
       settings.font_size_preset ?? "medium";
   }, [settings.font_size_preset, settings.theme_mode]);
+
+  useEffect(() => {
+    if (!companyContextMenu) {
+      return;
+    }
+
+    const closeMenu = () => setCompanyContextMenu(null);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeMenu();
+      }
+    };
+
+    document.addEventListener("pointerdown", closeMenu);
+    document.addEventListener("scroll", closeMenu, true);
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("blur", closeMenu);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu);
+      document.removeEventListener("scroll", closeMenu, true);
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("blur", closeMenu);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [companyContextMenu]);
 
   useEffect(() => {
     if (!selectedCompanyId || bootstrap?.state !== "ready") {
@@ -858,6 +906,7 @@ export function App() {
   };
 
   const handleSelectCompany = (companyId: string) => {
+    setCompanyContextMenu(null);
     startTransition(() => {
       setSelectedCompanyId(companyId);
       setSelectedScreen("dashboard");
@@ -870,6 +919,58 @@ export function App() {
       ...settings,
       preferred_company_id: companyId,
       preferred_view: preferredViewForScreen("dashboard"),
+    });
+  };
+
+  const handleSelectCompanyScreen = (
+    companyId: string,
+    screen: CompanyContextMenuScreen
+  ) => {
+    if (screen === "dashboard") {
+      handleSelectCompany(companyId);
+      return;
+    }
+
+    setCompanyContextMenu(null);
+    startTransition(() => {
+      setSelectedCompanyId(companyId);
+      setSelectedScreen(screen);
+      if (screen === "workspaces") {
+        setWorkspaceCenterTab("conversation");
+      }
+    });
+
+    void persistSettings({
+      ...settings,
+      preferred_company_id: companyId,
+      preferred_view: preferredViewForScreen(screen),
+    });
+  };
+
+  const handleOpenCompanyContextMenu = (
+    event: MouseEvent<HTMLButtonElement>,
+    company: Company
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const menuWidth = 216;
+    const menuHeight = 184;
+    const viewportPadding = 12;
+    const nextX = Math.min(
+      Math.max(event.clientX + 12, viewportPadding),
+      window.innerWidth - menuWidth - viewportPadding
+    );
+    const nextY = Math.min(
+      Math.max(event.clientY - 8, viewportPadding),
+      window.innerHeight - menuHeight - viewportPadding
+    );
+
+    setCompanyContextMenu({
+      companyId: company.id,
+      companyName: company.name,
+      x: nextX,
+      y: nextY,
     });
   };
 
@@ -1526,6 +1627,7 @@ export function App() {
         <div className="company-rail-list">
           {companies.map((company) => (
             <button
+              aria-label={company.name}
               className={
                 company.id === selectedCompanyId
                   ? "company-rail-button active"
@@ -1533,6 +1635,8 @@ export function App() {
               }
               key={company.id}
               onClick={() => handleSelectCompany(company.id)}
+              onContextMenu={(event) => handleOpenCompanyContextMenu(event, company)}
+              title={company.name}
               type="button"
             >
               {company.name.slice(0, 1).toUpperCase()}
@@ -1563,6 +1667,53 @@ export function App() {
           ⚙
         </button>
       </aside>
+
+      {companyContextMenu ? (
+        <div
+          aria-label={`${companyContextMenu.companyName} menu`}
+          className="company-context-menu"
+          onContextMenu={(event) => event.preventDefault()}
+          onPointerDown={(event) => event.stopPropagation()}
+          role="menu"
+          style={{ left: companyContextMenu.x, top: companyContextMenu.y }}
+        >
+          <div className="company-context-menu-header">
+            <div className="company-context-menu-monogram" aria-hidden="true">
+              {companyContextMenu.companyName.slice(0, 1).toUpperCase()}
+            </div>
+            <div className="company-context-menu-copy">
+              <strong>{companyContextMenu.companyName}</strong>
+              <span>Open company route</span>
+            </div>
+          </div>
+          <div className="company-context-menu-actions">
+            {companyContextMenuItems.map((item) => {
+              const isActive =
+                companyContextMenu.companyId === selectedCompanyId &&
+                selectedScreen === item.screen;
+
+              return (
+                <button
+                  className={
+                    isActive
+                      ? "company-context-menu-item active"
+                      : "company-context-menu-item"
+                  }
+                  key={item.screen}
+                  onClick={() =>
+                    handleSelectCompanyScreen(companyContextMenu.companyId, item.screen)
+                  }
+                  role="menuitem"
+                  type="button"
+                >
+                  <CompanyContextMenuIcon icon={item.icon} />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
 
       {layout === "companyDashboard" ? (
         <div className="company-dashboard-shell">
@@ -4018,6 +4169,65 @@ function WorkspaceSidebarTabButton({
       {count ? <small>{count}</small> : null}
     </button>
   );
+}
+
+function CompanyContextMenuIcon({
+  icon,
+}: {
+  icon: CompanyContextMenuScreen;
+}) {
+  switch (icon) {
+    case "dashboard":
+      return (
+        <svg aria-hidden="true" className="company-context-menu-icon" fill="none" viewBox="0 0 16 16">
+          <path
+            d="M2.5 3.25h11v9.5h-11z"
+            rx="2"
+            stroke="currentColor"
+            strokeWidth="1.4"
+          />
+          <path
+            d="M2.75 6.25h10.5"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="1.4"
+          />
+          <path
+            d="M5.25 2.5v1.5M10.75 2.5v1.5"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="1.4"
+          />
+        </svg>
+      );
+    case "workspaces":
+      return (
+        <svg aria-hidden="true" className="company-context-menu-icon" fill="none" viewBox="0 0 16 16">
+          <path
+            d="M2.5 3.25h4.75v4.75H2.5zM8.75 3.25h4.75v4.75H8.75zM2.5 8.75h4.75v4.75H2.5zM8.75 8.75h4.75v4.75H8.75z"
+            rx="1.3"
+            stroke="currentColor"
+            strokeWidth="1.4"
+          />
+        </svg>
+      );
+    case "companySettings":
+      return (
+        <svg aria-hidden="true" className="company-context-menu-icon" fill="none" viewBox="0 0 16 16">
+          <path
+            d="M8 4.75a3.25 3.25 0 1 1 0 6.5a3.25 3.25 0 0 1 0-6.5Z"
+            stroke="currentColor"
+            strokeWidth="1.4"
+          />
+          <path
+            d="M8 1.75v1.5M8 12.75v1.5M13.25 8h1.5M1.25 8h1.5M11.72 4.28l1.06-1.06M3.22 12.78l1.06-1.06M11.72 11.72l1.06 1.06M3.22 3.22l1.06 1.06"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="1.4"
+          />
+        </svg>
+      );
+  }
 }
 
 function GitChangeSection({
