@@ -2022,12 +2022,12 @@ p {
 }
 
 .project-dialog {
-  width: min(509px, calc(100vw - 32px));
+  width: min(640px, calc(100vw - 32px));
   overflow: hidden;
-  border: 1px solid #242424;
-  border-radius: 12px;
-  background: #050505;
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
+  border: 1px solid #27272a;
+  border-radius: 20px;
+  background: #09090b;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.45);
 }
 
 .issue-dialog {
@@ -2212,51 +2212,53 @@ p {
 }
 
 .project-dialog-header {
-  height: 48px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  padding: 0 16px;
-  border-bottom: 1px solid #1d1d1d;
+  gap: 18px;
+  padding: 24px 24px 18px;
 }
 
-.project-dialog-header-copy {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.project-dialog-title-block {
+  display: grid;
+  gap: 6px;
 }
 
-.project-dialog-header-copy h2 {
-  color: #d8d8d8;
-  font-size: 16px;
-  font-weight: 500;
-}
-
-.project-dialog-badge {
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: #1f1f1f;
-  color: #8d8d8d;
-  font-size: 12px;
+.project-dialog-title-block h2 {
+  color: #fafafa;
+  font-size: 18px;
   font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.project-dialog-title-block p {
+  max-width: 480px;
+  color: #a1a1aa;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .project-dialog-close {
   width: 32px;
   height: 32px;
-  border: 0;
-  border-radius: 16px;
-  background: transparent;
-  color: #9a9a9a;
+  display: grid;
+  place-items: center;
+  border: 1px solid #27272a;
+  border-radius: 10px;
+  background: #111113;
+  color: #a1a1aa;
+  font-size: 14px;
+  line-height: 1;
   transition:
     background-color 140ms ease,
+    border-color 140ms ease,
     color 140ms ease;
 }
 
 .project-dialog-close:hover {
-  background: #171719;
-  color: #f4f4f5;
+  background: #18181b;
+  border-color: #3f3f46;
+  color: #fafafa;
 }
 
 .project-dialog-close:focus-visible {
@@ -2271,86 +2273,76 @@ p {
 .project-dialog-body {
   display: grid;
   gap: 18px;
-  padding: 18px;
+  padding: 0 24px 24px;
 }
 
 .project-dialog-divider {
   height: 1px;
-  background: #1a1a1a;
+  background: #18181b;
 }
 
-.project-folder-row,
-.project-dialog-controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.project-dialog-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.project-dialog-field {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.project-dialog-field-full {
+  grid-column: 1 / -1;
 }
 
 .project-folder-row {
-  align-items: stretch;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
 }
 
-.project-folder-pill {
-  flex: 1;
-  min-height: 44px;
+.project-dialog-value-shell {
+  min-height: 40px;
   display: flex;
   align-items: center;
-  padding: 0 14px;
-  border: 1px solid #2a2a2a;
+  padding: 10px 12px;
+  border: 1px solid #27272a;
   border-radius: 10px;
-  background: #0a0a0a;
+  background: #0c0c0d;
+  color: #fafafa;
 }
 
-.project-folder-pill span {
-  color: #c8c8c8;
+.project-dialog-value-shell span {
   font-size: 13px;
   font-weight: 500;
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
-.project-folder-pill span:empty {
-  color: #7a7a7a;
+.project-dialog-value-placeholder {
+  color: #71717a;
 }
 
-.project-dialog-controls {
-  justify-content: space-between;
-}
-
-.project-dialog-chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.project-dialog-chip-row select,
-.project-dialog-chip-row input {
-  min-height: 40px;
-  border-radius: 999px;
-  padding: 0 12px;
-}
-
-.project-dialog-create-button {
-  min-height: 42px;
-  padding: 0 18px;
-  border: 0;
-  border-radius: 9px;
-  background: #b8b8b8;
-  color: #2b2b2b;
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.project-dialog-create-button:disabled {
-  background: #4a4a4a;
-  color: #5b5b5b;
+.project-dialog-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
 }
 
 @media (max-width: 760px) {
+  .project-dialog,
   .issue-dialog {
     width: min(100%, calc(100vw - 24px));
   }
 
+  .project-dialog-grid,
   .issue-dialog-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .project-folder-row {
     grid-template-columns: minmax(0, 1fr);
   }
 }
