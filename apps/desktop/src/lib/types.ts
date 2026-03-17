@@ -35,6 +35,14 @@ export interface DesktopSettings {
   last_repository_path?: string | null;
   theme_mode?: "system" | "light" | "dark" | null;
   font_size_preset?: "small" | "medium" | "large" | null;
+  dashboard_project_views?:
+    | Record<
+        string,
+        {
+          group_by?: "status" | "priority" | "assignee" | null;
+        }
+      >
+    | null;
 }
 
 export interface Company {

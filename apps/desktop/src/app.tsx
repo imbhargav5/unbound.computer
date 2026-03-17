@@ -154,12 +154,17 @@ interface DashboardCanvasOffset {
   y: number;
 }
 
+type DashboardProjectGrouping = "status" | "priority" | "assignee";
+
 interface DashboardProjectColumn {
-  status: string;
+  createDefaults: CreateIssueDialogDefaults;
+  id: string;
   issues: IssueRecord[];
+  label: string;
 }
 
 interface DashboardProjectBoardLayout {
+  grouping: DashboardProjectGrouping;
   project: ProjectRecord;
   columns: DashboardProjectColumn[];
   left: number;
@@ -168,7 +173,9 @@ interface DashboardProjectBoardLayout {
 }
 
 interface CreateIssueDialogDefaults {
+  assigneeAgentId?: string;
   projectId?: string;
+  priority?: string;
   status?: string;
 }
 
@@ -255,6 +262,11 @@ const settingsSections: Array<{ id: SettingsSection; label: string }> = [
 
 const themeModes: ThemeMode[] = ["system", "light", "dark"];
 const fontSizePresets: FontSizePreset[] = ["small", "medium", "large"];
+const dashboardProjectGroupingOptions: DashboardProjectGrouping[] = [
+  "status",
+  "priority",
+  "assignee",
+];
 
 const defaultSettings: DesktopSettings = {
   preferred_company_id: null,
@@ -264,6 +276,7 @@ const defaultSettings: DesktopSettings = {
   last_repository_path: null,
   theme_mode: "dark",
   font_size_preset: "medium",
+  dashboard_project_views: {},
 };
 
 const companyContextMenuItems: Array<{
@@ -495,9 +508,17 @@ export function App() {
     boardGoals[0] ??
     null;
   const boardProjects = companySnapshot?.projects ?? [];
+  const boardAgents = companySnapshot?.agents ?? [];
+  const dashboardProjectViews = settings.dashboard_project_views ?? {};
   const dashboardProjectBoards = useMemo(
-    () => buildDashboardProjectBoards(boardProjects, boardIssues),
-    [boardIssues, boardProjects]
+    () =>
+      buildDashboardProjectBoards(
+        boardProjects,
+        boardIssues,
+        boardAgents,
+        dashboardProjectViews
+      ),
+    [boardAgents, boardIssues, boardProjects, dashboardProjectViews]
   );
   const dashboardCanvasBounds = useMemo(
     () => buildDashboardCanvasBounds(dashboardProjectBoards),
@@ -520,27 +541,25 @@ export function App() {
     companyWorkspaces[0] ??
     null;
   const selectedAgent =
-    (companySnapshot?.agents ?? []).find(
-      (agent) => agent.id === selectedAgentId
-    ) ??
-    companySnapshot?.agents[0] ??
+    boardAgents.find((agent) => agent.id === selectedAgentId) ??
+    boardAgents[0] ??
     null;
   const selectedAgentRunIsLive =
     selectedAgentRun?.status === "queued" ||
     selectedAgentRun?.status === "running";
   const selectedCompanyCeo = findCompanyCeo(
-    companySnapshot?.agents ?? [],
+    boardAgents,
     selectedCompany?.ceo_agent_id ?? null
   );
   const orderedSidebarAgents = useMemo(
     () =>
       orderSidebarAgents(
-        companySnapshot?.agents ?? [],
+        boardAgents,
         typeof selectedCompany?.ceo_agent_id === "string"
           ? selectedCompany.ceo_agent_id
           : null
       ),
-    [companySnapshot?.agents, selectedCompany?.ceo_agent_id]
+    [boardAgents, selectedCompany?.ceo_agent_id]
   );
   const orderedSidebarProjects = useMemo(
     () =>
@@ -1845,6 +1864,21 @@ export function App() {
     setAgentsRouteMode(tab);
   };
 
+  const handleProjectBoardGroupingChange = (
+    projectId: string,
+    grouping: DashboardProjectGrouping
+  ) => {
+    void applySettingsPatch({
+      dashboard_project_views: {
+        ...dashboardProjectViews,
+        [projectId]: {
+          ...dashboardProjectViews[projectId],
+          group_by: grouping,
+        },
+      },
+    });
+  };
+
   const handleDeleteProject = async (projectId: string) => {
     if (!selectedCompanyId) {
       return;
@@ -2126,6 +2160,8 @@ export function App() {
     defaults?: CreateIssueDialogDefaults
   ) => {
     resetIssueDialog();
+    setIssueDialogAssigneeAgentId(defaults?.assigneeAgentId ?? "");
+    setIssueDialogPriority(defaults?.priority ?? "medium");
     setIssueDialogStatus(defaults?.status ?? "backlog");
     setIssueDialogProjectId(defaults?.projectId ?? "");
     setIsCreateIssueDialogOpen(true);
@@ -3108,7 +3144,7 @@ export function App() {
 
             {selectedScreen === "dashboard" ? (
               <DashboardCanvasRouteView
-                agents={companySnapshot?.agents ?? []}
+                agents={boardAgents}
                 canvasBounds={dashboardCanvasBounds}
                 canvasOffset={dashboardCanvasOffset}
                 isDragging={isDashboardCanvasDragging}
@@ -3118,9 +3154,8 @@ export function App() {
                 onPointerDown={handleDashboardCanvasPointerDown}
                 onPointerMove={handleDashboardCanvasPointerMove}
                 onPointerUp={handleDashboardCanvasPointerEnd}
-                onCreateIssueForColumn={(projectId, status) =>
-                  handleOpenCreateIssueDialog({ projectId, status })
-                }
+                onCreateIssueForColumn={handleOpenCreateIssueDialog}
+                onProjectGroupingChange={handleProjectBoardGroupingChange}
                 projectBoards={dashboardProjectBoards}
                 selectedProjectId={selectedProjectId}
                 viewportRef={dashboardCanvasViewportRef}
@@ -5346,6 +5381,7 @@ function DashboardCanvasRouteView({
   onPointerMove,
   onPointerUp,
   onCreateIssueForColumn,
+  onProjectGroupingChange,
   onWheel,
   projectBoards,
   selectedProjectId,
@@ -5361,7 +5397,11 @@ function DashboardCanvasRouteView({
   onPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
   onPointerMove: (event: PointerEvent<HTMLDivElement>) => void;
   onPointerUp: (event: PointerEvent<HTMLDivElement>) => void;
-  onCreateIssueForColumn: (projectId: string, status: string) => void;
+  onCreateIssueForColumn: (defaults?: CreateIssueDialogDefaults) => void;
+  onProjectGroupingChange: (
+    projectId: string,
+    grouping: DashboardProjectGrouping
+  ) => void;
   onWheel: (event: WheelEvent<HTMLDivElement>) => void;
   projectBoards: DashboardProjectBoardLayout[];
   selectedProjectId: string | null;
@@ -5427,13 +5467,36 @@ function DashboardCanvasRouteView({
                         "Choose a repository to anchor this project."}
                     </p>
                   </div>
-                  <div className="project-kanban-board-meta">
-                    <span>{projectBoard.issueCount} issues</span>
-                    <span>
-                      {projectBoard.project.target_date
-                        ? `Target ${formatShortDate(projectBoard.project.target_date)}`
-                        : "No target date"}
-                    </span>
+                  <div className="project-kanban-board-side">
+                    <label className="project-kanban-board-grouping">
+                      <span>Group by</span>
+                      <select
+                        onChange={(event) =>
+                          onProjectGroupingChange(
+                            projectBoard.project.id,
+                            normalizeDashboardProjectGrouping(
+                              event.target.value
+                            )
+                          )
+                        }
+                        value={projectBoard.grouping}
+                      >
+                        {dashboardProjectGroupingOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {humanizeIssueValue(option)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <div className="project-kanban-board-meta">
+                      <span>{projectBoard.issueCount} issues</span>
+                      <span>
+                        {projectBoard.project.target_date
+                          ? `Target ${formatShortDate(projectBoard.project.target_date)}`
+                          : "No target date"}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -5443,10 +5506,10 @@ function DashboardCanvasRouteView({
                       <button
                         className="project-kanban-column-create"
                         onClick={() =>
-                          onCreateIssueForColumn(
-                            projectBoard.project.id,
-                            column.status
-                          )
+                          onCreateIssueForColumn({
+                            projectId: projectBoard.project.id,
+                            ...column.createDefaults,
+                          })
                         }
                         type="button"
                       >
@@ -5458,22 +5521,16 @@ function DashboardCanvasRouteView({
                         </span>
                         <span className="project-kanban-column-create-copy">
                           <strong>New issue</strong>
-                          <small>
-                            Add work directly to{" "}
-                            {humanizeIssueValue(column.status)}
-                          </small>
+                          <small>Add work directly to {column.label}</small>
                         </span>
                       </button>
                     );
 
                     return (
-                      <section
-                        className="project-kanban-column"
-                        key={column.status}
-                      >
+                      <section className="project-kanban-column" key={column.id}>
                         <div className="project-kanban-column-header">
                           <div className="project-kanban-column-header-copy">
-                            <span>{humanizeIssueValue(column.status)}</span>
+                            <span>{column.label}</span>
                             <strong>{column.issues.length}</strong>
                           </div>
                         </div>
@@ -5496,15 +5553,15 @@ function DashboardCanvasRouteView({
                                   </strong>
                                   <p>{issue.title}</p>
                                   <div className="project-kanban-card-meta">
-                                    <span>
-                                      {humanizeIssueValue(issue.priority)}
-                                    </span>
-                                    <span>
-                                      {issueAssigneeLabel(
-                                        agents,
-                                        issue.assignee_agent_id
-                                      )}
-                                    </span>
+                                    {projectBoardCardMeta(
+                                      projectBoard.grouping,
+                                      issue,
+                                      agents
+                                    ).map((meta, index) => (
+                                      <span key={`${issue.id}-${index}`}>
+                                        {meta}
+                                      </span>
+                                    ))}
                                   </div>
                                 </button>
                               ))}
@@ -9007,6 +9064,7 @@ function mergeDesktopSettings(settings: DesktopSettings): DesktopSettings {
   return {
     ...defaultSettings,
     ...settings,
+    dashboard_project_views: settings.dashboard_project_views ?? {},
   };
 }
 
@@ -9450,6 +9508,19 @@ function normalizeBoardIssueValue(value: string | null | undefined) {
   return trimmed.toLowerCase().replaceAll(" ", "_");
 }
 
+function normalizeDashboardProjectGrouping(
+  value: string | null | undefined
+): DashboardProjectGrouping {
+  switch (value?.trim().toLowerCase()) {
+    case "priority":
+      return "priority";
+    case "assignee":
+      return "assignee";
+    default:
+      return "status";
+  }
+}
+
 function projectBoardColumnStatuses(issues: IssueRecord[]) {
   const statuses = ["backlog", "in_progress", "blocked", "done"];
   for (const issue of issues) {
@@ -9461,26 +9532,107 @@ function projectBoardColumnStatuses(issues: IssueRecord[]) {
   return statuses;
 }
 
+function projectBoardColumnPriorities(issues: IssueRecord[]) {
+  const priorities = ["urgent", "high", "medium", "low"];
+  for (const issue of issues) {
+    const normalizedPriority = normalizeBoardIssueValue(issue.priority);
+    if (!priorities.includes(normalizedPriority)) {
+      priorities.push(normalizedPriority);
+    }
+  }
+  return priorities;
+}
+
+function projectBoardColumnsByStatus(
+  issues: IssueRecord[]
+): DashboardProjectColumn[] {
+  return projectBoardColumnStatuses(issues).map((status) => ({
+    createDefaults: { status },
+    id: `status:${status}`,
+    issues: issues.filter(
+      (issue) => normalizeBoardIssueValue(issue.status) === status
+    ),
+    label: humanizeIssueValue(status),
+  }));
+}
+
+function projectBoardColumnsByPriority(
+  issues: IssueRecord[]
+): DashboardProjectColumn[] {
+  return projectBoardColumnPriorities(issues).map((priority) => ({
+    createDefaults: { priority },
+    id: `priority:${priority}`,
+    issues: issues.filter(
+      (issue) => normalizeBoardIssueValue(issue.priority) === priority
+    ),
+    label: humanizeIssueValue(priority),
+  }));
+}
+
+function projectBoardColumnsByAssignee(
+  issues: IssueRecord[],
+  agents: AgentRecord[]
+): DashboardProjectColumn[] {
+  const assigneeIds = Array.from(
+    new Set(
+      issues
+        .map((issue) => issue.assignee_agent_id?.trim() ?? "")
+        .filter((assigneeAgentId) => assigneeAgentId.length > 0)
+    )
+  ).sort((left, right) =>
+    issueAssigneeLabel(agents, left).localeCompare(issueAssigneeLabel(agents, right))
+  );
+
+  return ["", ...assigneeIds].map((assigneeAgentId) => ({
+    createDefaults: assigneeAgentId ? { assigneeAgentId } : {},
+    id: assigneeAgentId
+      ? `assignee:${assigneeAgentId}`
+      : "assignee:unassigned",
+    issues: issues.filter(
+      (issue) => (issue.assignee_agent_id?.trim() ?? "") === assigneeAgentId
+    ),
+    label: assigneeAgentId
+      ? issueAssigneeLabel(agents, assigneeAgentId)
+      : "Unassigned",
+  }));
+}
+
+function projectBoardColumns(
+  issues: IssueRecord[],
+  agents: AgentRecord[],
+  grouping: DashboardProjectGrouping
+): DashboardProjectColumn[] {
+  switch (grouping) {
+    case "priority":
+      return projectBoardColumnsByPriority(issues);
+    case "assignee":
+      return projectBoardColumnsByAssignee(issues, agents);
+    default:
+      return projectBoardColumnsByStatus(issues);
+  }
+}
+
 function buildDashboardProjectBoards(
   projects: ProjectRecord[],
-  issues: IssueRecord[]
+  issues: IssueRecord[],
+  agents: AgentRecord[],
+  projectViews: NonNullable<DesktopSettings["dashboard_project_views"]>
 ): DashboardProjectBoardLayout[] {
   const columnCount = projects.length <= 1 ? 1 : 2;
 
   return projects.map((project, index) => {
     const col = index % columnCount;
     const row = Math.floor(index / columnCount);
+    const grouping = normalizeDashboardProjectGrouping(
+      projectViews[project.id]?.group_by
+    );
     const projectIssues = issues.filter(
       (issue) => issue.project_id === project.id
     );
-    const columns = projectBoardColumnStatuses(projectIssues).map((status) => ({
-      status,
-      issues: projectIssues.filter(
-        (issue) => normalizeBoardIssueValue(issue.status) === status
-      ),
-    }));
+    const columns = projectBoardColumns(projectIssues, agents, grouping);
 
     return {
+      grouping,
       project,
       columns,
       issueCount: projectIssues.length,
@@ -9489,6 +9641,30 @@ function buildDashboardProjectBoards(
       top: 104 + row * (dashboardProjectBoardHeight + dashboardProjectBoardGapY),
     };
   });
+}
+
+function projectBoardCardMeta(
+  grouping: DashboardProjectGrouping,
+  issue: IssueRecord,
+  agents: AgentRecord[]
+) {
+  switch (grouping) {
+    case "priority":
+      return [
+        humanizeIssueValue(issue.status),
+        issueAssigneeLabel(agents, issue.assignee_agent_id),
+      ];
+    case "assignee":
+      return [
+        humanizeIssueValue(issue.status),
+        humanizeIssueValue(issue.priority),
+      ];
+    default:
+      return [
+        humanizeIssueValue(issue.priority),
+        issueAssigneeLabel(agents, issue.assignee_agent_id),
+      ];
+  }
 }
 
 function buildDashboardCanvasBounds(

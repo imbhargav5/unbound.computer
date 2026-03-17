@@ -1046,6 +1046,44 @@ p {
   text-align: right;
 }
 
+.project-kanban-board-side {
+  display: grid;
+  gap: 12px;
+  justify-items: end;
+  align-content: start;
+}
+
+.project-kanban-board-grouping {
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+}
+
+.project-kanban-board-grouping span {
+  color: #666670;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.project-kanban-board-grouping select {
+  min-width: 148px;
+  padding: 9px 12px;
+  border: 1px solid #2a2a31;
+  border-radius: 12px;
+  background: #141418;
+  color: #f5f5f5;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.project-kanban-board-grouping select:focus-visible {
+  outline: none;
+  border-color: rgba(245, 158, 11, 0.55);
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.12);
+}
+
 .project-kanban-columns {
   flex: 1;
   display: grid;

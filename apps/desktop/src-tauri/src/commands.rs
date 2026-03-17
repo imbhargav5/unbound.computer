@@ -18,6 +18,12 @@ pub struct DesktopState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+pub struct DashboardProjectViewSettings {
+    pub group_by: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct DesktopSettings {
     pub preferred_company_id: Option<String>,
     pub preferred_repository_id: Option<String>,
@@ -26,6 +32,7 @@ pub struct DesktopSettings {
     pub last_repository_path: Option<String>,
     pub theme_mode: Option<String>,
     pub font_size_preset: Option<String>,
+    pub dashboard_project_views: Option<HashMap<String, DashboardProjectViewSettings>>,
 }
 
 impl Default for DesktopSettings {
@@ -38,6 +45,7 @@ impl Default for DesktopSettings {
             last_repository_path: None,
             theme_mode: Some("dark".to_string()),
             font_size_preset: Some("medium".to_string()),
+            dashboard_project_views: Some(HashMap::new()),
         }
     }
 }
