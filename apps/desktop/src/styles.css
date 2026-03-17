@@ -2324,6 +2324,8 @@ p {
 
 .issues-detail-main-panel {
   min-width: 0;
+  width: min(100%, 680px);
+  justify-self: start;
 }
 
 .issues-detail-sidebar-panel {
