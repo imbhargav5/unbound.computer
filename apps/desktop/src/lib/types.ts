@@ -56,15 +56,74 @@ export interface Company {
 
 export interface AgentRecord {
   id: string;
+  company_id?: string | null;
   name: string;
   role?: string | null;
   title?: string | null;
   status?: string | null;
   adapter_type?: string | null;
+  reports_to?: string | null;
+  home_path?: string | null;
+  instructions_path?: string | null;
   budget_monthly_cents?: number | null;
   spent_monthly_cents?: number | null;
   last_heartbeat_at?: string | null;
+  capabilities?: string | null;
+  metadata?: Record<string, unknown> | null;
   [key: string]: unknown;
+}
+
+export interface AgentRunRecord {
+  id: string;
+  company_id: string;
+  agent_id: string;
+  invocation_source: string;
+  trigger_detail?: string | null;
+  wake_reason?: string | null;
+  status: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  error?: string | null;
+  wakeup_request_id?: string | null;
+  exit_code?: number | null;
+  signal?: string | null;
+  usage_json?: unknown;
+  result_json?: unknown;
+  session_id_before?: string | null;
+  session_id_after?: string | null;
+  log_store?: string | null;
+  log_ref?: string | null;
+  log_bytes?: number | null;
+  log_sha256?: string | null;
+  log_compressed?: boolean | null;
+  stdout_excerpt?: string | null;
+  stderr_excerpt?: string | null;
+  error_code?: string | null;
+  external_run_id?: string | null;
+  context_snapshot?: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentRunEventRecord {
+  id: number;
+  company_id: string;
+  run_id: string;
+  agent_id: string;
+  seq: number;
+  event_type: string;
+  stream?: string | null;
+  level?: string | null;
+  color?: string | null;
+  message?: string | null;
+  payload?: unknown;
+  created_at: string;
+}
+
+export interface AgentRunLogChunk {
+  content: string;
+  next_offset: number;
+  done: boolean;
 }
 
 export interface GoalRecord {

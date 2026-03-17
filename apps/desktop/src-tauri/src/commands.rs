@@ -67,7 +67,10 @@ async fn call_daemon(method: Method, params: Option<Value>) -> Result<Value, Str
             .call_method_with_params(method, params)
             .await
             .map_err(|error| error.to_string())?,
-        None => client.call_method(method).await.map_err(|error| error.to_string())?,
+        None => client
+            .call_method(method)
+            .await
+            .map_err(|error| error.to_string())?,
     };
 
     if let Some(error) = response.error {
@@ -106,8 +109,8 @@ fn write_settings(settings: &DesktopSettings) -> Result<(), String> {
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
 
-    let content =
-        serde_json::to_string_pretty(settings).map_err(|error| format!("serialize failed: {error}"))?;
+    let content = serde_json::to_string_pretty(settings)
+        .map_err(|error| format!("serialize failed: {error}"))?;
     fs::write(path, content).map_err(|error| error.to_string())
 }
 
@@ -227,6 +230,78 @@ pub async fn board_checkout_issue(issue_id: String) -> Result<Value, String> {
 pub async fn board_approve_approval(params: Value) -> Result<Value, String> {
     let value = call_daemon(Method::ApprovalApprove, Some(params)).await?;
     Ok(extract_field(value, "approval"))
+}
+
+#[tauri::command]
+pub async fn board_list_agent_runs(agent_id: String, limit: Option<u32>) -> Result<Value, String> {
+    let value = call_daemon(
+        Method::AgentRunList,
+        Some(json!({
+            "agent_id": agent_id,
+            "limit": limit,
+        })),
+    )
+    .await?;
+    Ok(extract_field(value, "runs"))
+}
+
+#[tauri::command]
+pub async fn board_get_agent_run(run_id: String) -> Result<Value, String> {
+    let value = call_daemon(Method::AgentRunGet, Some(json!({ "run_id": run_id }))).await?;
+    Ok(extract_field(value, "run"))
+}
+
+#[tauri::command]
+pub async fn board_list_agent_run_events(
+    run_id: String,
+    after_seq: Option<i64>,
+    limit: Option<u32>,
+) -> Result<Value, String> {
+    let value = call_daemon(
+        Method::AgentRunEvents,
+        Some(json!({
+            "run_id": run_id,
+            "after_seq": after_seq,
+            "limit": limit,
+        })),
+    )
+    .await?;
+    Ok(extract_field(value, "events"))
+}
+
+#[tauri::command]
+pub async fn board_read_agent_run_log(
+    run_id: String,
+    offset: Option<u64>,
+    limit_bytes: Option<u64>,
+) -> Result<Value, String> {
+    call_daemon(
+        Method::AgentRunLog,
+        Some(json!({
+            "run_id": run_id,
+            "offset": offset.unwrap_or(0),
+            "limit_bytes": limit_bytes.unwrap_or(16_384),
+        })),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn board_cancel_agent_run(run_id: String) -> Result<Value, String> {
+    let value = call_daemon(Method::AgentRunCancel, Some(json!({ "run_id": run_id }))).await?;
+    Ok(extract_field(value, "run"))
+}
+
+#[tauri::command]
+pub async fn board_retry_agent_run(run_id: String) -> Result<Value, String> {
+    let value = call_daemon(Method::AgentRunRetry, Some(json!({ "run_id": run_id }))).await?;
+    Ok(extract_field(value, "run"))
+}
+
+#[tauri::command]
+pub async fn board_resume_agent_run(run_id: String) -> Result<Value, String> {
+    let value = call_daemon(Method::AgentRunResume, Some(json!({ "run_id": run_id }))).await?;
+    Ok(extract_field(value, "run"))
 }
 
 #[tauri::command]
@@ -382,7 +457,11 @@ pub async fn session_update(params: Value) -> Result<Value, String> {
 
 #[tauri::command]
 pub async fn message_list(session_id: String) -> Result<Value, String> {
-    let value = call_daemon(Method::MessageList, Some(json!({ "session_id": session_id }))).await?;
+    let value = call_daemon(
+        Method::MessageList,
+        Some(json!({ "session_id": session_id })),
+    )
+    .await?;
     Ok(extract_field(value, "messages"))
 }
 
@@ -406,12 +485,20 @@ pub async fn claude_send(
 
 #[tauri::command]
 pub async fn claude_status(session_id: String) -> Result<Value, String> {
-    call_daemon(Method::ClaudeStatus, Some(json!({ "session_id": session_id }))).await
+    call_daemon(
+        Method::ClaudeStatus,
+        Some(json!({ "session_id": session_id })),
+    )
+    .await
 }
 
 #[tauri::command]
 pub async fn claude_stop(session_id: String) -> Result<Value, String> {
-    call_daemon(Method::ClaudeStop, Some(json!({ "session_id": session_id }))).await
+    call_daemon(
+        Method::ClaudeStop,
+        Some(json!({ "session_id": session_id })),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -561,12 +648,20 @@ pub async fn terminal_run(
 
 #[tauri::command]
 pub async fn terminal_status(session_id: String) -> Result<Value, String> {
-    call_daemon(Method::TerminalStatus, Some(json!({ "session_id": session_id }))).await
+    call_daemon(
+        Method::TerminalStatus,
+        Some(json!({ "session_id": session_id })),
+    )
+    .await
 }
 
 #[tauri::command]
 pub async fn terminal_stop(session_id: String) -> Result<Value, String> {
-    call_daemon(Method::TerminalStop, Some(json!({ "session_id": session_id }))).await
+    call_daemon(
+        Method::TerminalStop,
+        Some(json!({ "session_id": session_id })),
+    )
+    .await
 }
 
 #[tauri::command]

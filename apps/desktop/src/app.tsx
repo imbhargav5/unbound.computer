@@ -15,15 +15,22 @@ import {
 } from "react";
 import {
   boardAddIssueComment,
+  boardCancelAgentRun,
   boardApproveApproval,
   boardCheckoutIssue,
   boardCompanySnapshot,
   boardCreateCompany,
   boardCreateIssue,
   boardCreateProject,
+  boardGetAgentRun,
   boardGetIssue,
+  boardListAgentRunEvents,
+  boardListAgentRuns,
   boardListCompanies,
   boardListIssueComments,
+  boardReadAgentRunLog,
+  boardResumeAgentRun,
+  boardRetryAgentRun,
   boardUpdateCompany,
   boardUpdateIssue,
   claudeSend,
@@ -59,6 +66,8 @@ import {
   terminalStop,
 } from "./lib/api";
 import type {
+  AgentRunEventRecord,
+  AgentRunRecord,
   AgentRecord,
   ApprovalRecord,
   Company,
@@ -109,6 +118,7 @@ type ThemeMode = "system" | "light" | "dark";
 type FontSizePreset = "small" | "medium" | "large";
 type IssuesListTab = "new" | "all";
 type IssuesRouteMode = "list" | "detail";
+type AgentsRouteMode = "details" | "runs";
 
 type BoardRootLayout = "companyDashboard" | "workspace" | "settings";
 type WorkspaceCenterTab = "conversation" | "terminal" | "preview";
@@ -118,9 +128,7 @@ type CompanyContextMenuScreen =
   | "workspaces"
   | "issues"
   | "companySettings";
-type CompanyContextMenuIconKey =
-  | CompanyContextMenuScreen
-  | "agents";
+type CompanyContextMenuIconKey = CompanyContextMenuScreen | "agents";
 
 interface CompanyContextMenuState {
   companyId: string;
@@ -232,42 +240,87 @@ const dashboardProjectBoardGapY = 80;
 const defaultCompanyBrandColor = "#0F766E";
 
 export function App() {
-  const [bootstrap, setBootstrap] = useState<DesktopBootstrapStatus | null>(null);
+  const [bootstrap, setBootstrap] = useState<DesktopBootstrapStatus | null>(
+    null
+  );
   const [settings, setSettings] = useState<DesktopSettings>(defaultSettings);
   const [selectedScreen, setSelectedScreen] = useState<AppScreen>("dashboard");
   const [selectedSettingsSection, setSelectedSettingsSection] =
     useState<SettingsSection>("appearance");
   const [companies, setCompanies] = useState<Company[]>([]);
   const [repositories, setRepositories] = useState<RepositoryRecord[]>([]);
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
-  const [selectedRepositoryId, setSelectedRepositoryId] = useState<string | null>(null);
-  const [selectedBoardWorkspaceId, setSelectedBoardWorkspaceId] = useState<string | null>(null);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(
+    null
+  );
+  const [selectedRepositoryId, setSelectedRepositoryId] = useState<
+    string | null
+  >(null);
+  const [selectedBoardWorkspaceId, setSelectedBoardWorkspaceId] = useState<
+    string | null
+  >(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(null);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(
+    null
+  );
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
+    null
+  );
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [selectedIssuesListTab, setSelectedIssuesListTab] =
     useState<IssuesListTab>("new");
-  const [issuesRouteMode, setIssuesRouteMode] = useState<IssuesRouteMode>("list");
-  const [companySnapshot, setCompanySnapshot] = useState<CompanySnapshot | null>(null);
+  const [issuesRouteMode, setIssuesRouteMode] =
+    useState<IssuesRouteMode>("list");
+  const [agentsRouteMode, setAgentsRouteMode] =
+    useState<AgentsRouteMode>("details");
+  const [companySnapshot, setCompanySnapshot] =
+    useState<CompanySnapshot | null>(null);
+  const [agentRuns, setAgentRuns] = useState<AgentRunRecord[]>([]);
+  const [selectedAgentRunId, setSelectedAgentRunId] = useState<string | null>(
+    null
+  );
+  const [selectedAgentRun, setSelectedAgentRun] =
+    useState<AgentRunRecord | null>(null);
+  const [agentRunEvents, setAgentRunEvents] = useState<AgentRunEventRecord[]>(
+    []
+  );
+  const [agentRunLogContent, setAgentRunLogContent] = useState("");
+  const [agentRunLogOffset, setAgentRunLogOffset] = useState(0);
+  const [isLoadingAgentRuns, setIsLoadingAgentRuns] = useState(false);
+  const [isLoadingAgentRunDetail, setIsLoadingAgentRunDetail] = useState(false);
+  const [isPerformingAgentRunAction, setIsPerformingAgentRunAction] =
+    useState(false);
+  const [agentRunError, setAgentRunError] = useState<string | null>(null);
   const [issueCommentsByIssueId, setIssueCommentsByIssueId] = useState<
     Record<string, IssueCommentRecord[]>
   >({});
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
+    null
+  );
   const [messages, setMessages] = useState<SessionMessage[]>([]);
   const [gitState, setGitState] = useState<GitStatusResult | null>(null);
   const [gitHistory, setGitHistory] = useState<GitLogResult | null>(null);
-  const [branchState, setBranchState] = useState<GitBranchesResult | null>(null);
+  const [branchState, setBranchState] = useState<GitBranchesResult | null>(
+    null
+  );
   const [fileEntries, setFileEntries] = useState<FileEntry[]>([]);
   const [currentDirectory, setCurrentDirectory] = useState("");
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<FileReadResult | null>(null);
   const [selectedDiff, setSelectedDiff] = useState<GitDiffResult | null>(null);
-  const [dependencyCheck, setDependencyCheck] = useState<Record<string, unknown> | null>(null);
-  const [claudeStatusState, setClaudeStatusState] = useState<Record<string, unknown> | null>(null);
-  const [terminalStatusState, setTerminalStatusState] = useState<Record<string, unknown> | null>(null);
+  const [dependencyCheck, setDependencyCheck] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
+  const [claudeStatusState, setClaudeStatusState] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
+  const [terminalStatusState, setTerminalStatusState] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [workspaceCenterTab, setWorkspaceCenterTab] =
     useState<WorkspaceCenterTab>("conversation");
@@ -276,12 +329,15 @@ export function App() {
   const [gitCommitMessage, setGitCommitMessage] = useState("");
   const [prompt, setPrompt] = useState("");
   const [terminalCommand, setTerminalCommand] = useState("");
-  const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] = useState(false);
+  const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] =
+    useState(false);
   const [projectDialogRepoPath, setProjectDialogRepoPath] = useState("");
   const [projectDialogStatus, setProjectDialogStatus] = useState("planned");
   const [projectDialogGoalId, setProjectDialogGoalId] = useState("");
   const [projectDialogTargetDate, setProjectDialogTargetDate] = useState("");
-  const [projectDialogError, setProjectDialogError] = useState<string | null>(null);
+  const [projectDialogError, setProjectDialogError] = useState<string | null>(
+    null
+  );
   const [isProjectDialogSaving, setIsProjectDialogSaving] = useState(false);
   const [isCreateIssueDialogOpen, setIsCreateIssueDialogOpen] = useState(false);
   const [issueDialogTitle, setIssueDialogTitle] = useState("");
@@ -289,29 +345,40 @@ export function App() {
   const [issueDialogPriority, setIssueDialogPriority] = useState("medium");
   const [issueDialogStatus, setIssueDialogStatus] = useState("backlog");
   const [issueDialogProjectId, setIssueDialogProjectId] = useState("");
-  const [issueDialogAssigneeAgentId, setIssueDialogAssigneeAgentId] = useState("");
+  const [issueDialogAssigneeAgentId, setIssueDialogAssigneeAgentId] =
+    useState("");
   const [issueDialogParentIssueId, setIssueDialogParentIssueId] = useState("");
   const [issueDialogError, setIssueDialogError] = useState<string | null>(null);
   const [isIssueDialogSaving, setIsIssueDialogSaving] = useState(false);
   const [newIssueCommentBody, setNewIssueCommentBody] = useState("");
   const [isEditingIssue, setIsEditingIssue] = useState(false);
-  const [issueDraft, setIssueDraft] = useState<IssueEditDraft>(createEmptyIssueDraft());
+  const [issueDraft, setIssueDraft] = useState<IssueEditDraft>(
+    createEmptyIssueDraft()
+  );
   const [isSavingIssue, setIsSavingIssue] = useState(false);
   const [issueEditorError, setIssueEditorError] = useState<string | null>(null);
   const [isWorking, setIsWorking] = useState(false);
   const [companyContextMenu, setCompanyContextMenu] =
     useState<CompanyContextMenuState | null>(null);
-  const [companyBrandColorDraft, setCompanyBrandColorDraft] = useState(defaultCompanyBrandColor);
-  const [isSavingCompanyBrandColor, setIsSavingCompanyBrandColor] = useState(false);
-  const [companyBrandColorError, setCompanyBrandColorError] = useState<string | null>(null);
+  const [companyBrandColorDraft, setCompanyBrandColorDraft] = useState(
+    defaultCompanyBrandColor
+  );
+  const [isSavingCompanyBrandColor, setIsSavingCompanyBrandColor] =
+    useState(false);
+  const [companyBrandColorError, setCompanyBrandColorError] = useState<
+    string | null
+  >(null);
   const [dashboardCanvasOffset, setDashboardCanvasOffset] =
     useState<DashboardCanvasOffset>(defaultDashboardCanvasOffset);
-  const [isDashboardCanvasDragging, setIsDashboardCanvasDragging] = useState(false);
+  const [isDashboardCanvasDragging, setIsDashboardCanvasDragging] =
+    useState(false);
 
   const terminalContainerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const refreshTimeoutRef = useRef<number | null>(null);
   const dashboardCanvasViewportRef = useRef<HTMLDivElement | null>(null);
+  const selectedAgentIdRef = useRef<string | null>(null);
+  const selectedAgentRunIdRef = useRef<string | null>(null);
   const dashboardCanvasPanRef = useRef<{
     pointerId: number;
     originX: number;
@@ -364,7 +431,7 @@ export function App() {
     [companySnapshot?.approvals, selectedIssue]
   );
   const selectedIssueComments = selectedIssue
-    ? issueCommentsByIssueId[selectedIssue.id] ?? []
+    ? (issueCommentsByIssueId[selectedIssue.id] ?? [])
     : [];
   const boardGoals = companySnapshot?.goals ?? [];
   const selectedGoal =
@@ -391,15 +458,24 @@ export function App() {
     null;
   const companyWorkspaces = companySnapshot?.workspaces ?? [];
   const selectedBoardWorkspace =
-    companyWorkspaces.find((workspace) => workspace.id === selectedBoardWorkspaceId) ??
+    companyWorkspaces.find(
+      (workspace) => workspace.id === selectedBoardWorkspaceId
+    ) ??
     companyWorkspaces[0] ??
     null;
   const selectedAgent =
-    (companySnapshot?.agents ?? []).find((agent) => agent.id === selectedAgentId) ??
+    (companySnapshot?.agents ?? []).find(
+      (agent) => agent.id === selectedAgentId
+    ) ??
     companySnapshot?.agents[0] ??
     null;
-  const selectedCompanyCeo =
-    findCompanyCeo(companySnapshot?.agents ?? [], selectedCompany?.ceo_agent_id ?? null);
+  const selectedAgentRunIsLive =
+    selectedAgentRun?.status === "queued" ||
+    selectedAgentRun?.status === "running";
+  const selectedCompanyCeo = findCompanyCeo(
+    companySnapshot?.agents ?? [],
+    selectedCompany?.ceo_agent_id ?? null
+  );
   const orderedSidebarAgents = useMemo(
     () =>
       orderSidebarAgents(
@@ -413,11 +489,12 @@ export function App() {
   const activeSession =
     sessions.find((session) => session.id === selectedSessionId) ?? null;
   const previewTabLabel = selectedFilePath
-    ? selectedFilePath.split("/").filter(Boolean).at(-1) ?? "Preview"
+    ? (selectedFilePath.split("/").filter(Boolean).at(-1) ?? "Preview")
     : "Preview";
   const currentBranchName = branchState?.current ?? gitState?.branch ?? "main";
   const currentBranch =
-    branchState?.local.find((branch) => branch.name === currentBranchName) ?? null;
+    branchState?.local.find((branch) => branch.name === currentBranchName) ??
+    null;
   const hasUncommittedChanges = (gitState?.files.length ?? 0) > 0;
   const hasUnpushedCommits = (currentBranch?.ahead ?? 0) > 0;
   const projectDialogDerivedName = useMemo(
@@ -433,7 +510,11 @@ export function App() {
     [issueDraft.status]
   );
   const issuePriorityOptions = useMemo(
-    () => mergeIssueOptions(["low", "medium", "high", "urgent"], issueDraft.priority),
+    () =>
+      mergeIssueOptions(
+        ["low", "medium", "high", "urgent"],
+        issueDraft.priority
+      ),
     [issueDraft.priority]
   );
   const selectableParentIssues = useMemo(
@@ -454,6 +535,141 @@ export function App() {
       dashboardCanvasBounds
     );
   };
+
+  const resetAgentRunsState = () => {
+    selectedAgentRunIdRef.current = null;
+    setAgentRuns([]);
+    setSelectedAgentRunId(null);
+    setSelectedAgentRun(null);
+    setAgentRunEvents([]);
+    setAgentRunLogContent("");
+    setAgentRunLogOffset(0);
+    setIsLoadingAgentRuns(false);
+    setIsLoadingAgentRunDetail(false);
+    setIsPerformingAgentRunAction(false);
+    setAgentRunError(null);
+  };
+
+  const loadAgentRuns = async (resetSelection: boolean) => {
+    const agentId = selectedAgentIdRef.current;
+    if (!agentId) {
+      resetAgentRunsState();
+      return;
+    }
+
+    setIsLoadingAgentRuns(true);
+
+    try {
+      const runs = await boardListAgentRuns(agentId, 200);
+      if (selectedAgentIdRef.current !== agentId) {
+        return;
+      }
+
+      const currentSelectedRunId = selectedAgentRunIdRef.current;
+      const nextSelectedRunId =
+        resetSelection ||
+        !currentSelectedRunId ||
+        !runs.some((run) => run.id === currentSelectedRunId)
+          ? (runs[0]?.id ?? null)
+          : currentSelectedRunId;
+
+      selectedAgentRunIdRef.current = nextSelectedRunId;
+      startTransition(() => {
+        setAgentRuns(runs);
+        setSelectedAgentRunId(nextSelectedRunId);
+        setSelectedAgentRun(
+          nextSelectedRunId
+            ? (runs.find((run) => run.id === nextSelectedRunId) ?? null)
+            : null
+        );
+        setAgentRunError(null);
+      });
+    } catch (error) {
+      setAgentRunError(error instanceof Error ? error.message : String(error));
+    } finally {
+      if (selectedAgentIdRef.current === agentId) {
+        setIsLoadingAgentRuns(false);
+      }
+    }
+  };
+
+  const refreshSelectedAgentRun = async (resetStreams: boolean) => {
+    const agentId = selectedAgentIdRef.current;
+    const runId = selectedAgentRunIdRef.current;
+    if (!agentId || !runId) {
+      return;
+    }
+
+    setIsLoadingAgentRunDetail(true);
+
+    try {
+      const [run, events, logChunk] = await Promise.all([
+        boardGetAgentRun(runId),
+        boardListAgentRunEvents(
+          runId,
+          resetStreams ? undefined : agentRunEvents.at(-1)?.seq,
+          400
+        ),
+        boardReadAgentRunLog(runId, resetStreams ? 0 : agentRunLogOffset),
+      ]);
+
+      if (
+        selectedAgentIdRef.current !== agentId ||
+        selectedAgentRunIdRef.current !== runId
+      ) {
+        return;
+      }
+
+      startTransition(() => {
+        setSelectedAgentRun(run);
+        setAgentRuns((current) =>
+          current.map((existingRun) =>
+            existingRun.id === run.id ? run : existingRun
+          )
+        );
+        if (resetStreams) {
+          setAgentRunEvents(events);
+          setAgentRunLogContent(logChunk.content);
+        } else {
+          setAgentRunEvents((current) => current.concat(events));
+          if (logChunk.content) {
+            setAgentRunLogContent((current) => current + logChunk.content);
+          }
+        }
+        setAgentRunLogOffset(logChunk.next_offset);
+        setAgentRunError(null);
+      });
+    } catch (error) {
+      setAgentRunError(error instanceof Error ? error.message : String(error));
+    } finally {
+      if (
+        selectedAgentIdRef.current === agentId &&
+        selectedAgentRunIdRef.current === runId
+      ) {
+        setIsLoadingAgentRunDetail(false);
+      }
+    }
+  };
+
+  const performAgentRunAction = async (
+    operation: () => Promise<AgentRunRecord>
+  ) => {
+    setIsPerformingAgentRunAction(true);
+
+    try {
+      const updatedRun = await operation();
+      setAgentRunError(null);
+      await loadAgentRuns(false);
+      selectedAgentRunIdRef.current = updatedRun.id;
+      setSelectedAgentRunId(updatedRun.id);
+      await refreshSelectedAgentRun(true);
+    } catch (error) {
+      setAgentRunError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsPerformingAgentRunAction(false);
+    }
+  };
+
   useEffect(() => {
     const terminal = new Terminal({
       convertEol: true,
@@ -505,11 +721,12 @@ export function App() {
           return;
         }
 
-        const [loadedSettings, loadedCompanies, loadedRepositories] = await Promise.all([
-          settingsGet(),
-          boardListCompanies(),
-          repositoryList(),
-        ]);
+        const [loadedSettings, loadedCompanies, loadedRepositories] =
+          await Promise.all([
+            settingsGet(),
+            boardListCompanies(),
+            repositoryList(),
+          ]);
 
         if (cancelled) {
           return;
@@ -520,9 +737,7 @@ export function App() {
         const nextSettings = mergeDesktopSettings(loadedSettings);
         const nextScreen = normalizeScreen(nextSettings.preferred_view);
         const nextCompanyId =
-          nextSettings.preferred_company_id ??
-          companiesValue[0]?.id ??
-          null;
+          nextSettings.preferred_company_id ?? companiesValue[0]?.id ?? null;
         const nextRepositoryId =
           nextSettings.preferred_repository_id ??
           repositoriesValue[0]?.id ??
@@ -538,7 +753,9 @@ export function App() {
         });
       } catch (error) {
         if (!cancelled) {
-          setStatusMessage(error instanceof Error ? error.message : String(error));
+          setStatusMessage(
+            error instanceof Error ? error.message : String(error)
+          );
         }
       }
     };
@@ -604,10 +821,7 @@ export function App() {
       return;
     }
 
-    if (
-      companyContextMenu.companyId === selectedCompanyId &&
-      companySnapshot
-    ) {
+    if (companyContextMenu.companyId === selectedCompanyId && companySnapshot) {
       const nextAgents = orderSidebarAgents(
         companySnapshot.agents ?? [],
         typeof companySnapshot.company?.ceo_agent_id === "string"
@@ -642,7 +856,9 @@ export function App() {
 
     const loadMenuAgents = async () => {
       try {
-        const snapshot = await boardCompanySnapshot(companyContextMenu.companyId);
+        const snapshot = await boardCompanySnapshot(
+          companyContextMenu.companyId
+        );
         if (cancelled) {
           return;
         }
@@ -680,7 +896,9 @@ export function App() {
             isLoadingAgents: false,
           };
         });
-        setStatusMessage(error instanceof Error ? error.message : String(error));
+        setStatusMessage(
+          error instanceof Error ? error.message : String(error)
+        );
       }
     };
 
@@ -689,7 +907,12 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [bootstrap?.state, companyContextMenu, companySnapshot, selectedCompanyId]);
+  }, [
+    bootstrap?.state,
+    companyContextMenu,
+    companySnapshot,
+    selectedCompanyId,
+  ]);
 
   useEffect(() => {
     if (!selectedCompanyId || bootstrap?.state !== "ready") {
@@ -705,7 +928,9 @@ export function App() {
         }
       } catch (error) {
         if (!cancelled) {
-          setStatusMessage(error instanceof Error ? error.message : String(error));
+          setStatusMessage(
+            error instanceof Error ? error.message : String(error)
+          );
         }
       }
     };
@@ -726,7 +951,10 @@ export function App() {
     const nextProjects = companySnapshot?.projects ?? [];
 
     setSelectedBoardWorkspaceId((current) => {
-      if (current && nextWorkspaces.some((workspace) => workspace.id === current)) {
+      if (
+        current &&
+        nextWorkspaces.some((workspace) => workspace.id === current)
+      ) {
         return current;
       }
       return nextWorkspaces[0]?.id ?? null;
@@ -747,7 +975,10 @@ export function App() {
     });
 
     setSelectedApprovalId((current) => {
-      if (current && nextApprovals.some((approval) => approval.id === current)) {
+      if (
+        current &&
+        nextApprovals.some((approval) => approval.id === current)
+      ) {
         return current;
       }
       return null;
@@ -826,7 +1057,9 @@ export function App() {
         setNewIssueCommentBody("");
       } catch (error) {
         if (!cancelled) {
-          setStatusMessage(error instanceof Error ? error.message : String(error));
+          setStatusMessage(
+            error instanceof Error ? error.message : String(error)
+          );
         }
       }
     };
@@ -837,6 +1070,103 @@ export function App() {
       cancelled = true;
     };
   }, [issuesRouteMode, selectedIssue?.id]);
+
+  useEffect(() => {
+    selectedAgentIdRef.current = selectedAgent?.id ?? null;
+  }, [selectedAgent?.id]);
+
+  useEffect(() => {
+    selectedAgentRunIdRef.current = selectedAgentRunId;
+  }, [selectedAgentRunId]);
+
+  useEffect(() => {
+    if (selectedScreen === "agents") {
+      return;
+    }
+
+    setAgentsRouteMode("details");
+    resetAgentRunsState();
+  }, [selectedScreen]);
+
+  useEffect(() => {
+    if (
+      selectedScreen === "agents" &&
+      agentsRouteMode === "runs" &&
+      selectedAgent
+    ) {
+      return;
+    }
+
+    resetAgentRunsState();
+  }, [agentsRouteMode, selectedAgent?.id, selectedScreen]);
+
+  useEffect(() => {
+    if (selectedScreen !== "agents" || agentsRouteMode !== "runs") {
+      return;
+    }
+
+    resetAgentRunsState();
+  }, [agentsRouteMode, selectedAgent?.id, selectedScreen]);
+
+  useEffect(() => {
+    if (
+      selectedScreen !== "agents" ||
+      agentsRouteMode !== "runs" ||
+      !selectedAgent
+    ) {
+      return;
+    }
+
+    void loadAgentRuns(true);
+  }, [agentsRouteMode, selectedAgent?.id, selectedScreen]);
+
+  useEffect(() => {
+    if (
+      selectedScreen !== "agents" ||
+      agentsRouteMode !== "runs" ||
+      !selectedAgentRunId
+    ) {
+      return;
+    }
+
+    void refreshSelectedAgentRun(true);
+  }, [agentsRouteMode, selectedAgentRunId, selectedScreen]);
+
+  useEffect(() => {
+    if (
+      selectedScreen !== "agents" ||
+      agentsRouteMode !== "runs" ||
+      !selectedAgentRunIsLive
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const pollAgentRun = async () => {
+      while (!cancelled) {
+        await new Promise((resolve) => window.setTimeout(resolve, 2000));
+        if (cancelled) {
+          return;
+        }
+
+        await loadAgentRuns(false);
+        await refreshSelectedAgentRun(false);
+      }
+    };
+
+    void pollAgentRun();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    agentsRouteMode,
+    selectedAgent?.id,
+    selectedAgentRun?.id,
+    selectedAgentRunIsLive,
+    selectedScreen,
+  ]);
 
   useEffect(() => {
     if (selectedScreen !== "activity") {
@@ -851,10 +1181,10 @@ export function App() {
 
     const loadActivityComments = async () => {
       const results = await Promise.allSettled(
-        activityMissingCommentIssueIds.map(async (issueId) => [
-          issueId,
-          await boardListIssueComments(issueId),
-        ] as const)
+        activityMissingCommentIssueIds.map(
+          async (issueId) =>
+            [issueId, await boardListIssueComments(issueId)] as const
+        )
       );
 
       if (cancelled) {
@@ -866,13 +1196,18 @@ export function App() {
 
       for (const result of results) {
         if (result.status === "fulfilled") {
-          nextComments.push([result.value[0], result.value[1] as IssueCommentRecord[]]);
+          nextComments.push([
+            result.value[0],
+            result.value[1] as IssueCommentRecord[],
+          ]);
           continue;
         }
 
         if (!nextError) {
           nextError =
-            result.reason instanceof Error ? result.reason.message : String(result.reason);
+            result.reason instanceof Error
+              ? result.reason.message
+              : String(result.reason);
         }
       }
 
@@ -936,7 +1271,9 @@ export function App() {
     let cancelled = false;
     const loadRepositorySessions = async () => {
       try {
-        const nextSessions = (await sessionList(selectedRepositoryId)) as SessionRecord[];
+        const nextSessions = (await sessionList(
+          selectedRepositoryId
+        )) as SessionRecord[];
         if (cancelled) {
           return;
         }
@@ -950,11 +1287,16 @@ export function App() {
                 : null;
             if (
               boardWorkspaceSessionId &&
-              nextSessions.some((session) => session.id === boardWorkspaceSessionId)
+              nextSessions.some(
+                (session) => session.id === boardWorkspaceSessionId
+              )
             ) {
               return boardWorkspaceSessionId;
             }
-            if (current && nextSessions.some((session) => session.id === current)) {
+            if (
+              current &&
+              nextSessions.some((session) => session.id === current)
+            ) {
               return current;
             }
             return nextSessions[0]?.id ?? null;
@@ -962,7 +1304,9 @@ export function App() {
         });
       } catch (error) {
         if (!cancelled) {
-          setStatusMessage(error instanceof Error ? error.message : String(error));
+          setStatusMessage(
+            error instanceof Error ? error.message : String(error)
+          );
         }
       }
     };
@@ -1001,16 +1345,23 @@ export function App() {
 
     const loadWorkspace = async () => {
       try {
-        const [nextMessages, nextFiles, nextGit, nextHistory, nextBranches, nextClaudeStatus, nextTerminalStatus] =
-          await Promise.all([
-            messageList(selectedSessionId),
-            repositoryListFiles(selectedSessionId, ""),
-            gitStatus(selectedSessionId),
-            gitLog(selectedSessionId),
-            gitBranches(selectedSessionId),
-            claudeStatus(selectedSessionId),
-            terminalStatus(selectedSessionId),
-          ]);
+        const [
+          nextMessages,
+          nextFiles,
+          nextGit,
+          nextHistory,
+          nextBranches,
+          nextClaudeStatus,
+          nextTerminalStatus,
+        ] = await Promise.all([
+          messageList(selectedSessionId),
+          repositoryListFiles(selectedSessionId, ""),
+          gitStatus(selectedSessionId),
+          gitLog(selectedSessionId),
+          gitBranches(selectedSessionId),
+          claudeStatus(selectedSessionId),
+          terminalStatus(selectedSessionId),
+        ]);
 
         if (cancelled) {
           return;
@@ -1029,7 +1380,9 @@ export function App() {
         });
       } catch (error) {
         if (!cancelled) {
-          setStatusMessage(error instanceof Error ? error.message : String(error));
+          setStatusMessage(
+            error instanceof Error ? error.message : String(error)
+          );
         }
       }
     };
@@ -1098,18 +1451,21 @@ export function App() {
       const status = await desktopBootstrap();
       setBootstrap(status);
       if (status.state === "ready") {
-        const [loadedSettings, loadedCompanies, loadedRepositories] = await Promise.all([
-          settingsGet(),
-          boardListCompanies(),
-          repositoryList(),
-        ]);
+        const [loadedSettings, loadedCompanies, loadedRepositories] =
+          await Promise.all([
+            settingsGet(),
+            boardListCompanies(),
+            repositoryList(),
+          ]);
         const companiesValue = loadedCompanies as Company[];
         const repositoriesValue = loadedRepositories as RepositoryRecord[];
         const nextSettings = mergeDesktopSettings(loadedSettings);
         const nextCompanyId =
           nextSettings.preferred_company_id ?? companiesValue[0]?.id ?? null;
         const nextRepositoryId =
-          nextSettings.preferred_repository_id ?? repositoriesValue[0]?.id ?? null;
+          nextSettings.preferred_repository_id ??
+          repositoriesValue[0]?.id ??
+          null;
 
         setSettings(nextSettings);
         setCompanies(companiesValue);
@@ -1257,6 +1613,7 @@ export function App() {
       setSelectedCompanyId(companyId);
       setSelectedAgentId(agentId);
       setSelectedScreen("agents");
+      setAgentsRouteMode("details");
       setSelectedIssueId(null);
       setSelectedApprovalId(null);
       setIssuesRouteMode("list");
@@ -1302,13 +1659,16 @@ export function App() {
       agents: initialAgents,
       companyId: company.id,
       companyName: company.name,
-      isLoadingAgents: initialAgents.length === 0 && bootstrap?.state === "ready",
+      isLoadingAgents:
+        initialAgents.length === 0 && bootstrap?.state === "ready",
       x: nextX,
       y: nextY,
     });
   };
 
-  const handleDashboardCanvasPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+  const handleDashboardCanvasPointerDown = (
+    event: PointerEvent<HTMLDivElement>
+  ) => {
     if (event.button !== 0) {
       return;
     }
@@ -1331,7 +1691,9 @@ export function App() {
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
-  const handleDashboardCanvasPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+  const handleDashboardCanvasPointerMove = (
+    event: PointerEvent<HTMLDivElement>
+  ) => {
     const panState = dashboardCanvasPanRef.current;
     if (!panState || panState.pointerId !== event.pointerId) {
       return;
@@ -1345,7 +1707,9 @@ export function App() {
     );
   };
 
-  const handleDashboardCanvasPointerEnd = (event: PointerEvent<HTMLDivElement>) => {
+  const handleDashboardCanvasPointerEnd = (
+    event: PointerEvent<HTMLDivElement>
+  ) => {
     if (dashboardCanvasPanRef.current?.pointerId !== event.pointerId) {
       return;
     }
@@ -1397,6 +1761,48 @@ export function App() {
     handleSelectScreen("agents");
   };
 
+  const handleShowAgentRuns = () => {
+    setAgentsRouteMode("runs");
+  };
+
+  const handleBackToAgentDetails = () => {
+    setAgentsRouteMode("details");
+    resetAgentRunsState();
+  };
+
+  const handleRefreshAgentRuns = async () => {
+    await loadAgentRuns(false);
+    await refreshSelectedAgentRun(true);
+  };
+
+  const handleSelectAgentRun = (runId: string) => {
+    setSelectedAgentRunId(runId);
+  };
+
+  const handleCancelSelectedAgentRun = async () => {
+    if (!selectedAgentRun) {
+      return;
+    }
+
+    await performAgentRunAction(() => boardCancelAgentRun(selectedAgentRun.id));
+  };
+
+  const handleRetrySelectedAgentRun = async () => {
+    if (!selectedAgentRun) {
+      return;
+    }
+
+    await performAgentRunAction(() => boardRetryAgentRun(selectedAgentRun.id));
+  };
+
+  const handleResumeSelectedAgentRun = async () => {
+    if (!selectedAgentRun) {
+      return;
+    }
+
+    await performAgentRunAction(() => boardResumeAgentRun(selectedAgentRun.id));
+  };
+
   const handleCompanyBrandColorChange = async (nextColor: string) => {
     if (!selectedCompanyId) {
       return;
@@ -1423,12 +1829,18 @@ export function App() {
       );
       setCompanies((current) =>
         current.map((company) =>
-          company.id === updatedCompany.id ? { ...company, ...updatedCompany } : company
+          company.id === updatedCompany.id
+            ? { ...company, ...updatedCompany }
+            : company
         )
       );
     } catch (error) {
-      setCompanyBrandColorDraft(normalizeHexColor(selectedCompany?.brand_color));
-      setCompanyBrandColorError(error instanceof Error ? error.message : String(error));
+      setCompanyBrandColorDraft(
+        normalizeHexColor(selectedCompany?.brand_color)
+      );
+      setCompanyBrandColorError(
+        error instanceof Error ? error.message : String(error)
+      );
     } finally {
       setIsSavingCompanyBrandColor(false);
     }
@@ -1461,12 +1873,18 @@ export function App() {
         setProjectDialogRepoPath(path);
       }
     } catch (error) {
-      setProjectDialogError(error instanceof Error ? error.message : String(error));
+      setProjectDialogError(
+        error instanceof Error ? error.message : String(error)
+      );
     }
   };
 
   const handleCreateProjectFromDialog = async () => {
-    if (!selectedCompanyId || !projectDialogDerivedName || isProjectDialogSaving) {
+    if (
+      !selectedCompanyId ||
+      !projectDialogDerivedName ||
+      isProjectDialogSaving
+    ) {
       return;
     }
 
@@ -1486,7 +1904,9 @@ export function App() {
       }
 
       if (projectDialogTargetDate) {
-        params.target_date = new Date(`${projectDialogTargetDate}T00:00:00`).toISOString();
+        params.target_date = new Date(
+          `${projectDialogTargetDate}T00:00:00`
+        ).toISOString();
       }
 
       const project = await boardCreateProject(params);
@@ -1496,7 +1916,9 @@ export function App() {
       setSelectedScreen("projects");
       handleCloseCreateProjectDialog();
     } catch (error) {
-      setProjectDialogError(error instanceof Error ? error.message : String(error));
+      setProjectDialogError(
+        error instanceof Error ? error.message : String(error)
+      );
       setIsProjectDialogSaving(false);
     }
   };
@@ -1513,7 +1935,9 @@ export function App() {
     setIsIssueDialogSaving(false);
   };
 
-  const handleOpenCreateIssueDialog = (defaults?: CreateIssueDialogDefaults) => {
+  const handleOpenCreateIssueDialog = (
+    defaults?: CreateIssueDialogDefaults
+  ) => {
     resetIssueDialog();
     setIssueDialogStatus(defaults?.status ?? "backlog");
     setIssueDialogProjectId(defaults?.projectId ?? "");
@@ -1526,11 +1950,7 @@ export function App() {
   };
 
   const handleCreateIssueFromDialog = async () => {
-    if (
-      !selectedCompanyId ||
-      !issueDialogTitle.trim() ||
-      isIssueDialogSaving
-    ) {
+    if (!selectedCompanyId || !issueDialogTitle.trim() || isIssueDialogSaving) {
       return;
     }
 
@@ -1571,7 +1991,9 @@ export function App() {
       });
       handleCloseCreateIssueDialog();
     } catch (error) {
-      setIssueDialogError(error instanceof Error ? error.message : String(error));
+      setIssueDialogError(
+        error instanceof Error ? error.message : String(error)
+      );
       setIsIssueDialogSaving(false);
     }
   };
@@ -1633,7 +2055,9 @@ export function App() {
         title: trimmedTitle,
         status: issueDraft.status,
         priority: issueDraft.priority,
-        description: issueDraft.description.trim() ? issueDraft.description.trim() : null,
+        description: issueDraft.description.trim()
+          ? issueDraft.description.trim()
+          : null,
         project_id: issueDraft.projectId.trim() ? issueDraft.projectId : null,
         assignee_agent_id: issueDraft.assigneeAgentId.trim()
           ? issueDraft.assigneeAgentId
@@ -1647,7 +2071,9 @@ export function App() {
       setIsEditingIssue(false);
       setIssuesRouteMode("detail");
     } catch (error) {
-      setIssueEditorError(error instanceof Error ? error.message : String(error));
+      setIssueEditorError(
+        error instanceof Error ? error.message : String(error)
+      );
     } finally {
       setIsSavingIssue(false);
     }
@@ -1740,7 +2166,10 @@ export function App() {
     }
 
     try {
-      const entries = await repositoryListFiles(selectedSessionId, relativePath);
+      const entries = await repositoryListFiles(
+        selectedSessionId,
+        relativePath
+      );
       setCurrentDirectory(relativePath);
       setFileEntries(entries as FileEntry[]);
       setSelectedFilePath(null);
@@ -1851,7 +2280,9 @@ export function App() {
       const latestRepository = nextRepositories.find(
         (repository) => repository.path === path
       );
-      setSelectedRepositoryId(latestRepository?.id ?? nextRepositories[0]?.id ?? null);
+      setSelectedRepositoryId(
+        latestRepository?.id ?? nextRepositories[0]?.id ?? null
+      );
 
       await persistSettings({
         ...settings,
@@ -1915,15 +2346,21 @@ export function App() {
   };
 
   const handleStageFile = async (file: GitStatusFile) => {
-    await runGitMutation(() => gitStage([file.path], selectedSessionId ?? undefined));
+    await runGitMutation(() =>
+      gitStage([file.path], selectedSessionId ?? undefined)
+    );
   };
 
   const handleUnstageFile = async (file: GitStatusFile) => {
-    await runGitMutation(() => gitUnstage([file.path], selectedSessionId ?? undefined));
+    await runGitMutation(() =>
+      gitUnstage([file.path], selectedSessionId ?? undefined)
+    );
   };
 
   const handleDiscardFile = async (file: GitStatusFile) => {
-    await runGitMutation(() => gitDiscard([file.path], selectedSessionId ?? undefined));
+    await runGitMutation(() =>
+      gitDiscard([file.path], selectedSessionId ?? undefined)
+    );
   };
 
   const handleGitCommit = async (pushAfterCommit = false) => {
@@ -1966,7 +2403,9 @@ export function App() {
       <div className="splash-shell">
         <div className="splash-card">
           <h1>Booting Unbound Desktop</h1>
-          <p>Checking for a compatible daemon and loading your local workspace.</p>
+          <p>
+            Checking for a compatible daemon and loading your local workspace.
+          </p>
         </div>
       </div>
     );
@@ -2006,13 +2445,19 @@ export function App() {
             ) : null}
           </dl>
           <div className="blocking-actions">
-            <button className="primary-button" onClick={() => void retryBootstrap()} type="button">
+            <button
+              className="primary-button"
+              onClick={() => void retryBootstrap()}
+              type="button"
+            >
               Retry
             </button>
             <button
               className="secondary-button"
               onClick={() =>
-                void desktopOpenExternal("https://github.com/unbound-computer/unbound")
+                void desktopOpenExternal(
+                  "https://github.com/unbound-computer/unbound"
+                )
               }
               type="button"
             >
@@ -2037,7 +2482,8 @@ export function App() {
     selectedBoardWorkspace?.issue_title ??
     selectedBoardWorkspace?.title ??
     null;
-  const showBoardSidebar = layout === "companyDashboard" && selectedScreen !== "dashboard";
+  const showBoardSidebar =
+    layout === "companyDashboard" && selectedScreen !== "dashboard";
 
   return (
     <div className="swift-shell">
@@ -2056,7 +2502,9 @@ export function App() {
               }
               key={company.id}
               onClick={() => handleSelectCompany(company.id)}
-              onContextMenu={(event) => handleOpenCompanyContextMenu(event, company)}
+              onContextMenu={(event) =>
+                handleOpenCompanyContextMenu(event, company)
+              }
               title={company.name}
               type="button"
             >
@@ -2122,7 +2570,10 @@ export function App() {
                   }
                   key={item.screen}
                   onClick={() =>
-                    handleSelectCompanyScreen(companyContextMenu.companyId, item.screen)
+                    handleSelectCompanyScreen(
+                      companyContextMenu.companyId,
+                      item.screen
+                    )
                   }
                   role="menuitem"
                   type="button"
@@ -2141,7 +2592,9 @@ export function App() {
             </div>
             <div className="company-context-menu-agent-list">
               {companyContextMenu.isLoadingAgents ? (
-                <div className="company-context-menu-empty">Loading agents...</div>
+                <div className="company-context-menu-empty">
+                  Loading agents...
+                </div>
               ) : companyContextMenu.agents.length ? (
                 companyContextMenu.agents.map((agent) => {
                   const isActive =
@@ -2158,14 +2611,19 @@ export function App() {
                       }
                       key={agent.id}
                       onClick={() =>
-                        handleSelectCompanyAgent(companyContextMenu.companyId, agent.id)
+                        handleSelectCompanyAgent(
+                          companyContextMenu.companyId,
+                          agent.id
+                        )
                       }
                       role="menuitem"
                       type="button"
                     >
                       <CompanyContextMenuIcon icon="agents" />
                       <span className="company-context-menu-agent-copy">
-                        <strong>{agent.name || agent.title || agent.role || "Agent"}</strong>
+                        <strong>
+                          {agent.name || agent.title || agent.role || "Agent"}
+                        </strong>
                         <small>{agent.title ?? agent.role ?? "Agent"}</small>
                       </span>
                     </button>
@@ -2223,7 +2681,9 @@ export function App() {
 
                 {primaryBoardSections.map((section) => (
                   <div className="board-sidebar-section" key={section.title}>
-                    <span className="sidebar-section-title">{section.title}</span>
+                    <span className="sidebar-section-title">
+                      {section.title}
+                    </span>
                     {section.screens.map((screen) => (
                       <BoardSidebarButton
                         active={selectedScreen === screen}
@@ -2243,7 +2703,8 @@ export function App() {
                     orderedSidebarAgents.map((agent) => (
                       <button
                         className={
-                          selectedScreen === "agents" && selectedAgentId === agent.id
+                          selectedScreen === "agents" &&
+                          selectedAgentId === agent.id
                             ? "agent-sidebar-button active"
                             : "agent-sidebar-button"
                         }
@@ -2260,7 +2721,9 @@ export function App() {
                 </div>
 
                 <div className="board-sidebar-section">
-                  <span className="sidebar-section-title">{companyBoardSection.title}</span>
+                  <span className="sidebar-section-title">
+                    {companyBoardSection.title}
+                  </span>
                   {companyBoardSection.screens.map((screen) => (
                     <BoardSidebarButton
                       active={selectedScreen === screen}
@@ -2281,7 +2744,9 @@ export function App() {
                 : "board-content board-content-dashboard"
             }
           >
-            {statusMessage ? <div className="status-banner">{statusMessage}</div> : null}
+            {statusMessage ? (
+              <div className="status-banner">{statusMessage}</div>
+            ) : null}
 
             {selectedScreen === "dashboard" ? (
               <DashboardCanvasRouteView
@@ -2324,51 +2789,39 @@ export function App() {
             ) : null}
 
             {selectedScreen === "agents" ? (
-              <section className="route-scroll">
-                <div className="route-header compact">
-                  <span className="route-kicker">Agents</span>
-                  <h1>{selectedAgent?.name ?? "Company roster"}</h1>
-                </div>
-                <div className="surface-grid single">
-                  <section className="surface-panel">
-                    {selectedAgent ? (
-                      <>
-                        <div className="summary-grid">
-                          <SummaryPill label="Role" value={selectedAgent.title ?? selectedAgent.role ?? "Agent"} />
-                          <SummaryPill label="Status" value={String(selectedAgent.status ?? "active")} />
-                          <SummaryPill label="Company" value={selectedCompany?.name ?? "Unbound"} />
-                        </div>
-                        <div className="surface-list">
-                          {(companySnapshot?.agents ?? []).map((agent) => (
-                            <button
-                              className={
-                                agent.id === selectedAgentId
-                                  ? "file-list-button active"
-                                  : "file-list-button"
-                              }
-                              key={agent.id}
-                              onClick={() => handleSelectAgent(agent.id)}
-                              type="button"
-                            >
-                              <strong>{agent.name}</strong>
-                              <span>{agent.title ?? agent.role ?? "Agent"}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </>
-                    ) : (
-                      <p>No agents are available for this company yet.</p>
-                    )}
-                  </section>
-                </div>
-              </section>
+              <AgentsRouteView
+                agents={companySnapshot?.agents ?? []}
+                agentRunError={agentRunError}
+                agentRunEvents={agentRunEvents}
+                agentRunLogContent={agentRunLogContent}
+                agentRuns={agentRuns}
+                companyName={selectedCompany?.name ?? "Unbound"}
+                isLoadingAgentRunDetail={isLoadingAgentRunDetail}
+                isLoadingAgentRuns={isLoadingAgentRuns}
+                isPerformingAgentRunAction={isPerformingAgentRunAction}
+                mode={agentsRouteMode}
+                onBackToAgentDetails={handleBackToAgentDetails}
+                onCancelSelectedRun={() => void handleCancelSelectedAgentRun()}
+                onRefreshRuns={() => void handleRefreshAgentRuns()}
+                onResumeSelectedRun={() => void handleResumeSelectedAgentRun()}
+                onRetrySelectedRun={() => void handleRetrySelectedAgentRun()}
+                onSelectAgent={handleSelectAgent}
+                onSelectRun={handleSelectAgentRun}
+                onShowRuns={handleShowAgentRuns}
+                selectedAgent={selectedAgent}
+                selectedAgentId={selectedAgentId}
+                selectedRun={selectedAgentRun}
+              />
             ) : null}
 
             {selectedScreen === "issues" ? (
               issuesRouteMode === "detail" && selectedIssue ? (
                 <IssueDetailView
                   assigneeLabel={(assigneeAgentId) =>
-                    issueAssigneeLabel(companySnapshot?.agents ?? [], assigneeAgentId)
+                    issueAssigneeLabel(
+                      companySnapshot?.agents ?? [],
+                      assigneeAgentId
+                    )
                   }
                   availablePriorityOptions={issuePriorityOptions}
                   availableStatusOptions={issueStatusOptions}
@@ -2414,14 +2867,19 @@ export function App() {
                     }))
                   }
                   onSave={() => void handleSaveIssueEdits(selectedIssue)}
-                  onStartWorkspace={() => void handleStartIssueWorkspace(selectedIssue)}
+                  onStartWorkspace={() =>
+                    void handleStartIssueWorkspace(selectedIssue)
+                  }
                   parentIssueLabel={(parentIssueId) =>
                     issueParentLabel(boardIssues, parentIssueId)
                   }
                   priorityLabel={humanizeIssueValue}
                   projects={companySnapshot?.projects ?? []}
                   projectLabel={(projectId) =>
-                    issueProjectLabel(companySnapshot?.projects ?? [], projectId)
+                    issueProjectLabel(
+                      companySnapshot?.projects ?? [],
+                      projectId
+                    )
                   }
                   agents={companySnapshot?.agents ?? []}
                   selectableParentIssues={selectableParentIssues}
@@ -2445,7 +2903,9 @@ export function App() {
                 approvals={boardApprovals}
                 currentApproval={selectedApproval}
                 isWorking={isWorking}
-                onApprove={(approvalId) => void handleApproveApproval(approvalId)}
+                onApprove={(approvalId) =>
+                  void handleApproveApproval(approvalId)
+                }
                 onSelectApproval={setSelectedApprovalId}
               />
             ) : null}
@@ -2476,8 +2936,8 @@ export function App() {
                   <span className="route-kicker">Company settings</span>
                   <h1>{selectedCompany?.name ?? "Company settings"}</h1>
                   <p>
-                    Board-specific company details and policies live here. Device and app settings
-                    stay behind the rail gear.
+                    Board-specific company details and policies live here.
+                    Device and app settings stay behind the rail gear.
                   </p>
                 </div>
 
@@ -2485,11 +2945,14 @@ export function App() {
                   <section className="surface-panel wide">
                     <h3>Company profile</h3>
                     <p>
-                      This route follows the board/company admin surface rather than the desktop
-                      preferences shell.
+                      This route follows the board/company admin surface rather
+                      than the desktop preferences shell.
                     </p>
                     <div className="surface-list">
-                      <DetailRow label="Company Name" value={selectedCompany?.name ?? "n/a"} />
+                      <DetailRow
+                        label="Company Name"
+                        value={selectedCompany?.name ?? "n/a"}
+                      />
                       <DetailRow
                         label="Description"
                         value={selectedCompany?.description ?? "No description"}
@@ -2498,7 +2961,9 @@ export function App() {
                         errorMessage={companyBrandColorError}
                         isSaving={isSavingCompanyBrandColor}
                         label="Brand Color"
-                        onChange={(nextColor) => void handleCompanyBrandColorChange(nextColor)}
+                        onChange={(nextColor) =>
+                          void handleCompanyBrandColorChange(nextColor)
+                        }
                         value={companyBrandColorDraft}
                       />
                       <DetailRow
@@ -2517,11 +2982,15 @@ export function App() {
                       />
                       <SummaryPill
                         label="Monthly Budget"
-                        value={formatCents(selectedCompany?.budget_monthly_cents)}
+                        value={formatCents(
+                          selectedCompany?.budget_monthly_cents
+                        )}
                       />
                       <SummaryPill
                         label="Monthly Spend"
-                        value={formatCents(selectedCompany?.spent_monthly_cents)}
+                        value={formatCents(
+                          selectedCompany?.spent_monthly_cents
+                        )}
                       />
                     </div>
 
@@ -2534,10 +3003,17 @@ export function App() {
                             : "Disabled"
                         }
                       />
-                      <DetailRow label="Status" value={String(selectedCompany?.status ?? "active")} />
+                      <DetailRow
+                        label="Status"
+                        value={String(selectedCompany?.status ?? "active")}
+                      />
                       <DetailRow
                         label="CEO"
-                        value={selectedCompanyCeo?.name ?? selectedCompany?.ceo_agent_id ?? "Unassigned"}
+                        value={
+                          selectedCompanyCeo?.name ??
+                          selectedCompany?.ceo_agent_id ??
+                          "Unassigned"
+                        }
                       />
                       <DetailRow
                         label="Issue Counter"
@@ -2588,7 +3064,11 @@ export function App() {
                 <h2>Workspaces</h2>
                 <span>{selectedCompany?.name ?? "Company"} board</span>
               </div>
-              <button className="icon-button" onClick={() => void refreshBoardData()} type="button">
+              <button
+                className="icon-button"
+                onClick={() => void refreshBoardData()}
+                type="button"
+              >
                 ↻
               </button>
             </div>
@@ -2607,7 +3087,10 @@ export function App() {
             ) : (
               <div className="workspace-empty-state">
                 <h3>No active workspaces</h3>
-                <p>Workspaces appear automatically when an assigned agent starts an issue.</p>
+                <p>
+                  Workspaces appear automatically when an assigned agent starts
+                  an issue.
+                </p>
               </div>
             )}
           </aside>
@@ -2621,7 +3104,8 @@ export function App() {
                       {selectedBoardWorkspace.issue_identifier ?? "Workspace"}
                     </span>
                     <h1>
-                      {selectedBoardWorkspace.issue_title ?? selectedBoardWorkspace.title}
+                      {selectedBoardWorkspace.issue_title ??
+                        selectedBoardWorkspace.title}
                     </h1>
                     <p>
                       {[
@@ -2660,12 +3144,20 @@ export function App() {
                     ) : null}
                   </div>
                   <div className="workspace-header-actions">
-                    <SummaryPill label="Claude" value={stringifyStatus(claudeStatusState)} />
-                    <SummaryPill label="Terminal" value={stringifyStatus(terminalStatusState)} />
+                    <SummaryPill
+                      label="Claude"
+                      value={stringifyStatus(claudeStatusState)}
+                    />
+                    <SummaryPill
+                      label="Terminal"
+                      value={stringifyStatus(terminalStatusState)}
+                    />
                   </div>
                 </div>
 
-                {statusMessage ? <div className="status-banner">{statusMessage}</div> : null}
+                {statusMessage ? (
+                  <div className="status-banner">{statusMessage}</div>
+                ) : null}
 
                 {workspaceCenterTab === "conversation" ? (
                   <section className="workspace-panel workspace-chat-panel">
@@ -2712,7 +3204,11 @@ export function App() {
                         placeholder="Send a prompt to Claude for the selected session"
                         value={prompt}
                       />
-                      <button className="primary-button" disabled={isWorking} type="submit">
+                      <button
+                        className="primary-button"
+                        disabled={isWorking}
+                        type="submit"
+                      >
                         Send prompt
                       </button>
                     </form>
@@ -2735,14 +3231,26 @@ export function App() {
                         Stop
                       </button>
                     </div>
-                    <div className="terminal-frame" ref={terminalContainerRef} />
-                    <form className="workspace-terminal-form" onSubmit={handleRunTerminal}>
+                    <div
+                      className="terminal-frame"
+                      ref={terminalContainerRef}
+                    />
+                    <form
+                      className="workspace-terminal-form"
+                      onSubmit={handleRunTerminal}
+                    >
                       <input
-                        onChange={(event) => setTerminalCommand(event.target.value)}
+                        onChange={(event) =>
+                          setTerminalCommand(event.target.value)
+                        }
                         placeholder="Run a shell command in the selected session"
                         value={terminalCommand}
                       />
-                      <button className="primary-button" disabled={isWorking} type="submit">
+                      <button
+                        className="primary-button"
+                        disabled={isWorking}
+                        type="submit"
+                      >
                         Run
                       </button>
                     </form>
@@ -2762,8 +3270,14 @@ export function App() {
                     {selectedDiff ? (
                       <div className="workspace-preview">
                         <div className="summary-grid">
-                          <SummaryPill label="Added" value={selectedDiff.additions} />
-                          <SummaryPill label="Deleted" value={selectedDiff.deletions} />
+                          <SummaryPill
+                            label="Added"
+                            value={selectedDiff.additions}
+                          />
+                          <SummaryPill
+                            label="Deleted"
+                            value={selectedDiff.deletions}
+                          />
                           <SummaryPill
                             label="Binary"
                             value={selectedDiff.is_binary ? "yes" : "no"}
@@ -2784,7 +3298,10 @@ export function App() {
             ) : (
               <section className="workspace-empty-state workspace-center-empty">
                 <h3>Select a workspace</h3>
-                <p>Issue-owned coding sessions appear here. The main repo path is used directly.</p>
+                <p>
+                  Issue-owned coding sessions appear here. The main repo path is
+                  used directly.
+                </p>
               </section>
             )}
           </main>
@@ -2824,7 +3341,9 @@ export function App() {
                   />
                   <DetailRow
                     label="Repo"
-                    value={selectedBoardWorkspace.workspace_repo_path ?? "Missing"}
+                    value={
+                      selectedBoardWorkspace.workspace_repo_path ?? "Missing"
+                    }
                   />
                 </div>
               </section>
@@ -2837,8 +3356,12 @@ export function App() {
                   {currentBranch ? (
                     <small>
                       {currentBranch.ahead > 0 ? `+${currentBranch.ahead}` : ""}
-                      {currentBranch.ahead > 0 && currentBranch.behind > 0 ? " " : ""}
-                      {currentBranch.behind > 0 ? `-${currentBranch.behind}` : ""}
+                      {currentBranch.ahead > 0 && currentBranch.behind > 0
+                        ? " "
+                        : ""}
+                      {currentBranch.behind > 0
+                        ? `-${currentBranch.behind}`
+                        : ""}
                     </small>
                   ) : null}
                 </div>
@@ -2900,7 +3423,9 @@ export function App() {
                   <label className="git-commit-field">
                     <span>Commit message</span>
                     <input
-                      onChange={(event) => setGitCommitMessage(event.target.value)}
+                      onChange={(event) =>
+                        setGitCommitMessage(event.target.value)
+                      }
                       placeholder="Describe this change"
                       value={gitCommitMessage}
                     />
@@ -2908,7 +3433,9 @@ export function App() {
 
                   <GitChangeSection
                     activePath={selectedDiff ? selectedFilePath : null}
-                    files={(gitState?.files ?? []).filter((file) => file.staged)}
+                    files={(gitState?.files ?? []).filter(
+                      (file) => file.staged
+                    )}
                     onDiscard={(file) => void handleDiscardFile(file)}
                     onOpen={(file) => void handleOpenDiff(file.path)}
                     onPrimaryAction={(file) => void handleUnstageFile(file)}
@@ -2917,7 +3444,9 @@ export function App() {
                   />
                   <GitChangeSection
                     activePath={selectedDiff ? selectedFilePath : null}
-                    files={(gitState?.files ?? []).filter((file) => !file.staged)}
+                    files={(gitState?.files ?? []).filter(
+                      (file) => !file.staged
+                    )}
                     onDiscard={(file) => void handleDiscardFile(file)}
                     onOpen={(file) => void handleOpenDiff(file.path)}
                     onPrimaryAction={(file) => void handleStageFile(file)}
@@ -2959,7 +3488,9 @@ export function App() {
                         }
                         type="button"
                       >
-                        <strong>{entry.is_dir ? `${entry.name}/` : entry.name}</strong>
+                        <strong>
+                          {entry.is_dir ? `${entry.name}/` : entry.name}
+                        </strong>
                         <span>{entry.path}</span>
                       </button>
                     ))}
@@ -2971,8 +3502,14 @@ export function App() {
                 <div className="workspace-sidebar-content">
                   <div className="summary-grid">
                     <SummaryPill label="Branch" value={currentBranchName} />
-                    <SummaryPill label="Changed" value={gitState?.files.length ?? 0} />
-                    <SummaryPill label="Clean" value={gitState?.is_clean ? "yes" : "no"} />
+                    <SummaryPill
+                      label="Changed"
+                      value={gitState?.files.length ?? 0}
+                    />
+                    <SummaryPill
+                      label="Clean"
+                      value={gitState?.is_clean ? "yes" : "no"}
+                    />
                   </div>
                   <div className="surface-list dense">
                     {(gitHistory?.commits ?? []).map((commit) => (
@@ -3011,8 +3548,8 @@ export function App() {
                 icon="house"
                 isSelected={false}
                 label="Home"
-                  onClick={() => handleSelectScreen("dashboard")}
-                />
+                onClick={() => handleSelectScreen("dashboard")}
+              />
               {settingsSections.map((section) => (
                 <SettingsSidebarItem
                   icon={settingsSectionIcon(section.id)}
@@ -3026,7 +3563,9 @@ export function App() {
           </aside>
 
           <main className="settings-content">
-            {statusMessage ? <div className="status-banner">{statusMessage}</div> : null}
+            {statusMessage ? (
+              <div className="status-banner">{statusMessage}</div>
+            ) : null}
 
             {selectedSettingsSection === "appearance" ? (
               <SettingsPageShell
@@ -3044,7 +3583,9 @@ export function App() {
                         isSelected={(settings.theme_mode ?? "dark") === mode}
                         key={mode}
                         mode={mode}
-                        onSelect={() => void applySettingsPatch({ theme_mode: mode })}
+                        onSelect={() =>
+                          void applySettingsPatch({ theme_mode: mode })
+                        }
                       />
                     ))}
                   </div>
@@ -3064,9 +3605,13 @@ export function App() {
                   <div className="settings-card-row">
                     {fontSizePresets.map((preset) => (
                       <FontSizePresetCard
-                        isSelected={(settings.font_size_preset ?? "medium") === preset}
+                        isSelected={
+                          (settings.font_size_preset ?? "medium") === preset
+                        }
                         key={preset}
-                        onSelect={() => void applySettingsPatch({ font_size_preset: preset })}
+                        onSelect={() =>
+                          void applySettingsPatch({ font_size_preset: preset })
+                        }
                         preset={preset}
                       />
                     ))}
@@ -3078,7 +3623,10 @@ export function App() {
                   title="Desktop"
                 >
                   <section className="settings-inline-panel">
-                    <form className="settings-form" onSubmit={handleSettingsSubmit}>
+                    <form
+                      className="settings-form"
+                      onSubmit={handleSettingsSubmit}
+                    >
                       <label className="checkbox-row">
                         <input
                           checked={settings.show_raw_message_json}
@@ -3090,7 +3638,9 @@ export function App() {
                           }
                           type="checkbox"
                         />
-                        <span>Show raw JSON for structured session messages</span>
+                        <span>
+                          Show raw JSON for structured session messages
+                        </span>
                       </label>
                       <label>
                         <span>Preferred shell</span>
@@ -3101,7 +3651,9 @@ export function App() {
                               preferred_view: event.target.value,
                             }))
                           }
-                          value={preferredViewSelectValue(settings.preferred_view)}
+                          value={preferredViewSelectValue(
+                            settings.preferred_view
+                          )}
                         >
                           <option value="dashboard">Dashboard</option>
                           <option value="stats">Stats</option>
@@ -3127,7 +3679,11 @@ export function App() {
                 <section className="settings-inline-panel">
                   <div className="surface-header">
                     <h3>Repositories</h3>
-                    <button className="secondary-button" onClick={() => void handleAddRepository()} type="button">
+                    <button
+                      className="secondary-button"
+                      onClick={() => void handleAddRepository()}
+                      type="button"
+                    >
                       Add repository
                     </button>
                   </div>
@@ -3140,7 +3696,9 @@ export function App() {
                         </div>
                         <button
                           className="secondary-button"
-                          onClick={() => void desktopRevealInFinder(repository.path)}
+                          onClick={() =>
+                            void desktopRevealInFinder(repository.path)
+                          }
                           type="button"
                         >
                           Reveal
@@ -3245,7 +3803,13 @@ export function App() {
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: number | string }) {
+function MetricCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: number | string;
+}) {
   return (
     <section className="metric-card">
       <span>{label}</span>
@@ -3254,12 +3818,521 @@ function MetricCard({ label, value }: { label: string; value: number | string })
   );
 }
 
-function SummaryPill({ label, value }: { label: string; value: number | string }) {
+function SummaryPill({
+  label,
+  value,
+}: {
+  label: string;
+  value: number | string;
+}) {
   return (
     <div className="summary-pill">
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
+  );
+}
+
+function AgentsRouteView({
+  agents,
+  agentRunError,
+  agentRunEvents,
+  agentRunLogContent,
+  agentRuns,
+  companyName,
+  isLoadingAgentRunDetail,
+  isLoadingAgentRuns,
+  isPerformingAgentRunAction,
+  mode,
+  onBackToAgentDetails,
+  onCancelSelectedRun,
+  onRefreshRuns,
+  onResumeSelectedRun,
+  onRetrySelectedRun,
+  onSelectAgent,
+  onSelectRun,
+  onShowRuns,
+  selectedAgent,
+  selectedAgentId,
+  selectedRun,
+}: {
+  agents: AgentRecord[];
+  agentRunError: string | null;
+  agentRunEvents: AgentRunEventRecord[];
+  agentRunLogContent: string;
+  agentRuns: AgentRunRecord[];
+  companyName: string;
+  isLoadingAgentRunDetail: boolean;
+  isLoadingAgentRuns: boolean;
+  isPerformingAgentRunAction: boolean;
+  mode: AgentsRouteMode;
+  onBackToAgentDetails: () => void;
+  onCancelSelectedRun: () => void;
+  onRefreshRuns: () => void;
+  onResumeSelectedRun: () => void;
+  onRetrySelectedRun: () => void;
+  onSelectAgent: (agentId: string) => void;
+  onSelectRun: (runId: string) => void;
+  onShowRuns: () => void;
+  selectedAgent: AgentRecord | null;
+  selectedAgentId: string | null;
+  selectedRun: AgentRunRecord | null;
+}) {
+  if (mode === "runs") {
+    return (
+      <AgentRunsRouteView
+        agentRunError={agentRunError}
+        agentRunEvents={agentRunEvents}
+        agentRunLogContent={agentRunLogContent}
+        agentRuns={agentRuns}
+        isLoadingAgentRunDetail={isLoadingAgentRunDetail}
+        isLoadingAgentRuns={isLoadingAgentRuns}
+        isPerformingAgentRunAction={isPerformingAgentRunAction}
+        onBack={onBackToAgentDetails}
+        onCancelSelectedRun={onCancelSelectedRun}
+        onRefreshRuns={onRefreshRuns}
+        onResumeSelectedRun={onResumeSelectedRun}
+        onRetrySelectedRun={onRetrySelectedRun}
+        onSelectRun={onSelectRun}
+        selectedAgent={selectedAgent}
+        selectedRun={selectedRun}
+      />
+    );
+  }
+
+  return (
+    <section className="route-scroll">
+      <div className="route-header compact">
+        <span className="route-kicker">Agents</span>
+        <h1>{selectedAgent?.name ?? "Company roster"}</h1>
+        <p>
+          Review the selected agent, verify its board wiring, and jump directly
+          into its historical runs.
+        </p>
+      </div>
+
+      <div className="surface-grid">
+        <section className="surface-panel wide">
+          {selectedAgent ? (
+            <>
+              <div className="agents-route-header-row">
+                <div>
+                  <span className="route-kicker">Selected agent</span>
+                  <h2>{selectedAgent.name}</h2>
+                </div>
+                <button
+                  className="secondary-button"
+                  onClick={onShowRuns}
+                  type="button"
+                >
+                  View runs
+                </button>
+              </div>
+
+              <div className="summary-grid">
+                <SummaryPill
+                  label="Role"
+                  value={selectedAgent.title ?? selectedAgent.role ?? "Agent"}
+                />
+                <SummaryPill
+                  label="Status"
+                  value={String(selectedAgent.status ?? "active")}
+                />
+                <SummaryPill label="Company" value={companyName} />
+              </div>
+
+              <div className="surface-list">
+                <DetailRow
+                  label="Adapter"
+                  value={selectedAgent.adapter_type ?? "Not configured"}
+                />
+                <DetailRow
+                  label="Reports to"
+                  value={selectedAgent.reports_to ?? "CEO"}
+                />
+                <DetailRow
+                  label="Home"
+                  value={selectedAgent.home_path ?? "Missing"}
+                />
+                <DetailRow
+                  label="Instructions"
+                  value={selectedAgent.instructions_path ?? "Missing"}
+                />
+                <DetailRow
+                  label="Monthly budget"
+                  value={formatCents(selectedAgent.budget_monthly_cents)}
+                />
+                <DetailRow
+                  label="Monthly spend"
+                  value={formatCents(selectedAgent.spent_monthly_cents)}
+                />
+                <DetailRow
+                  label="Last heartbeat"
+                  value={formatIssueDate(selectedAgent.last_heartbeat_at)}
+                />
+              </div>
+
+              {selectedAgent.capabilities ? (
+                <section className="agent-run-section">
+                  <h3>Capabilities</h3>
+                  <p>{selectedAgent.capabilities}</p>
+                </section>
+              ) : null}
+
+              {selectedAgent.metadata ? (
+                <section className="agent-run-section">
+                  <h3>Metadata</h3>
+                  <pre className="agent-run-json-block">
+                    {formatJsonBlock(selectedAgent.metadata)}
+                  </pre>
+                </section>
+              ) : null}
+            </>
+          ) : (
+            <p>No agents are available for this company yet.</p>
+          )}
+        </section>
+
+        <section className="surface-panel">
+          <div className="surface-header">
+            <h3>Roster</h3>
+          </div>
+          {agents.length ? (
+            <div className="surface-list">
+              {agents.map((agent) => (
+                <button
+                  className={
+                    agent.id === selectedAgentId
+                      ? "file-list-button active"
+                      : "file-list-button"
+                  }
+                  key={agent.id}
+                  onClick={() => onSelectAgent(agent.id)}
+                  type="button"
+                >
+                  <strong>{agent.name}</strong>
+                  <span>{agent.title ?? agent.role ?? "Agent"}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="surface-empty-copy">
+              No agents have been created for this company yet.
+            </p>
+          )}
+        </section>
+      </div>
+    </section>
+  );
+}
+
+function AgentRunsRouteView({
+  agentRunError,
+  agentRunEvents,
+  agentRunLogContent,
+  agentRuns,
+  isLoadingAgentRunDetail,
+  isLoadingAgentRuns,
+  isPerformingAgentRunAction,
+  onBack,
+  onCancelSelectedRun,
+  onRefreshRuns,
+  onResumeSelectedRun,
+  onRetrySelectedRun,
+  onSelectRun,
+  selectedAgent,
+  selectedRun,
+}: {
+  agentRunError: string | null;
+  agentRunEvents: AgentRunEventRecord[];
+  agentRunLogContent: string;
+  agentRuns: AgentRunRecord[];
+  isLoadingAgentRunDetail: boolean;
+  isLoadingAgentRuns: boolean;
+  isPerformingAgentRunAction: boolean;
+  onBack: () => void;
+  onCancelSelectedRun: () => void;
+  onRefreshRuns: () => void;
+  onResumeSelectedRun: () => void;
+  onRetrySelectedRun: () => void;
+  onSelectRun: (runId: string) => void;
+  selectedAgent: AgentRecord | null;
+  selectedRun: AgentRunRecord | null;
+}) {
+  return (
+    <section className="route-scroll">
+      <div className="route-header compact">
+        <button className="issues-back-button" onClick={onBack} type="button">
+          <span>‹</span>
+          <span>Back to Agent</span>
+        </button>
+        <span className="route-kicker">Agent runs</span>
+        <div className="agents-route-header-row">
+          <div>
+            <h1>
+              {selectedAgent
+                ? `${selectedAgent.name} run history`
+                : "Run history"}
+            </h1>
+            <p>
+              Queued, running, and completed runs for this agent appear here.
+            </p>
+          </div>
+          <div className="agents-route-actions">
+            {isLoadingAgentRuns || isLoadingAgentRunDetail ? (
+              <span className="agents-run-loading">Loading…</span>
+            ) : null}
+            <button
+              className="secondary-button compact-button"
+              onClick={onRefreshRuns}
+              type="button"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {!selectedAgent ? (
+        <div className="surface-grid single">
+          <section className="surface-panel">
+            <p>Select an agent to review its runs.</p>
+          </section>
+        </div>
+      ) : (
+        <div className="agents-runs-layout">
+          <section className="surface-panel agents-runs-list-panel">
+            <div className="surface-header">
+              <h3>Runs</h3>
+              <span>{agentRuns.length}</span>
+            </div>
+
+            {agentRunError ? (
+              <div className="agents-run-error">{agentRunError}</div>
+            ) : null}
+
+            {agentRuns.length ? (
+              <div className="surface-list dense">
+                {agentRuns.map((run) => (
+                  <button
+                    className={
+                      selectedRun?.id === run.id
+                        ? "agent-run-list-button active"
+                        : "agent-run-list-button"
+                    }
+                    key={run.id}
+                    onClick={() => onSelectRun(run.id)}
+                    type="button"
+                  >
+                    <div className="agent-run-list-row-head">
+                      <div>
+                        <strong>{shortAgentRunTitle(run.id)}</strong>
+                        <span>{agentRunSummary(run)}</span>
+                      </div>
+                      <RunStatusBadge status={run.status} />
+                    </div>
+                    <div className="agent-run-list-row-meta">
+                      <span>
+                        {agentRunInvocationSourceLabel(run.invocation_source)}
+                      </span>
+                      <span>{formatRelativeAgentRunDate(run.created_at)}</span>
+                      {run.wake_reason ? (
+                        <span>{agentRunWakeReasonLabel(run.wake_reason)}</span>
+                      ) : null}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="surface-empty-copy">
+                No runs yet. They will appear here once the agent has been
+                invoked.
+              </p>
+            )}
+          </section>
+
+          <section className="surface-panel agents-runs-detail-panel">
+            {selectedRun ? (
+              <>
+                <div className="agents-route-header-row">
+                  <div>
+                    <span className="route-kicker">
+                      {shortAgentRunTitle(selectedRun.id)}
+                    </span>
+                    <h2>{agentRunSummary(selectedRun)}</h2>
+                    <p>
+                      {agentRunInvocationSourceLabel(
+                        selectedRun.invocation_source
+                      )}{" "}
+                      · {formatRelativeAgentRunDate(selectedRun.created_at)}
+                    </p>
+                  </div>
+                  <div className="agents-route-actions">
+                    {(selectedRun.status === "queued" ||
+                      selectedRun.status === "running") && (
+                      <button
+                        className="secondary-button compact-button"
+                        disabled={isPerformingAgentRunAction}
+                        onClick={onCancelSelectedRun}
+                        type="button"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                    {(selectedRun.status === "failed" ||
+                      selectedRun.status === "timed_out") && (
+                      <button
+                        className="secondary-button compact-button"
+                        disabled={isPerformingAgentRunAction}
+                        onClick={onRetrySelectedRun}
+                        type="button"
+                      >
+                        Retry
+                      </button>
+                    )}
+                    {selectedRun.status === "failed" &&
+                    selectedRun.error_code === "process_lost" ? (
+                      <button
+                        className="primary-button compact-button"
+                        disabled={isPerformingAgentRunAction}
+                        onClick={onResumeSelectedRun}
+                        type="button"
+                      >
+                        Resume
+                      </button>
+                    ) : null}
+                    <RunStatusBadge status={selectedRun.status} />
+                  </div>
+                </div>
+
+                <div className="summary-grid">
+                  <SummaryPill
+                    label="Status"
+                    value={agentRunStatusLabel(selectedRun.status)}
+                  />
+                  <SummaryPill
+                    label="Invocation"
+                    value={agentRunInvocationSourceLabel(
+                      selectedRun.invocation_source
+                    )}
+                  />
+                  <SummaryPill
+                    label="Wake reason"
+                    value={agentRunWakeReasonLabel(selectedRun.wake_reason)}
+                  />
+                </div>
+
+                <div className="surface-list">
+                  <DetailRow
+                    label="Started"
+                    value={formatIssueDate(
+                      selectedRun.started_at ?? selectedRun.created_at
+                    )}
+                  />
+                  <DetailRow
+                    label="Finished"
+                    value={formatIssueDate(selectedRun.finished_at)}
+                  />
+                  <DetailRow
+                    label="Trigger detail"
+                    value={agentRunTriggerDetailLabel(
+                      selectedRun.trigger_detail
+                    )}
+                  />
+                  <DetailRow
+                    label="Exit code"
+                    value={
+                      typeof selectedRun.exit_code === "number"
+                        ? String(selectedRun.exit_code)
+                        : "n/a"
+                    }
+                  />
+                  <DetailRow
+                    label="Session before"
+                    value={selectedRun.session_id_before ?? "n/a"}
+                  />
+                  <DetailRow
+                    label="Session after"
+                    value={selectedRun.session_id_after ?? "n/a"}
+                  />
+                </div>
+
+                <section className="agent-run-section">
+                  <h3>Events</h3>
+                  {agentRunEvents.length ? (
+                    <div className="agent-run-event-list">
+                      {agentRunEvents.map((event) => (
+                        <article
+                          className="agent-run-event-row"
+                          key={`${event.id}-${event.seq}`}
+                        >
+                          <div className="agent-run-event-row-head">
+                            <strong>
+                              {agentRunEventLabel(event.event_type)}
+                            </strong>
+                            <span>{formatIssueDate(event.created_at)}</span>
+                          </div>
+                          {event.message ? <p>{event.message}</p> : null}
+                          {event.payload !== undefined &&
+                          event.payload !== null ? (
+                            <pre className="agent-run-json-block">
+                              {formatJsonBlock(event.payload)}
+                            </pre>
+                          ) : null}
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="surface-empty-copy">
+                      No run events have been recorded yet.
+                    </p>
+                  )}
+                </section>
+
+                <section className="agent-run-section">
+                  <h3>Log output</h3>
+                  <pre className="agent-run-log-block">
+                    {agentRunLogContent || "No log output yet."}
+                  </pre>
+                </section>
+
+                {selectedRun.result_json !== undefined &&
+                selectedRun.result_json !== null ? (
+                  <section className="agent-run-section">
+                    <h3>Result JSON</h3>
+                    <pre className="agent-run-json-block">
+                      {formatJsonBlock(selectedRun.result_json)}
+                    </pre>
+                  </section>
+                ) : null}
+
+                {selectedRun.context_snapshot !== undefined &&
+                selectedRun.context_snapshot !== null ? (
+                  <section className="agent-run-section">
+                    <h3>Context snapshot</h3>
+                    <pre className="agent-run-json-block">
+                      {formatJsonBlock(selectedRun.context_snapshot)}
+                    </pre>
+                  </section>
+                ) : null}
+              </>
+            ) : (
+              <p className="surface-empty-copy">
+                Select a run to inspect its status, events, and log output.
+              </p>
+            )}
+          </section>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function RunStatusBadge({ status }: { status: string }) {
+  return (
+    <span className={`agent-run-status-badge ${agentRunStatusTone(status)}`}>
+      {agentRunStatusLabel(status)}
+    </span>
   );
 }
 
@@ -3274,7 +4347,9 @@ function BoardSidebarButton({
 }) {
   return (
     <button
-      className={active ? "board-sidebar-button active" : "board-sidebar-button"}
+      className={
+        active ? "board-sidebar-button active" : "board-sidebar-button"
+      }
       onClick={onClick}
       type="button"
     >
@@ -3366,7 +4441,9 @@ function DashboardCanvasRouteView({
                 <div className="project-kanban-board-header">
                   <div>
                     <span className="project-kanban-board-kicker">
-                      {humanizeIssueValue(projectBoard.project.status ?? "planned")}
+                      {humanizeIssueValue(
+                        projectBoard.project.status ?? "planned"
+                      )}
                     </span>
                     <h2>
                       {projectBoard.project.name ??
@@ -3390,7 +4467,10 @@ function DashboardCanvasRouteView({
 
                 <div className="project-kanban-columns">
                   {projectBoard.columns.map((column) => (
-                    <section className="project-kanban-column" key={column.status}>
+                    <section
+                      className="project-kanban-column"
+                      key={column.status}
+                    >
                       <div className="project-kanban-column-header">
                         <div className="project-kanban-column-header-copy">
                           <span>{humanizeIssueValue(column.status)}</span>
@@ -3402,17 +4482,24 @@ function DashboardCanvasRouteView({
                         <button
                           className="project-kanban-column-create"
                           onClick={() =>
-                            onCreateIssueForColumn(projectBoard.project.id, column.status)
+                            onCreateIssueForColumn(
+                              projectBoard.project.id,
+                              column.status
+                            )
                           }
                           type="button"
                         >
-                          <span className="project-kanban-column-create-icon" aria-hidden="true">
+                          <span
+                            className="project-kanban-column-create-icon"
+                            aria-hidden="true"
+                          >
                             +
                           </span>
                           <span className="project-kanban-column-create-copy">
                             <strong>New issue</strong>
                             <small>
-                              Add work directly to {humanizeIssueValue(column.status)}
+                              Add work directly to{" "}
+                              {humanizeIssueValue(column.status)}
                             </small>
                           </span>
                         </button>
@@ -3421,7 +4508,9 @@ function DashboardCanvasRouteView({
                           column.issues.map((issue) => (
                             <button
                               className="project-kanban-card"
-                              data-priority={normalizeBoardIssueValue(issue.priority)}
+                              data-priority={normalizeBoardIssueValue(
+                                issue.priority
+                              )}
                               key={issue.id}
                               onClick={() => onOpenIssue(issue.id)}
                               type="button"
@@ -3429,9 +4518,14 @@ function DashboardCanvasRouteView({
                               <strong>{issue.identifier ?? issue.title}</strong>
                               <p>{issue.title}</p>
                               <div className="project-kanban-card-meta">
-                                <span>{humanizeIssueValue(issue.priority)}</span>
                                 <span>
-                                  {issueAssigneeLabel(agents, issue.assignee_agent_id)}
+                                  {humanizeIssueValue(issue.priority)}
+                                </span>
+                                <span>
+                                  {issueAssigneeLabel(
+                                    agents,
+                                    issue.assignee_agent_id
+                                  )}
                                 </span>
                               </div>
                             </button>
@@ -3468,14 +4562,20 @@ function DashboardCanvasRouteView({
               </svg>
             </div>
             <div className="dashboard-canvas-empty-copy">
-              <span className="dashboard-canvas-empty-badge">Projects required</span>
+              <span className="dashboard-canvas-empty-badge">
+                Projects required
+              </span>
               <h2>Create a project first</h2>
               <p>
-                Each project gets its own kanban board on this canvas. Add a project
-                with a repository anchor to start laying out your board.
+                Each project gets its own kanban board on this canvas. Add a
+                project with a repository anchor to start laying out your board.
               </p>
             </div>
-            <button className="primary-button" onClick={onCreateProject} type="button">
+            <button
+              className="primary-button"
+              onClick={onCreateProject}
+              type="button"
+            >
               Create project
             </button>
           </div>
@@ -3518,7 +4618,10 @@ function StatsRouteView({
         <MetricCard label="Projects" value={snapshot?.projects.length ?? 0} />
         <MetricCard label="Agents" value={snapshot?.agents.length ?? 0} />
         <MetricCard label="Approvals" value={snapshot?.approvals.length ?? 0} />
-        <MetricCard label="Workspaces" value={snapshot?.workspaces.length ?? 0} />
+        <MetricCard
+          label="Workspaces"
+          value={snapshot?.workspaces.length ?? 0}
+        />
         <MetricCard label="Repositories" value={repositoriesCount} />
       </div>
 
@@ -3526,7 +4629,11 @@ function StatsRouteView({
         <section className="surface-panel wide">
           <div className="surface-header">
             <h3>Production boundary preserved</h3>
-            <button className="secondary-button" onClick={onCheckDependencies} type="button">
+            <button
+              className="secondary-button"
+              onClick={onCheckDependencies}
+              type="button"
+            >
               Check dependencies
             </button>
           </div>
@@ -3545,7 +4652,9 @@ function StatsRouteView({
             />
             <SummaryPill label="App" value={bootstrap.expected_app_version} />
           </div>
-          {dependencyCheck ? <pre>{JSON.stringify(dependencyCheck, null, 2)}</pre> : null}
+          {dependencyCheck ? (
+            <pre>{JSON.stringify(dependencyCheck, null, 2)}</pre>
+          ) : null}
         </section>
 
         <section className="surface-panel">
@@ -3554,7 +4663,9 @@ function StatsRouteView({
             <div className="surface-list">
               {(snapshot?.projects ?? []).slice(0, 5).map((project) => (
                 <div className="surface-list-row" key={project.id}>
-                  <strong>{project.name ?? project.title ?? "Untitled project"}</strong>
+                  <strong>
+                    {project.name ?? project.title ?? "Untitled project"}
+                  </strong>
                   <span>
                     {project.primary_workspace?.cwd ??
                       project.status ??
@@ -3600,7 +4711,9 @@ function StatsRouteView({
                     workspace.agent_name,
                   ]
                     .filter(Boolean)
-                    .join(" · ") || workspace.workspace_status || "workspace"}
+                    .join(" · ") ||
+                    workspace.workspace_status ||
+                    "workspace"}
                 </span>
               </button>
             ))}
@@ -3640,7 +4753,11 @@ function IssuesListView({
         <div className="issues-tab-bar-inner">
           {(["new", "all"] as const).map((tab) => (
             <button
-              className={activeTab === tab ? "issues-tab-button active" : "issues-tab-button"}
+              className={
+                activeTab === tab
+                  ? "issues-tab-button active"
+                  : "issues-tab-button"
+              }
               key={tab}
               onClick={() => onTabChange(tab)}
               type="button"
@@ -3664,14 +4781,18 @@ function IssuesListView({
               const isSelected = selectedIssueId === issue.id;
               return (
                 <button
-                  className={isSelected ? "issues-list-row active" : "issues-list-row"}
+                  className={
+                    isSelected ? "issues-list-row active" : "issues-list-row"
+                  }
                   key={issue.id}
                   onClick={() => onSelectIssue(issue.id)}
                   type="button"
                 >
                   <span
                     className="issues-list-row-title"
-                    style={{ paddingLeft: `${20 + issue.request_depth * 12}px` }}
+                    style={{
+                      paddingLeft: `${20 + issue.request_depth * 12}px`,
+                    }}
                   >
                     {issuesListRowTitle(issue)}
                   </span>
@@ -3685,7 +4806,10 @@ function IssuesListView({
         ) : (
           <div className="issues-empty-state">
             <h2>{emptyTitle}</h2>
-            <p>Issues own workspaces. Create one from the sidebar to start agent work.</p>
+            <p>
+              Issues own workspaces. Create one from the sidebar to start agent
+              work.
+            </p>
           </div>
         )}
       </div>
@@ -3758,7 +4882,8 @@ function IssueDetailView({
   parentIssueLabel: (parentIssueId?: string | null) => string;
   priorityLabel: (value: string) => string;
 }) {
-  const canSaveIssueEdits = !isSavingIssue && issueDraft.title.trim().length > 0;
+  const canSaveIssueEdits =
+    !isSavingIssue && issueDraft.title.trim().length > 0;
 
   return (
     <section className="route-scroll issues-detail-route">
@@ -3774,11 +4899,14 @@ function IssueDetailView({
       <section className="surface-panel issues-detail-panel">
         <div className="issues-detail-title-row">
           <div className="issues-detail-title-block">
-            <span className="route-kicker">{issue.identifier ?? issue.title}</span>
+            <span className="route-kicker">
+              {issue.identifier ?? issue.title}
+            </span>
             <h2>{isEditingIssue ? "Edit Issue" : issue.title}</h2>
             {isEditingIssue ? (
               <p className="issues-edit-subtitle">
-                Update the issue title, routing, ownership, and execution context.
+                Update the issue title, routing, ownership, and execution
+                context.
               </p>
             ) : null}
           </div>
@@ -3796,7 +4924,11 @@ function IssueDetailView({
             ) : null}
 
             {!isEditingIssue ? (
-              <button className="secondary-button" onClick={onBeginEditing} type="button">
+              <button
+                className="secondary-button"
+                onClick={onBeginEditing}
+                type="button"
+              >
                 Edit Issue
               </button>
             ) : null}
@@ -3811,11 +4943,15 @@ function IssueDetailView({
                 <strong>{issue.identifier ?? issue.id}</strong>
               </div>
               <div className="issue-dialog-context-chip">
-                <span className="issue-dialog-context-label">Current status</span>
+                <span className="issue-dialog-context-label">
+                  Current status
+                </span>
                 <strong>{priorityLabel(issue.status)}</strong>
               </div>
               <div className="issue-dialog-context-chip">
-                <span className="issue-dialog-context-label">Current priority</span>
+                <span className="issue-dialog-context-label">
+                  Current priority
+                </span>
                 <strong>{priorityLabel(issue.priority)}</strong>
               </div>
             </div>
@@ -3850,7 +4986,8 @@ function IssueDetailView({
                 value={issueDraft.description}
               />
               <small className="issue-dialog-hint">
-                Background, acceptance criteria, and bootstrap instructions all live here.
+                Background, acceptance criteria, and bootstrap instructions all
+                live here.
               </small>
             </label>
 
@@ -3936,7 +5073,9 @@ function IssueDetailView({
               </IssueDialogSelectField>
             </div>
 
-            {issueEditorError ? <div className="issue-dialog-alert">{issueEditorError}</div> : null}
+            {issueEditorError ? (
+              <div className="issue-dialog-alert">{issueEditorError}</div>
+            ) : null}
 
             <div className="issue-edit-footer">
               <button
@@ -3969,8 +5108,14 @@ function IssueDetailView({
             <DetailRow label="Status" value={priorityLabel(issue.status)} />
             <DetailRow label="Priority" value={priorityLabel(issue.priority)} />
             <DetailRow label="Project" value={projectLabel(issue.project_id)} />
-            <DetailRow label="Assignee" value={assigneeLabel(issue.assignee_agent_id)} />
-            <DetailRow label="Parent" value={parentIssueLabel(issue.parent_id)} />
+            <DetailRow
+              label="Assignee"
+              value={assigneeLabel(issue.assignee_agent_id)}
+            />
+            <DetailRow
+              label="Parent"
+              value={parentIssueLabel(issue.parent_id)}
+            />
             <DetailRow label="Depth" value={String(issue.request_depth)} />
           </div>
         ) : null}
@@ -3980,9 +5125,14 @@ function IssueDetailView({
             <h3>Subissues</h3>
             <div className="surface-list dense">
               {subissues.map((child) => (
-                <div className="surface-list-row issues-supporting-row" key={child.id}>
+                <div
+                  className="surface-list-row issues-supporting-row"
+                  key={child.id}
+                >
                   <strong>{child.identifier ?? child.title}</strong>
-                  <span className="workspace-status-pill">{priorityLabel(child.status)}</span>
+                  <span className="workspace-status-pill">
+                    {priorityLabel(child.status)}
+                  </span>
                 </div>
               ))}
             </div>
@@ -4000,10 +5150,14 @@ function IssueDetailView({
                   onClick={() => onLinkedApprovalSelect(approval.id)}
                   type="button"
                 >
-                  <strong>{priorityLabel(approval.approval_type ?? "approval")}</strong>
+                  <strong>
+                    {priorityLabel(approval.approval_type ?? "approval")}
+                  </strong>
                   <span>
                     {priorityLabel(approval.status ?? "pending")}
-                    {approval.updated_at ? ` · ${formatIssueDate(approval.updated_at)}` : ""}
+                    {approval.updated_at
+                      ? ` · ${formatIssueDate(approval.updated_at)}`
+                      : ""}
                   </span>
                 </button>
               ))}
@@ -4250,23 +5404,21 @@ function CostsRouteView({
 }) {
   const sortedAgents = useMemo(
     () =>
-      agents
-        .slice()
-        .sort((left, right) => {
-          const spendDelta = agentSpentCents(right) - agentSpentCents(left);
-          if (spendDelta !== 0) {
-            return spendDelta;
-          }
+      agents.slice().sort((left, right) => {
+        const spendDelta = agentSpentCents(right) - agentSpentCents(left);
+        if (spendDelta !== 0) {
+          return spendDelta;
+        }
 
-          const budgetDelta = agentBudgetCents(right) - agentBudgetCents(left);
-          if (budgetDelta !== 0) {
-            return budgetDelta;
-          }
+        const budgetDelta = agentBudgetCents(right) - agentBudgetCents(left);
+        if (budgetDelta !== 0) {
+          return budgetDelta;
+        }
 
-          return (left.name || left.title || left.role || left.id).localeCompare(
-            right.name || right.title || right.role || right.id
-          );
-        }),
+        return (left.name || left.title || left.role || left.id).localeCompare(
+          right.name || right.title || right.role || right.id
+        );
+      }),
     [agents]
   );
   const companyBudget = companyBudgetCents(company);
@@ -4276,10 +5428,18 @@ function CostsRouteView({
     (total, agent) => total + agentSpentCents(agent),
     0
   );
-  const agentsWithSpendCount = sortedAgents.filter((agent) => agentSpentCents(agent) > 0).length;
+  const agentsWithSpendCount = sortedAgents.filter(
+    (agent) => agentSpentCents(agent) > 0
+  ).length;
   const overBudgetAgentsCount = sortedAgents.filter(isAgentOverBudget).length;
-  const companyUtilizationLabel = formatBudgetUtilization(companySpent, companyBudget);
-  const companyBudgetStatus = companyBudgetStatusLabel(companySpent, companyBudget);
+  const companyUtilizationLabel = formatBudgetUtilization(
+    companySpent,
+    companyBudget
+  );
+  const companyBudgetStatus = companyBudgetStatusLabel(
+    companySpent,
+    companyBudget
+  );
   const unattributedSpend = companySpent - agentTrackedSpend;
 
   return (
@@ -4288,14 +5448,17 @@ function CostsRouteView({
         <span className="route-kicker">Costs</span>
         <h1>Budget and spend</h1>
         <p>
-          Company and agent spend from the daemon-backed board models, matching the cost
-          data the Swift surfaces already exposed.
+          Company and agent spend from the daemon-backed board models, matching
+          the cost data the Swift surfaces already exposed.
         </p>
       </div>
 
       <div className="metric-grid">
         <MetricCard label="Monthly Budget" value={formatCents(companyBudget)} />
-        <MetricCard label="Spent This Month" value={formatCents(companySpent)} />
+        <MetricCard
+          label="Spent This Month"
+          value={formatCents(companySpent)}
+        />
         <MetricCard label="Remaining" value={formatCents(companyRemaining)} />
         <MetricCard label="Utilization" value={companyUtilizationLabel} />
         <MetricCard label="Tracked Agents" value={agentsWithSpendCount} />
@@ -4311,7 +5474,10 @@ function CostsRouteView({
           <div className="summary-grid">
             <SummaryPill label="Budget" value={formatCents(companyBudget)} />
             <SummaryPill label="Spent" value={formatCents(companySpent)} />
-            <SummaryPill label="Tracked Agent Spend" value={formatCents(agentTrackedSpend)} />
+            <SummaryPill
+              label="Tracked Agent Spend"
+              value={formatCents(agentTrackedSpend)}
+            />
             <SummaryPill label="Status" value={companyBudgetStatus} />
           </div>
 
@@ -4328,7 +5494,9 @@ function CostsRouteView({
             <div className="costs-progress-track" role="presentation">
               <div
                 className="costs-progress-fill"
-                style={{ width: `${budgetProgressPercent(companySpent, companyBudget)}%` }}
+                style={{
+                  width: `${budgetProgressPercent(companySpent, companyBudget)}%`,
+                }}
               />
             </div>
           </div>
@@ -4357,7 +5525,12 @@ function CostsRouteView({
           <div className="surface-list costs-summary-list">
             <div className="surface-list-row">
               <span>Agents With Budget Caps</span>
-              <strong>{sortedAgents.filter((agent) => agentBudgetCents(agent) > 0).length}</strong>
+              <strong>
+                {
+                  sortedAgents.filter((agent) => agentBudgetCents(agent) > 0)
+                    .length
+                }
+              </strong>
             </div>
             <div className="surface-list-row">
               <span>Agents Over Budget</span>
@@ -4369,7 +5542,9 @@ function CostsRouteView({
             </div>
             <div className="surface-list-row">
               <span>Company Policy</span>
-              <strong>{companyBudget > 0 ? "Budget capped" : "No company cap"}</strong>
+              <strong>
+                {companyBudget > 0 ? "Budget capped" : "No company cap"}
+              </strong>
             </div>
           </div>
         </section>
@@ -4389,7 +5564,9 @@ function CostsRouteView({
         ) : (
           <div className="workspace-empty-state">
             <h3>No agents yet</h3>
-            <p>Agent spend will appear here once the company has active agents.</p>
+            <p>
+              Agent spend will appear here once the company has active agents.
+            </p>
           </div>
         )}
       </section>
@@ -4401,7 +5578,9 @@ function CostAgentRow({ agent }: { agent: AgentRecord }) {
   const budget = agentBudgetCents(agent);
   const spent = agentSpentCents(agent);
   const spendLabel =
-    budget > 0 ? `${formatCents(spent)} / ${formatCents(budget)}` : formatCents(spent);
+    budget > 0
+      ? `${formatCents(spent)} / ${formatCents(budget)}`
+      : formatCents(spent);
   const spendStatus = agentBudgetStatusLabel(spent, budget);
   const secondaryMeta = [agent.title ?? agent.role, agent.status ?? "unknown"];
   const heartbeatLabel = formatTimestamp(agent.last_heartbeat_at);
@@ -4455,7 +5634,11 @@ function ProjectsRouteView({
           <h1>Repo anchors and ownership</h1>
         </div>
 
-        <button className="primary-button" onClick={onOpenCreateProject} type="button">
+        <button
+          className="primary-button"
+          onClick={onOpenCreateProject}
+          type="button"
+        >
           New Project
         </button>
       </div>
@@ -4477,7 +5660,8 @@ function ProjectsRouteView({
           </div>
         ) : (
           <p className="projects-empty-text">
-            Projects define the main repo anchor that issue workspaces run inside.
+            Projects define the main repo anchor that issue workspaces run
+            inside.
           </p>
         )}
       </section>
@@ -4514,7 +5698,9 @@ function ProjectsRouteView({
               />
               <DetailRow
                 label="Repo URL"
-                value={currentProject.primary_workspace?.repo_url ?? "Local only"}
+                value={
+                  currentProject.primary_workspace?.repo_url ?? "Local only"
+                }
               />
               <DetailRow
                 label="Repo Ref"
@@ -4564,8 +5750,8 @@ function GoalsRouteView({
         <span className="route-kicker">Goals</span>
         <h1>Board objectives and hierarchy</h1>
         <p>
-          Goals are already loaded from the daemon and used during project planning. This
-          route surfaces them directly in the company shell.
+          Goals are already loaded from the daemon and used during project
+          planning. This route surfaces them directly in the company shell.
         </p>
       </div>
 
@@ -4587,7 +5773,10 @@ function GoalsRouteView({
         ) : (
           <div className="workspace-empty-state goals-empty-state-panel">
             <h3>No goals yet</h3>
-            <p>Goals created through the daemon-backed board flows will appear here.</p>
+            <p>
+              Goals created through the daemon-backed board flows will appear
+              here.
+            </p>
           </div>
         )}
       </section>
@@ -4666,7 +5855,9 @@ function GoalsRouteView({
                     >
                       <div className="goal-relationship-row-main">
                         <strong>{goal.title}</strong>
-                        <span>{humanizeIssueValue(goal.status ?? "planned")}</span>
+                        <span>
+                          {humanizeIssueValue(goal.status ?? "planned")}
+                        </span>
                       </div>
                       <span className="goal-relationship-row-trailing">
                         {humanizeIssueValue(goal.level ?? "company")}
@@ -4684,7 +5875,9 @@ function GoalsRouteView({
                   {relatedProjects.map((project) => (
                     <div className="surface-list-row" key={project.id}>
                       <span>{project.name}</span>
-                      <strong>{humanizeIssueValue(project.status ?? "planned")}</strong>
+                      <strong>
+                        {humanizeIssueValue(project.status ?? "planned")}
+                      </strong>
                     </div>
                   ))}
                 </div>
@@ -4795,7 +5988,11 @@ function CreateProjectDialogView({
             <h2>New project</h2>
           </div>
 
-          <button className="project-dialog-close" onClick={onClose} type="button">
+          <button
+            className="project-dialog-close"
+            onClick={onClose}
+            type="button"
+          >
             ✕
           </button>
         </div>
@@ -4808,12 +6005,18 @@ function CreateProjectDialogView({
               <span>{repoPath || "Choose a project folder"}</span>
             </div>
 
-            <button className="secondary-button" onClick={onChooseFolder} type="button">
+            <button
+              className="secondary-button"
+              onClick={onChooseFolder}
+              type="button"
+            >
               Choose folder
             </button>
           </div>
 
-          {errorMessage ? <div className="status-banner">{errorMessage}</div> : null}
+          {errorMessage ? (
+            <div className="status-banner">{errorMessage}</div>
+          ) : null}
 
           <div className="project-dialog-controls">
             <div className="project-dialog-chip-row">
@@ -4908,9 +6111,11 @@ function CreateIssueDialogView({
   onClose: () => void;
 }) {
   const canCreate = !isSaving && title.trim().length > 0;
-  const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null;
+  const selectedProject =
+    projects.find((project) => project.id === selectedProjectId) ?? null;
   const shouldShowRoutingContext =
-    Boolean(selectedProject) || normalizeBoardIssueValue(selectedStatus) !== "backlog";
+    Boolean(selectedProject) ||
+    normalizeBoardIssueValue(selectedStatus) !== "backlog";
 
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
@@ -4927,8 +6132,8 @@ function CreateIssueDialogView({
             <div className="issue-dialog-title-block">
               <h2 id="create-issue-dialog-title">Create issue</h2>
               <p>
-                Create a new board issue with optional routing to a project, assignee, or
-                parent issue.
+                Create a new board issue with optional routing to a project,
+                assignee, or parent issue.
               </p>
             </div>
           </div>
@@ -4945,14 +6150,20 @@ function CreateIssueDialogView({
         <div className="issue-dialog-body">
           <div className="issue-dialog-divider" />
 
-          {errorMessage ? <div className="issue-dialog-alert">{errorMessage}</div> : null}
+          {errorMessage ? (
+            <div className="issue-dialog-alert">{errorMessage}</div>
+          ) : null}
 
           {shouldShowRoutingContext ? (
             <div className="issue-dialog-context">
               {selectedProject ? (
                 <div className="issue-dialog-context-chip">
                   <span className="issue-dialog-context-label">Project</span>
-                  <strong>{selectedProject.name ?? selectedProject.title ?? "Untitled project"}</strong>
+                  <strong>
+                    {selectedProject.name ??
+                      selectedProject.title ??
+                      "Untitled project"}
+                  </strong>
                 </div>
               ) : null}
               <div className="issue-dialog-context-chip">
@@ -4984,7 +6195,8 @@ function CreateIssueDialogView({
               value={description}
             />
             <small className="issue-dialog-hint">
-              Optional background, acceptance criteria, or context for the assignee.
+              Optional background, acceptance criteria, or context for the
+              assignee.
             </small>
           </label>
 
@@ -5113,7 +6325,9 @@ function ApprovalQueueRow({
 }) {
   return (
     <button
-      className={isSelected ? "approval-queue-row active" : "approval-queue-row"}
+      className={
+        isSelected ? "approval-queue-row active" : "approval-queue-row"
+      }
       onClick={onClick}
       type="button"
     >
@@ -5121,7 +6335,9 @@ function ApprovalQueueRow({
         <strong>{approval.approval_type ?? "approval"}</strong>
         <span>{formatBoardDate(approval.created_at)}</span>
       </div>
-      <span className="approval-queue-row-trailing">{approval.status ?? "pending"}</span>
+      <span className="approval-queue-row-trailing">
+        {approval.status ?? "pending"}
+      </span>
     </button>
   );
 }
@@ -5337,13 +6553,17 @@ function FontSizePresetCard({
 }) {
   return (
     <button
-      className={isSelected ? "settings-option-card active" : "settings-option-card"}
+      className={
+        isSelected ? "settings-option-card active" : "settings-option-card"
+      }
       onClick={onSelect}
       type="button"
     >
       <FontSizePreview preset={preset} />
       <div className="settings-option-label">
-        <span className="settings-option-icon">{fontSizePresetSymbol(preset)}</span>
+        <span className="settings-option-icon">
+          {fontSizePresetSymbol(preset)}
+        </span>
         <span>{capitalize(preset)}</span>
       </div>
       <small>{fontSizePresetDescription(preset)}</small>
@@ -5416,11 +6636,15 @@ function CompanyBrandColorField({
           </label>
           <div className="company-brand-color-copy">
             <strong>{value}</strong>
-            <small>{isSaving ? "Saving color..." : "Click the swatch to edit"}</small>
+            <small>
+              {isSaving ? "Saving color..." : "Click the swatch to edit"}
+            </small>
           </div>
         </div>
       </div>
-      {errorMessage ? <p className="company-brand-color-error">{errorMessage}</p> : null}
+      {errorMessage ? (
+        <p className="company-brand-color-error">{errorMessage}</p>
+      ) : null}
     </div>
   );
 }
@@ -5436,7 +6660,9 @@ function WorkspaceBoardItem({
 }) {
   return (
     <button
-      className={active ? "workspace-board-item active" : "workspace-board-item"}
+      className={
+        active ? "workspace-board-item active" : "workspace-board-item"
+      }
       onClick={onClick}
       type="button"
     >
@@ -5448,7 +6674,9 @@ function WorkspaceBoardItem({
       </div>
       <span>{workspace.issue_title ?? workspace.title}</span>
       <small>
-        {[workspace.project_name, workspace.agent_name].filter(Boolean).join(" · ") || "Assigned workspace"}
+        {[workspace.project_name, workspace.agent_name]
+          .filter(Boolean)
+          .join(" · ") || "Assigned workspace"}
       </small>
     </button>
   );
@@ -5487,7 +6715,9 @@ function WorkspaceSidebarTabButton({
 }) {
   return (
     <button
-      className={active ? "workspace-sidebar-tab active" : "workspace-sidebar-tab"}
+      className={
+        active ? "workspace-sidebar-tab active" : "workspace-sidebar-tab"
+      }
       onClick={onClick}
       type="button"
     >
@@ -5497,15 +6727,16 @@ function WorkspaceSidebarTabButton({
   );
 }
 
-function CompanyContextMenuIcon({
-  icon,
-}: {
-  icon: CompanyContextMenuIconKey;
-}) {
+function CompanyContextMenuIcon({ icon }: { icon: CompanyContextMenuIconKey }) {
   switch (icon) {
     case "dashboard":
       return (
-        <svg aria-hidden="true" className="company-context-menu-icon" fill="none" viewBox="0 0 16 16">
+        <svg
+          aria-hidden="true"
+          className="company-context-menu-icon"
+          fill="none"
+          viewBox="0 0 16 16"
+        >
           <path
             d="M2.5 3.25h11v9.5h-11z"
             rx="2"
@@ -5528,7 +6759,12 @@ function CompanyContextMenuIcon({
       );
     case "workspaces":
       return (
-        <svg aria-hidden="true" className="company-context-menu-icon" fill="none" viewBox="0 0 16 16">
+        <svg
+          aria-hidden="true"
+          className="company-context-menu-icon"
+          fill="none"
+          viewBox="0 0 16 16"
+        >
           <path
             d="M2.5 3.25h4.75v4.75H2.5zM8.75 3.25h4.75v4.75H8.75zM2.5 8.75h4.75v4.75H2.5zM8.75 8.75h4.75v4.75H8.75z"
             rx="1.3"
@@ -5539,7 +6775,12 @@ function CompanyContextMenuIcon({
       );
     case "issues":
       return (
-        <svg aria-hidden="true" className="company-context-menu-icon" fill="none" viewBox="0 0 16 16">
+        <svg
+          aria-hidden="true"
+          className="company-context-menu-icon"
+          fill="none"
+          viewBox="0 0 16 16"
+        >
           <path
             d="M4 3.25h8A1.75 1.75 0 0 1 13.75 5v6A1.75 1.75 0 0 1 12 12.75H4A1.75 1.75 0 0 1 2.25 11V5A1.75 1.75 0 0 1 4 3.25Z"
             stroke="currentColor"
@@ -5555,7 +6796,12 @@ function CompanyContextMenuIcon({
       );
     case "agents":
       return (
-        <svg aria-hidden="true" className="company-context-menu-icon" fill="none" viewBox="0 0 16 16">
+        <svg
+          aria-hidden="true"
+          className="company-context-menu-icon"
+          fill="none"
+          viewBox="0 0 16 16"
+        >
           <path
             d="M8 3.25a2.25 2.25 0 1 1 0 4.5a2.25 2.25 0 0 1 0-4.5ZM4.25 12.25c.35-1.67 1.88-2.75 3.75-2.75s3.4 1.08 3.75 2.75"
             stroke="currentColor"
@@ -5572,7 +6818,12 @@ function CompanyContextMenuIcon({
       );
     case "companySettings":
       return (
-        <svg aria-hidden="true" className="company-context-menu-icon" fill="none" viewBox="0 0 16 16">
+        <svg
+          aria-hidden="true"
+          className="company-context-menu-icon"
+          fill="none"
+          viewBox="0 0 16 16"
+        >
           <path
             d="M8 4.75a3.25 3.25 0 1 1 0 6.5a3.25 3.25 0 0 1 0-6.5Z"
             stroke="currentColor"
@@ -5619,7 +6870,11 @@ function GitChangeSection({
       <div className="surface-list dense">
         {files.map((file) => (
           <div
-            className={activePath === file.path ? "git-change-row active" : "git-change-row"}
+            className={
+              activePath === file.path
+                ? "git-change-row active"
+                : "git-change-row"
+            }
             key={`${title}:${file.path}`}
             onClick={() => onOpen(file)}
             onKeyDown={(event) => {
@@ -5951,7 +7206,9 @@ function buildDashboardProjectBoards(
   return projects.map((project, index) => {
     const col = index % columnCount;
     const row = Math.floor(index / columnCount);
-    const projectIssues = issues.filter((issue) => issue.project_id === project.id);
+    const projectIssues = issues.filter(
+      (issue) => issue.project_id === project.id
+    );
     const columns = projectBoardColumnStatuses(projectIssues).map((status) => ({
       status,
       issues: projectIssues.filter(
@@ -5963,7 +7220,8 @@ function buildDashboardProjectBoards(
       project,
       columns,
       issueCount: projectIssues.length,
-      left: 120 + col * (dashboardProjectBoardWidth + dashboardProjectBoardGapX),
+      left:
+        120 + col * (dashboardProjectBoardWidth + dashboardProjectBoardGapX),
       top:
         104 +
         row * (dashboardProjectBoardHeight + dashboardProjectBoardGapY) +
@@ -5972,7 +7230,9 @@ function buildDashboardProjectBoards(
   });
 }
 
-function buildDashboardCanvasBounds(projectBoards: DashboardProjectBoardLayout[]) {
+function buildDashboardCanvasBounds(
+  projectBoards: DashboardProjectBoardLayout[]
+) {
   if (!projectBoards.length) {
     return { width: 2200, height: 1600 };
   }
@@ -5997,8 +7257,14 @@ function clampDashboardCanvasOffset(
   canvasBounds: { height: number; width: number }
 ) {
   const edgePadding = 120;
-  const minX = Math.min(edgePadding, viewportWidth - canvasBounds.width + edgePadding);
-  const minY = Math.min(edgePadding, viewportHeight - canvasBounds.height + edgePadding);
+  const minX = Math.min(
+    edgePadding,
+    viewportWidth - canvasBounds.width + edgePadding
+  );
+  const minY = Math.min(
+    edgePadding,
+    viewportHeight - canvasBounds.height + edgePadding
+  );
 
   return {
     x: clampNumber(next.x, minX, edgePadding),
@@ -6011,10 +7277,15 @@ function clampNumber(value: number, min: number, max: number) {
 }
 
 function humanizeIssueValue(value: string) {
-  return value.replaceAll("_", " ").replace(/\b\w/g, (match) => match.toUpperCase());
+  return value
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
-function issueProjectLabel(projects: ProjectRecord[], projectId?: string | null) {
+function issueProjectLabel(
+  projects: ProjectRecord[],
+  projectId?: string | null
+) {
   if (!projectId) {
     return "No project";
   }
@@ -6042,7 +7313,10 @@ function deriveProjectName(repoPath: string) {
   return parts.at(-1)?.trim() ?? "";
 }
 
-function issueAssigneeLabel(agents: AgentRecord[], assigneeAgentId?: string | null) {
+function issueAssigneeLabel(
+  agents: AgentRecord[],
+  assigneeAgentId?: string | null
+) {
   if (!assigneeAgentId) {
     return "Unassigned";
   }
@@ -6068,7 +7342,10 @@ function sameAgentIdList(left: AgentRecord[], right: AgentRecord[]) {
   return left.every((agent, index) => agent.id === right[index]?.id);
 }
 
-function issueParentLabel(issues: IssueRecord[], parentIssueId?: string | null) {
+function issueParentLabel(
+  issues: IssueRecord[],
+  parentIssueId?: string | null
+) {
   if (!parentIssueId) {
     return "No parent issue";
   }
@@ -6147,6 +7424,175 @@ function formatBoardDate(value: string | null | undefined) {
   return formatIssueDate(value);
 }
 
+function shortAgentRunTitle(runId: string) {
+  return `Run ${runId.slice(0, 8)}`;
+}
+
+function agentRunSummary(run: AgentRunRecord) {
+  if (run.error) {
+    return run.error;
+  }
+
+  if (run.stdout_excerpt) {
+    return run.stdout_excerpt;
+  }
+
+  if (run.stderr_excerpt) {
+    return run.stderr_excerpt;
+  }
+
+  if (run.wake_reason) {
+    return agentRunWakeReasonLabel(run.wake_reason);
+  }
+
+  if (run.trigger_detail) {
+    return agentRunTriggerDetailLabel(run.trigger_detail);
+  }
+
+  return "Waiting for run output.";
+}
+
+function agentRunStatusLabel(status: string) {
+  switch (status) {
+    case "queued":
+      return "Queued";
+    case "running":
+      return "Running";
+    case "succeeded":
+      return "Succeeded";
+    case "failed":
+      return "Failed";
+    case "cancelled":
+      return "Cancelled";
+    case "timed_out":
+      return "Timed out";
+    default:
+      return humanizeIssueValue(status);
+  }
+}
+
+function agentRunStatusTone(status: string) {
+  switch (status) {
+    case "queued":
+      return "queued";
+    case "running":
+      return "running";
+    case "succeeded":
+      return "succeeded";
+    case "failed":
+    case "timed_out":
+      return "failed";
+    case "cancelled":
+      return "cancelled";
+    default:
+      return "neutral";
+  }
+}
+
+function agentRunInvocationSourceLabel(source: string) {
+  switch (source) {
+    case "timer":
+      return "Timer";
+    case "assignment":
+      return "Assignment";
+    case "on_demand":
+      return "On Demand";
+    case "automation":
+      return "Automation";
+    default:
+      return humanizeIssueValue(source);
+  }
+}
+
+function agentRunTriggerDetailLabel(triggerDetail: string | null | undefined) {
+  if (!triggerDetail) {
+    return "None";
+  }
+
+  switch (triggerDetail) {
+    case "manual":
+      return "Manual";
+    case "system":
+      return "System";
+    case "ping":
+      return "Ping";
+    case "callback":
+      return "Callback";
+    default:
+      return humanizeIssueValue(triggerDetail);
+  }
+}
+
+function agentRunWakeReasonLabel(wakeReason: string | null | undefined) {
+  if (!wakeReason) {
+    return "None";
+  }
+
+  switch (wakeReason) {
+    case "heartbeat_timer":
+      return "Heartbeat Timer";
+    case "issue_assigned":
+      return "Issue Assigned";
+    case "issue_status_changed":
+      return "Issue Status Changed";
+    case "issue_checked_out":
+      return "Issue Checked Out";
+    case "issue_commented":
+      return "Issue Commented";
+    case "issue_comment_mentioned":
+      return "Issue Comment Mentioned";
+    case "issue_reopened_via_comment":
+      return "Issue Reopened";
+    case "approval_approved":
+      return "Approval Approved";
+    case "issue_execution_promoted":
+      return "Execution Promoted";
+    case "stale_checkout_run":
+      return "Stale Checkout Run";
+    default:
+      return humanizeIssueValue(wakeReason);
+  }
+}
+
+function agentRunEventLabel(eventType: string) {
+  return humanizeIssueValue(eventType);
+}
+
+function formatRelativeAgentRunDate(value: string | null | undefined) {
+  const date = parseIssueDate(value);
+  if (!date) {
+    return "Unknown";
+  }
+
+  const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+  const deltaSeconds = Math.round((date.getTime() - Date.now()) / 1000);
+  const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+    ["day", 86400],
+    ["hour", 3600],
+    ["minute", 60],
+  ];
+
+  for (const [unit, secondsPerUnit] of units) {
+    if (Math.abs(deltaSeconds) >= secondsPerUnit) {
+      return formatter.format(Math.round(deltaSeconds / secondsPerUnit), unit);
+    }
+  }
+
+  return formatter.format(deltaSeconds, "second");
+}
+
+function formatJsonBlock(value: unknown) {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
 function companyBudgetCents(company: Company | null) {
   return typeof company?.budget_monthly_cents === "number"
     ? company.budget_monthly_cents
@@ -6160,11 +7606,15 @@ function companySpentCents(company: Company | null) {
 }
 
 function agentBudgetCents(agent: AgentRecord) {
-  return typeof agent.budget_monthly_cents === "number" ? agent.budget_monthly_cents : 0;
+  return typeof agent.budget_monthly_cents === "number"
+    ? agent.budget_monthly_cents
+    : 0;
 }
 
 function agentSpentCents(agent: AgentRecord) {
-  return typeof agent.spent_monthly_cents === "number" ? agent.spent_monthly_cents : 0;
+  return typeof agent.spent_monthly_cents === "number"
+    ? agent.spent_monthly_cents
+    : 0;
 }
 
 function formatBudgetUtilization(spentCents: number, budgetCents: number) {
@@ -6240,9 +7690,10 @@ function formatApprovalPayloadValue(value: unknown): string {
   }
 }
 
-function findCompanyCeo<
-  T extends { id: string; role?: string | null }
->(agents: T[], ceoAgentId: string | null) {
+function findCompanyCeo<T extends { id: string; role?: string | null }>(
+  agents: T[],
+  ceoAgentId: string | null
+) {
   if (ceoAgentId) {
     const ceoAgent = agents.find((agent) => agent.id === ceoAgentId);
     if (ceoAgent) {
@@ -6250,14 +7701,13 @@ function findCompanyCeo<
     }
   }
 
-  return (
-    agents.find((agent) => agent.role?.toLowerCase() === "ceo") ?? null
-  );
+  return agents.find((agent) => agent.role?.toLowerCase() === "ceo") ?? null;
 }
 
-function orderSidebarAgents<
-  T extends { id: string; role?: string | null }
->(agents: T[], ceoAgentId: string | null) {
+function orderSidebarAgents<T extends { id: string; role?: string | null }>(
+  agents: T[],
+  ceoAgentId: string | null
+) {
   if (ceoAgentId) {
     const ceoAgent = agents.find((agent) => agent.id === ceoAgentId);
     if (ceoAgent) {
@@ -6265,9 +7715,7 @@ function orderSidebarAgents<
     }
   }
 
-  const ceoAgent = agents.find(
-    (agent) => agent.role?.toLowerCase() === "ceo"
-  );
+  const ceoAgent = agents.find((agent) => agent.role?.toLowerCase() === "ceo");
   if (ceoAgent) {
     return [ceoAgent, ...agents.filter((agent) => agent.id !== ceoAgent.id)];
   }
@@ -6353,7 +7801,10 @@ function issuesListRowTitle(issue: IssueRecord) {
   return `${issue.identifier}  ${issue.title}`;
 }
 
-function formatCompactIssueTimestamp(value: string | null | undefined, now = new Date()) {
+function formatCompactIssueTimestamp(
+  value: string | null | undefined,
+  now = new Date()
+) {
   const date = parseIssueDate(value);
   if (!date) {
     return "Unknown";
@@ -6371,7 +7822,11 @@ function formatCompactIssueTimestamp(value: string | null | undefined, now = new
   }
 
   const startOfNow = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const startOfDate = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate()
+  );
   const dayDelta = Math.round(
     (startOfNow.getTime() - startOfDate.getTime()) / (24 * 60 * 60 * 1000)
   );
@@ -6491,7 +7946,10 @@ function buildTerminalTranscript(messages: SessionMessage[]) {
       return [];
     }
 
-    if (content.type === "terminal_output" && typeof content.content === "string") {
+    if (
+      content.type === "terminal_output" &&
+      typeof content.content === "string"
+    ) {
       return [`[${String(content.stream ?? "stdout")}] ${content.content}`];
     }
 
@@ -6505,7 +7963,9 @@ function buildTerminalTranscript(messages: SessionMessage[]) {
   return lines.join("\n");
 }
 
-function normalizeMessageContent(value: unknown): Record<string, unknown> | string {
+function normalizeMessageContent(
+  value: unknown
+): Record<string, unknown> | string {
   if (typeof value === "string") {
     try {
       const parsed = JSON.parse(value) as unknown;

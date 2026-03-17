@@ -1,6 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
+  AgentRunEventRecord,
+  AgentRunLogChunk,
+  AgentRunRecord,
   Company,
   CompanySnapshot,
   DaemonVersionInfo,
@@ -22,14 +25,18 @@ import type {
   WorkspaceRecord,
 } from "./types";
 
-async function invokeCommand<T>(command: string, args?: Record<string, unknown>) {
+async function invokeCommand<T>(
+  command: string,
+  args?: Record<string, unknown>
+) {
   return invoke<T>(command, args);
 }
 
 export const desktopBootstrap = () =>
   invokeCommand<DesktopBootstrapStatus>("desktop_bootstrap");
 
-export const systemVersion = () => invokeCommand<DaemonVersionInfo>("system_version");
+export const systemVersion = () =>
+  invokeCommand<DaemonVersionInfo>("system_version");
 
 export const systemCheckDependencies = () =>
   invokeCommand<Record<string, unknown>>("system_check_dependencies");
@@ -78,6 +85,54 @@ export const boardCheckoutIssue = (issueId: string) =>
 export const boardApproveApproval = (params: Record<string, unknown>) =>
   invokeCommand<Record<string, unknown>>("board_approve_approval", { params });
 
+export const boardListAgentRuns = (agentId: string, limit?: number) =>
+  invokeCommand<AgentRunRecord[]>("board_list_agent_runs", {
+    agentId,
+    limit,
+  });
+
+export const boardGetAgentRun = (runId: string) =>
+  invokeCommand<AgentRunRecord>("board_get_agent_run", {
+    runId,
+  });
+
+export const boardListAgentRunEvents = (
+  runId: string,
+  afterSeq?: number,
+  limit?: number
+) =>
+  invokeCommand<AgentRunEventRecord[]>("board_list_agent_run_events", {
+    runId,
+    afterSeq,
+    limit,
+  });
+
+export const boardReadAgentRunLog = (
+  runId: string,
+  offset = 0,
+  limitBytes = 16_384
+) =>
+  invokeCommand<AgentRunLogChunk>("board_read_agent_run_log", {
+    runId,
+    offset,
+    limitBytes,
+  });
+
+export const boardCancelAgentRun = (runId: string) =>
+  invokeCommand<AgentRunRecord>("board_cancel_agent_run", {
+    runId,
+  });
+
+export const boardRetryAgentRun = (runId: string) =>
+  invokeCommand<AgentRunRecord>("board_retry_agent_run", {
+    runId,
+  });
+
+export const boardResumeAgentRun = (runId: string) =>
+  invokeCommand<AgentRunRecord>("board_resume_agent_run", {
+    runId,
+  });
+
 export const repositoryList = () =>
   invokeCommand<RepositoryRecord[]>("repository_list");
 
@@ -97,7 +152,9 @@ export const repositoryGetSettings = (repositoryId: string) =>
   });
 
 export const repositoryUpdateSettings = (params: Record<string, unknown>) =>
-  invokeCommand<Record<string, unknown>>("repository_update_settings", { params });
+  invokeCommand<Record<string, unknown>>("repository_update_settings", {
+    params,
+  });
 
 export const repositoryListFiles = (
   sessionId: string,
@@ -295,7 +352,10 @@ export const sessionUnsubscribe = (sessionId: string) =>
 
 export const listenToSessionEvents = (
   handler: (payload: SessionStreamPayload) => void
-) => listen<SessionStreamPayload>("daemon-session-event", (event) => handler(event.payload));
+) =>
+  listen<SessionStreamPayload>("daemon-session-event", (event) =>
+    handler(event.payload)
+  );
 
 export const listenToSessionStreamErrors = (
   handler: (payload: { session_id: string; message: string }) => void
