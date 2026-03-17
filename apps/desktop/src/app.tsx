@@ -226,6 +226,8 @@ const defaultDashboardCanvasOffset: DashboardCanvasOffset = {
 
 const dashboardProjectBoardWidth = 920;
 const dashboardProjectBoardHeight = 540;
+const dashboardProjectBoardGapX = 88;
+const dashboardProjectBoardGapY = 80;
 
 const defaultCompanyBrandColor = "#0F766E";
 
@@ -5961,8 +5963,11 @@ function buildDashboardProjectBoards(
       project,
       columns,
       issueCount: projectIssues.length,
-      left: 120 + col * (dashboardProjectBoardWidth + 44),
-      top: 104 + row * (dashboardProjectBoardHeight + 44) + (col === 1 ? 42 : 0),
+      left: 120 + col * (dashboardProjectBoardWidth + dashboardProjectBoardGapX),
+      top:
+        104 +
+        row * (dashboardProjectBoardHeight + dashboardProjectBoardGapY) +
+        (col === 1 ? 42 : 0),
     };
   });
 }
