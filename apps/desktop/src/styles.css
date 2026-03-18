@@ -1809,6 +1809,11 @@ p {
   gap: 18px;
 }
 
+.agents-config-form {
+  width: min(100%, 680px);
+  justify-self: start;
+}
+
 .agents-tab-strip {
   display: flex;
   align-items: center;
