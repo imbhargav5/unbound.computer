@@ -1188,8 +1188,6 @@ p {
   flex: 1;
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(170px, 1fr);
-  gap: 14px;
   min-height: 0;
   overflow: auto;
   padding-bottom: 4px;

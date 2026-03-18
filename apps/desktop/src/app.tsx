@@ -179,6 +179,7 @@ interface DashboardProjectBoardLayout {
   columns: DashboardProjectColumn[];
   left: number;
   top: number;
+  width: number;
   issueCount: number;
 }
 
@@ -549,10 +550,14 @@ const defaultDashboardCanvasOffset: DashboardCanvasOffset = {
   y: 88,
 };
 
-const dashboardProjectBoardWidth = 920;
+const dashboardProjectBoardMinWidth = 920;
 const dashboardProjectBoardHeight = 540;
 const dashboardProjectBoardGapX = 88;
 const dashboardProjectBoardGapY = 80;
+const dashboardProjectBoardPadding = 18;
+const dashboardProjectBoardBorderWidth = 1;
+const dashboardProjectBoardColumnWidth = 170;
+const dashboardProjectBoardColumnGap = 14;
 
 const defaultCompanyBrandColor = "#0F766E";
 
@@ -6432,6 +6437,7 @@ function DashboardCanvasRouteView({
                 style={{
                   left: projectBoard.left,
                   top: projectBoard.top,
+                  width: projectBoard.width,
                 }}
               >
                 <div className="project-kanban-board-header">
@@ -6473,7 +6479,13 @@ function DashboardCanvasRouteView({
                   </div>
                 </div>
 
-                <div className="project-kanban-columns">
+                <div
+                  className="project-kanban-columns"
+                  style={{
+                    gap: dashboardProjectBoardColumnGap,
+                    gridAutoColumns: `${dashboardProjectBoardColumnWidth}px`,
+                  }}
+                >
                   {projectBoard.columns.map((column) => {
                     const createIssueCard = (
                       <button
@@ -11078,10 +11090,7 @@ function buildDashboardProjectBoards(
   projectViews: NonNullable<DesktopSettings["dashboard_project_views"]>
 ): DashboardProjectBoardLayout[] {
   const columnCount = projects.length <= 1 ? 1 : 2;
-
-  return projects.map((project, index) => {
-    const col = index % columnCount;
-    const row = Math.floor(index / columnCount);
+  const boardDrafts = projects.map((project) => {
     const grouping = normalizeDashboardProjectGrouping(
       projectViews[project.id]?.group_by
     );
@@ -11095,10 +11104,38 @@ function buildDashboardProjectBoards(
       project,
       columns,
       issueCount: projectIssues.length,
-      left:
-        120 + col * (dashboardProjectBoardWidth + dashboardProjectBoardGapX),
-      top:
-        104 + row * (dashboardProjectBoardHeight + dashboardProjectBoardGapY),
+      width: dashboardProjectBoardWidth(columns.length),
+    };
+  });
+  const columnWidths = Array.from({ length: columnCount }, (_, columnIndex) =>
+    boardDrafts.reduce((maxWidth, board, boardIndex) => {
+      if (boardIndex % columnCount !== columnIndex) {
+        return maxWidth;
+      }
+
+      return Math.max(maxWidth, board.width);
+    }, dashboardProjectBoardMinWidth)
+  );
+  const columnOffsets = columnWidths.map((_, columnIndex) => {
+    if (columnIndex === 0) {
+      return 120;
+    }
+
+    return (
+      columnWidths
+        .slice(0, columnIndex)
+        .reduce((total, width) => total + width + dashboardProjectBoardGapX, 120)
+    );
+  });
+
+  return boardDrafts.map((board, index) => {
+    const col = index % columnCount;
+    const row = Math.floor(index / columnCount);
+
+    return {
+      ...board,
+      left: columnOffsets[col] ?? 120,
+      top: 104 + row * (dashboardProjectBoardHeight + dashboardProjectBoardGapY),
     };
   });
 }
@@ -11135,7 +11172,7 @@ function buildDashboardCanvasBounds(
   }
 
   const maxRight = Math.max(
-    ...projectBoards.map((board) => board.left + dashboardProjectBoardWidth)
+    ...projectBoards.map((board) => board.left + board.width)
   );
   const maxBottom = Math.max(
     ...projectBoards.map((board) => board.top + dashboardProjectBoardHeight)
@@ -11167,6 +11204,17 @@ function clampDashboardCanvasOffset(
     x: clampNumber(next.x, minX, edgePadding),
     y: clampNumber(next.y, minY, edgePadding),
   };
+}
+
+function dashboardProjectBoardWidth(columnCount: number) {
+  const safeColumnCount = Math.max(columnCount, 1);
+  const columnsWidth =
+    safeColumnCount * dashboardProjectBoardColumnWidth +
+    Math.max(safeColumnCount - 1, 0) * dashboardProjectBoardColumnGap;
+  const chromeWidth =
+    dashboardProjectBoardPadding * 2 + dashboardProjectBoardBorderWidth * 2;
+
+  return Math.max(dashboardProjectBoardMinWidth, columnsWidth + chromeWidth);
 }
 
 function clampNumber(value: number, min: number, max: number) {
