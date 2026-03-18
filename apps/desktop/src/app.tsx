@@ -128,6 +128,14 @@ type SettingsSection =
 
 type ThemeMode = "system" | "light" | "dark";
 type FontSizePreset = "small" | "medium" | "large";
+type DesktopPreferredViewValue =
+  | "dashboard"
+  | "org"
+  | "stats"
+  | "activity"
+  | "costs"
+  | "workspaces"
+  | "settings";
 type IssuesListTab = "new" | "all";
 type IssuesRouteMode = "list" | "detail";
 type IssueDetailTab = "conversation" | "runs" | "subissues";
@@ -521,6 +529,17 @@ const dashboardProjectGroupingSelectOptions: Array<
   label: humanizeIssueValue(value),
   value,
 }));
+const desktopPreferredViewOptions: Array<
+  SelectOption<DesktopPreferredViewValue>
+> = [
+  { label: "Dashboard", value: "dashboard" },
+  { label: "Org", value: "org" },
+  { label: "Stats", value: "stats" },
+  { label: "Activity", value: "activity" },
+  { label: "Costs", value: "costs" },
+  { label: "Worktrees", value: "workspaces" },
+  { label: "Settings", value: "settings" },
+];
 
 const defaultSettings: DesktopSettings = {
   preferred_company_id: null,
@@ -4583,51 +4602,44 @@ export function App() {
                   description="Local desktop preferences that are not part of the native macOS settings surface."
                   title="Desktop"
                 >
-                  <section className="settings-inline-panel">
+                  <section className="settings-desktop-panel">
                     <form
-                      className="settings-form"
+                      className="settings-shadcn-form"
                       onSubmit={handleSettingsSubmit}
                     >
-                      <label className="checkbox-row">
-                        <input
+                      <div className="settings-shadcn-stack">
+                        <SettingsToggleField
                           checked={settings.show_raw_message_json}
-                          onChange={(event) =>
+                          description="Expose the raw payload beneath structured session messages."
+                          label="Show structured message JSON"
+                          onChange={(checked) =>
                             setSettings((current) => ({
                               ...current,
-                              show_raw_message_json: event.target.checked,
+                              show_raw_message_json: checked,
                             }))
                           }
-                          type="checkbox"
                         />
-                        <span>
-                          Show raw JSON for structured session messages
-                        </span>
-                      </label>
-                      <label>
-                        <span>Preferred shell</span>
-                        <select
-                          onChange={(event) =>
+                        <SettingsSelectField
+                          ariaLabel="Default opening view"
+                          description="Choose the first screen shown when Unbound Desktop launches."
+                          label="Default opening view"
+                          onChange={(value) =>
                             setSettings((current) => ({
                               ...current,
-                              preferred_view: event.target.value,
+                              preferred_view: value,
                             }))
                           }
+                          options={desktopPreferredViewOptions}
                           value={preferredViewSelectValue(
                             settings.preferred_view
                           )}
-                        >
-                          <option value="dashboard">Dashboard</option>
-                          <option value="org">Org</option>
-                          <option value="stats">Stats</option>
-                          <option value="activity">Activity</option>
-                          <option value="costs">Costs</option>
-                          <option value="workspaces">Worktrees</option>
-                          <option value="settings">Settings</option>
-                        </select>
-                      </label>
-                      <button className="primary-button" type="submit">
-                        Save device settings
-                      </button>
+                        />
+                      </div>
+                      <div className="settings-shadcn-actions">
+                        <button className="settings-shadcn-button" type="submit">
+                          Save device settings
+                        </button>
+                      </div>
                     </form>
                   </section>
                 </SettingsSectionBlock>
@@ -9992,6 +10004,72 @@ function SettingsSectionBlock({
   );
 }
 
+function SettingsToggleField({
+  checked,
+  description,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  description: string;
+  label: string;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="settings-shadcn-field">
+      <div className="settings-shadcn-field-copy">
+        <strong>{label}</strong>
+        <p>{description}</p>
+      </div>
+      <button
+        aria-checked={checked}
+        aria-label={label}
+        className={
+          checked ? "settings-shadcn-switch active" : "settings-shadcn-switch"
+        }
+        onClick={() => onChange(checked ? false : true)}
+        role="switch"
+        type="button"
+      >
+        <span />
+      </button>
+    </div>
+  );
+}
+
+function SettingsSelectField<T extends string>({
+  ariaLabel,
+  description,
+  label,
+  onChange,
+  options,
+  value,
+}: {
+  ariaLabel: string;
+  description: string;
+  label: string;
+  onChange: (value: T) => void;
+  options: Array<SelectOption<T>>;
+  value: T;
+}) {
+  return (
+    <div className="settings-shadcn-field settings-shadcn-field-select">
+      <div className="settings-shadcn-field-copy">
+        <strong>{label}</strong>
+        <p>{description}</p>
+      </div>
+      <div className="settings-shadcn-field-control">
+        <ShadcnSelect
+          ariaLabel={ariaLabel}
+          onChange={onChange}
+          options={options}
+          value={value}
+        />
+      </div>
+    </div>
+  );
+}
+
 function ThemeModeCard({
   mode,
   isSelected,
@@ -10578,7 +10656,9 @@ function normalizeScreen(view: string | null | undefined): AppScreen {
   return "dashboard";
 }
 
-function preferredViewSelectValue(view: string | null | undefined) {
+function preferredViewSelectValue(
+  view: string | null | undefined
+): DesktopPreferredViewValue {
   if (view === "settings") {
     return "settings";
   }
