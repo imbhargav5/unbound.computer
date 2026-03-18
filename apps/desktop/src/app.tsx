@@ -4877,31 +4877,32 @@ function OrgRouteView({
         />
       </div>
 
-      <div className="surface-grid">
-        <section className="surface-panel wide">
+      <div className="surface-grid single">
+        <section className="surface-panel">
           <div className="surface-header">
             <div>
               <h3>Agent hierarchy</h3>
               <p>
-                This is the hierarchy for agents, not people. Managers stack
-                top to bottom. Open any agent to review its full configuration
-                and runs.
+                This chart shows how agents report across the company. Select
+                any node to jump into that agent&apos;s configuration and runs.
               </p>
             </div>
           </div>
 
           {hierarchy.length ? (
-            <div className="org-tree-list">
-              {hierarchy.map((node) => (
-                <OrgTreeNodeCard
-                  agentMap={agentMap}
-                  ceoAgentId={ceoAgentId}
-                  key={node.agent.id}
-                  node={node}
-                  onSelectAgent={onSelectAgent}
-                  selectedAgentId={selectedAgentId}
-                />
-              ))}
+            <div className="org-chart-scroll">
+              <ul className="org-chart-list org-chart-list-root">
+                {hierarchy.map((node) => (
+                  <OrgChartTreeItem
+                    agentMap={agentMap}
+                    ceoAgentId={ceoAgentId}
+                    key={node.agent.id}
+                    node={node}
+                    onSelectAgent={onSelectAgent}
+                    selectedAgentId={selectedAgentId}
+                  />
+                ))}
+              </ul>
             </div>
           ) : (
             <p className="surface-empty-copy">
@@ -4909,8 +4910,10 @@ function OrgRouteView({
             </p>
           )}
         </section>
+      </div>
 
-        <section className="surface-panel">
+      <div className="surface-grid">
+        <section className="surface-panel wide">
           <div className="surface-header">
             <div>
               <h3>Leadership</h3>
@@ -4964,37 +4967,37 @@ function OrgRouteView({
               No projects have a lead assigned yet.
             </p>
           )}
+        </section>
 
-          <section className="org-side-section">
-            <div className="surface-header">
-              <h3>Projects without a lead</h3>
-              <span>{projectsWithoutLead.length}</span>
-            </div>
-            {projectsWithoutLead.length ? (
-              <div className="org-project-gap-list">
-                {projectsWithoutLead.map((project) => (
-                  <div className="surface-list-row" key={project.id}>
-                    <div>
-                      <strong>{project.name}</strong>
-                      <span>{humanizeIssueValue(project.status)}</span>
-                    </div>
-                    <span>Assign lead</span>
+        <section className="surface-panel">
+          <div className="surface-header">
+            <h3>Projects without a lead</h3>
+            <span>{projectsWithoutLead.length}</span>
+          </div>
+          {projectsWithoutLead.length ? (
+            <div className="org-project-gap-list">
+              {projectsWithoutLead.map((project) => (
+                <div className="surface-list-row" key={project.id}>
+                  <div>
+                    <strong>{project.name}</strong>
+                    <span>{humanizeIssueValue(project.status)}</span>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="surface-empty-copy">
-                Every project currently has a lead.
-              </p>
-            )}
-          </section>
+                  <span>Assign lead</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="surface-empty-copy">
+              Every project currently has a lead.
+            </p>
+          )}
         </section>
       </div>
     </section>
   );
 }
 
-function OrgTreeNodeCard({
+function OrgChartTreeItem({
   agentMap,
   ceoAgentId,
   node,
@@ -5008,92 +5011,43 @@ function OrgTreeNodeCard({
   selectedAgentId: string | null;
 }) {
   const isRoot = isOrgRootAgent(node.agent, agentMap, ceoAgentId);
-  const managerName = isRoot
-    ? "Company root"
-    : agentMap.get(node.agent.reports_to ?? "")?.name ?? "Unknown manager";
-  const statusLabel = humanizeIssueValue(String(node.agent.status ?? "active"));
-  const capabilityPreview = summarizeOrgText(node.agent.capabilities, 180);
+  const roleLabel = orgChartAgentRoleLabel(node.agent);
+  const providerLabel = orgChartAgentProviderLabel(node.agent);
 
   return (
-    <div className="org-tree-node">
+    <li className="org-chart-item">
       <button
         className={
           selectedAgentId === node.agent.id
-            ? "org-tree-card active"
-            : "org-tree-card"
+            ? "org-chart-card active"
+            : "org-chart-card"
         }
         onClick={() => onSelectAgent(node.agent.id)}
         type="button"
       >
-        <div className="org-tree-card-head">
-          <div className="org-tree-card-heading">
+        <span
+          className={isRoot ? "org-chart-avatar accent" : "org-chart-avatar"}
+        >
+          <OrgChartAgentIcon agent={node.agent} isRoot={isRoot} />
+        </span>
+        <span className="org-chart-card-copy">
+          <strong>{orgChartAgentName(node.agent)}</strong>
+          <span>{roleLabel}</span>
+          <span className="org-chart-provider">
             <span
               className={`org-status-dot ${normalizeAgentStatusTone(
                 node.agent.status
               )}`}
             />
-            <div className="org-tree-card-heading-copy">
-              <strong>{node.agent.name}</strong>
-              <span>
-                {node.agent.title ??
-                  humanizeIssueValue(String(node.agent.role ?? "agent"))}
-              </span>
-            </div>
-          </div>
-
-          <div className="org-tree-card-badges">
-            {isRoot ? <span className="org-chip accent">CEO</span> : null}
-            {node.leadProjects.length ? (
-              <span className="org-chip">
-                Leads {node.leadProjects.length}
-              </span>
-            ) : null}
-            {node.reports.length ? (
-              <span className="org-chip">{node.reports.length} reports</span>
-            ) : null}
-            <span
-              className={`agent-run-status-badge ${normalizeAgentStatusTone(
-                node.agent.status
-              )}`}
-            >
-              {statusLabel.toLowerCase()}
-            </span>
-          </div>
-        </div>
-
-        <div className="org-tree-card-meta">
-          <span>{isRoot ? "Company root" : `Reports to ${managerName}`}</span>
-          <span>
-            {node.totalReports} total{" "}
-            {node.totalReports === 1 ? "report" : "reports"}
+            <small>{providerLabel}</small>
           </span>
-          <span>{agentAdapterTypeLabel(node.agent.adapter_type)}</span>
-        </div>
-
-        {capabilityPreview ? (
-          <p className="org-tree-card-copy">{capabilityPreview}</p>
-        ) : null}
-
-        {node.leadProjects.length ? (
-          <div className="org-tree-projects">
-            {node.leadProjects.slice(0, 3).map((project) => (
-              <span className="org-project-chip" key={project.id}>
-                {project.name}
-              </span>
-            ))}
-            {node.leadProjects.length > 3 ? (
-              <span className="org-project-chip">
-                +{node.leadProjects.length - 3} more
-              </span>
-            ) : null}
-          </div>
-        ) : null}
+        </span>
       </button>
 
       {node.reports.length ? (
-        <div className="org-tree-children">
+        <ul className="org-chart-list">
           {node.reports.map((childNode) => (
-            <OrgTreeNodeCard
+            <OrgChartTreeItem
               agentMap={agentMap}
               ceoAgentId={ceoAgentId}
               key={childNode.agent.id}
@@ -5102,10 +5056,160 @@ function OrgTreeNodeCard({
               selectedAgentId={selectedAgentId}
             />
           ))}
-        </div>
+        </ul>
       ) : null}
-    </div>
+    </li>
   );
+}
+
+function OrgChartAgentIcon({
+  agent,
+  isRoot,
+}: {
+  agent: AgentRecord;
+  isRoot: boolean;
+}) {
+  const iconKind = orgChartAgentIconKind(agent, isRoot);
+
+  switch (iconKind) {
+    case "finance":
+      return (
+        <svg
+          aria-hidden="true"
+          className="org-chart-icon"
+          fill="none"
+          viewBox="0 0 20 20"
+        >
+          <ellipse
+            cx="10"
+            cy="5"
+            rx="5.5"
+            ry="2.5"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          />
+          <path
+            d="M4.5 5v4.5C4.5 10.88 6.96 12 10 12s5.5-1.12 5.5-2.5V5"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          />
+          <path
+            d="M4.5 9.5V14c0 1.38 2.46 2.5 5.5 2.5s5.5-1.12 5.5-2.5V9.5"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          />
+        </svg>
+      );
+    case "communication":
+      return (
+        <svg
+          aria-hidden="true"
+          className="org-chart-icon"
+          fill="none"
+          viewBox="0 0 20 20"
+        >
+          <path
+            d="M5.75 5.25h8.5a2 2 0 0 1 2 2v5.25a2 2 0 0 1-2 2H9l-3.75 2v-2H5.75a2 2 0 0 1-2-2V7.25a2 2 0 0 1 2-2Z"
+            stroke="currentColor"
+            strokeLinejoin="round"
+            strokeWidth="1.5"
+          />
+        </svg>
+      );
+    case "engineering":
+      return (
+        <svg
+          aria-hidden="true"
+          className="org-chart-icon"
+          fill="none"
+          viewBox="0 0 20 20"
+        >
+          <path
+            d="m7.5 6.25-3.25 3.5 3.25 4"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.7"
+          />
+          <path
+            d="m12.5 6.25 3.25 3.5-3.25 4"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.7"
+          />
+        </svg>
+      );
+    case "leadership":
+      return (
+        <svg
+          aria-hidden="true"
+          className="org-chart-icon"
+          fill="none"
+          viewBox="0 0 20 20"
+        >
+          <path
+            d="M6 6.5V5.75A1.75 1.75 0 0 1 7.75 4h4.5A1.75 1.75 0 0 1 14 5.75v.75"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          />
+          <rect
+            height="8.5"
+            rx="2"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            width="12"
+            x="4"
+            y="6.5"
+          />
+          <path
+            d="M4.5 9.25h11"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="1.5"
+          />
+          <path
+            d="M9 9.25v1.5h2v-1.5"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.5"
+          />
+        </svg>
+      );
+    default:
+      return (
+        <svg
+          aria-hidden="true"
+          className="org-chart-icon"
+          fill="none"
+          viewBox="0 0 20 20"
+        >
+          <rect
+            height="9"
+            rx="2.2"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            width="11"
+            x="4.5"
+            y="5"
+          />
+          <path
+            d="M7.25 14.75h5.5"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="1.5"
+          />
+          <path
+            d="M8 3.75h4"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="1.5"
+          />
+          <circle cx="10" cy="9.5" fill="currentColor" r="1" />
+        </svg>
+      );
+  }
 }
 
 function AgentsRouteView({
@@ -11965,20 +12069,111 @@ function isOrgRootAgent(
   return agent.reports_to === agent.id;
 }
 
-function summarizeOrgText(
-  value: string | null | undefined,
-  maxLength = 160
-) {
-  const normalized = value?.split(/\s+/).filter(Boolean).join(" ").trim() ?? "";
-  if (!normalized) {
-    return null;
+function orgChartAgentName(agent: AgentRecord) {
+  const label = agent.name?.trim() || agent.title?.trim() || agent.role?.trim();
+  if (!label || label.length === 0) {
+    return "Agent";
   }
 
-  if (normalized.length <= maxLength) {
-    return normalized;
+  return /[A-Z]/.test(label) ? label : humanizeIssueValue(label);
+}
+
+function orgChartAgentRoleLabel(agent: AgentRecord) {
+  const rawLabel = agent.title?.trim() || agent.role?.trim() || "Agent";
+  return /[A-Z]/.test(rawLabel) ? rawLabel : humanizeIssueValue(rawLabel);
+}
+
+function orgChartAgentProviderLabel(agent: AgentRecord) {
+  const adapterConfig = objectFromUnknown(agent.adapter_config);
+  const runtimeConfig = objectFromUnknown(agent.runtime_config);
+  const providerValue =
+    stringFromUnknown(runtimeConfig.model) ||
+    stringFromUnknown(adapterConfig.model) ||
+    stringFromUnknown(runtimeConfig.provider) ||
+    stringFromUnknown(adapterConfig.provider) ||
+    stringFromUnknown(agent.adapter_type);
+  const normalized = providerValue.trim().toLowerCase();
+
+  if (!normalized || normalized === "process") {
+    return "Claude";
   }
 
-  return `${normalized.slice(0, maxLength - 3)}...`;
+  if (normalized.includes("claude")) {
+    return "Claude";
+  }
+
+  if (normalized.includes("gpt") || normalized.includes("openai")) {
+    return "OpenAI";
+  }
+
+  if (normalized.includes("gemini")) {
+    return "Gemini";
+  }
+
+  if (normalized.includes("cursor")) {
+    return "Cursor";
+  }
+
+  return humanizeIssueValue(providerValue.replaceAll("-", " "));
+}
+
+function orgChartAgentIconKind(
+  agent: AgentRecord,
+  isRoot: boolean
+): "communication" | "engineering" | "finance" | "leadership" | "operations" {
+  if (isRoot) {
+    return "leadership";
+  }
+
+  const iconSource = [
+    agent.icon,
+    agent.title,
+    agent.role,
+    agent.name,
+    agent.capabilities,
+  ]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ")
+    .toLowerCase();
+
+  if (
+    iconSource.includes("account") ||
+    iconSource.includes("finance") ||
+    iconSource.includes("bookkeep") ||
+    iconSource.includes("revenue")
+  ) {
+    return "finance";
+  }
+
+  if (
+    iconSource.includes("social") ||
+    iconSource.includes("marketing") ||
+    iconSource.includes("content") ||
+    iconSource.includes("community") ||
+    iconSource.includes("sales")
+  ) {
+    return "communication";
+  }
+
+  if (
+    iconSource.includes("engineer") ||
+    iconSource.includes("developer") ||
+    iconSource.includes("code") ||
+    iconSource.includes("technical")
+  ) {
+    return "engineering";
+  }
+
+  if (
+    iconSource.includes("manager") ||
+    iconSource.includes("lead") ||
+    iconSource.includes("founder") ||
+    iconSource.includes("chief")
+  ) {
+    return "leadership";
+  }
+
+  return "operations";
 }
 
 function gitStatusBadge(status: string | null | undefined) {
