@@ -4859,8 +4859,8 @@ function OrgRouteView({
     <section className="route-scroll">
       <div className="route-header compact">
         <DashboardBreadcrumbs items={[{ label: "Org" }]} />
-        <span className="route-kicker">Org</span>
-        <h1>{company?.name ? `${company.name} org` : "Org"}</h1>
+        <span className="route-kicker">Agent org</span>
+        <h1>{company?.name ? `${company.name} agent org` : "Agent org"}</h1>
         <p>
           See the agent reporting hierarchy, which agents lead projects, and
           how work is distributed across the company.
@@ -6550,12 +6550,10 @@ function DashboardCanvasRouteView({
                               {createIssueCard}
                             </>
                           ) : (
-                            <>
+                            <div className="project-kanban-column-empty">
+                              <span>No issues yet</span>
                               {createIssueCard}
-                              <div className="project-kanban-column-empty">
-                                No issues yet
-                              </div>
-                            </>
+                            </div>
                           )}
                         </div>
                       </section>
@@ -9260,15 +9258,43 @@ function CreateIssueDialogView({
   workspaceTargetLoading: boolean;
   workspaceTargetWorktrees: GitWorktreeRecord[];
 }) {
+  const attachmentDrafts = arrayFromUnknown(attachments).filter(
+    (attachment): attachment is IssueAttachmentDraft =>
+      Boolean(attachment) &&
+      typeof attachment === "object" &&
+      typeof (attachment as IssueAttachmentDraft).path === "string" &&
+      typeof (attachment as IssueAttachmentDraft).name === "string"
+  );
+  const priorityOptions = arrayFromUnknown(priorities).filter(
+    (priority): priority is string => typeof priority === "string"
+  );
+  const statusOptions = arrayFromUnknown(statuses).filter(
+    (status): status is string => typeof status === "string"
+  );
+  const projectOptions = arrayFromUnknown(projects).filter(
+    (project): project is ProjectRecord =>
+      Boolean(project) &&
+      typeof project === "object" &&
+      typeof (project as ProjectRecord).id === "string"
+  );
+  const agentOptions = arrayFromUnknown(agents).filter(
+    (agent): agent is AgentRecord =>
+      Boolean(agent) &&
+      typeof agent === "object" &&
+      typeof (agent as AgentRecord).id === "string"
+  );
+  const worktreeOptions = normalizeGitWorktreeRecords(
+    workspaceTargetWorktrees
+  );
   const canCreate = !isSaving && title.trim().length > 0;
   const selectedProject =
-    projects.find((project) => project.id === selectedProjectId) ?? null;
+    projectOptions.find((project) => project.id === selectedProjectId) ?? null;
   const selectedProjectRepoPath =
     selectedProject?.primary_workspace?.cwd ?? null;
   const shouldShowWorktreeTarget = Boolean(selectedProject);
   const fallbackSelectedWorktree =
     selectedWorkspaceTargetValue.startsWith("existing:") &&
-    !workspaceTargetWorktrees.some(
+    !worktreeOptions.some(
       (worktree) =>
         existingWorktreeTargetValue(worktree.path) ===
         selectedWorkspaceTargetValue
@@ -9285,7 +9311,7 @@ function CreateIssueDialogView({
     hasProject: Boolean(selectedProject),
     hasRepoPath: Boolean(selectedProjectRepoPath),
     isLoading: workspaceTargetLoading,
-    worktreeCount: workspaceTargetWorktrees.length,
+    worktreeCount: worktreeOptions.length,
   });
 
   return (
@@ -9339,7 +9365,7 @@ function CreateIssueDialogView({
                 value={selectedAssigneeAgentId}
               >
                 <option value="">Assignee</option>
-                {agents.map((agent) => (
+                {agentOptions.map((agent) => (
                   <option key={agent.id} value={agent.id}>
                     {agent.name || agent.title || agent.role || agent.id}
                   </option>
@@ -9353,7 +9379,7 @@ function CreateIssueDialogView({
                 value={selectedProjectId}
               >
                 <option value="">Project</option>
-                {projects.map((project) => (
+                {projectOptions.map((project) => (
                   <option key={project.id} value={project.id}>
                     {project.name ?? project.title ?? project.id}
                   </option>
@@ -9379,7 +9405,7 @@ function CreateIssueDialogView({
                     >
                       New git worktree
                     </option>
-                    {workspaceTargetWorktrees.map((worktree) => (
+                    {worktreeOptions.map((worktree) => (
                       <option
                         key={worktree.path}
                         value={existingWorktreeTargetValue(worktree.path)}
@@ -9417,7 +9443,7 @@ function CreateIssueDialogView({
               value={description}
             />
 
-            {attachments.length ? (
+            {attachmentDrafts.length ? (
               <div className="issue-dialog-attachments">
                 <div className="issues-detail-subsection-header">
                   <div className="issues-detail-subsection-copy">
@@ -9430,7 +9456,7 @@ function CreateIssueDialogView({
                 </div>
 
                 <div className="issue-attachment-list">
-                  {attachments.map((attachment) => (
+                  {attachmentDrafts.map((attachment) => (
                     <div className="issue-attachment-row" key={attachment.path}>
                       <div className="issue-attachment-meta">
                         <strong>{attachment.name}</strong>
@@ -9461,7 +9487,7 @@ function CreateIssueDialogView({
               onChange={onStatusChange}
               value={selectedStatus}
             >
-              {statuses.map((status) => (
+              {statusOptions.map((status) => (
                 <option key={status} value={status}>
                   {humanizeIssueValue(status)}
                 </option>
@@ -9473,7 +9499,7 @@ function CreateIssueDialogView({
               onChange={onPriorityChange}
               value={selectedPriority}
             >
-              {priorities.map((priority) => (
+              {priorityOptions.map((priority) => (
                 <option key={priority} value={priority}>
                   {humanizeIssueValue(priority)}
                 </option>

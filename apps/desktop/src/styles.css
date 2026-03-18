@@ -1359,12 +1359,20 @@ p {
 .project-kanban-column-empty {
   display: grid;
   place-items: center;
+  align-content: center;
+  gap: 12px;
   flex: 1;
   min-height: 120px;
+  padding: 16px;
   border: 1px dashed #242428;
   border-radius: 14px;
   color: #666670;
   font-size: 12px;
+  text-align: center;
+}
+
+.project-kanban-column-empty .project-kanban-column-create {
+  display: flex;
 }
 
 .issue-dialog-context {
