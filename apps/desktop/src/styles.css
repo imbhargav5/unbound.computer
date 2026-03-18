@@ -261,7 +261,9 @@ p {
   position: fixed;
   z-index: 60;
   width: 264px;
-  max-height: min(420px, calc(100vh - 24px));
+  display: flex;
+  flex-direction: column;
+  max-height: min(520px, calc(100vh - 24px));
   padding: 8px;
   border: 1px solid #242428;
   border-radius: 16px;
@@ -355,6 +357,7 @@ p {
 
 .company-context-menu-section {
   display: flex;
+  flex: 1 1 auto;
   min-height: 0;
   flex-direction: column;
   gap: 8px;
@@ -375,10 +378,12 @@ p {
 
 .company-context-menu-agent-list {
   display: flex;
+  flex: 1 1 auto;
   min-height: 0;
   flex-direction: column;
   gap: 2px;
-  overflow: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .company-context-menu-item-agent {

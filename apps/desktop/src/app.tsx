@@ -2034,7 +2034,7 @@ export function App() {
     event.stopPropagation();
 
     const menuWidth = 264;
-    const menuHeight = 420;
+    const menuHeight = 520;
     const viewportPadding = 12;
     const initialAgents =
       company.id === selectedCompanyId && companySnapshot
@@ -9258,6 +9258,24 @@ function CreateIssueDialogView({
   workspaceTargetLoading: boolean;
   workspaceTargetWorktrees: GitWorktreeRecord[];
 }) {
+  const issueCompanyPrefix = stringFromUnknown(companyPrefix, "ISS");
+  const issueTitle = stringFromUnknown(title);
+  const issueDescription = stringFromUnknown(description);
+  const issuePriority = stringFromUnknown(selectedPriority);
+  const issueStatus = stringFromUnknown(selectedStatus);
+  const issueProjectId = stringFromUnknown(selectedProjectId);
+  const issueAssigneeAgentId = stringFromUnknown(selectedAssigneeAgentId);
+  const issueWorkspaceTargetValue = stringFromUnknown(
+    selectedWorkspaceTargetValue,
+    "main"
+  );
+  const issueErrorMessage = errorMessage
+    ? stringFromUnknown(errorMessage)
+    : null;
+  const issueWorkspaceTargetErrorMessage = workspaceTargetErrorMessage
+    ? stringFromUnknown(workspaceTargetErrorMessage)
+    : null;
+  const isSavingIssue = booleanFromUnknown(isSaving);
   const attachmentDrafts = arrayFromUnknown(attachments).filter(
     (attachment): attachment is IssueAttachmentDraft =>
       Boolean(attachment) &&
@@ -9286,28 +9304,26 @@ function CreateIssueDialogView({
   const worktreeOptions = normalizeGitWorktreeRecords(
     workspaceTargetWorktrees
   );
-  const canCreate = !isSaving && title.trim().length > 0;
+  const canCreate = !isSavingIssue && issueTitle.trim().length > 0;
   const selectedProject =
-    projectOptions.find((project) => project.id === selectedProjectId) ?? null;
+    projectOptions.find((project) => project.id === issueProjectId) ?? null;
   const selectedProjectRepoPath =
     selectedProject?.primary_workspace?.cwd ?? null;
   const shouldShowWorktreeTarget = Boolean(selectedProject);
   const fallbackSelectedWorktree =
-    selectedWorkspaceTargetValue.startsWith("existing:") &&
+    issueWorkspaceTargetValue.startsWith("existing:") &&
     !worktreeOptions.some(
       (worktree) =>
         existingWorktreeTargetValue(worktree.path) ===
-        selectedWorkspaceTargetValue
+        issueWorkspaceTargetValue
     )
       ? {
-          name: fileName(
-            selectedWorkspaceTargetValue.slice("existing:".length)
-          ),
-          path: selectedWorkspaceTargetValue.slice("existing:".length),
+          name: fileName(issueWorkspaceTargetValue.slice("existing:".length)),
+          path: issueWorkspaceTargetValue.slice("existing:".length),
         }
       : null;
   const workspaceTargetHint = issueWorkspaceTargetHint({
-    errorMessage: workspaceTargetErrorMessage,
+    errorMessage: issueWorkspaceTargetErrorMessage,
     hasProject: Boolean(selectedProject),
     hasRepoPath: Boolean(selectedProjectRepoPath),
     isLoading: workspaceTargetLoading,
@@ -9345,7 +9361,7 @@ function CreateIssueDialogView({
 
         <div className="issue-dialog-body">
           {errorMessage ? (
-            <div className="issue-dialog-alert">{errorMessage}</div>
+            <div className="issue-dialog-alert">{issueErrorMessage}</div>
           ) : null}
 
           <div className="issue-dialog-composer">
@@ -9354,7 +9370,7 @@ function CreateIssueDialogView({
               className="issue-dialog-title-input"
               onChange={(event) => onTitleChange(event.target.value)}
               placeholder="Issue title"
-              value={title}
+              value={issueTitle}
             />
 
             <div className="issue-dialog-inline-row">
@@ -9362,7 +9378,7 @@ function CreateIssueDialogView({
               <IssueDialogInlineSelect
                 ariaLabel="Select assignee"
                 onChange={onAssigneeChange}
-                value={selectedAssigneeAgentId}
+                value={issueAssigneeAgentId}
               >
                 <option value="">Assignee</option>
                 {agentOptions.map((agent) => (
@@ -9376,7 +9392,7 @@ function CreateIssueDialogView({
                 ariaLabel="Select project"
                 className="issue-dialog-inline-select-project"
                 onChange={onProjectChange}
-                value={selectedProjectId}
+                value={issueProjectId}
               >
                 <option value="">Project</option>
                 {projectOptions.map((project) => (
@@ -9396,7 +9412,7 @@ function CreateIssueDialogView({
                     className="issue-dialog-inline-select-worktree"
                     disabled={!selectedProjectRepoPath}
                     onChange={onWorkspaceTargetChange}
-                    value={selectedWorkspaceTargetValue}
+                    value={issueWorkspaceTargetValue}
                   >
                     <option value="main">Main worktree</option>
                     <option
@@ -9440,7 +9456,7 @@ function CreateIssueDialogView({
               className="issue-dialog-description-input"
               onChange={(event) => onDescriptionChange(event.target.value)}
               placeholder="Add description..."
-              value={description}
+              value={issueDescription}
             />
 
             {attachmentDrafts.length ? (
@@ -9465,7 +9481,7 @@ function CreateIssueDialogView({
                       <div className="issue-attachment-actions">
                         <button
                           className="secondary-button compact-button"
-                          disabled={isSaving}
+                          disabled={isSavingIssue}
                           onClick={() => onRemoveAttachment(attachment.path)}
                           type="button"
                         >
@@ -9485,7 +9501,7 @@ function CreateIssueDialogView({
             <IssueDialogFooterSelect
               ariaLabel="Select issue status"
               onChange={onStatusChange}
-              value={selectedStatus}
+              value={issueStatus}
             >
               {statusOptions.map((status) => (
                 <option key={status} value={status}>
@@ -9497,7 +9513,7 @@ function CreateIssueDialogView({
             <IssueDialogFooterSelect
               ariaLabel="Select issue priority"
               onChange={onPriorityChange}
-              value={selectedPriority}
+              value={issuePriority}
             >
               {priorityOptions.map((priority) => (
                 <option key={priority} value={priority}>
@@ -9508,7 +9524,7 @@ function CreateIssueDialogView({
 
             <button
               className="issue-dialog-footer-chip issue-dialog-footer-chip-button"
-              disabled={isSaving}
+              disabled={isSavingIssue}
               onClick={onAddAttachment}
               type="button"
             >
@@ -9519,7 +9535,7 @@ function CreateIssueDialogView({
           <div className="issue-dialog-footer-actions">
             <button
               className="issue-dialog-discard-button"
-              disabled={isSaving}
+              disabled={isSavingIssue}
               onClick={onClose}
               type="button"
             >
@@ -9531,7 +9547,7 @@ function CreateIssueDialogView({
               onClick={onCreate}
               type="button"
             >
-              {isSaving ? "Creating..." : "Create Issue"}
+              {isSavingIssue ? "Creating..." : "Create Issue"}
             </button>
           </div>
         </div>
