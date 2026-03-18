@@ -9342,7 +9342,7 @@ function CreateIssueDialogView({
         <div className="issue-dialog-header">
           <div className="issue-dialog-breadcrumbs">
             <span className="issue-dialog-badge">
-              {companyPrefix.toUpperCase()}
+              {issueCompanyPrefix.toUpperCase()}
             </span>
             <span aria-hidden="true" className="issue-dialog-breadcrumb-sep">
               &gt;
@@ -9360,7 +9360,7 @@ function CreateIssueDialogView({
         </div>
 
         <div className="issue-dialog-body">
-          {errorMessage ? (
+          {issueErrorMessage ? (
             <div className="issue-dialog-alert">{issueErrorMessage}</div>
           ) : null}
 
