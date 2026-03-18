@@ -7203,6 +7203,9 @@ function IssuesListView({
           <div className="issues-list">
             {issues.map((issue) => {
               const isSelected = selectedIssueId === issue.id;
+              const normalizedIssueStatus = normalizeBoardIssueValue(
+                issue.status
+              );
               return (
                 <button
                   className={
@@ -7213,12 +7216,24 @@ function IssuesListView({
                   type="button"
                 >
                   <span
-                    className="issues-list-row-title"
+                    className="issues-list-row-main"
                     style={{
                       paddingLeft: `${20 + issue.request_depth * 12}px`,
                     }}
                   >
-                    {issuesListRowTitle(issue)}
+                    <span
+                      aria-hidden="true"
+                      className="issues-list-row-status"
+                      data-status={normalizedIssueStatus}
+                    >
+                      <IssueListStatusIcon status={normalizedIssueStatus} />
+                    </span>
+                    {issue.identifier ? (
+                      <span className="issues-list-row-identifier">
+                        {issue.identifier}
+                      </span>
+                    ) : null}
+                    <span className="issues-list-row-title">{issue.title}</span>
                   </span>
                   <span className="issues-list-row-timestamp">
                     {formatCompactIssueTimestamp(issue.updated_at)}
@@ -8476,6 +8491,78 @@ function AttachmentButtonIcon() {
       />
     </svg>
   );
+}
+
+function IssueListStatusIcon({ status }: { status: string }) {
+  switch (normalizeBoardIssueValue(status)) {
+    case "done":
+      return (
+        <svg aria-hidden="true" fill="none" viewBox="0 0 16 16">
+          <circle cx="8" cy="8" fill="currentColor" r="6" />
+          <path
+            d="m5.4 8.1 1.55 1.55L10.7 5.9"
+            stroke="#08090A"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.7"
+          />
+        </svg>
+      );
+    case "in_progress":
+      return (
+        <svg aria-hidden="true" fill="none" viewBox="0 0 16 16">
+          <circle cx="8" cy="8" opacity="0.32" r="5.25" stroke="currentColor" />
+          <path
+            d="M8 2.75a5.25 5.25 0 1 1-4.37 2.35"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="2"
+          />
+        </svg>
+      );
+    case "blocked":
+      return (
+        <svg aria-hidden="true" fill="none" viewBox="0 0 16 16">
+          <circle cx="8" cy="8" opacity="0.28" r="5.25" stroke="currentColor" />
+          <path
+            d="M5.05 10.95 10.95 5.05"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="1.8"
+          />
+        </svg>
+      );
+    case "cancelled":
+      return (
+        <svg aria-hidden="true" fill="none" viewBox="0 0 16 16">
+          <circle cx="8" cy="8" opacity="0.28" r="5.25" stroke="currentColor" />
+          <path
+            d="M5.55 5.55 10.45 10.45M10.45 5.55l-4.9 4.9"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="1.5"
+          />
+        </svg>
+      );
+    case "backlog":
+      return (
+        <svg aria-hidden="true" fill="none" viewBox="0 0 16 16">
+          <path
+            d="M4.2 8h7.6"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="1.8"
+          />
+        </svg>
+      );
+    case "todo":
+    default:
+      return (
+        <svg aria-hidden="true" fill="none" viewBox="0 0 16 16">
+          <circle cx="8" cy="8" r="5.25" stroke="currentColor" strokeWidth="1.8" />
+        </svg>
+      );
+  }
 }
 
 function ApprovalsRouteView({
@@ -12979,14 +13066,6 @@ function issuesVisible(
     const createdAt = parseIssueDate(issue.created_at);
     return createdAt ? createdAt >= threshold : false;
   });
-}
-
-function issuesListRowTitle(issue: IssueRecord) {
-  if (!issue.identifier) {
-    return issue.title;
-  }
-
-  return `${issue.identifier}  ${issue.title}`;
 }
 
 function formatCompactIssueTimestamp(
