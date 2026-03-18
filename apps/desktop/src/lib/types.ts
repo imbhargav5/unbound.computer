@@ -39,6 +39,11 @@ export interface DesktopSettings {
     string,
     {
       group_by?: "status" | "priority" | "assignee" | null;
+      saved_views?: Array<{
+        id: string;
+        name?: string | null;
+        group_by?: "status" | "priority" | "assignee" | null;
+      }> | null;
     }
   > | null;
 }

@@ -182,13 +182,24 @@ interface DashboardProjectColumn {
 }
 
 interface DashboardProjectBoardLayout {
+  boardId: string;
   grouping: DashboardProjectGrouping;
+  isDefaultView: boolean;
   project: ProjectRecord;
   columns: DashboardProjectColumn[];
+  viewId: string;
+  viewName: string;
+  width: number;
+  issueCount: number;
+}
+
+interface DashboardProjectColumnLayout {
+  project: ProjectRecord;
+  boards: DashboardProjectBoardLayout[];
+  height: number;
   left: number;
   top: number;
   width: number;
-  issueCount: number;
 }
 
 interface SelectOption<T extends string> {
@@ -201,6 +212,11 @@ interface CreateIssueDialogDefaults {
   projectId?: string;
   priority?: string;
   status?: string;
+}
+
+interface DashboardProjectViewDraft {
+  grouping: DashboardProjectGrouping;
+  name: string;
 }
 
 interface IssueEditDraft {
@@ -573,10 +589,13 @@ const dashboardProjectBoardMinWidth = 920;
 const dashboardProjectBoardHeight = 540;
 const dashboardProjectBoardGapX = 88;
 const dashboardProjectBoardGapY = 80;
+const dashboardProjectBoardStackGap = 24;
 const dashboardProjectBoardPadding = 18;
 const dashboardProjectBoardBorderWidth = 1;
 const dashboardProjectBoardColumnWidth = 170;
 const dashboardProjectBoardColumnGap = 14;
+const dashboardProjectAddViewSlotHeight = 126;
+const dashboardDefaultProjectViewId = "default";
 
 const defaultCompanyBrandColor = "#0F766E";
 
@@ -825,9 +844,9 @@ export function App() {
   );
   const boardAgents = companySnapshot?.agents ?? [];
   const dashboardProjectViews = settings.dashboard_project_views ?? {};
-  const dashboardProjectBoards = useMemo(
+  const dashboardProjectColumns = useMemo(
     () =>
-      buildDashboardProjectBoards(
+      buildDashboardProjectColumns(
         boardProjects,
         boardIssues,
         boardAgents,
@@ -836,8 +855,8 @@ export function App() {
     [boardAgents, boardIssues, boardProjects, dashboardProjectViews]
   );
   const dashboardCanvasBounds = useMemo(
-    () => buildDashboardCanvasBounds(dashboardProjectBoards),
-    [dashboardProjectBoards]
+    () => buildDashboardCanvasBounds(dashboardProjectColumns),
+    [dashboardProjectColumns]
   );
   const selectedProject =
     boardProjects.find((project) => project.id === selectedProjectId) ??
@@ -2142,7 +2161,7 @@ export function App() {
   };
 
   const handleDashboardCanvasWheel = (event: WheelEvent<HTMLDivElement>) => {
-    if (!dashboardProjectBoards.length) {
+    if (!dashboardProjectColumns.length) {
       return;
     }
 
@@ -2192,14 +2211,60 @@ export function App() {
 
   const handleProjectBoardGroupingChange = (
     projectId: string,
+    viewId: string,
     grouping: DashboardProjectGrouping
   ) => {
+    const currentProjectViews = dashboardProjectViews[projectId] ?? {};
+    const currentSavedViews = dashboardProjectSavedViews(
+      currentProjectViews.saved_views
+    );
+
     void applySettingsPatch({
       dashboard_project_views: {
         ...dashboardProjectViews,
         [projectId]: {
-          ...dashboardProjectViews[projectId],
-          group_by: grouping,
+          ...currentProjectViews,
+          ...(viewId === dashboardDefaultProjectViewId
+            ? {
+                group_by: grouping,
+              }
+            : {
+                saved_views: currentSavedViews.map((savedView) =>
+                  savedView.id === viewId
+                    ? {
+                        ...savedView,
+                        group_by: grouping,
+                      }
+                    : savedView
+                ),
+              }),
+        },
+      },
+    });
+  };
+
+  const handleCreateProjectBoardView = async (
+    projectId: string,
+    draft: DashboardProjectViewDraft
+  ) => {
+    const currentProjectViews = dashboardProjectViews[projectId] ?? {};
+    const currentSavedViews = dashboardProjectSavedViews(
+      currentProjectViews.saved_views
+    );
+
+    await applySettingsPatch({
+      dashboard_project_views: {
+        ...dashboardProjectViews,
+        [projectId]: {
+          ...currentProjectViews,
+          saved_views: [
+            ...currentSavedViews,
+            {
+              group_by: draft.grouping,
+              id: createDashboardProjectViewId(),
+              name: normalizeOptionalDraftString(draft.name),
+            },
+          ],
         },
       },
     });
@@ -3677,8 +3742,9 @@ export function App() {
                 onPointerMove={handleDashboardCanvasPointerMove}
                 onPointerUp={handleDashboardCanvasPointerEnd}
                 onCreateIssueForColumn={handleOpenCreateIssueDialog}
+                onCreateProjectView={handleCreateProjectBoardView}
                 onProjectGroupingChange={handleProjectBoardGroupingChange}
-                projectBoards={dashboardProjectBoards}
+                projectColumns={dashboardProjectColumns}
                 selectedProjectId={selectedProjectId}
                 viewportRef={dashboardCanvasViewportRef}
                 onWheel={handleDashboardCanvasWheel}
@@ -6637,9 +6703,10 @@ function DashboardCanvasRouteView({
   onPointerMove,
   onPointerUp,
   onCreateIssueForColumn,
+  onCreateProjectView,
   onProjectGroupingChange,
   onWheel,
-  projectBoards,
+  projectColumns,
   selectedProjectId,
   viewportRef,
 }: {
@@ -6654,15 +6721,80 @@ function DashboardCanvasRouteView({
   onPointerMove: (event: PointerEvent<HTMLDivElement>) => void;
   onPointerUp: (event: PointerEvent<HTMLDivElement>) => void;
   onCreateIssueForColumn: (defaults?: CreateIssueDialogDefaults) => void;
+  onCreateProjectView: (
+    projectId: string,
+    draft: DashboardProjectViewDraft
+  ) => Promise<void>;
   onProjectGroupingChange: (
     projectId: string,
+    viewId: string,
     grouping: DashboardProjectGrouping
   ) => void;
   onWheel: (event: WheelEvent<HTMLDivElement>) => void;
-  projectBoards: DashboardProjectBoardLayout[];
+  projectColumns: DashboardProjectColumnLayout[];
   selectedProjectId: string | null;
   viewportRef: RefObject<HTMLDivElement | null>;
 }) {
+  const [creatingProjectId, setCreatingProjectId] = useState<string | null>(
+    null
+  );
+  const [newProjectViewName, setNewProjectViewName] = useState("");
+  const [newProjectViewGrouping, setNewProjectViewGrouping] =
+    useState<DashboardProjectGrouping>("status");
+  const [projectViewError, setProjectViewError] = useState<string | null>(null);
+  const [savingProjectId, setSavingProjectId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (
+      creatingProjectId &&
+      !projectColumns.some((column) => column.project.id === creatingProjectId)
+    ) {
+      setCreatingProjectId(null);
+      setNewProjectViewName("");
+      setNewProjectViewGrouping("status");
+      setProjectViewError(null);
+      setSavingProjectId(null);
+    }
+  }, [creatingProjectId, projectColumns]);
+
+  const handleOpenProjectViewComposer = (
+    projectColumn: DashboardProjectColumnLayout
+  ) => {
+    setCreatingProjectId(projectColumn.project.id);
+    setNewProjectViewName(nextDashboardProjectViewName(projectColumn.boards));
+    setNewProjectViewGrouping(
+      nextDashboardProjectViewGrouping(projectColumn.boards)
+    );
+    setProjectViewError(null);
+  };
+
+  const handleCloseProjectViewComposer = () => {
+    setCreatingProjectId(null);
+    setNewProjectViewName("");
+    setNewProjectViewGrouping("status");
+    setProjectViewError(null);
+    setSavingProjectId(null);
+  };
+
+  const handleSaveProjectView = async (projectId: string) => {
+    setSavingProjectId(projectId);
+    setProjectViewError(null);
+
+    try {
+      await onCreateProjectView(projectId, {
+        grouping: newProjectViewGrouping,
+        name: newProjectViewName,
+      });
+      handleCloseProjectViewComposer();
+    } catch (error) {
+      setProjectViewError(
+        error instanceof Error ? error.message : String(error)
+      );
+    } finally {
+      setSavingProjectId((current) => (current === projectId ? null : current));
+    }
+  };
+
   return (
     <section className="dashboard-canvas-route">
       <div className="dashboard-canvas-route-header">
@@ -6670,7 +6802,7 @@ function DashboardCanvasRouteView({
           <DashboardBreadcrumbs items={[{ label: "Dashboard" }]} />
         </div>
       </div>
-      {projectBoards.length ? (
+      {projectColumns.length ? (
         <div
           className={
             isDragging
@@ -6693,148 +6825,251 @@ function DashboardCanvasRouteView({
               width: canvasBounds.width,
             }}
           >
-            {projectBoards.map((projectBoard) => (
-              <article
-                className={
-                  selectedProjectId === projectBoard.project.id
-                    ? "project-kanban-board is-selected"
-                    : "project-kanban-board"
-                }
-                key={projectBoard.project.id}
-                style={{
-                  left: projectBoard.left,
-                  top: projectBoard.top,
-                  width: projectBoard.width,
-                }}
-              >
-                <div className="project-kanban-board-header">
-                  <div>
-                    <h2>
-                      {projectBoard.project.name ??
-                        projectBoard.project.title ??
-                        "Untitled project"}
-                    </h2>
-                    <p>
-                      {projectBoard.project.primary_workspace?.cwd ??
-                        "Choose a repository to anchor this project."}
-                    </p>
-                  </div>
-                  <div className="project-kanban-board-side">
-                    <label className="project-kanban-board-grouping">
-                      <span>Group by</span>
-                      <ShadcnSelect
-                        ariaLabel={`Group ${projectBoard.project.name ?? projectBoard.project.title ?? "project"} board by`}
-                        onChange={(nextValue) =>
-                          onProjectGroupingChange(
-                            projectBoard.project.id,
-                            nextValue
-                          )
-                        }
-                        options={dashboardProjectGroupingSelectOptions}
-                        value={projectBoard.grouping}
-                      />
-                    </label>
+            {projectColumns.map((projectColumn) => {
+              const isSelected = selectedProjectId === projectColumn.project.id;
+              const isCreatingProjectView =
+                creatingProjectId === projectColumn.project.id;
+              const isSavingProjectView =
+                savingProjectId === projectColumn.project.id;
 
-                    <div className="project-kanban-board-meta">
-                      <span>{projectBoard.issueCount} issues</span>
-                      <span>
-                        {projectBoard.project.target_date
-                          ? `Target ${formatShortDate(projectBoard.project.target_date)}`
-                          : "No target date"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
+              return (
                 <div
-                  className="project-kanban-columns"
+                  className={
+                    isSelected
+                      ? "dashboard-project-column is-selected"
+                      : "dashboard-project-column"
+                  }
+                  key={projectColumn.project.id}
                   style={{
-                    gap: dashboardProjectBoardColumnGap,
-                    gridAutoColumns: `${dashboardProjectBoardColumnWidth}px`,
+                    left: projectColumn.left,
+                    top: projectColumn.top,
+                    width: projectColumn.width,
                   }}
                 >
-                  {projectBoard.columns.map((column) => {
-                    const createIssueCard = (
+                  {projectColumn.boards.map((projectBoard) => (
+                    <article
+                      className={
+                        isSelected
+                          ? "project-kanban-board is-selected"
+                          : "project-kanban-board"
+                      }
+                      key={projectBoard.boardId}
+                      style={{
+                        width: projectBoard.width,
+                      }}
+                    >
+                      <div className="project-kanban-board-header">
+                        <div>
+                          <span className="project-kanban-view-label">
+                            {projectBoard.viewName}
+                          </span>
+                          <h2>
+                            {projectBoard.project.name ??
+                              projectBoard.project.title ??
+                              "Untitled project"}
+                          </h2>
+                          <p>
+                            {projectBoard.project.primary_workspace?.cwd ??
+                              "Choose a repository to anchor this project."}
+                          </p>
+                        </div>
+                        <div className="project-kanban-board-side">
+                          <label className="project-kanban-board-grouping">
+                            <span>Group by</span>
+                            <ShadcnSelect
+                              ariaLabel={`Group ${projectBoard.project.name ?? projectBoard.project.title ?? "project"} ${projectBoard.viewName} by`}
+                              onChange={(nextValue) =>
+                                onProjectGroupingChange(
+                                  projectColumn.project.id,
+                                  projectBoard.viewId,
+                                  nextValue
+                                )
+                              }
+                              options={dashboardProjectGroupingSelectOptions}
+                              value={projectBoard.grouping}
+                            />
+                          </label>
+
+                          <div className="project-kanban-board-meta">
+                            <span>{projectBoard.issueCount} issues</span>
+                            <span>
+                              {projectBoard.project.target_date
+                                ? `Target ${formatShortDate(projectBoard.project.target_date)}`
+                                : "No target date"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div
+                        className="project-kanban-columns"
+                        style={{
+                          gap: dashboardProjectBoardColumnGap,
+                          gridAutoColumns: `${dashboardProjectBoardColumnWidth}px`,
+                        }}
+                      >
+                        {projectBoard.columns.map((column) => {
+                          const createIssueCard = (
+                            <button
+                              className="project-kanban-column-create"
+                              onClick={() =>
+                                onCreateIssueForColumn({
+                                  projectId: projectBoard.project.id,
+                                  ...column.createDefaults,
+                                })
+                              }
+                              type="button"
+                            >
+                              <span
+                                className="project-kanban-column-create-icon"
+                                aria-hidden="true"
+                              >
+                                +
+                              </span>
+                              <span className="project-kanban-column-create-copy">
+                                <strong>New issue</strong>
+                                <small>Add work directly to {column.label}</small>
+                              </span>
+                            </button>
+                          );
+
+                          return (
+                            <section
+                              className="project-kanban-column"
+                              key={column.id}
+                            >
+                              <div className="project-kanban-column-header">
+                                <div className="project-kanban-column-header-copy">
+                                  <span>{column.label}</span>
+                                  <strong>{column.issues.length}</strong>
+                                </div>
+                              </div>
+
+                              <div className="project-kanban-cards">
+                                {column.issues.length ? (
+                                  <>
+                                    {column.issues.map((issue) => (
+                                      <button
+                                        className="project-kanban-card"
+                                        data-priority={normalizeBoardIssueValue(
+                                          issue.priority
+                                        )}
+                                        key={issue.id}
+                                        onClick={() => onOpenIssue(issue.id)}
+                                        type="button"
+                                      >
+                                        <strong>
+                                          {issue.identifier ?? issue.title}
+                                        </strong>
+                                        <p>{issue.title}</p>
+                                        <div className="project-kanban-card-meta">
+                                          {projectBoardCardMeta(
+                                            projectBoard.grouping,
+                                            issue,
+                                            agents
+                                          ).map((meta, index) => (
+                                            <span key={`${issue.id}-${index}`}>
+                                              {meta}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </button>
+                                    ))}
+                                    {createIssueCard}
+                                  </>
+                                ) : (
+                                  <div className="project-kanban-column-empty">
+                                    <span>No issues yet</span>
+                                    {createIssueCard}
+                                  </div>
+                                )}
+                              </div>
+                            </section>
+                          );
+                        })}
+                      </div>
+                    </article>
+                  ))}
+
+                  <div className="project-kanban-add-slot">
+                    {isCreatingProjectView ? (
+                      <div className="project-kanban-add-card">
+                        <div className="project-kanban-add-card-copy">
+                          <strong>Save another view</strong>
+                          <p>
+                            Keep alternate groupings for this project in the
+                            same dashboard column.
+                          </p>
+                          {projectViewError ? (
+                            <span className="project-kanban-add-card-error">
+                              {projectViewError}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="project-kanban-add-card-controls">
+                          <input
+                            className="project-kanban-add-input"
+                            onChange={(event) =>
+                              setNewProjectViewName(event.target.value)
+                            }
+                            placeholder="View name"
+                            value={newProjectViewName}
+                          />
+                          <div className="project-kanban-add-grouping">
+                            <ShadcnSelect
+                              ariaLabel="Choose grouping for saved project view"
+                              onChange={setNewProjectViewGrouping}
+                              options={dashboardProjectGroupingSelectOptions}
+                              value={newProjectViewGrouping}
+                            />
+                          </div>
+                          <div className="project-kanban-add-actions">
+                            <button
+                              className="secondary-button compact-button"
+                              disabled={isSavingProjectView}
+                              onClick={handleCloseProjectViewComposer}
+                              type="button"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              className="primary-button compact-button"
+                              disabled={isSavingProjectView}
+                              onClick={() =>
+                                void handleSaveProjectView(projectColumn.project.id)
+                              }
+                              type="button"
+                            >
+                              {isSavingProjectView ? "Saving..." : "Save view"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
                       <button
-                        className="project-kanban-column-create"
-                        onClick={() =>
-                          onCreateIssueForColumn({
-                            projectId: projectBoard.project.id,
-                            ...column.createDefaults,
-                          })
-                        }
+                        className="project-kanban-add-button"
+                        onClick={() => handleOpenProjectViewComposer(projectColumn)}
                         type="button"
                       >
                         <span
-                          className="project-kanban-column-create-icon"
                           aria-hidden="true"
+                          className="project-kanban-add-button-icon"
                         >
                           +
                         </span>
-                        <span className="project-kanban-column-create-copy">
-                          <strong>New issue</strong>
-                          <small>Add work directly to {column.label}</small>
+                        <span className="project-kanban-add-button-copy">
+                          <strong>Save another view</strong>
+                          <small>
+                            Add a dimmed secondary kanban variant for this
+                            project column.
+                          </small>
                         </span>
                       </button>
-                    );
-
-                    return (
-                      <section
-                        className="project-kanban-column"
-                        key={column.id}
-                      >
-                        <div className="project-kanban-column-header">
-                          <div className="project-kanban-column-header-copy">
-                            <span>{column.label}</span>
-                            <strong>{column.issues.length}</strong>
-                          </div>
-                        </div>
-
-                        <div className="project-kanban-cards">
-                          {column.issues.length ? (
-                            <>
-                              {column.issues.map((issue) => (
-                                <button
-                                  className="project-kanban-card"
-                                  data-priority={normalizeBoardIssueValue(
-                                    issue.priority
-                                  )}
-                                  key={issue.id}
-                                  onClick={() => onOpenIssue(issue.id)}
-                                  type="button"
-                                >
-                                  <strong>
-                                    {issue.identifier ?? issue.title}
-                                  </strong>
-                                  <p>{issue.title}</p>
-                                  <div className="project-kanban-card-meta">
-                                    {projectBoardCardMeta(
-                                      projectBoard.grouping,
-                                      issue,
-                                      agents
-                                    ).map((meta, index) => (
-                                      <span key={`${issue.id}-${index}`}>
-                                        {meta}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </button>
-                              ))}
-                              {createIssueCard}
-                            </>
-                          ) : (
-                            <div className="project-kanban-column-empty">
-                              <span>No issues yet</span>
-                              {createIssueCard}
-                            </div>
-                          )}
-                        </div>
-                      </section>
-                    );
-                  })}
+                    )}
+                  </div>
                 </div>
-              </article>
-            ))}
+              );
+            })}
           </div>
         </div>
       ) : (
@@ -11418,38 +11653,59 @@ function projectBoardColumns(
   }
 }
 
-function buildDashboardProjectBoards(
+function buildDashboardProjectColumns(
   projects: ProjectRecord[],
   issues: IssueRecord[],
   agents: AgentRecord[],
   projectViews: NonNullable<DesktopSettings["dashboard_project_views"]>
-): DashboardProjectBoardLayout[] {
-  const columnCount = projects.length <= 1 ? 1 : 2;
-  const boardDrafts = projects.map((project) => {
-    const grouping = normalizeDashboardProjectGrouping(
-      projectViews[project.id]?.group_by
-    );
+): DashboardProjectColumnLayout[] {
+  const gridColumnCount = projects.length <= 1 ? 1 : 2;
+  const projectColumnDrafts = projects.map((project) => {
+    const projectViewSettings = projectViews[project.id] ?? {};
     const projectIssues = issues.filter(
       (issue) => issue.project_id === project.id
     );
-    const columns = projectBoardColumns(projectIssues, agents, grouping);
+    const boards = buildDashboardProjectColumnBoards(
+      project,
+      projectIssues,
+      agents,
+      projectViewSettings
+    );
+    const width = Math.max(
+      ...boards.map((board) => board.width),
+      dashboardProjectBoardMinWidth
+    );
 
     return {
-      grouping,
       project,
-      columns,
-      issueCount: projectIssues.length,
-      width: dashboardProjectBoardWidth(columns.length),
+      boards,
+      height:
+        boards.length * dashboardProjectBoardHeight +
+        Math.max(boards.length - 1, 0) * dashboardProjectBoardStackGap +
+        dashboardProjectAddViewSlotHeight,
+      width,
     };
   });
-  const columnWidths = Array.from({ length: columnCount }, (_, columnIndex) =>
-    boardDrafts.reduce((maxWidth, board, boardIndex) => {
-      if (boardIndex % columnCount !== columnIndex) {
-        return maxWidth;
+  const rowCount = Math.ceil(projectColumnDrafts.length / gridColumnCount);
+  const columnWidths = Array.from(
+    { length: gridColumnCount },
+    (_, columnIndex) =>
+      projectColumnDrafts.reduce((maxWidth, projectColumn, columnIndexInDraft) => {
+        if (columnIndexInDraft % gridColumnCount !== columnIndex) {
+          return maxWidth;
+        }
+
+        return Math.max(maxWidth, projectColumn.width);
+      }, dashboardProjectBoardMinWidth)
+  );
+  const rowHeights = Array.from({ length: rowCount }, (_, rowIndex) =>
+    projectColumnDrafts.reduce((maxHeight, projectColumn, columnIndexInDraft) => {
+      if (Math.floor(columnIndexInDraft / gridColumnCount) !== rowIndex) {
+        return maxHeight;
       }
 
-      return Math.max(maxWidth, board.width);
-    }, dashboardProjectBoardMinWidth)
+      return Math.max(maxHeight, projectColumn.height);
+    }, dashboardProjectBoardHeight + dashboardProjectAddViewSlotHeight)
   );
   const columnOffsets = columnWidths.map((_, columnIndex) => {
     if (columnIndex === 0) {
@@ -11462,15 +11718,26 @@ function buildDashboardProjectBoards(
         .reduce((total, width) => total + width + dashboardProjectBoardGapX, 120)
     );
   });
+  const rowOffsets = rowHeights.map((_, rowIndex) => {
+    if (rowIndex === 0) {
+      return 104;
+    }
 
-  return boardDrafts.map((board, index) => {
-    const col = index % columnCount;
-    const row = Math.floor(index / columnCount);
+    return (
+      rowHeights
+        .slice(0, rowIndex)
+        .reduce((total, height) => total + height + dashboardProjectBoardGapY, 104)
+    );
+  });
+
+  return projectColumnDrafts.map((projectColumn, index) => {
+    const col = index % gridColumnCount;
+    const row = Math.floor(index / gridColumnCount);
 
     return {
-      ...board,
+      ...projectColumn,
       left: columnOffsets[col] ?? 120,
-      top: 104 + row * (dashboardProjectBoardHeight + dashboardProjectBoardGapY),
+      top: rowOffsets[row] ?? 104,
     };
   });
 }
@@ -11500,17 +11767,17 @@ function projectBoardCardMeta(
 }
 
 function buildDashboardCanvasBounds(
-  projectBoards: DashboardProjectBoardLayout[]
+  projectColumns: DashboardProjectColumnLayout[]
 ) {
-  if (!projectBoards.length) {
+  if (!projectColumns.length) {
     return { width: 2200, height: 1600 };
   }
 
   const maxRight = Math.max(
-    ...projectBoards.map((board) => board.left + board.width)
+    ...projectColumns.map((projectColumn) => projectColumn.left + projectColumn.width)
   );
   const maxBottom = Math.max(
-    ...projectBoards.map((board) => board.top + dashboardProjectBoardHeight)
+    ...projectColumns.map((projectColumn) => projectColumn.top + projectColumn.height)
   );
 
   return {
@@ -11550,6 +11817,122 @@ function dashboardProjectBoardWidth(columnCount: number) {
     dashboardProjectBoardPadding * 2 + dashboardProjectBoardBorderWidth * 2;
 
   return Math.max(dashboardProjectBoardMinWidth, columnsWidth + chromeWidth);
+}
+
+function buildDashboardProjectColumnBoards(
+  project: ProjectRecord,
+  issues: IssueRecord[],
+  agents: AgentRecord[],
+  viewSettings: NonNullable<DesktopSettings["dashboard_project_views"]>[string]
+) {
+  const savedViews = dashboardProjectSavedViews(viewSettings?.saved_views);
+
+  return [
+    createDashboardProjectBoardLayout({
+      agents,
+      grouping: normalizeDashboardProjectGrouping(viewSettings?.group_by),
+      isDefaultView: true,
+      issues,
+      project,
+      viewId: dashboardDefaultProjectViewId,
+      viewName: "Default view",
+    }),
+    ...savedViews.map((savedView, index) =>
+      createDashboardProjectBoardLayout({
+        agents,
+        grouping: normalizeDashboardProjectGrouping(savedView.group_by),
+        isDefaultView: false,
+        issues,
+        project,
+        viewId: savedView.id,
+        viewName: dashboardProjectViewName(savedView.name, index),
+      })
+    ),
+  ];
+}
+
+function createDashboardProjectBoardLayout({
+  agents,
+  grouping,
+  isDefaultView,
+  issues,
+  project,
+  viewId,
+  viewName,
+}: {
+  agents: AgentRecord[];
+  grouping: DashboardProjectGrouping;
+  isDefaultView: boolean;
+  issues: IssueRecord[];
+  project: ProjectRecord;
+  viewId: string;
+  viewName: string;
+}): DashboardProjectBoardLayout {
+  const columns = projectBoardColumns(issues, agents, grouping);
+
+  return {
+    boardId: `${project.id}:${viewId}`,
+    columns,
+    grouping,
+    isDefaultView,
+    issueCount: issues.length,
+    project,
+    viewId,
+    viewName,
+    width: dashboardProjectBoardWidth(columns.length),
+  };
+}
+
+function dashboardProjectSavedViews(
+  views:
+    | NonNullable<
+        NonNullable<DesktopSettings["dashboard_project_views"]>[string]
+      >["saved_views"]
+    | undefined
+) {
+  return (views ?? []).filter(
+    (
+      view
+    ): view is {
+      group_by?: DashboardProjectGrouping | null;
+      id: string;
+      name?: string | null;
+    } => Boolean(view?.id)
+  );
+}
+
+function dashboardProjectViewName(
+  value: string | null | undefined,
+  index: number
+) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : `View ${index + 1}`;
+}
+
+function nextDashboardProjectViewName(boards: DashboardProjectBoardLayout[]) {
+  return `View ${boards.filter((board) => !board.isDefaultView).length + 1}`;
+}
+
+function nextDashboardProjectViewGrouping(
+  boards: DashboardProjectBoardLayout[]
+): DashboardProjectGrouping {
+  const usedGroupings = new Set(boards.map((board) => board.grouping));
+
+  return (
+    dashboardProjectGroupingOptions.find(
+      (grouping) => !usedGroupings.has(grouping)
+    ) ?? "status"
+  );
+}
+
+function createDashboardProjectViewId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `dashboard-view-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
 }
 
 function clampNumber(value: number, min: number, max: number) {

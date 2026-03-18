@@ -974,8 +974,15 @@ p {
   line-height: 1.6;
 }
 
-.project-kanban-board {
+.dashboard-project-column {
   position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.project-kanban-board {
+  position: relative;
   width: 920px;
   height: 540px;
   display: flex;
@@ -1024,6 +1031,16 @@ p {
   color: #fafafa;
   font-size: 22px;
   letter-spacing: -0.04em;
+}
+
+.project-kanban-view-label {
+  display: inline-flex;
+  margin-bottom: 8px;
+  color: #f5d28b;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .project-kanban-board-header p,
@@ -1379,6 +1396,141 @@ p {
 
 .project-kanban-column-empty .project-kanban-column-create {
   display: flex;
+}
+
+.project-kanban-add-slot {
+  min-height: 126px;
+}
+
+.project-kanban-add-button,
+.project-kanban-add-card {
+  width: 100%;
+  min-height: 100%;
+  border-radius: 22px;
+}
+
+.project-kanban-add-button {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  border: 1px dashed rgba(245, 158, 11, 0.2);
+  background: rgba(20, 20, 24, 0.44);
+  color: #b3b3bd;
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.project-kanban-add-button:hover,
+.project-kanban-add-button:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(245, 158, 11, 0.36);
+  background: rgba(24, 24, 28, 0.74);
+  color: #ececf2;
+}
+
+.project-kanban-add-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.14);
+}
+
+.project-kanban-add-button-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.08);
+  color: rgba(245, 158, 11, 0.78);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.project-kanban-add-button-copy,
+.project-kanban-add-card-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.project-kanban-add-button-copy strong,
+.project-kanban-add-card-copy strong {
+  color: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.project-kanban-add-button-copy small,
+.project-kanban-add-card-copy p {
+  margin: 0;
+  color: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.project-kanban-add-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px 20px;
+  border: 1px solid #2a2a30;
+  background: linear-gradient(180deg, #151519, #0f0f13);
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.22);
+}
+
+.project-kanban-add-card-copy {
+  color: #f4f4f5;
+}
+
+.project-kanban-add-card-copy p {
+  color: #8f8f98;
+}
+
+.project-kanban-add-card-error {
+  color: #fca5a5;
+  font-size: 12px;
+}
+
+.project-kanban-add-card-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) 188px auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.project-kanban-add-input {
+  width: 100%;
+  min-height: 40px;
+  padding: 10px 12px;
+  border: 1px solid #2a2a31;
+  border-radius: 12px;
+  background: #111114;
+  color: #f5f5f5;
+}
+
+.project-kanban-add-input::placeholder {
+  color: #666670;
+}
+
+.project-kanban-add-input:focus-visible {
+  outline: none;
+  border-color: rgba(245, 158, 11, 0.55);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.14);
+}
+
+.project-kanban-add-grouping {
+  min-width: 0;
+}
+
+.project-kanban-add-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .issue-dialog-context {
