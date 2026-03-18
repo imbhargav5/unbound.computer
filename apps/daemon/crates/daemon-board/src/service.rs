@@ -5,6 +5,9 @@ use crate::models::{
     CreateIssueInput, CreateProjectInput, Goal, Issue, IssueAttachment, IssueComment,
     IssueListFilter, Project, ProjectWorkspace, UpdateAgentInput, UpdateIssueInput, Workspace,
 };
+use crate::run_summary::{
+    summarize_agent_run_excerpt, summarize_agent_run_result, summarize_agent_run_text,
+};
 use agent_session_sqlite_persist_core::{NewSession, RepositoryId, SessionWriter};
 use chrono::Utc;
 use daemon_config_and_utils::Paths;
@@ -2675,7 +2678,7 @@ fn row_to_workspace(row: &Row<'_>) -> rusqlite::Result<Workspace> {
 }
 
 fn row_to_agent_run(row: &Row<'_>) -> rusqlite::Result<AgentRun> {
-    Ok(AgentRun {
+    let mut run = AgentRun {
         id: row.get(0)?,
         company_id: row.get(1)?,
         agent_id: row.get(2)?,
@@ -2712,7 +2715,10 @@ fn row_to_agent_run(row: &Row<'_>) -> rusqlite::Result<AgentRun> {
             .map(|value| parse_json(value)),
         created_at: row.get(28)?,
         updated_at: row.get(29)?,
-    })
+    };
+
+    normalize_agent_run_for_display(&mut run);
+    Ok(run)
 }
 
 fn row_to_agent_run_event(row: &Row<'_>) -> rusqlite::Result<AgentRunEvent> {
@@ -2946,6 +2952,35 @@ fn slugify(value: &str) -> String {
 
 fn parse_json(text: String) -> Value {
     serde_json::from_str(&text).unwrap_or(Value::Null)
+}
+
+fn normalize_agent_run_for_display(run: &mut AgentRun) {
+    let result_summary = run
+        .result_json
+        .as_ref()
+        .and_then(summarize_agent_run_result);
+
+    run.stdout_excerpt = result_summary
+        .or_else(|| {
+            run.stdout_excerpt
+                .as_deref()
+                .and_then(summarize_agent_run_excerpt)
+        })
+        .or_else(|| {
+            run.stdout_excerpt
+                .as_deref()
+                .and_then(summarize_agent_run_text)
+        });
+
+    run.stderr_excerpt = run
+        .stderr_excerpt
+        .as_deref()
+        .and_then(summarize_agent_run_excerpt)
+        .or_else(|| {
+            run.stderr_excerpt
+                .as_deref()
+                .and_then(summarize_agent_run_text)
+        });
 }
 
 fn require_name(value: &str, field_name: &str) -> BoardResult<String> {

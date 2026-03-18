@@ -7,7 +7,10 @@ use agent_session_sqlite_persist_core::{
 };
 use chrono::Utc;
 use claude_process_manager::{ClaudeConfig, ClaudeEvent, ClaudeProcess};
-use daemon_board::{service, Agent, AgentRun, BoardError, Issue, IssueComment, IssueListFilter};
+use daemon_board::{
+    service, summarize_agent_run_event, summarize_agent_run_result, summarize_agent_run_text,
+    Agent, AgentRun, BoardError, Issue, IssueComment, IssueListFilter,
+};
 use daemon_config_and_utils::Paths;
 use daemon_database::{queries, AsyncDatabase, NewRepository};
 use daemon_ipc::{Event, EventType, SubscriptionManager};
@@ -981,7 +984,9 @@ impl AgentRunCoordinator {
                             &mut last_error_message,
                         );
                     }
-                    push_excerpt(&mut stdout_excerpt, raw);
+                    if let Some(summary) = summarize_agent_run_event(json) {
+                        push_excerpt(&mut stdout_excerpt, &summary);
+                    }
                     self.record_run_event(
                         &run,
                         seq,
@@ -1026,7 +1031,6 @@ impl AgentRunCoordinator {
                     );
                     session_id_after = Some(claude_session_id.clone());
                     external_run_id = Some(claude_session_id.clone());
-                    push_excerpt(&mut stdout_excerpt, raw);
                     self.record_run_event(
                         &run,
                         seq,
@@ -1076,7 +1080,13 @@ impl AgentRunCoordinator {
                         completion.error_code = None;
                     }
                     terminal_status_written = true;
-                    push_excerpt(&mut stdout_excerpt, raw);
+                    if let Some(summary) = parsed
+                        .as_ref()
+                        .and_then(summarize_agent_run_result)
+                        .or_else(|| summarize_agent_run_text(raw))
+                    {
+                        push_excerpt(&mut stdout_excerpt, &summary);
+                    }
                     self.record_run_event(
                         &run,
                         seq,
@@ -1089,7 +1099,9 @@ impl AgentRunCoordinator {
                     .await?;
                 }
                 ClaudeEvent::Stderr { line } => {
-                    push_excerpt(&mut stderr_excerpt, line);
+                    if let Some(summary) = summarize_agent_run_text(line) {
+                        push_excerpt(&mut stderr_excerpt, &summary);
+                    }
                     self.record_run_event(
                         &run,
                         seq,
