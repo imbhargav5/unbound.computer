@@ -4881,7 +4881,7 @@ function OrgRouteView({
         <section className="surface-panel wide">
           <div className="surface-header">
             <div>
-              <h3>Hierarchy</h3>
+              <h3>Agent hierarchy</h3>
               <p>
                 This is the hierarchy for agents, not people. Managers stack
                 top to bottom. Open any agent to review its full configuration
@@ -4914,7 +4914,7 @@ function OrgRouteView({
           <div className="surface-header">
             <div>
               <h3>Leadership</h3>
-              <p>Project ownership and any gaps in lead coverage.</p>
+              <p>Which agents own projects and where lead coverage is missing.</p>
             </div>
           </div>
 
@@ -6442,11 +6442,6 @@ function DashboardCanvasRouteView({
               >
                 <div className="project-kanban-board-header">
                   <div>
-                    <span className="project-kanban-board-kicker">
-                      {humanizeIssueValue(
-                        projectBoard.project.status ?? "planned"
-                      )}
-                    </span>
                     <h2>
                       {projectBoard.project.name ??
                         projectBoard.project.title ??
