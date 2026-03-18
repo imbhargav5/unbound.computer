@@ -978,7 +978,7 @@ p {
   position: absolute;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 80px;
 }
 
 .project-kanban-board {
@@ -1392,10 +1392,6 @@ p {
   color: #666670;
   font-size: 12px;
   text-align: center;
-}
-
-.project-kanban-column-empty .project-kanban-column-create {
-  display: flex;
 }
 
 .project-kanban-add-slot {
