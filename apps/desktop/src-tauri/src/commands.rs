@@ -20,8 +20,17 @@ pub struct DesktopState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+pub struct SavedDashboardProjectViewSettings {
+    pub id: String,
+    pub name: Option<String>,
+    pub group_by: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct DashboardProjectViewSettings {
     pub group_by: Option<String>,
+    pub saved_views: Option<Vec<SavedDashboardProjectViewSettings>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
