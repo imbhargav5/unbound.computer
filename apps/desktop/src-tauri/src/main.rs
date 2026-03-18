@@ -66,6 +66,7 @@ fn main() {
             commands::board_get_agent_run,
             commands::board_list_agent_run_events,
             commands::board_read_agent_run_log,
+            commands::board_invoke_agent_run,
             commands::board_cancel_agent_run,
             commands::board_retry_agent_run,
             commands::board_resume_agent_run,

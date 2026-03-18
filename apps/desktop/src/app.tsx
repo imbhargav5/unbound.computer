@@ -28,6 +28,7 @@ import {
   boardDeleteProject,
   boardGetAgentRun,
   boardGetIssue,
+  boardInvokeAgentRun,
   boardListIssueAttachments,
   boardListAgentRunEvents,
   boardListAgentRuns,
@@ -2286,6 +2287,15 @@ export function App() {
     await refreshSelectedAgentRun(true);
   };
 
+  const handleInvokeSelectedAgentRun = async () => {
+    if (!selectedAgent) {
+      return;
+    }
+
+    setAgentsRouteMode("runs");
+    await performAgentRunAction(() => boardInvokeAgentRun(selectedAgent.id));
+  };
+
   const handleSelectAgentRun = (runId: string) => {
     setSelectedAgentRunId(runId);
   };
@@ -3811,6 +3821,7 @@ export function App() {
                 onConfigurationEnvVarChange={handleAgentConfigEnvVarChange}
                 onRemoveEnvVar={handleRemoveAgentConfigEnvVar}
                 onRefreshRuns={() => void handleRefreshAgentRuns()}
+                onRunHeartbeat={() => void handleInvokeSelectedAgentRun()}
                 onResumeSelectedRun={() => void handleResumeSelectedAgentRun()}
                 onRetrySelectedRun={() => void handleRetrySelectedAgentRun()}
                 onSaveConfiguration={() => void handleSaveAgentConfiguration()}
@@ -5311,6 +5322,7 @@ function AgentsRouteView({
   onConfigurationEnvVarChange,
   onRemoveEnvVar,
   onRefreshRuns,
+  onRunHeartbeat,
   onResumeSelectedRun,
   onRetrySelectedRun,
   onSaveConfiguration,
@@ -5342,6 +5354,7 @@ function AgentsRouteView({
   ) => void;
   onRemoveEnvVar: (envId: string) => void;
   onRefreshRuns: () => void;
+  onRunHeartbeat: () => void;
   onResumeSelectedRun: () => void;
   onRetrySelectedRun: () => void;
   onSaveConfiguration: () => void;
@@ -5400,6 +5413,7 @@ function AgentsRouteView({
                   <AgentHeaderActionChip
                     icon={<AgentHeaderPlayIcon />}
                     label="Run Heartbeat"
+                    onClick={onRunHeartbeat}
                   />
                   <AgentHeaderActionChip
                     icon={<AgentHeaderPauseIcon />}
@@ -6458,10 +6472,23 @@ function RunStatusBadge({ status }: { status: string }) {
 function AgentHeaderActionChip({
   icon,
   label,
+  onClick,
 }: {
   icon: ReactNode;
   label: string;
+  onClick?: () => void;
 }) {
+  if (onClick) {
+    return (
+      <button className="agent-page-header-action-chip" onClick={onClick} type="button">
+        <span aria-hidden="true" className="agent-page-header-action-icon">
+          {icon}
+        </span>
+        <span>{label}</span>
+      </button>
+    );
+  }
+
   return (
     <span className="agent-page-header-action-chip">
       <span aria-hidden="true" className="agent-page-header-action-icon">

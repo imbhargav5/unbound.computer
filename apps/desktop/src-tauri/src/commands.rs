@@ -379,6 +379,24 @@ pub async fn board_read_agent_run_log(
 }
 
 #[tauri::command]
+pub async fn board_invoke_agent_run(
+    agent_id: String,
+    issue_id: Option<String>,
+    prompt: Option<String>,
+) -> Result<Value, String> {
+    let value = call_daemon(
+        Method::AgentRunInvoke,
+        Some(json!({
+            "agent_id": agent_id,
+            "issue_id": issue_id,
+            "prompt": prompt,
+        })),
+    )
+    .await?;
+    Ok(extract_field(value, "run"))
+}
+
+#[tauri::command]
 pub async fn board_cancel_agent_run(run_id: String) -> Result<Value, String> {
     let value = call_daemon(Method::AgentRunCancel, Some(json!({ "run_id": run_id }))).await?;
     Ok(extract_field(value, "run"))

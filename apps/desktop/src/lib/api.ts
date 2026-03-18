@@ -145,6 +145,17 @@ export const boardReadAgentRunLog = (
     limitBytes,
   });
 
+export const boardInvokeAgentRun = (
+  agentId: string,
+  issueId?: string,
+  prompt?: string
+) =>
+  invokeCommand<AgentRunRecord>("board_invoke_agent_run", {
+    agentId,
+    issueId,
+    prompt,
+  });
+
 export const boardCancelAgentRun = (runId: string) =>
   invokeCommand<AgentRunRecord>("board_cancel_agent_run", {
     runId,
