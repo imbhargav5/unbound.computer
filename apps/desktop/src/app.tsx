@@ -5563,42 +5563,54 @@ function AgentConfigurationTab({
           <h3>Identity</h3>
         </div>
         <div className="agent-config-grid">
-          <label className="form-field">
-            <span>Name</span>
+          <AgentConfigField htmlFor="agent-config-name" label="Name">
             <input
+              className="issue-dialog-input"
+              id="agent-config-name"
               onChange={(event) => onDraftChange({ name: event.target.value })}
               placeholder="CEO"
               value={draft.name}
             />
-          </label>
-          <label className="form-field">
-            <span>Title</span>
+          </AgentConfigField>
+          <AgentConfigField htmlFor="agent-config-title" label="Title">
             <input
+              className="issue-dialog-input"
+              id="agent-config-title"
               onChange={(event) => onDraftChange({ title: event.target.value })}
               placeholder="VP of Engineering"
               value={draft.title}
             />
-          </label>
-          <label className="form-field agent-config-field-full">
-            <span>Capabilities</span>
+          </AgentConfigField>
+          <AgentConfigField
+            fullWidth
+            htmlFor="agent-config-capabilities"
+            label="Capabilities"
+          >
             <textarea
+              className="issue-dialog-input issue-dialog-textarea"
+              id="agent-config-capabilities"
               onChange={(event) =>
                 onDraftChange({ capabilities: event.target.value })
               }
               placeholder="Describe what this agent can do…"
               value={draft.capabilities}
             />
-          </label>
-          <label className="form-field agent-config-field-full">
-            <span>Prompt template</span>
+          </AgentConfigField>
+          <AgentConfigField
+            fullWidth
+            htmlFor="agent-config-prompt-template"
+            label="Prompt template"
+          >
             <textarea
+              className="issue-dialog-input issue-dialog-textarea"
+              id="agent-config-prompt-template"
               onChange={(event) =>
                 onDraftChange({ promptTemplate: event.target.value })
               }
               placeholder="You are agent {{ agent.name }}. Your role is {{ agent.role }}…"
               value={draft.promptTemplate}
             />
-          </label>
+          </AgentConfigField>
         </div>
       </section>
 
@@ -5607,12 +5619,14 @@ function AgentConfigurationTab({
           <h3>Adapter</h3>
         </div>
         <div className="agent-config-grid">
-          <label className="form-field">
-            <span>Adapter type</span>
-            <select
-              onChange={(event) =>
-                onDraftChange({ adapterType: event.target.value })
-              }
+          <AgentConfigField
+            htmlFor="agent-config-adapter-type"
+            label="Adapter type"
+          >
+            <AgentConfigSelect
+              ariaLabel="Adapter type"
+              id="agent-config-adapter-type"
+              onChange={(value) => onDraftChange({ adapterType: value })}
               value={draft.adapterType}
             >
               {adapterTypeOptions.map((option) => (
@@ -5620,48 +5634,28 @@ function AgentConfigurationTab({
                   {agentAdapterTypeLabel(option)}
                 </option>
               ))}
-            </select>
-          </label>
+            </AgentConfigSelect>
+          </AgentConfigField>
 
-          <label className="form-field agent-config-field-full">
-            <span>Working directory</span>
-            <div className="agent-config-path-row">
-              <input
-                onChange={(event) =>
-                  onDraftChange({ workingDirectory: event.target.value })
-                }
-                placeholder="/Users/you/agents/ceo"
-                value={draft.workingDirectory}
-              />
-              <button
-                className="secondary-button compact-button"
-                onClick={onChooseWorkingDirectory}
-                type="button"
-              >
-                Choose
-              </button>
-            </div>
-          </label>
+          <AgentConfigPathField
+            fullWidth
+            htmlFor="agent-config-working-directory"
+            label="Working directory"
+            onChange={(value) => onDraftChange({ workingDirectory: value })}
+            onChoose={onChooseWorkingDirectory}
+            placeholder="/Users/you/agents/ceo"
+            value={draft.workingDirectory}
+          />
 
-          <label className="form-field agent-config-field-full">
-            <span>Agent instructions file</span>
-            <div className="agent-config-path-row">
-              <input
-                onChange={(event) =>
-                  onDraftChange({ instructionsPath: event.target.value })
-                }
-                placeholder="/Users/you/agents/ceo/AGENTS.md"
-                value={draft.instructionsPath}
-              />
-              <button
-                className="secondary-button compact-button"
-                onClick={onChooseInstructionsFile}
-                type="button"
-              >
-                Choose
-              </button>
-            </div>
-          </label>
+          <AgentConfigPathField
+            fullWidth
+            htmlFor="agent-config-instructions-path"
+            label="Agent instructions file"
+            onChange={(value) => onDraftChange({ instructionsPath: value })}
+            onChoose={onChooseInstructionsFile}
+            placeholder="/Users/you/agents/ceo/AGENTS.md"
+            value={draft.instructionsPath}
+          />
         </div>
       </section>
 
@@ -5670,20 +5664,22 @@ function AgentConfigurationTab({
           <h3>Permissions &amp; configuration</h3>
         </div>
         <div className="agent-config-grid">
-          <label className="form-field">
-            <span>Command</span>
+          <AgentConfigField htmlFor="agent-config-command" label="Command">
             <input
+              className="issue-dialog-input"
+              id="agent-config-command"
               onChange={(event) =>
                 onDraftChange({ command: event.target.value })
               }
               placeholder="claude"
               value={draft.command}
             />
-          </label>
-          <label className="form-field">
-            <span>Model</span>
-            <select
-              onChange={(event) => onDraftChange({ model: event.target.value })}
+          </AgentConfigField>
+          <AgentConfigField htmlFor="agent-config-model" label="Model">
+            <AgentConfigSelect
+              ariaLabel="Model"
+              id="agent-config-model"
+              onChange={(value) => onDraftChange({ model: value })}
               value={draft.model}
             >
               {modelOptions.map((option) => (
@@ -5691,14 +5687,16 @@ function AgentConfigurationTab({
                   {option === "default" ? "Default" : option}
                 </option>
               ))}
-            </select>
-          </label>
-          <label className="form-field">
-            <span>Thinking effort</span>
-            <select
-              onChange={(event) =>
-                onDraftChange({ thinkingEffort: event.target.value })
-              }
+            </AgentConfigSelect>
+          </AgentConfigField>
+          <AgentConfigField
+            htmlFor="agent-config-thinking-effort"
+            label="Thinking effort"
+          >
+            <AgentConfigSelect
+              ariaLabel="Thinking effort"
+              id="agent-config-thinking-effort"
+              onChange={(value) => onDraftChange({ thinkingEffort: value })}
               value={draft.thinkingEffort}
             >
               {thinkingEffortOptions.map((option) => (
@@ -5706,18 +5704,23 @@ function AgentConfigurationTab({
                   {capitalize(option)}
                 </option>
               ))}
-            </select>
-          </label>
-          <label className="form-field agent-config-field-full">
-            <span>Bootstrap prompt (first run)</span>
+            </AgentConfigSelect>
+          </AgentConfigField>
+          <AgentConfigField
+            fullWidth
+            htmlFor="agent-config-bootstrap-prompt"
+            label="Bootstrap prompt (first run)"
+          >
             <textarea
+              className="issue-dialog-input issue-dialog-textarea"
+              id="agent-config-bootstrap-prompt"
               onChange={(event) =>
                 onDraftChange({ bootstrapPrompt: event.target.value })
               }
               placeholder="Optional initial setup prompt for the first run"
               value={draft.bootstrapPrompt}
             />
-          </label>
+          </AgentConfigField>
 
           <div className="agent-config-toggle-grid agent-config-field-full">
             <AgentConfigToggleField
@@ -5736,9 +5739,13 @@ function AgentConfigurationTab({
             />
           </div>
 
-          <label className="form-field">
-            <span>Monthly budget (USD)</span>
+          <AgentConfigField
+            htmlFor="agent-config-monthly-budget"
+            label="Monthly budget (USD)"
+          >
             <input
+              className="issue-dialog-input"
+              id="agent-config-monthly-budget"
               inputMode="decimal"
               onChange={(event) =>
                 onDraftChange({ monthlyBudget: event.target.value })
@@ -5746,10 +5753,14 @@ function AgentConfigurationTab({
               placeholder="0"
               value={draft.monthlyBudget}
             />
-          </label>
-          <label className="form-field">
-            <span>Max turns per run</span>
+          </AgentConfigField>
+          <AgentConfigField
+            htmlFor="agent-config-max-turns"
+            label="Max turns per run"
+          >
             <input
+              className="issue-dialog-input"
+              id="agent-config-max-turns"
               inputMode="numeric"
               onChange={(event) =>
                 onDraftChange({ maxTurns: event.target.value })
@@ -5757,28 +5768,29 @@ function AgentConfigurationTab({
               placeholder="80"
               value={draft.maxTurns}
             />
-          </label>
-          <label className="form-field agent-config-field-full">
-            <span>Extra args (comma-separated)</span>
+          </AgentConfigField>
+          <AgentConfigField
+            fullWidth
+            htmlFor="agent-config-extra-args"
+            label="Extra args (comma-separated)"
+          >
             <input
+              className="issue-dialog-input"
+              id="agent-config-extra-args"
               onChange={(event) =>
                 onDraftChange({ extraArgs: event.target.value })
               }
               placeholder="--verbose, --foo=bar"
               value={draft.extraArgs}
             />
-          </label>
+          </AgentConfigField>
 
           <div className="agent-config-field-full agent-config-env-section">
             <div className="surface-header">
               <h3>Environment variables</h3>
-              <button
-                className="secondary-button compact-button"
-                onClick={onAddEnvVar}
-                type="button"
-              >
+              <AgentConfigInlineButton onClick={onAddEnvVar}>
                 Add variable
-              </button>
+              </AgentConfigInlineButton>
             </div>
 
             {draft.envVars.length ? (
@@ -5786,37 +5798,41 @@ function AgentConfigurationTab({
                 {draft.envVars.map((envVar) => (
                   <div className="agent-config-env-row" key={envVar.id}>
                     <input
+                      aria-label="Environment variable key"
+                      className="issue-dialog-input"
                       onChange={(event) =>
                         onEnvVarChange(envVar.id, { key: event.target.value })
                       }
                       placeholder="KEY"
                       value={envVar.key}
                     />
-                    <select
-                      onChange={(event) =>
+                    <AgentConfigSelect
+                      ariaLabel="Environment variable mode"
+                      onChange={(value) =>
                         onEnvVarChange(envVar.id, {
-                          mode: event.target.value as "plain" | "secret",
+                          mode: value as "plain" | "secret",
                         })
                       }
                       value={envVar.mode}
                     >
                       <option value="plain">Plain</option>
                       <option value="secret">Secret</option>
-                    </select>
+                    </AgentConfigSelect>
                     <input
+                      aria-label="Environment variable value"
+                      className="issue-dialog-input"
                       onChange={(event) =>
                         onEnvVarChange(envVar.id, { value: event.target.value })
                       }
                       placeholder="value"
                       value={envVar.value}
                     />
-                    <button
-                      className="secondary-button compact-button"
+                    <AgentConfigInlineButton
+                      destructive
                       onClick={() => onRemoveEnvVar(envVar.id)}
-                      type="button"
                     >
                       Remove
-                    </button>
+                    </AgentConfigInlineButton>
                   </div>
                 ))}
               </div>
@@ -5827,9 +5843,13 @@ function AgentConfigurationTab({
             )}
           </div>
 
-          <label className="form-field">
-            <span>Timeout (sec)</span>
+          <AgentConfigField
+            htmlFor="agent-config-timeout"
+            label="Timeout (sec)"
+          >
             <input
+              className="issue-dialog-input"
+              id="agent-config-timeout"
               inputMode="numeric"
               onChange={(event) =>
                 onDraftChange({ timeoutSec: event.target.value })
@@ -5837,10 +5857,14 @@ function AgentConfigurationTab({
               placeholder="0"
               value={draft.timeoutSec}
             />
-          </label>
-          <label className="form-field">
-            <span>Interrupt grace period (sec)</span>
+          </AgentConfigField>
+          <AgentConfigField
+            htmlFor="agent-config-interrupt-grace"
+            label="Interrupt grace period (sec)"
+          >
             <input
+              className="issue-dialog-input"
+              id="agent-config-interrupt-grace"
               inputMode="numeric"
               onChange={(event) =>
                 onDraftChange({ interruptGraceSec: event.target.value })
@@ -5848,7 +5872,7 @@ function AgentConfigurationTab({
               placeholder="15"
               value={draft.interruptGraceSec}
             />
-          </label>
+          </AgentConfigField>
         </div>
       </section>
 
@@ -5869,9 +5893,13 @@ function AgentConfigurationTab({
             label="Wake on demand"
             onChange={(checked) => onDraftChange({ wakeOnDemand: checked })}
           />
-          <label className="form-field">
-            <span>Run heartbeat every (sec)</span>
+          <AgentConfigField
+            htmlFor="agent-config-heartbeat-interval"
+            label="Run heartbeat every (sec)"
+          >
             <input
+              className="issue-dialog-input"
+              id="agent-config-heartbeat-interval"
               inputMode="numeric"
               onChange={(event) =>
                 onDraftChange({ heartbeatIntervalSec: event.target.value })
@@ -5879,10 +5907,14 @@ function AgentConfigurationTab({
               placeholder="3600"
               value={draft.heartbeatIntervalSec}
             />
-          </label>
-          <label className="form-field">
-            <span>Cooldown (sec)</span>
+          </AgentConfigField>
+          <AgentConfigField
+            htmlFor="agent-config-heartbeat-cooldown"
+            label="Cooldown (sec)"
+          >
             <input
+              className="issue-dialog-input"
+              id="agent-config-heartbeat-cooldown"
               inputMode="numeric"
               onChange={(event) =>
                 onDraftChange({ heartbeatCooldownSec: event.target.value })
@@ -5890,10 +5922,14 @@ function AgentConfigurationTab({
               placeholder="10"
               value={draft.heartbeatCooldownSec}
             />
-          </label>
-          <label className="form-field">
-            <span>Max concurrent runs</span>
+          </AgentConfigField>
+          <AgentConfigField
+            htmlFor="agent-config-max-concurrent-runs"
+            label="Max concurrent runs"
+          >
             <input
+              className="issue-dialog-input"
+              id="agent-config-max-concurrent-runs"
               inputMode="numeric"
               onChange={(event) =>
                 onDraftChange({ maxConcurrentRuns: event.target.value })
@@ -5901,7 +5937,7 @@ function AgentConfigurationTab({
               placeholder="1"
               value={draft.maxConcurrentRuns}
             />
-          </label>
+          </AgentConfigField>
         </div>
       </section>
 
@@ -5917,6 +5953,121 @@ function AgentConfigurationTab({
         />
       </section>
     </form>
+  );
+}
+
+function AgentConfigField({
+  children,
+  fullWidth = false,
+  htmlFor,
+  label,
+}: {
+  children: ReactNode;
+  fullWidth?: boolean;
+  htmlFor?: string;
+  label: string;
+}) {
+  return (
+    <div
+      className={
+        fullWidth ? "issue-dialog-field agent-config-field-full" : "issue-dialog-field"
+      }
+    >
+      <label className="issue-dialog-label" htmlFor={htmlFor}>
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function AgentConfigSelect({
+  ariaLabel,
+  children,
+  id,
+  onChange,
+  value,
+}: {
+  ariaLabel: string;
+  children: ReactNode;
+  id?: string;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  return (
+    <div className="issue-dialog-select-shell agent-config-select-shell">
+      <select
+        aria-label={ariaLabel}
+        className="issue-dialog-select"
+        id={id}
+        onChange={(event) => onChange(event.target.value)}
+        value={value}
+      >
+        {children}
+      </select>
+      <span aria-hidden="true" className="issue-dialog-select-arrow">
+        ▼
+      </span>
+    </div>
+  );
+}
+
+function AgentConfigInlineButton({
+  children,
+  destructive = false,
+  onClick,
+  type = "button",
+}: {
+  children: ReactNode;
+  destructive?: boolean;
+  onClick: () => void;
+  type?: "button" | "submit";
+}) {
+  return (
+    <button
+      className={
+        destructive
+          ? "agent-config-inline-button destructive"
+          : "agent-config-inline-button"
+      }
+      onClick={onClick}
+      type={type}
+    >
+      {children}
+    </button>
+  );
+}
+
+function AgentConfigPathField({
+  fullWidth = false,
+  htmlFor,
+  label,
+  onChange,
+  onChoose,
+  placeholder,
+  value,
+}: {
+  fullWidth?: boolean;
+  htmlFor: string;
+  label: string;
+  onChange: (value: string) => void;
+  onChoose: () => void;
+  placeholder: string;
+  value: string;
+}) {
+  return (
+    <AgentConfigField fullWidth={fullWidth} htmlFor={htmlFor} label={label}>
+      <div className="agent-config-picker-shell">
+        <input
+          className="issue-dialog-input agent-config-picker-input"
+          id={htmlFor}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          value={value}
+        />
+        <AgentConfigInlineButton onClick={onChoose}>Choose</AgentConfigInlineButton>
+      </div>
+    </AgentConfigField>
   );
 }
 
