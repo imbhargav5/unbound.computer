@@ -3226,6 +3226,27 @@ p {
   background: #0d0d0f;
 }
 
+.agent-detail-route {
+  background: #0d0d0f;
+}
+
+.agent-detail-layout {
+  width: min(100%, 680px);
+  min-width: 0;
+  display: grid;
+  gap: 24px;
+}
+
+.agent-detail-content {
+  min-width: 0;
+  display: grid;
+  gap: 18px;
+}
+
+.agent-detail-empty-state {
+  color: #8a8a8a;
+}
+
 .issues-detail-layout {
   position: relative;
   display: flex;

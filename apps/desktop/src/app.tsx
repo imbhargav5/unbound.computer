@@ -878,10 +878,7 @@ export function App() {
   );
   const issueStatusOptions = useMemo(
     () =>
-      mergeIssueOptions(
-        ["todo", "backlog", "in_progress", "blocked", "done", "cancelled"],
-        issueDraft.status
-      ),
+      mergeIssueOptions(canonicalIssueStatuses, issueDraft.status),
     [issueDraft.status]
   );
   const issuePriorityOptions = useMemo(
@@ -4760,10 +4757,7 @@ export function App() {
           selectedPriority={issueDialogPriority}
           selectedProjectId={issueDialogProjectId}
           selectedStatus={issueDialogStatus}
-          statuses={mergeIssueOptions(
-            ["todo", "backlog", "in_progress", "blocked", "done", "cancelled"],
-            issueDialogStatus
-          )}
+          statuses={mergeIssueOptions(canonicalIssueStatuses, issueDialogStatus)}
           selectedWorkspaceTargetValue={issueWorkspaceTargetSelectValue(
             issueDialogWorkspaceTargetMode,
             issueDialogWorkspaceWorktreePath
@@ -5178,144 +5172,147 @@ function AgentsRouteView({
   ).toLowerCase();
 
   return (
-    <section className="route-scroll">
-      <div className="route-header compact">
-        <DashboardBreadcrumbs
-          items={
-            selectedAgent
-              ? [{ label: "Agents" }, { label: selectedAgent.name || "Agent" }]
-              : [{ label: "Agents" }]
-          }
-        />
-        <span className="route-kicker">Agents</span>
-        <h1>{selectedAgent?.name ?? "Agents"}</h1>
-        <p>
-          Review the selected agent, adjust its configuration, and inspect its
-          run history from one shared worktree.
-        </p>
-      </div>
+    <section className="route-scroll agent-detail-route">
+      <div className="agent-detail-layout">
+        <div className="route-header compact">
+          <DashboardBreadcrumbs
+            items={
+              selectedAgent
+                ? [
+                    { label: "Agents" },
+                    { label: selectedAgent.name || "Agent" },
+                  ]
+                : [{ label: "Agents" }]
+            }
+          />
+          <span className="route-kicker">Agents</span>
+          <h1>{selectedAgent?.name ?? "Agents"}</h1>
+          <p>
+            Review the selected agent, adjust its configuration, and inspect
+            its run history from one shared worktree.
+          </p>
+        </div>
 
-      <div className="surface-grid single">
-        <section className="surface-panel">
-          {selectedAgent ? (
-            <>
-              <div className="agent-page-header">
-                <div className="agent-page-header-main">
-                  <div className="agent-page-header-identity">
-                    <div aria-hidden="true" className="agent-page-header-icon">
-                      <AgentHeaderBotIcon />
-                    </div>
-
-                    <div className="agent-page-header-copy">
-                      <h2>{selectedAgent.name}</h2>
-                      <p>{agentHeaderSubtitle}</p>
-                    </div>
+        {selectedAgent ? (
+          <div className="agent-detail-content">
+            <div className="agent-page-header">
+              <div className="agent-page-header-main">
+                <div className="agent-page-header-identity">
+                  <div aria-hidden="true" className="agent-page-header-icon">
+                    <AgentHeaderBotIcon />
                   </div>
 
-                  <div className="agent-page-header-actions">
-                    <AgentHeaderActionChip
-                      icon={<AgentHeaderPlusIcon />}
-                      label="Assign Task"
-                    />
-                    <AgentHeaderActionChip
-                      icon={<AgentHeaderPlayIcon />}
-                      label="Run Heartbeat"
-                    />
-                    <AgentHeaderActionChip
-                      icon={<AgentHeaderPauseIcon />}
-                      label="Pause"
-                    />
-                    <span
-                      className={`agent-run-status-badge agent-page-header-status ${normalizeAgentStatusTone(
-                        selectedAgent.status
-                      )}`}
-                    >
-                      {agentHeaderStatusLabel}
-                    </span>
-                    <span
-                      aria-hidden="true"
-                      className="agent-page-header-icon-chip"
-                    >
-                      <EllipsisHorizontalIcon />
-                    </span>
+                  <div className="agent-page-header-copy">
+                    <h2>{selectedAgent.name}</h2>
+                    <p>{agentHeaderSubtitle}</p>
                   </div>
                 </div>
-              </div>
 
-              <div
-                className="agents-tab-strip"
-                role="tablist"
-                aria-label="Agent views"
-              >
-                {(
-                  [
-                    ["dashboard", "Dashboard"],
-                    ["configuration", "Configuration"],
-                    ["runs", "Runs"],
-                  ] as const
-                ).map(([tabId, label]) => (
-                  <button
-                    aria-selected={mode === tabId}
-                    className={
-                      mode === tabId
-                        ? "agents-tab-button active"
-                        : "agents-tab-button"
-                    }
-                    key={tabId}
-                    onClick={() => onSelectTab(tabId)}
-                    role="tab"
-                    type="button"
+                <div className="agent-page-header-actions">
+                  <AgentHeaderActionChip
+                    icon={<AgentHeaderPlusIcon />}
+                    label="Assign Task"
+                  />
+                  <AgentHeaderActionChip
+                    icon={<AgentHeaderPlayIcon />}
+                    label="Run Heartbeat"
+                  />
+                  <AgentHeaderActionChip
+                    icon={<AgentHeaderPauseIcon />}
+                    label="Pause"
+                  />
+                  <span
+                    className={`agent-run-status-badge agent-page-header-status ${normalizeAgentStatusTone(
+                      selectedAgent.status
+                    )}`}
                   >
-                    {label}
-                  </button>
-                ))}
+                    {agentHeaderStatusLabel}
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    className="agent-page-header-icon-chip"
+                  >
+                    <EllipsisHorizontalIcon />
+                  </span>
+                </div>
               </div>
+            </div>
 
-              {mode === "dashboard" ? (
-                <AgentDashboardTab
-                  agent={selectedAgent}
-                  companyName={companyName}
-                />
-              ) : null}
+            <div
+              className="agents-tab-strip"
+              role="tablist"
+              aria-label="Agent views"
+            >
+              {(
+                [
+                  ["dashboard", "Dashboard"],
+                  ["configuration", "Configuration"],
+                  ["runs", "Runs"],
+                ] as const
+              ).map(([tabId, label]) => (
+                <button
+                  aria-selected={mode === tabId}
+                  className={
+                    mode === tabId
+                      ? "agents-tab-button active"
+                      : "agents-tab-button"
+                  }
+                  key={tabId}
+                  onClick={() => onSelectTab(tabId)}
+                  role="tab"
+                  type="button"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
 
-              {mode === "configuration" ? (
-                <AgentConfigurationTab
-                  draft={configurationDraft}
-                  errorMessage={configurationError}
-                  isSaving={isSavingConfiguration}
-                  onAddEnvVar={onAddEnvVar}
-                  onChooseInstructionsFile={onChooseInstructionsFile}
-                  onChooseWorkingDirectory={onChooseWorkingDirectory}
-                  onDraftChange={onConfigurationDraftChange}
-                  onEnvVarChange={onConfigurationEnvVarChange}
-                  onRemoveEnvVar={onRemoveEnvVar}
-                  onSave={onSaveConfiguration}
-                />
-              ) : null}
+            {mode === "dashboard" ? (
+              <AgentDashboardTab
+                agent={selectedAgent}
+                companyName={companyName}
+              />
+            ) : null}
 
-              {mode === "runs" ? (
-                <AgentRunsTabPanel
-                  agentRunError={agentRunError}
-                  agentRunEvents={agentRunEvents}
-                  agentRunLogContent={agentRunLogContent}
-                  agentRuns={agentRuns}
-                  isLoadingAgentRunDetail={isLoadingAgentRunDetail}
-                  isLoadingAgentRuns={isLoadingAgentRuns}
-                  isPerformingAgentRunAction={isPerformingAgentRunAction}
-                  onCancelSelectedRun={onCancelSelectedRun}
-                  onRefreshRuns={onRefreshRuns}
-                  onResumeSelectedRun={onResumeSelectedRun}
-                  onRetrySelectedRun={onRetrySelectedRun}
-                  onSelectRun={onSelectRun}
-                  selectedAgent={selectedAgent}
-                  selectedRun={selectedRun}
-                />
-              ) : null}
-            </>
-          ) : (
-            <p>No agents are available for this company yet.</p>
-          )}
-        </section>
+            {mode === "configuration" ? (
+              <AgentConfigurationTab
+                draft={configurationDraft}
+                errorMessage={configurationError}
+                isSaving={isSavingConfiguration}
+                onAddEnvVar={onAddEnvVar}
+                onChooseInstructionsFile={onChooseInstructionsFile}
+                onChooseWorkingDirectory={onChooseWorkingDirectory}
+                onDraftChange={onConfigurationDraftChange}
+                onEnvVarChange={onConfigurationEnvVarChange}
+                onRemoveEnvVar={onRemoveEnvVar}
+                onSave={onSaveConfiguration}
+              />
+            ) : null}
+
+            {mode === "runs" ? (
+              <AgentRunsTabPanel
+                agentRunError={agentRunError}
+                agentRunEvents={agentRunEvents}
+                agentRunLogContent={agentRunLogContent}
+                agentRuns={agentRuns}
+                isLoadingAgentRunDetail={isLoadingAgentRunDetail}
+                isLoadingAgentRuns={isLoadingAgentRuns}
+                isPerformingAgentRunAction={isPerformingAgentRunAction}
+                onCancelSelectedRun={onCancelSelectedRun}
+                onRefreshRuns={onRefreshRuns}
+                onResumeSelectedRun={onResumeSelectedRun}
+                onRetrySelectedRun={onRetrySelectedRun}
+                onSelectRun={onSelectRun}
+                selectedAgent={selectedAgent}
+                selectedRun={selectedRun}
+              />
+            ) : null}
+          </div>
+        ) : (
+          <p className="agent-detail-empty-state">
+            No agents are available for this company yet.
+          </p>
+        )}
       </div>
     </section>
   );
@@ -10925,6 +10922,15 @@ function mergeIssueOptions(defaults: string[], selected: string) {
   return options;
 }
 
+const canonicalIssueStatuses = [
+  "backlog",
+  "blocked",
+  "todo",
+  "in_progress",
+  "done",
+  "cancelled",
+];
+
 function normalizeHexColor(
   value: string | null | undefined,
   fallback = defaultCompanyBrandColor
@@ -10954,7 +10960,12 @@ function normalizeBoardIssueValue(value: string | null | undefined) {
     return "backlog";
   }
 
-  return trimmed.toLowerCase().replaceAll(" ", "_");
+  const normalized = trimmed.toLowerCase().replaceAll(" ", "_");
+  if (normalized === "canceled") {
+    return "cancelled";
+  }
+
+  return normalized;
 }
 
 function normalizeDashboardProjectGrouping(
@@ -10971,14 +10982,7 @@ function normalizeDashboardProjectGrouping(
 }
 
 function projectBoardColumnStatuses(issues: IssueRecord[]) {
-  const statuses = [
-    "todo",
-    "in_progress",
-    "blocked",
-    "done",
-    "backlog",
-    "cancelled",
-  ];
+  const statuses = [...canonicalIssueStatuses];
   for (const issue of issues) {
     const normalizedStatus = normalizeBoardIssueValue(issue.status);
     if (!statuses.includes(normalizedStatus)) {
@@ -11008,7 +11012,7 @@ function projectBoardColumnsByStatus(
     issues: issues.filter(
       (issue) => normalizeBoardIssueValue(issue.status) === status
     ),
-    label: humanizeIssueValue(status),
+    label: issueStatusLabel(status),
   }));
 }
 
@@ -11174,6 +11178,19 @@ function humanizeIssueValue(value: string) {
   return value
     .replaceAll("_", " ")
     .replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
+function issueStatusLabel(value: string) {
+  switch (normalizeBoardIssueValue(value)) {
+    case "todo":
+      return "To Do";
+    case "in_progress":
+      return "In Progress";
+    case "cancelled":
+      return "Canceled";
+    default:
+      return humanizeIssueValue(value);
+  }
 }
 
 function issueProjectLabel(
