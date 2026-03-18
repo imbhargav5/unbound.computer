@@ -6928,7 +6928,6 @@ function DashboardCanvasRouteView({
                               </span>
                               <span className="project-kanban-column-create-copy">
                                 <strong>New issue</strong>
-                                <small>Add work directly to {column.label}</small>
                               </span>
                             </button>
                           );
