@@ -5175,24 +5175,16 @@ function AgentsRouteView({
   return (
     <section className="route-scroll agent-detail-route">
       <div className="agent-detail-layout">
-        <div className="route-header compact">
-          <DashboardBreadcrumbs
-            items={
-              selectedAgent
-                ? [
-                    { label: "Agents" },
-                    { label: selectedAgent.name || "Agent" },
-                  ]
-                : [{ label: "Agents" }]
-            }
-          />
-          <span className="route-kicker">Agents</span>
-          <h1>{selectedAgent?.name ?? "Agents"}</h1>
-          <p>
-            Review the selected agent, adjust its configuration, and inspect
-            its run history from one shared worktree.
-          </p>
-        </div>
+        <DashboardBreadcrumbs
+          items={
+            selectedAgent
+              ? [
+                  { label: "Agents" },
+                  { label: selectedAgent.name || "Agent" },
+                ]
+              : [{ label: "Agents" }]
+          }
+        />
 
         {selectedAgent ? (
           <div className="agent-detail-content">
@@ -5206,6 +5198,10 @@ function AgentsRouteView({
                   <div className="agent-page-header-copy">
                     <h2>{selectedAgent.name}</h2>
                     <p>{agentHeaderSubtitle}</p>
+                    <p>
+                      Review the selected agent, adjust its configuration, and
+                      inspect its run history from one shared worktree.
+                    </p>
                   </div>
                 </div>
 
