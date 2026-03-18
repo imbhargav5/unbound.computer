@@ -4931,14 +4931,6 @@ function OrgRouteView({
   const managersCount = flattenedHierarchy.filter(
     (node) => node.reports.length > 0
   ).length;
-  const leadAssignments = useMemo(
-    () => buildProjectLeadAssignments(agents, projects),
-    [agents, projects]
-  );
-  const projectsWithoutLead = useMemo(
-    () => projects.filter((project) => !project.lead_agent_id),
-    [projects]
-  );
   const ceo = useMemo(
     () => findCompanyCeo(agents, ceoAgentId),
     [agents, ceoAgentId]
@@ -4951,8 +4943,8 @@ function OrgRouteView({
         <span className="route-kicker">Agent org</span>
         <h1>{company?.name ? `${company.name} agent org` : "Agent org"}</h1>
         <p>
-          See the agent reporting hierarchy, which agents lead projects, and
-          how work is distributed across the company.
+          See the reporting hierarchy for agents across the company and jump
+          into any agent to inspect its configuration and runs.
         </p>
       </div>
 
@@ -4960,10 +4952,6 @@ function OrgRouteView({
         <SummaryPill label="CEO" value={ceo?.name ?? "Unassigned"} />
         <SummaryPill label="Agents" value={String(agents.length)} />
         <SummaryPill label="Managers" value={String(managersCount)} />
-        <SummaryPill
-          label="Project Leads"
-          value={String(leadAssignments.length)}
-        />
       </div>
 
       <div className="surface-grid single">
@@ -4996,88 +4984,6 @@ function OrgRouteView({
           ) : (
             <p className="surface-empty-copy">
               No agents yet. Create agents to build the org chart.
-            </p>
-          )}
-        </section>
-      </div>
-
-      <div className="surface-grid">
-        <section className="surface-panel wide">
-          <div className="surface-header">
-            <div>
-              <h3>Leadership</h3>
-              <p>Which agents own projects and where lead coverage is missing.</p>
-            </div>
-          </div>
-
-          {leadAssignments.length ? (
-            <div className="surface-list">
-              {leadAssignments.map(({ agent, projects: ownedProjects }) => (
-                <button
-                  className={
-                    selectedAgentId === agent.id
-                      ? "org-lead-button active"
-                      : "org-lead-button"
-                  }
-                  key={agent.id}
-                  onClick={() => onSelectAgent(agent.id)}
-                  type="button"
-                >
-                  <div className="org-lead-button-head">
-                    <div className="org-lead-button-copy">
-                      <strong>{agent.name}</strong>
-                      <span>
-                        {agent.title ??
-                          humanizeIssueValue(String(agent.role ?? "agent"))}
-                      </span>
-                    </div>
-                    <span className="org-chip accent">
-                      {ownedProjects.length}{" "}
-                      {ownedProjects.length === 1 ? "project" : "projects"}
-                    </span>
-                  </div>
-                  <div className="org-lead-projects">
-                    {ownedProjects.slice(0, 3).map((project) => (
-                      <span className="org-project-chip" key={project.id}>
-                        {project.name}
-                      </span>
-                    ))}
-                    {ownedProjects.length > 3 ? (
-                      <span className="org-project-chip">
-                        +{ownedProjects.length - 3} more
-                      </span>
-                    ) : null}
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p className="surface-empty-copy">
-              No projects have a lead assigned yet.
-            </p>
-          )}
-        </section>
-
-        <section className="surface-panel">
-          <div className="surface-header">
-            <h3>Projects without a lead</h3>
-            <span>{projectsWithoutLead.length}</span>
-          </div>
-          {projectsWithoutLead.length ? (
-            <div className="org-project-gap-list">
-              {projectsWithoutLead.map((project) => (
-                <div className="surface-list-row" key={project.id}>
-                  <div>
-                    <strong>{project.name}</strong>
-                    <span>{humanizeIssueValue(project.status)}</span>
-                  </div>
-                  <span>Assign lead</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="surface-empty-copy">
-              Every project currently has a lead.
             </p>
           )}
         </section>
