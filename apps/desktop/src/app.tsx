@@ -486,7 +486,7 @@ function issueWorkspaceTargetHint({
     return `${worktreeCount} existing ${worktreeCount === 1 ? "worktree is" : "worktrees are"} available to reuse.`;
   }
 
-  return "Run in the main worktree or create a fresh git worktree for this issue.";
+  return "Run in the repo root or create a fresh git worktree for this issue.";
 }
 
 const primaryBoardSections: Array<{ title: string; screens: AppScreen[] }> = [
@@ -7663,7 +7663,7 @@ function IssueDetailView({
                     }
                     value={selectedWorkspaceTargetValue}
                   >
-                    <option value="main">Main worktree</option>
+                    <option value="main">Repo root</option>
                     <option value="new_worktree">New git worktree</option>
                     {workspaceTargetWorktrees.map((worktree) => (
                       <option
@@ -9434,7 +9434,7 @@ function CreateIssueDialogView({
                     onChange={onWorkspaceTargetChange}
                     value={issueWorkspaceTargetValue}
                   >
-                    <option value="main">Main worktree</option>
+                    <option value="main">Repo root</option>
                     <option
                       disabled={!selectedProjectRepoPath}
                       value="new_worktree"
