@@ -683,7 +683,8 @@ pub async fn git_worktrees(
     if let Some(path) = path {
         params["path"] = json!(path);
     }
-    call_daemon(Method::GitWorktrees, Some(params)).await
+    let value = call_daemon(Method::GitWorktrees, Some(params)).await?;
+    Ok(extract_field(value, "worktrees"))
 }
 
 #[tauri::command]

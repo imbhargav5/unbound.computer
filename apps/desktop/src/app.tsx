@@ -272,6 +272,24 @@ interface DashboardBreadcrumbItem {
   onClick?: () => void;
 }
 
+function normalizeGitWorktreeRecords(value: unknown): GitWorktreeRecord[] {
+  if (Array.isArray(value)) {
+    return value.filter(
+      (entry): entry is GitWorktreeRecord =>
+        Boolean(entry) &&
+        typeof entry === "object" &&
+        typeof (entry as GitWorktreeRecord).path === "string" &&
+        typeof (entry as GitWorktreeRecord).name === "string"
+    );
+  }
+
+  if (value && typeof value === "object" && Array.isArray((value as { worktrees?: unknown }).worktrees)) {
+    return normalizeGitWorktreeRecords((value as { worktrees: unknown }).worktrees);
+  }
+
+  return [];
+}
+
 function useProjectWorktrees(repoPath: string | null): ProjectWorktreeState {
   const [worktrees, setWorktrees] = useState<GitWorktreeRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -294,7 +312,7 @@ function useProjectWorktrees(repoPath: string | null): ProjectWorktreeState {
         if (cancelled) {
           return;
         }
-        setWorktrees(nextWorktrees);
+        setWorktrees(normalizeGitWorktreeRecords(nextWorktrees));
       })
       .catch((error) => {
         if (cancelled) {
@@ -473,13 +491,12 @@ function issueWorkspaceTargetHint({
 
 const primaryBoardSections: Array<{ title: string; screens: AppScreen[] }> = [
   { title: "Work", screens: ["issues", "approvals", "workspaces"] },
-  { title: "People", screens: ["org"] },
   { title: "Planning", screens: ["goals"] },
 ];
 
 const companyBoardSection: { title: string; screens: AppScreen[] } = {
   title: "Company",
-  screens: ["stats", "activity", "costs", "companySettings"],
+  screens: ["org", "stats", "activity", "costs", "companySettings"],
 };
 
 const settingsSections: Array<{ id: SettingsSection; label: string }> = [
@@ -4845,8 +4862,8 @@ function OrgRouteView({
         <span className="route-kicker">Org</span>
         <h1>{company?.name ? `${company.name} org` : "Org"}</h1>
         <p>
-          See the reporting hierarchy, who leads projects, and how work is
-          distributed across the company.
+          See the agent reporting hierarchy, which agents lead projects, and
+          how work is distributed across the company.
         </p>
       </div>
 
@@ -4866,8 +4883,9 @@ function OrgRouteView({
             <div>
               <h3>Hierarchy</h3>
               <p>
-                Managers stack top to bottom. Open any agent to review its full
-                configuration and runs.
+                This is the hierarchy for agents, not people. Managers stack
+                top to bottom. Open any agent to review its full configuration
+                and runs.
               </p>
             </div>
           </div>
