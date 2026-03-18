@@ -8043,6 +8043,26 @@ function CloseIcon() {
   );
 }
 
+function AttachmentButtonIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="none"
+      height="16"
+      viewBox="0 0 24 24"
+      width="16"
+    >
+      <path
+        d="m21.44 11.05-8.49 8.49a5.5 5.5 0 0 1-7.78-7.78l9.19-9.19a3.5 3.5 0 1 1 4.95 4.95l-9.2 9.19a1.5 1.5 0 0 1-2.12-2.12l8.49-8.49"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
 function ApprovalsRouteView({
   approvals,
   currentApproval,
@@ -9528,6 +9548,7 @@ function CreateIssueDialogView({
               onClick={onAddAttachment}
               type="button"
             >
+              <AttachmentButtonIcon />
               Attachment
             </button>
           </div>

@@ -3032,6 +3032,9 @@ p {
 }
 
 .issue-dialog-footer-chip-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   padding: 0 14px;
   font-size: 13px;
   font-weight: 500;
