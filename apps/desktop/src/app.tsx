@@ -2496,7 +2496,7 @@ export function App() {
     resetIssueDialog();
     setIssueDialogAssigneeAgentId(defaults?.assigneeAgentId ?? "");
     setIssueDialogPriority(defaults?.priority ?? "medium");
-    setIssueDialogStatus(defaults?.status ?? "todo");
+    setIssueDialogStatus(normalizeBoardIssueValue(defaults?.status ?? "todo"));
     setIssueDialogProjectId(defaults?.projectId ?? "");
     setIsCreateIssueDialogOpen(true);
   };
@@ -3804,6 +3804,7 @@ export function App() {
                   parentIssueLabel={(parentIssueId) =>
                     issueParentLabel(boardIssues, parentIssueId)
                   }
+                  statusLabel={issueStatusLabel}
                   priorityLabel={humanizeIssueValue}
                   projects={companySnapshot?.projects ?? []}
                   projectLabel={(projectId) =>
@@ -6869,6 +6870,7 @@ function IssueDetailView({
   projectLabel,
   assigneeLabel,
   parentIssueLabel,
+  statusLabel,
   priorityLabel,
   workspaceTargetErrorMessage,
   workspaceTargetLoading,
@@ -6912,6 +6914,7 @@ function IssueDetailView({
   projectLabel: (projectId?: string | null) => string;
   assigneeLabel: (assigneeAgentId?: string | null) => string;
   parentIssueLabel: (parentIssueId?: string | null) => string;
+  statusLabel: (value: string) => string;
   priorityLabel: (value: string) => string;
   workspaceTargetErrorMessage: string | null;
   workspaceTargetLoading: boolean;
@@ -7516,7 +7519,7 @@ function IssueDetailView({
                       >
                         <strong>{child.identifier ?? child.title}</strong>
                         <span className="workspace-status-pill">
-                          {priorityLabel(child.status)}
+                          {statusLabel(child.status)}
                         </span>
                       </div>
                     ))}
@@ -7573,7 +7576,7 @@ function IssueDetailView({
                   >
                     {availableStatusOptions.map((status) => (
                       <option key={status} value={status}>
-                        {priorityLabel(status)}
+                        {statusLabel(status)}
                       </option>
                     ))}
                   </IssuePropertySelectRow>
@@ -10594,7 +10597,7 @@ function createIssueDraft(issue: IssueRecord): IssueEditDraft {
   return {
     title: issue.title,
     description: issue.description ?? "",
-    status: issue.status,
+    status: normalizeBoardIssueValue(issue.status),
     priority: issue.priority,
     projectId: issue.project_id ?? "",
     assigneeAgentId: issue.assignee_agent_id ?? "",
