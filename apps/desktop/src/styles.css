@@ -485,8 +485,27 @@ p {
 }
 
 .board-sidebar-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 8px 12px;
   color: #a3a3a3;
+}
+
+.board-sidebar-button-icon {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.board-sidebar-icon {
+  width: 16px;
+  height: 16px;
+  color: #7c7c84;
+  transition: color 140ms ease;
 }
 
 .board-sidebar-button.active,
@@ -501,9 +520,44 @@ p {
 
 .agent-sidebar-button {
   width: 100%;
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 6px 12px;
   color: #b3b3b3;
+}
+
+.board-sidebar-button.active .board-sidebar-icon,
+.board-sidebar-button:hover .board-sidebar-icon {
+  color: #f59e0b;
+}
+
+.agent-sidebar-avatar {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid #242428;
+  border-radius: 999px;
+  background: #17171a;
+  color: #d4d4d8;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.agent-sidebar-button.active .agent-sidebar-avatar {
+  border-color: rgba(245, 158, 11, 0.32);
+  background: rgba(245, 158, 11, 0.12);
+  color: #fcd34d;
+}
+
+.agent-sidebar-button-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .agent-sidebar-empty {
@@ -2353,6 +2407,7 @@ p {
 
 .agents-runs-list-panel,
 .agents-runs-detail-panel {
+  grid-column: auto;
   min-height: 0;
 }
 
@@ -4357,18 +4412,88 @@ p {
 
 .issues-comment-composer {
   display: grid;
+  gap: 0;
+  border: 1px solid #232325;
+  border-radius: 18px;
+  background: #0f0f11;
+  overflow: hidden;
+}
+
+.issues-comment-composer textarea {
+  min-height: 96px;
+  padding: 16px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  resize: vertical;
+}
+
+.issues-comment-composer textarea:focus {
+  outline: none;
+}
+
+.issues-comment-composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
+  padding: 10px 12px;
+  border-top: 1px solid #1b1b1f;
+  background: #0b0b0d;
+  flex-wrap: wrap;
 }
 
-.issues-comment-composer-target {
-  display: grid;
-  gap: 8px;
+.issues-comment-composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
 }
 
-.issues-comment-composer-label {
+.issues-comment-attachment-button {
+  width: 34px;
+  height: 34px;
+  border-color: transparent;
+  background: transparent;
   color: #d7d7de;
-  font-size: 12px;
-  font-weight: 600;
+}
+
+.issues-comment-target-select-shell {
+  width: auto;
+  min-width: 180px;
+  max-width: min(100%, 240px);
+  min-height: 36px;
+  padding-right: 34px;
+  border-radius: 12px;
+  background: #16161a;
+}
+
+.issues-comment-target-select {
+  min-height: 36px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.issues-comment-reopen-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #d7d7de;
+  font-size: 13px;
+}
+
+.issues-comment-reopen-indicator input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #60a5fa;
+}
+
+.issues-comment-submit-button {
+  min-height: 36px;
+  padding: 8px 14px;
 }
 
 .workspace-sidebar {

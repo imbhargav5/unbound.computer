@@ -61,7 +61,6 @@ import {
   listenToSessionEvents,
   listenToSessionStreamErrors,
   messageList,
-  repositoryAdd,
   repositoryList,
   repositoryListFiles,
   repositoryReadFile,
@@ -122,7 +121,6 @@ type AppScreen =
 
 type SettingsSection =
   | "general"
-  | "repositories"
   | "appearance"
   | "notifications"
   | "privacy";
@@ -156,7 +154,15 @@ type CompanyContextMenuScreen =
   | "org"
   | "issues"
   | "companySettings";
-type CompanyContextMenuIconKey = CompanyContextMenuScreen | "agents";
+type CompanyContextMenuIconKey =
+  | CompanyContextMenuScreen
+  | "activity"
+  | "agents"
+  | "approvals"
+  | "costs"
+  | "goals"
+  | "inbox"
+  | "stats";
 
 interface CompanyContextMenuState {
   companyId: string;
@@ -527,7 +533,6 @@ const companyBoardSection: { title: string; screens: AppScreen[] } = {
 
 const settingsSections: Array<{ id: SettingsSection; label: string }> = [
   { id: "general", label: "General" },
-  { id: "repositories", label: "Repositories" },
   { id: "appearance", label: "Appearance" },
   { id: "notifications", label: "Notifications" },
   { id: "privacy", label: "Privacy" },
@@ -3217,33 +3222,6 @@ export function App() {
     }
   };
 
-  const handleAddRepository = async () => {
-    setStatusMessage(null);
-    try {
-      const path = await desktopPickRepositoryDirectory();
-      if (!path) {
-        return;
-      }
-
-      await repositoryAdd(path);
-      const nextRepositories = (await repositoryList()) as RepositoryRecord[];
-      setRepositories(nextRepositories);
-      const latestRepository = nextRepositories.find(
-        (repository) => repository.path === path
-      );
-      setSelectedRepositoryId(
-        latestRepository?.id ?? nextRepositories[0]?.id ?? null
-      );
-
-      await persistSettings({
-        ...settings,
-        last_repository_path: path,
-      });
-    } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : String(error));
-    }
-  };
-
   const applySettingsPatch = async (patch: Partial<DesktopSettings>) => {
     const nextSettings = mergeDesktopSettings({
       ...settings,
@@ -3631,11 +3609,13 @@ export function App() {
                   />
                   <BoardSidebarButton
                     active={false}
+                    icon="dashboard"
                     label="Dashboard"
                     onClick={() => handleSelectScreen("dashboard")}
                   />
                   <BoardSidebarButton
                     active={selectedScreen === "inbox"}
+                    icon="inbox"
                     label="Inbox"
                     onClick={() => handleSelectScreen("inbox")}
                   />
@@ -3649,6 +3629,7 @@ export function App() {
                     {section.screens.map((screen) => (
                       <BoardSidebarButton
                         active={selectedScreen === screen}
+                        icon={sidebarScreenIcon(screen)}
                         key={screen}
                         label={screenLabel(screen)}
                         onClick={() => handleSelectScreen(screen)}
@@ -3674,7 +3655,15 @@ export function App() {
                         onClick={() => handleSelectAgent(agent.id)}
                         type="button"
                       >
-                        {agent.name || agent.title || agent.role || agent.id}
+                        <span
+                          aria-hidden="true"
+                          className="agent-sidebar-avatar"
+                        >
+                          {sidebarAgentAvatarLabel(agent)}
+                        </span>
+                        <span className="agent-sidebar-button-label">
+                          {agent.name || agent.title || agent.role || agent.id}
+                        </span>
                       </button>
                     ))
                   ) : (
@@ -3718,6 +3707,7 @@ export function App() {
                   {companyBoardSection.screens.map((screen) => (
                     <BoardSidebarButton
                       active={selectedScreen === screen}
+                      icon={sidebarScreenIcon(screen)}
                       key={screen}
                       label={screenLabel(screen)}
                       onClick={() => handleSelectScreen(screen)}
@@ -4720,44 +4710,6 @@ export function App() {
                     </form>
                   </section>
                 </SettingsSectionBlock>
-              </SettingsPageShell>
-            ) : null}
-            {selectedSettingsSection === "repositories" ? (
-              <SettingsPageShell
-                subtitle="Manage your registered repositories."
-                title="Repositories"
-              >
-                <section className="settings-inline-panel">
-                  <div className="surface-header">
-                    <h3>Repositories</h3>
-                    <button
-                      className="secondary-button"
-                      onClick={() => void handleAddRepository()}
-                      type="button"
-                    >
-                      Add repository
-                    </button>
-                  </div>
-                  <div className="surface-list">
-                    {repositories.map((repository) => (
-                      <div className="surface-list-row" key={repository.id}>
-                        <div>
-                          <strong>{repository.name}</strong>
-                          <span>{repository.path}</span>
-                        </div>
-                        <button
-                          className="secondary-button"
-                          onClick={() =>
-                            void desktopRevealInFinder(repository.path)
-                          }
-                          type="button"
-                        >
-                          Reveal
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </section>
               </SettingsPageShell>
             ) : null}
             {selectedSettingsSection === "notifications" ? (
@@ -6407,10 +6359,12 @@ function AgentHeaderActionChip({
 
 function BoardSidebarButton({
   active,
+  icon,
   label,
   onClick,
 }: {
   active: boolean;
+  icon?: CompanyContextMenuIconKey | null;
   label: string;
   onClick: () => void;
 }) {
@@ -6422,7 +6376,15 @@ function BoardSidebarButton({
       onClick={onClick}
       type="button"
     >
-      {label}
+      {icon ? (
+        <span aria-hidden="true" className="board-sidebar-button-icon">
+          <CompanyContextMenuIcon
+            className="board-sidebar-icon"
+            icon={icon}
+          />
+        </span>
+      ) : null}
+      <span>{label}</span>
     </button>
   );
 }
@@ -7377,6 +7339,9 @@ function IssueDetailView({
     projects.find((project) => project.id === issueDraft.projectId) ?? null;
   const selectedProjectRepoPath =
     selectedProject?.primary_workspace?.cwd ?? null;
+  const normalizedIssueStatus = normalizeBoardIssueValue(issue.status);
+  const commentWillReopenIssue =
+    normalizedIssueStatus === "done" || normalizedIssueStatus === "cancelled";
   const selectedWorkspaceTargetValue = issueWorkspaceTargetSelectValue(
     issueDraft.workspaceTargetMode,
     issueDraft.workspaceWorktreePath
@@ -7840,49 +7805,57 @@ function IssueDetailView({
                     )}
 
                     <div className="issues-comment-composer">
-                      <div className="issues-comment-composer-target">
-                        <span className="issues-comment-composer-label">
-                          Tag agent
-                        </span>
-                        <div className="issue-dialog-select-shell">
-                          <select
-                            className="issue-dialog-select"
-                            onChange={(event) =>
-                              onCommentTargetAgentChange(event.target.value)
-                            }
-                            value={newCommentTargetAgentId}
-                          >
-                            <option value="">No tagged agent</option>
-                            {agents.map((agent) => (
-                              <option key={agent.id} value={agent.id}>
-                                {agent.name}
-                              </option>
-                            ))}
-                          </select>
-                          <span className="issue-dialog-select-arrow">▼</span>
-                        </div>
-                        <p className="issues-detail-copy muted">
-                          The tagged agent will pick up a new run in this
-                          issue&apos;s worktree.
-                        </p>
-                      </div>
                       <textarea
                         onChange={(event) =>
                           onNewCommentBodyChange(event.target.value)
                         }
-                        placeholder="Add a comment"
+                        placeholder="Leave a comment..."
                         value={newCommentBody}
                       />
-                      <button
-                        className="secondary-button"
-                        disabled={isWorking || !newCommentBody.trim()}
-                        onClick={onAddComment}
-                        type="button"
-                      >
-                        {newCommentTargetAgentId
-                          ? "Add Comment & Run"
-                          : "Add Comment"}
-                      </button>
+                      <div className="issues-comment-composer-footer">
+                        <button
+                          aria-label="Add attachment"
+                          className="icon-button issues-comment-attachment-button"
+                          disabled={isWorking}
+                          onClick={onAddAttachment}
+                          type="button"
+                        >
+                          <AttachmentButtonIcon />
+                        </button>
+                        <div className="issues-comment-composer-actions">
+                          {commentWillReopenIssue ? (
+                            <label className="issues-comment-reopen-indicator">
+                              <input checked readOnly type="checkbox" />
+                              <span>Re-open</span>
+                            </label>
+                          ) : null}
+                          <div className="issue-dialog-select-shell issues-comment-target-select-shell">
+                            <select
+                              className="issue-dialog-select issues-comment-target-select"
+                              onChange={(event) =>
+                                onCommentTargetAgentChange(event.target.value)
+                              }
+                              value={newCommentTargetAgentId}
+                            >
+                              <option value="">No tagged agent</option>
+                              {agents.map((agent) => (
+                                <option key={agent.id} value={agent.id}>
+                                  {agent.name}
+                                </option>
+                              ))}
+                            </select>
+                            <span className="issue-dialog-select-arrow">▼</span>
+                          </div>
+                          <button
+                            className="secondary-button issues-comment-submit-button"
+                            disabled={isWorking || !newCommentBody.trim()}
+                            onClick={onAddComment}
+                            type="button"
+                          >
+                            Comment
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </>
@@ -10647,13 +10620,19 @@ function WorkspaceSidebarTabButton({
   );
 }
 
-function CompanyContextMenuIcon({ icon }: { icon: CompanyContextMenuIconKey }) {
+function CompanyContextMenuIcon({
+  className = "company-context-menu-icon",
+  icon,
+}: {
+  className?: string;
+  icon: CompanyContextMenuIconKey;
+}) {
   switch (icon) {
     case "dashboard":
       return (
         <svg
           aria-hidden="true"
-          className="company-context-menu-icon"
+          className={className}
           fill="none"
           viewBox="0 0 16 16"
         >
@@ -10681,7 +10660,7 @@ function CompanyContextMenuIcon({ icon }: { icon: CompanyContextMenuIconKey }) {
       return (
         <svg
           aria-hidden="true"
-          className="company-context-menu-icon"
+          className={className}
           fill="none"
           viewBox="0 0 16 16"
         >
@@ -10702,7 +10681,7 @@ function CompanyContextMenuIcon({ icon }: { icon: CompanyContextMenuIconKey }) {
       return (
         <svg
           aria-hidden="true"
-          className="company-context-menu-icon"
+          className={className}
           fill="none"
           viewBox="0 0 16 16"
         >
@@ -10718,7 +10697,7 @@ function CompanyContextMenuIcon({ icon }: { icon: CompanyContextMenuIconKey }) {
       return (
         <svg
           aria-hidden="true"
-          className="company-context-menu-icon"
+          className={className}
           fill="none"
           viewBox="0 0 16 16"
         >
@@ -10735,11 +10714,63 @@ function CompanyContextMenuIcon({ icon }: { icon: CompanyContextMenuIconKey }) {
           />
         </svg>
       );
+    case "inbox":
+      return (
+        <svg
+          aria-hidden="true"
+          className={className}
+          fill="none"
+          viewBox="0 0 16 16"
+        >
+          <path
+            d="M2.5 5.25h11v6a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 11.25Z"
+            stroke="currentColor"
+            strokeWidth="1.4"
+          />
+          <path
+            d="M2.75 8.75h3l1.1 1.5h2.3l1.1-1.5h3"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.4"
+          />
+          <path
+            d="M5 5.25 6 3.5h4l1 1.75"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.4"
+          />
+        </svg>
+      );
+    case "approvals":
+      return (
+        <svg
+          aria-hidden="true"
+          className={className}
+          fill="none"
+          viewBox="0 0 16 16"
+        >
+          <path
+            d="M8 2.5 12 4v3.6c0 2.1-1.1 4.04-4 5.9-2.9-1.86-4-3.8-4-5.9V4Z"
+            stroke="currentColor"
+            strokeLinejoin="round"
+            strokeWidth="1.3"
+          />
+          <path
+            d="m6.3 7.95 1.15 1.15 2.35-2.45"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.3"
+          />
+        </svg>
+      );
     case "agents":
       return (
         <svg
           aria-hidden="true"
-          className="company-context-menu-icon"
+          className={className}
           fill="none"
           viewBox="0 0 16 16"
         >
@@ -10757,11 +10788,105 @@ function CompanyContextMenuIcon({ icon }: { icon: CompanyContextMenuIconKey }) {
           />
         </svg>
       );
+    case "goals":
+      return (
+        <svg
+          aria-hidden="true"
+          className={className}
+          fill="none"
+          viewBox="0 0 16 16"
+        >
+          <circle
+            cx="8"
+            cy="8"
+            r="4.75"
+            stroke="currentColor"
+            strokeWidth="1.3"
+          />
+          <circle
+            cx="8"
+            cy="8"
+            r="2.25"
+            stroke="currentColor"
+            strokeWidth="1.3"
+          />
+          <path
+            d="M8 1.75v1.5M8 12.75v1.5M1.75 8h1.5M12.75 8h1.5"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="1.3"
+          />
+        </svg>
+      );
+    case "stats":
+      return (
+        <svg
+          aria-hidden="true"
+          className={className}
+          fill="none"
+          viewBox="0 0 16 16"
+        >
+          <path
+            d="M3 12.75V8.5M8 12.75V3.75M13 12.75V6.25"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="1.5"
+          />
+          <path
+            d="M2.25 12.75h11.5"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="1.3"
+          />
+        </svg>
+      );
+    case "activity":
+      return (
+        <svg
+          aria-hidden="true"
+          className={className}
+          fill="none"
+          viewBox="0 0 16 16"
+        >
+          <path
+            d="M2 9h2l1.4-3.25L8.1 11l1.85-4L11 9h3"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.35"
+          />
+        </svg>
+      );
+    case "costs":
+      return (
+        <svg
+          aria-hidden="true"
+          className={className}
+          fill="none"
+          viewBox="0 0 16 16"
+        >
+          <path
+            d="M8 2.5c2.1 0 3.75.87 3.75 2s-1.65 2-3.75 2-3.75-.87-3.75-2 1.65-2 3.75-2Z"
+            stroke="currentColor"
+            strokeWidth="1.3"
+          />
+          <path
+            d="M4.25 4.5v2.5c0 1.1 1.65 2 3.75 2s3.75-.9 3.75-2V4.5"
+            stroke="currentColor"
+            strokeWidth="1.3"
+          />
+          <path
+            d="M4.25 7v2.5c0 1.1 1.65 2 3.75 2s3.75-.9 3.75-2V7"
+            stroke="currentColor"
+            strokeWidth="1.3"
+          />
+        </svg>
+      );
     case "companySettings":
       return (
         <svg
           aria-hidden="true"
-          className="company-context-menu-icon"
+          className={className}
           fill="none"
           viewBox="0 0 16 16"
         >
@@ -10898,6 +11023,50 @@ function screenLabel(screen: AppScreen) {
   }
 }
 
+function sidebarScreenIcon(
+  screen: AppScreen
+): CompanyContextMenuIconKey | null {
+  switch (screen) {
+    case "dashboard":
+      return "dashboard";
+    case "inbox":
+      return "inbox";
+    case "workspaces":
+      return "workspaces";
+    case "issues":
+      return "issues";
+    case "approvals":
+      return "approvals";
+    case "goals":
+      return "goals";
+    case "org":
+      return "org";
+    case "stats":
+      return "stats";
+    case "activity":
+      return "activity";
+    case "costs":
+      return "costs";
+    case "companySettings":
+      return "companySettings";
+    default:
+      return null;
+  }
+}
+
+function sidebarAgentAvatarLabel(agent: AgentRecord) {
+  const parts = orgChartAgentName(agent).split(/\s+/).filter(Boolean);
+  if (parts.length === 0) {
+    return "A";
+  }
+
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+
+  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+}
+
 function boardRootLayout(screen: AppScreen): BoardRootLayout {
   if (screen === "workspaces") {
     return "workspace";
@@ -11016,8 +11185,6 @@ function settingsSectionIcon(section: SettingsSection) {
   switch (section) {
     case "general":
       return "gear";
-    case "repositories":
-      return "folder";
     case "appearance":
       return "paintbrush";
     case "notifications":
