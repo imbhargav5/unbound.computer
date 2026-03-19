@@ -1,3 +1,7 @@
+use crate::app::agent_cli::{
+    agent_cli_label as shared_agent_cli_label, build_agent_cli_config_from_adapter,
+    detect_agent_cli_kind, AgentCliConfig, AgentCliEvent, AgentCliKind, AgentCliProcess,
+};
 use crate::app::{
     ensure_issue_workspace, ensure_workspace_repository, issue_has_attached_workspace_target,
 };
@@ -5,13 +9,12 @@ use crate::armin_adapter::DaemonArmin;
 use crate::observability::{current_trace_context, spawn_in_current_span};
 use crate::utils::SessionSecretCache;
 use agent_session_sqlite_persist_core::{
-    CodingSessionStatus, NewMessage, NewSession, RepositoryId, SessionId, SessionWriter,
+    CodingSessionStatus, NewMessage, NewSession, RepositoryId, Session, SessionId, SessionWriter,
 };
 use chrono::Utc;
-use claude_process_manager::{ClaudeConfig, ClaudeEvent, ClaudeProcess};
 use daemon_board::{
     service, summarize_agent_run_event, summarize_agent_run_result, summarize_agent_run_text,
-    Agent, AgentRun, BoardError, Issue, IssueComment,
+    Agent, AgentRun, Approval, BoardError, CreateAgentDecisionApprovalInput, Issue, IssueComment,
 };
 use daemon_config_and_utils::Paths;
 use daemon_database::{queries, AsyncDatabase, NewRepository};
@@ -118,6 +121,16 @@ struct RunCompletion {
     stdout_excerpt: Option<String>,
     stderr_excerpt: Option<String>,
     external_run_id: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct AgentDecisionRequest {
+    provider: &'static str,
+    provider_request_id: Option<String>,
+    question: String,
+    options: Vec<String>,
+    questions: Option<Value>,
+    raw_request: Value,
 }
 
 impl AgentRunCoordinator {
@@ -633,14 +646,24 @@ impl AgentRunCoordinator {
             .db
             .call_with_operation("agent_run.queue.claim", move |conn| {
                 let tx = conn.unchecked_transaction()?;
-                let agent_id: Option<String> = tx
+                let queued_run: Option<(i64, String, Option<String>, Option<String>, String)> = tx
                     .query_row(
-                        "SELECT agent_id FROM agent_runs WHERE id = ?1 AND status = 'queued'",
+                        "SELECT rowid, agent_id, issue_id, wake_reason, created_at
+                         FROM agent_runs
+                         WHERE id = ?1 AND status = 'queued'",
                         params![run_id],
-                        |row| row.get(0),
+                        |row| {
+                            Ok((
+                                row.get(0)?,
+                                row.get(1)?,
+                                row.get(2)?,
+                                row.get(3)?,
+                                row.get(4)?,
+                            ))
+                        },
                     )
                     .optional()?;
-                let Some(agent_id) = agent_id else {
+                let Some((rowid, agent_id, issue_id, wake_reason, created_at)) = queued_run else {
                     tx.rollback()?;
                     return Ok(false);
                 };
@@ -654,6 +677,18 @@ impl AgentRunCoordinator {
                 if running_count > 0 {
                     tx.rollback()?;
                     return Ok(false);
+                }
+
+                if queued_run_waits_for_prior_issue_runs(
+                    issue_id.as_deref(),
+                    wake_reason.as_deref(),
+                ) {
+                    if let Some(issue_id) = issue_id.as_deref() {
+                        if has_older_pending_issue_runs(&tx, issue_id, &created_at, rowid)? {
+                            tx.rollback()?;
+                            return Ok(false);
+                        }
+                    }
                 }
 
                 tx.execute(
@@ -703,8 +738,10 @@ impl AgentRunCoordinator {
         let resolved_workspace =
             resolve_working_dir_from_str(&*self.armin, &session.local_session_id)
                 .map_err(map_resolve_error)?;
-        let claude_session_id_before = resolved_workspace.session.claude_session_id.clone();
-        let resumes_existing_session = claude_session_id_before.as_ref().is_some_and(|_| {
+        let cli_kind = agent_cli_kind(&agent);
+        let provider_session_id_before =
+            stored_provider_session_id_for_kind(&resolved_workspace.session, cli_kind);
+        let resumes_existing_session = provider_session_id_before.as_ref().is_some_and(|_| {
             should_resume_claude_session(
                 run.invocation_source.as_str(),
                 run.trigger_detail.as_deref(),
@@ -722,7 +759,7 @@ impl AgentRunCoordinator {
         self.db
             .call_with_operation("agent_run.execute.prepare", {
                 let run_id = run.id.clone();
-                let session_id_before = claude_session_id_before.clone();
+                let session_id_before = provider_session_id_before.clone();
                 let local_session_id = session.local_session_id.clone();
                 let task_session_adapter_type = session.task_session_ref.adapter_type.clone();
                 let task_session_key = session.task_session_ref.task_key.clone();
@@ -744,7 +781,7 @@ impl AgentRunCoordinator {
                             local_session_id,
                             task_session_adapter_type,
                             task_session_key,
-                            run_id
+                            run_id,
                         ],
                     )?;
                     Ok(())
@@ -755,29 +792,35 @@ impl AgentRunCoordinator {
         let armin_session_id = SessionId::from_string(&session.local_session_id);
         self.append_claude_message(&armin_session_id, &prompt, "agent_run_prompt");
 
-        let mut config = ClaudeConfig::new(&prompt, resolved_workspace.working_dir);
-        if let Some(ref previous_session_id) = claude_session_id_before {
+        let config = build_agent_cli_config(
+            &agent,
+            &prompt,
+            resolved_workspace.working_dir,
             if resumes_existing_session {
-                config = config.with_resume_session(previous_session_id);
-            }
-        }
+                provider_session_id_before.as_deref()
+            } else {
+                None
+            },
+        );
+        let timeout_sec = agent_timeout_sec(&agent);
 
-        let mut process = match ClaudeProcess::spawn(config).await {
+        let mut process = match AgentCliProcess::spawn(config).await {
             Ok(process) => process,
             Err(error) => {
+                let cli_label = agent_cli_label(cli_kind);
                 self.finalize_run(
                     &run,
                     issue_id.as_deref(),
                     Some(session.task_session_ref.clone()),
                     RunCompletion {
                         status: STATUS_FAILED.to_string(),
-                        error: Some(format!("Failed to spawn claude: {error}")),
+                        error: Some(format!("Failed to spawn {cli_label}: {error}")),
                         error_code: Some("spawn_failed".to_string()),
                         exit_code: None,
                         signal: None,
                         usage_json: None,
                         result_json: None,
-                        session_id_after: claude_session_id_before.clone(),
+                        session_id_after: provider_session_id_before.clone(),
                         stdout_excerpt: None,
                         stderr_excerpt: None,
                         external_run_id: None,
@@ -799,9 +842,12 @@ impl AgentRunCoordinator {
             processes.insert(run.id.clone(), stop_tx);
         }
 
-        let mut stream = process
-            .take_stream()
-            .ok_or_else(|| BoardError::Runtime("Claude stream was unavailable".to_string()))?;
+        let mut stream = process.take_stream().ok_or_else(|| {
+            BoardError::Runtime(format!(
+                "{} stream was unavailable",
+                agent_cli_label(cli_kind)
+            ))
+        })?;
         let mut seq = 1_i64;
         let mut last_status: Option<CodingSessionStatus> = None;
         let mut last_error_message: Option<String> = None;
@@ -810,17 +856,21 @@ impl AgentRunCoordinator {
         let mut stderr_excerpt = String::new();
         let mut usage_json: Option<Value> = None;
         let mut result_json: Option<Value> = None;
-        let mut session_id_after = claude_session_id_before.clone();
+        let mut session_id_after = provider_session_id_before.clone();
         let mut external_run_id: Option<String> = None;
+        let mut timed_out = false;
         let mut completion = RunCompletion {
             status: STATUS_FAILED.to_string(),
-            error: Some("Claude run exited unexpectedly".to_string()),
+            error: Some(format!(
+                "{} run exited unexpectedly",
+                agent_cli_label(cli_kind)
+            )),
             error_code: Some(ERROR_CODE_PROCESS_LOST.to_string()),
             exit_code: None,
             signal: None,
             usage_json: None,
             result_json: None,
-            session_id_after: claude_session_id_before,
+            session_id_after: provider_session_id_before,
             stdout_excerpt: None,
             stderr_excerpt: None,
             external_run_id: None,
@@ -846,21 +896,59 @@ impl AgentRunCoordinator {
         .await?;
         seq += 1;
 
-        while let Some(event) = stream.next().await {
+        let timeout_deadline = timeout_sec.map(|seconds| sleep(Duration::from_secs(seconds)));
+        tokio::pin!(timeout_deadline);
+        let mut surfaced_approval_ids = HashSet::new();
+
+        loop {
+            let event = if let Some(deadline) = timeout_deadline.as_mut().as_pin_mut() {
+                tokio::select! {
+                    _ = deadline, if !timed_out => {
+                        timed_out = true;
+                        let _ = self.record_run_event(
+                            &run,
+                            seq,
+                            "timed_out",
+                            Some("system"),
+                            Some("warn"),
+                            Some("Run timed out; stopping agent process"),
+                            Some(json!({ "timeout_sec": timeout_sec })),
+                        ).await;
+                        seq += 1;
+                        let _ = {
+                            let processes = self.run_processes.lock().unwrap();
+                            processes.get(&run.id).cloned()
+                        }.map(|tx| tx.send(()));
+                        continue;
+                    }
+                    next_event = stream.next() => next_event
+                }
+            } else {
+                stream.next().await
+            };
+
+            let Some(event) = event else {
+                break;
+            };
+
             match &event {
-                ClaudeEvent::Json {
-                    event_type,
-                    raw,
-                    json,
-                } => {
-                    self.append_claude_message(&armin_session_id, raw, "claude_json");
+                AgentCliEvent::Json { raw, json } => {
+                    let decision_request = extract_agent_decision_request(cli_kind, json);
+                    self.append_claude_message(
+                        &armin_session_id,
+                        raw,
+                        match cli_kind {
+                            AgentCliKind::Claude => "claude_json",
+                            AgentCliKind::Codex => "codex_json",
+                        },
+                    );
                     self.broadcast_session_event(&session.local_session_id, raw);
-                    if is_ask_user_question(json) {
+                    if decision_request.is_some() {
                         self.write_runtime_status_if_changed(
                             &armin_session_id,
                             CodingSessionStatus::Waiting,
                             None,
-                            "ask-user-question",
+                            "awaiting-board-approval",
                             &mut last_status,
                             &mut last_error_message,
                         );
@@ -874,121 +962,100 @@ impl AgentRunCoordinator {
                             &mut last_error_message,
                         );
                     }
-                    if let Some(summary) = summarize_agent_run_event(json) {
+                    if let Some(summary) = summarize_process_event(cli_kind, json) {
                         push_excerpt(&mut stdout_excerpt, &summary);
                     }
+                    let event_type = process_event_type(json);
                     self.record_run_event(
                         &run,
                         seq,
-                        event_type,
+                        &event_type,
                         Some("stdout"),
                         Some("info"),
                         Some(raw),
                         Some(json.clone()),
                     )
                     .await?;
-                    if external_run_id.is_none() {
+
+                    if let Some(decision_request) = decision_request {
+                        let approval = self
+                            .maybe_create_agent_decision_approval(
+                                &run,
+                                issue_id.as_deref(),
+                                &decision_request,
+                            )
+                            .await?;
+                        if surfaced_approval_ids.insert(approval.id.clone()) {
+                            let approval_message = format!(
+                                "Waiting for board decision: {}",
+                                decision_request.question
+                            );
+                            push_excerpt(&mut stdout_excerpt, &approval_message);
+                            self.record_run_event(
+                                &run,
+                                seq + 1,
+                                "approval_requested",
+                                Some("system"),
+                                Some("info"),
+                                Some(&approval_message),
+                                Some(json!({
+                                    "approval_id": approval.id,
+                                    "approval_type": approval.approval_type,
+                                    "provider": decision_request.provider,
+                                    "provider_request_id": decision_request.provider_request_id.clone(),
+                                    "question": decision_request.question.clone(),
+                                    "options": decision_request.options.clone(),
+                                    "issue_id": issue_id.clone(),
+                                })),
+                            )
+                            .await?;
+                            seq += 1;
+                        }
+                    }
+
+                    if let Some(session_id) = extract_process_session_id(cli_kind, json) {
+                        if let Err(error) = self.armin.update_session_provider_session(
+                            &armin_session_id,
+                            provider_name_for_cli_kind(cli_kind),
+                            &session_id,
+                        ) {
+                            warn!(
+                                error = %error,
+                                provider = provider_name_for_cli_kind(cli_kind),
+                                "Failed to update provider session id"
+                            );
+                        }
+                        session_id_after = Some(session_id.clone());
+                        external_run_id = Some(session_id);
+                    } else if external_run_id.is_none() {
                         external_run_id = json
-                            .get("session_id")
+                            .get("id")
                             .and_then(Value::as_str)
-                            .map(ToOwned::to_owned)
-                            .or_else(|| {
-                                json.get("id")
-                                    .and_then(Value::as_str)
-                                    .map(ToOwned::to_owned)
-                            });
+                            .map(ToOwned::to_owned);
                     }
-                }
-                ClaudeEvent::SystemWithSessionId {
-                    claude_session_id,
-                    raw,
-                } => {
-                    self.append_claude_message(&armin_session_id, raw, "claude_system");
-                    if let Err(error) = self
-                        .armin
-                        .update_session_claude_id(&armin_session_id, claude_session_id)
-                    {
-                        warn!(error = %error, "Failed to update Claude session id");
+
+                    if usage_json.is_none() {
+                        usage_json = extract_process_usage(cli_kind, json);
                     }
-                    self.broadcast_session_event(&session.local_session_id, raw);
-                    self.write_runtime_status_if_changed(
-                        &armin_session_id,
-                        CodingSessionStatus::Running,
-                        None,
-                        "system-event",
-                        &mut last_status,
-                        &mut last_error_message,
-                    );
-                    session_id_after = Some(claude_session_id.clone());
-                    external_run_id = Some(claude_session_id.clone());
-                    self.record_run_event(
-                        &run,
-                        seq,
-                        "system",
-                        Some("stdout"),
-                        Some("info"),
-                        Some(raw),
-                        serde_json::from_str::<Value>(raw).ok(),
-                    )
-                    .await?;
-                }
-                ClaudeEvent::Result { is_error, raw } => {
-                    self.append_claude_message(&armin_session_id, raw, "claude_result");
-                    self.broadcast_session_event(&session.local_session_id, raw);
-                    let parsed = serde_json::from_str::<Value>(raw).ok();
-                    if let Some(parsed) = parsed.as_ref() {
-                        usage_json = parsed
-                            .get("usage")
-                            .cloned()
-                            .or_else(|| parsed.pointer("/result/usage").cloned());
-                        result_json = Some(parsed.clone());
+                    if result_json.is_none() && is_process_result_payload(cli_kind, json) {
+                        result_json = Some(json.clone());
                     }
-                    if *is_error {
-                        let error_message = extract_result_error_message(raw);
+                    if let Some(error_message) = extract_process_error(cli_kind, json) {
                         self.write_runtime_status_if_changed(
                             &armin_session_id,
                             CodingSessionStatus::Error,
                             Some(error_message.clone()),
-                            "result-error",
+                            "process-json-error",
                             &mut last_status,
                             &mut last_error_message,
                         );
                         completion.status = STATUS_FAILED.to_string();
                         completion.error = Some(error_message);
                         completion.error_code = Some("result_error".to_string());
-                    } else {
-                        self.write_runtime_status_if_changed(
-                            &armin_session_id,
-                            CodingSessionStatus::Idle,
-                            None,
-                            "result-success",
-                            &mut last_status,
-                            &mut last_error_message,
-                        );
-                        completion.status = STATUS_SUCCEEDED.to_string();
-                        completion.error = None;
-                        completion.error_code = None;
+                        terminal_status_written = true;
                     }
-                    terminal_status_written = true;
-                    if let Some(summary) = parsed
-                        .as_ref()
-                        .and_then(summarize_agent_run_result)
-                        .or_else(|| summarize_agent_run_text(raw))
-                    {
-                        push_excerpt(&mut stdout_excerpt, &summary);
-                    }
-                    self.record_run_event(
-                        &run,
-                        seq,
-                        "result",
-                        Some("stdout"),
-                        Some(if *is_error { "error" } else { "info" }),
-                        Some(raw),
-                        parsed,
-                    )
-                    .await?;
                 }
-                ClaudeEvent::Stderr { line } => {
+                AgentCliEvent::Stderr { line } => {
                     if let Some(summary) = summarize_agent_run_text(line) {
                         push_excerpt(&mut stderr_excerpt, &summary);
                     }
@@ -1003,7 +1070,7 @@ impl AgentRunCoordinator {
                     )
                     .await?;
                 }
-                ClaudeEvent::Finished { success, exit_code } => {
+                AgentCliEvent::Finished { success, exit_code } => {
                     if *success {
                         if !terminal_status_written {
                             self.write_runtime_status_if_changed(
@@ -1015,13 +1082,16 @@ impl AgentRunCoordinator {
                                 &mut last_error_message,
                             );
                         }
-                        completion.status = STATUS_SUCCEEDED.to_string();
-                        completion.error = None;
-                        completion.error_code = None;
+                        if completion.error_code.is_none() {
+                            completion.status = STATUS_SUCCEEDED.to_string();
+                            completion.error = None;
+                            completion.error_code = None;
+                        }
                     } else {
+                        let cli_label = agent_cli_label(cli_kind);
                         let error_message = match exit_code {
-                            Some(code) => format!("Claude process exited with status {code}"),
-                            None => "Claude process exited with non-zero status".to_string(),
+                            Some(code) => format!("{cli_label} process exited with status {code}"),
+                            None => format!("{cli_label} process exited with non-zero status"),
                         };
                         if !terminal_status_written {
                             self.write_runtime_status_if_changed(
@@ -1046,35 +1116,59 @@ impl AgentRunCoordinator {
                         Some("system"),
                         Some(if *success { "info" } else { "error" }),
                         Some(if *success {
-                            "Claude process finished successfully"
+                            "Coding agent process finished successfully"
                         } else {
-                            "Claude process finished with an error"
+                            "Coding agent process finished with an error"
                         }),
                         Some(json!({ "success": success, "exit_code": exit_code })),
                     )
                     .await?;
                 }
-                ClaudeEvent::Stopped => {
+                AgentCliEvent::Stopped => {
+                    let (status, error, error_code, event_type, event_message, payload) =
+                        if timed_out {
+                            (
+                                STATUS_TIMED_OUT.to_string(),
+                                Some("Run timed out".to_string()),
+                                Some("timeout".to_string()),
+                                "timed_out",
+                                "Run timed out",
+                                json!({ "timed_out": true }),
+                            )
+                        } else {
+                            (
+                                STATUS_CANCELLED.to_string(),
+                                Some("Run was cancelled".to_string()),
+                                Some("cancelled".to_string()),
+                                "stopped",
+                                "Run was cancelled",
+                                json!({ "cancelled": true }),
+                            )
+                        };
                     self.write_runtime_status_if_changed(
                         &armin_session_id,
                         CodingSessionStatus::NotAvailable,
                         None,
-                        "process-stopped",
+                        if timed_out {
+                            "process-timed-out"
+                        } else {
+                            "process-stopped"
+                        },
                         &mut last_status,
                         &mut last_error_message,
                     );
-                    completion.status = STATUS_CANCELLED.to_string();
-                    completion.error = Some("Run was cancelled".to_string());
-                    completion.error_code = Some("cancelled".to_string());
+                    completion.status = status;
+                    completion.error = error;
+                    completion.error_code = error_code;
                     terminal_status_written = true;
                     self.record_run_event(
                         &run,
                         seq,
-                        "stopped",
+                        event_type,
                         Some("system"),
-                        Some("info"),
-                        Some("Run was cancelled"),
-                        Some(json!({ "cancelled": true })),
+                        Some(if timed_out { "warn" } else { "info" }),
+                        Some(event_message),
+                        Some(payload),
                     )
                     .await?;
                 }
@@ -1646,6 +1740,8 @@ impl AgentRunCoordinator {
                 issue_id: Some(issue.id.clone()),
                 issue_title: Some(issue.title.clone()),
                 issue_url: None,
+                provider: Some(provider_name_for_cli_kind(agent_cli_kind(agent)).to_string()),
+                provider_session_id: None,
                 claude_session_id: None,
                 is_worktree: false,
                 worktree_path: None,
@@ -1825,6 +1921,8 @@ impl AgentRunCoordinator {
                 issue_id: None,
                 issue_title: None,
                 issue_url: None,
+                provider: Some(provider_name_for_cli_kind(agent_cli_kind(agent)).to_string()),
+                provider_session_id: None,
                 claude_session_id: None,
                 is_worktree: false,
                 worktree_path: None,
@@ -1898,6 +1996,54 @@ impl AgentRunCoordinator {
         })
     }
 
+    async fn approval_prompt_context(&self, run: &AgentRun) -> Result<Option<String>, BoardError> {
+        let Some(snapshot) = run.context_snapshot.as_ref() else {
+            return Ok(None);
+        };
+        let approval_id = snapshot
+            .get("payload")
+            .and_then(|payload| payload.get("approval_id"))
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+        let Some(approval_id) = approval_id else {
+            return Ok(None);
+        };
+
+        let approval = service::get_approval(&self.db, approval_id)
+            .await?
+            .ok_or_else(|| BoardError::NotFound("Approval not found for run".to_string()))?;
+        Ok(format_approval_prompt_context(&approval))
+    }
+
+    async fn maybe_create_agent_decision_approval(
+        &self,
+        run: &AgentRun,
+        issue_id: Option<&str>,
+        decision_request: &AgentDecisionRequest,
+    ) -> Result<Approval, BoardError> {
+        let request_key = decision_request_request_key(run, decision_request);
+        service::create_agent_decision_approval(
+            &self.db,
+            CreateAgentDecisionApprovalInput {
+                company_id: run.company_id.clone(),
+                requested_by_agent_id: run.agent_id.clone(),
+                requested_by_run_id: run.id.clone(),
+                requested_by_user_id: None,
+                source_issue_id: issue_id.map(ToOwned::to_owned),
+                source_issue_ids: None,
+                provider: Some(decision_request.provider.to_string()),
+                provider_request_id: decision_request.provider_request_id.clone(),
+                request_key,
+                question: decision_request.question.clone(),
+                options: Some(decision_request.options.clone()),
+                questions: decision_request.questions.clone(),
+                raw_request: Some(decision_request.raw_request.clone()),
+            },
+        )
+        .await
+    }
+
     async fn build_prompt(
         &self,
         run: &AgentRun,
@@ -1942,6 +2088,11 @@ impl AgentRunCoordinator {
                  {issue_list_command}\n"
             )
         };
+        let approval_context = self
+            .approval_prompt_context(run)
+            .await?
+            .map(|context| format!("{context}\n"))
+            .unwrap_or_default();
         let rendered_prompt_template = rendered_prompt_template(agent, run, issue_id)
             .unwrap_or_else(|| default_agent_run_prompt(agent, issue_id));
         let bootstrap_prompt = if include_bootstrap_prompt {
@@ -1967,6 +2118,7 @@ impl AgentRunCoordinator {
              {rendered_prompt_template}\n\n\
              {governance_instructions}\n\
              {issue_context}\n\
+             {approval_context}\
              Run operating rules:\n\
              - Treat each run as a focused execution window: inspect the assigned work, do the next useful step, and exit.\n\
              - If this run is linked to an issue, treat that issue as the primary work item for this run.\n\
@@ -1975,6 +2127,7 @@ impl AgentRunCoordinator {
              - If you actively start a todo issue, move it to in_progress. If you finish it, mark it done with a concise summary. If you are blocked, mark it blocked and explain exactly what is needed.\n\
              - If you made progress but did not finish, leave a concise issue comment before exiting so the next run can continue cleanly.\n\
              - Work directly in the resolved local worktree. Only create or switch to a fresh git worktree when the issue or user explicitly asks for it.\n\
+             - If this wake reason is approval_approved, continue the same provider session and treat the board decision as authoritative new input.\n\
              Finish with a concise summary that covers:\n\
              1. what you changed or concluded\n\
              2. any blockers or follow-up needed\n\
@@ -1993,6 +2146,7 @@ impl AgentRunCoordinator {
             rendered_prompt_template = rendered_prompt_template,
             governance_instructions = governance_instructions,
             issue_context = issue_context,
+            approval_context = approval_context,
         ))
     }
 
@@ -2026,13 +2180,13 @@ impl AgentRunCoordinator {
                 content: raw.to_string(),
             },
         ) {
-            warn!(error = %error, message_kind = event_kind, "Failed to append Claude event");
+            warn!(error = %error, message_kind = event_kind, "Failed to append agent event");
         }
     }
 
     fn broadcast_session_event(&self, session_id: &str, raw_json: &str) {
         let mut event = Event::new(
-            EventType::ClaudeEvent,
+            EventType::AgentEvent,
             session_id,
             serde_json::json!({ "raw_json": raw_json }),
             Utc::now().timestamp_millis(),
@@ -2109,67 +2263,6 @@ fn issue_id_from_value(payload: &Value) -> Option<String> {
         .get("issue_id")
         .and_then(Value::as_str)
         .map(ToOwned::to_owned)
-}
-
-impl RunTaskSessionRef {
-    fn agent_home() -> Self {
-        Self {
-            adapter_type: "agent_home".to_string(),
-            task_key: "home".to_string(),
-        }
-    }
-
-    fn issue_workspace(issue_id: &str) -> Self {
-        Self {
-            adapter_type: "issue_workspace".to_string(),
-            task_key: format!("issue:{issue_id}"),
-        }
-    }
-
-    fn issue_project_root(issue_id: &str) -> Self {
-        Self {
-            adapter_type: "issue_project_root".to_string(),
-            task_key: format!("issue:{issue_id}"),
-        }
-    }
-}
-
-fn issue_run_session_strategy(issue: &Issue) -> IssueRunSessionStrategy {
-    if issue_has_attached_workspace_target(issue) {
-        IssueRunSessionStrategy::AttachedWorkspace
-    } else if issue.project_id.is_some() {
-        IssueRunSessionStrategy::ProjectRoot
-    } else {
-        IssueRunSessionStrategy::AgentHome
-    }
-}
-
-fn task_session_ref_from_run(run: &AgentRun, issue_id: Option<&str>) -> Option<RunTaskSessionRef> {
-    let snapshot = run.context_snapshot.as_ref()?;
-    let adapter_type = snapshot
-        .pointer("/task_session/adapter_type")
-        .and_then(Value::as_str)
-        .map(ToOwned::to_owned);
-    let task_key = snapshot
-        .pointer("/task_session/task_key")
-        .and_then(Value::as_str)
-        .map(ToOwned::to_owned);
-
-    match (adapter_type, task_key) {
-        (Some(adapter_type), Some(task_key)) => Some(RunTaskSessionRef {
-            adapter_type,
-            task_key,
-        }),
-        _ => issue_id
-            .map(RunTaskSessionRef::issue_workspace)
-            .or_else(|| {
-                if run.issue_id.is_none() {
-                    Some(RunTaskSessionRef::agent_home())
-                } else {
-                    None
-                }
-            }),
-    }
 }
 
 fn format_issue_attachment_summary(attachments: &[daemon_board::IssueAttachment]) -> String {
@@ -2352,6 +2445,10 @@ fn build_idempotency_key(
     issue_id: Option<&str>,
     prompt: Option<&str>,
 ) -> Option<String> {
+    if is_issue_comment_wake_reason(wake_reason) {
+        return None;
+    }
+
     if invocation_source == SOURCE_ON_DEMAND && prompt.is_some() {
         return None;
     }
@@ -2380,6 +2477,41 @@ fn should_resume_claude_session(
     !(invocation_source == SOURCE_ON_DEMAND && trigger_detail == Some(TRIGGER_MANUAL))
 }
 
+fn is_issue_comment_wake_reason(wake_reason: Option<&str>) -> bool {
+    matches!(
+        wake_reason,
+        Some("issue_commented" | "issue_comment_mentioned" | "issue_reopened_via_comment")
+    )
+}
+
+fn queued_run_waits_for_prior_issue_runs(
+    issue_id: Option<&str>,
+    wake_reason: Option<&str>,
+) -> bool {
+    issue_id.is_some() && is_issue_comment_wake_reason(wake_reason)
+}
+
+fn has_older_pending_issue_runs(
+    conn: &rusqlite::Connection,
+    issue_id: &str,
+    created_at: &str,
+    rowid: i64,
+) -> rusqlite::Result<bool> {
+    let pending_count: i64 = conn.query_row(
+        "SELECT COUNT(*)
+         FROM agent_runs
+         WHERE issue_id = ?1
+           AND status IN ('queued', 'running')
+           AND (
+                created_at < ?2
+                OR (created_at = ?2 AND rowid < ?3)
+           )",
+        params![issue_id, created_at, rowid],
+        |row| row.get(0),
+    )?;
+    Ok(pending_count > 0)
+}
+
 fn push_excerpt(buffer: &mut String, line: &str) {
     if !buffer.is_empty() {
         buffer.push('\n');
@@ -2401,17 +2533,304 @@ fn trim_excerpt(buffer: String) -> Option<String> {
     }
 }
 
-fn is_ask_user_question(json: &Value) -> bool {
-    json.get("message")
+fn extract_agent_decision_request(
+    cli_kind: AgentCliKind,
+    json: &Value,
+) -> Option<AgentDecisionRequest> {
+    match cli_kind {
+        AgentCliKind::Claude => extract_claude_decision_request(json),
+        AgentCliKind::Codex => extract_codex_decision_request(json),
+    }
+}
+
+fn extract_claude_decision_request(json: &Value) -> Option<AgentDecisionRequest> {
+    let blocks = json
+        .get("message")
         .and_then(|message| message.get("content"))
+        .and_then(Value::as_array)?;
+    blocks.iter().find_map(|block| {
+        let name = block.get("name").and_then(Value::as_str)?;
+        if !matches!(name, "AskUserQuestion" | "ask_user_question") {
+            return None;
+        }
+        build_agent_decision_request(
+            "claude",
+            block.get("id").and_then(Value::as_str),
+            block.get("input").unwrap_or(&Value::Null),
+            block.clone(),
+        )
+    })
+}
+
+fn extract_codex_decision_request(json: &Value) -> Option<AgentDecisionRequest> {
+    extract_codex_decision_request_from_value(json, 0)
+}
+
+fn extract_codex_decision_request_from_value(
+    value: &Value,
+    depth: usize,
+) -> Option<AgentDecisionRequest> {
+    if depth > 6 {
+        return None;
+    }
+
+    if let Some(request) = maybe_build_codex_decision_request(value) {
+        return Some(request);
+    }
+
+    match value {
+        Value::Array(items) => items
+            .iter()
+            .find_map(|item| extract_codex_decision_request_from_value(item, depth + 1)),
+        Value::Object(map) => map
+            .values()
+            .find_map(|item| extract_codex_decision_request_from_value(item, depth + 1)),
+        _ => None,
+    }
+}
+
+fn maybe_build_codex_decision_request(value: &Value) -> Option<AgentDecisionRequest> {
+    let name = value
+        .get("name")
+        .or_else(|| value.get("tool_name"))
+        .and_then(Value::as_str)?;
+    if !name.eq_ignore_ascii_case("request_user_input") {
+        return None;
+    }
+
+    let args = value
+        .get("input")
+        .cloned()
+        .or_else(|| parse_tool_arguments(value.get("arguments")))
+        .or_else(|| value.get("args").cloned())
+        .unwrap_or(Value::Null);
+    build_agent_decision_request(
+        "codex",
+        value
+            .get("id")
+            .or_else(|| value.get("call_id"))
+            .or_else(|| value.get("tool_call_id"))
+            .and_then(Value::as_str),
+        &args,
+        value.clone(),
+    )
+}
+
+fn build_agent_decision_request(
+    provider: &'static str,
+    provider_request_id: Option<&str>,
+    input: &Value,
+    raw_request: Value,
+) -> Option<AgentDecisionRequest> {
+    let questions = normalize_agent_decision_questions(input);
+    let primary_question = questions
+        .first()
+        .and_then(|question| question.get("question"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())?
+        .to_string();
+    let options = questions
+        .first()
+        .and_then(|question| question.get("options"))
         .and_then(Value::as_array)
-        .map(|blocks| {
-            blocks.iter().any(|block| {
-                block.get("type").and_then(Value::as_str) == Some("tool_use")
-                    && block.get("name").and_then(Value::as_str) == Some("AskUserQuestion")
-            })
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.get("label").and_then(Value::as_str))
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(ToOwned::to_owned)
+                .collect::<Vec<_>>()
         })
-        .unwrap_or(false)
+        .unwrap_or_default();
+    Some(AgentDecisionRequest {
+        provider,
+        provider_request_id: provider_request_id
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned),
+        question: primary_question,
+        options,
+        questions: Some(Value::Array(questions)),
+        raw_request,
+    })
+}
+
+fn normalize_agent_decision_questions(input: &Value) -> Vec<Value> {
+    if let Some(questions) = input.get("questions").and_then(Value::as_array) {
+        let normalized = questions
+            .iter()
+            .filter_map(normalize_agent_decision_question)
+            .collect::<Vec<_>>();
+        if !normalized.is_empty() {
+            return normalized;
+        }
+    }
+
+    normalize_agent_decision_question(input)
+        .into_iter()
+        .collect::<Vec<_>>()
+}
+
+fn normalize_agent_decision_question(value: &Value) -> Option<Value> {
+    let question = first_non_empty_string([
+        value.get("question"),
+        value.get("prompt"),
+        value.get("message"),
+        value.get("title"),
+    ])?;
+    let mut normalized = serde_json::Map::new();
+    if let Some(id) = first_non_empty_string([value.get("id"), value.get("key")]) {
+        normalized.insert("id".to_string(), Value::String(id));
+    }
+    if let Some(header) = first_non_empty_string([value.get("header"), value.get("label")]) {
+        normalized.insert("header".to_string(), Value::String(header));
+    }
+    normalized.insert("question".to_string(), Value::String(question));
+    let options = normalize_agent_decision_options(
+        value
+            .get("options")
+            .or_else(|| value.get("choices"))
+            .or_else(|| value.get("items")),
+    );
+    if !options.is_empty() {
+        normalized.insert("options".to_string(), Value::Array(options));
+    }
+    Some(Value::Object(normalized))
+}
+
+fn normalize_agent_decision_options(value: Option<&Value>) -> Vec<Value> {
+    let Some(Value::Array(items)) = value else {
+        return Vec::new();
+    };
+
+    items
+        .iter()
+        .filter_map(|item| match item {
+            Value::String(label) => {
+                let label = label.trim();
+                if label.is_empty() {
+                    None
+                } else {
+                    Some(json!({ "label": label }))
+                }
+            }
+            Value::Object(_) => {
+                let label = first_non_empty_string([
+                    item.get("label"),
+                    item.get("title"),
+                    item.get("name"),
+                    item.get("value"),
+                ])?;
+                let description =
+                    first_non_empty_string([item.get("description"), item.get("hint")]);
+                let mut option = serde_json::Map::new();
+                option.insert("label".to_string(), Value::String(label));
+                if let Some(description) = description {
+                    option.insert("description".to_string(), Value::String(description));
+                }
+                Some(Value::Object(option))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn parse_tool_arguments(arguments: Option<&Value>) -> Option<Value> {
+    match arguments? {
+        Value::Object(map) => Some(Value::Object(map.clone())),
+        Value::String(text) => serde_json::from_str::<Value>(text).ok(),
+        _ => None,
+    }
+}
+
+fn first_non_empty_string<const N: usize>(values: [Option<&Value>; N]) -> Option<String> {
+    values.into_iter().find_map(|value| {
+        value
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|candidate| !candidate.is_empty())
+            .map(ToOwned::to_owned)
+    })
+}
+
+fn decision_request_request_key(run: &AgentRun, decision_request: &AgentDecisionRequest) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(run.id.as_bytes());
+    hasher.update(decision_request.provider.as_bytes());
+    if let Some(provider_request_id) = decision_request.provider_request_id.as_deref() {
+        hasher.update(provider_request_id.as_bytes());
+    }
+    hasher.update(decision_request.question.as_bytes());
+    if let Some(questions) = decision_request.questions.as_ref() {
+        hasher.update(questions.to_string().as_bytes());
+    }
+    format!("{:x}", hasher.finalize())
+}
+
+fn format_approval_prompt_context(approval: &Approval) -> Option<String> {
+    let question = approval
+        .payload
+        .get("question")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+        .or_else(|| {
+            approval
+                .payload
+                .pointer("/questions/0/question")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(ToOwned::to_owned)
+        })?;
+    let mut context = format!(
+        "Board approval context:\nApproval ID: {}\nApproval type: {}\nDecision status: {}\nRequested decision: {}",
+        approval.id,
+        approval.approval_type,
+        approval.status,
+        question,
+    );
+
+    if let Some(questions) = approval.payload.get("questions").and_then(Value::as_array) {
+        for question in questions {
+            let prompt = question
+                .get("question")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty());
+            let Some(prompt) = prompt else {
+                continue;
+            };
+            context.push_str(&format!("\n- {prompt}"));
+            if let Some(options) = question.get("options").and_then(Value::as_array) {
+                let labels = options
+                    .iter()
+                    .filter_map(|option| option.get("label").and_then(Value::as_str))
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .collect::<Vec<_>>();
+                if !labels.is_empty() {
+                    context.push_str(&format!("\n  Options: {}", labels.join(", ")));
+                }
+            }
+        }
+    }
+
+    if let Some(decision_note) = approval
+        .decision_note
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        context.push_str(&format!("\nBoard answer:\n{decision_note}"));
+    } else {
+        context.push_str("\nBoard answer: Approved without an explicit note.");
+    }
+
+    Some(context)
 }
 
 fn extract_result_error_message(raw_json: &str) -> String {
@@ -2548,6 +2967,264 @@ fn board_helper_binary_path() -> String {
 
 fn shell_quote(value: &str) -> String {
     format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
+}
+
+impl RunTaskSessionRef {
+    fn agent_home() -> Self {
+        Self {
+            adapter_type: "agent_home".to_string(),
+            task_key: "home".to_string(),
+        }
+    }
+
+    fn issue_workspace(issue_id: &str) -> Self {
+        Self {
+            adapter_type: "issue_workspace".to_string(),
+            task_key: format!("issue:{issue_id}"),
+        }
+    }
+
+    fn issue_project_root(issue_id: &str) -> Self {
+        Self {
+            adapter_type: "issue_project_root".to_string(),
+            task_key: format!("issue:{issue_id}"),
+        }
+    }
+}
+
+fn issue_run_session_strategy(issue: &Issue) -> IssueRunSessionStrategy {
+    if issue_has_attached_workspace_target(issue) {
+        IssueRunSessionStrategy::AttachedWorkspace
+    } else if issue.project_id.is_some() {
+        IssueRunSessionStrategy::ProjectRoot
+    } else {
+        IssueRunSessionStrategy::AgentHome
+    }
+}
+
+fn task_session_ref_from_run(run: &AgentRun, issue_id: Option<&str>) -> Option<RunTaskSessionRef> {
+    let snapshot = run.context_snapshot.as_ref()?;
+    let adapter_type = snapshot
+        .pointer("/task_session/adapter_type")
+        .and_then(Value::as_str)
+        .map(ToOwned::to_owned);
+    let task_key = snapshot
+        .pointer("/task_session/task_key")
+        .and_then(Value::as_str)
+        .map(ToOwned::to_owned);
+
+    match (adapter_type, task_key) {
+        (Some(adapter_type), Some(task_key)) => Some(RunTaskSessionRef {
+            adapter_type,
+            task_key,
+        }),
+        _ => issue_id
+            .map(RunTaskSessionRef::issue_workspace)
+            .or_else(|| {
+                if run.issue_id.is_none() {
+                    Some(RunTaskSessionRef::agent_home())
+                } else {
+                    None
+                }
+            }),
+    }
+}
+
+fn agent_cli_kind(agent: &Agent) -> AgentCliKind {
+    let adapter_config = agent.adapter_config.as_object();
+    detect_agent_cli_kind(
+        adapter_config
+            .and_then(|config| config.get("command"))
+            .and_then(Value::as_str),
+        adapter_config
+            .and_then(|config| config.get("model"))
+            .and_then(Value::as_str),
+    )
+}
+
+fn agent_cli_label(kind: AgentCliKind) -> &'static str {
+    shared_agent_cli_label(kind)
+}
+
+fn build_agent_cli_config(
+    agent: &Agent,
+    prompt: &str,
+    working_dir: String,
+    resume_session_id: Option<&str>,
+) -> AgentCliConfig {
+    let adapter_config = agent.adapter_config.as_object();
+    let mut config =
+        build_agent_cli_config_from_adapter(adapter_config, prompt, working_dir, resume_session_id);
+    config.interrupt_grace_sec = agent_interrupt_grace_sec(agent);
+    config
+}
+
+fn agent_timeout_sec(agent: &Agent) -> Option<u64> {
+    agent
+        .runtime_config
+        .as_object()
+        .and_then(|config| config.get("timeoutSec"))
+        .and_then(Value::as_u64)
+        .filter(|value| *value > 0)
+}
+
+fn agent_interrupt_grace_sec(agent: &Agent) -> Option<u64> {
+    agent
+        .runtime_config
+        .as_object()
+        .and_then(|config| config.get("interruptGraceSec"))
+        .and_then(Value::as_u64)
+        .filter(|value| *value > 0)
+}
+
+fn provider_name_for_cli_kind(kind: AgentCliKind) -> &'static str {
+    match kind {
+        AgentCliKind::Claude => "claude",
+        AgentCliKind::Codex => "codex",
+    }
+}
+
+fn stored_provider_session_id_for_kind(session: &Session, kind: AgentCliKind) -> Option<String> {
+    match kind {
+        AgentCliKind::Claude => {
+            let provider = session.effective_provider();
+            if provider.is_none() || provider == Some("claude") {
+                session
+                    .effective_provider_session_id()
+                    .map(ToOwned::to_owned)
+            } else {
+                None
+            }
+        }
+        AgentCliKind::Codex => {
+            if session.effective_provider() == Some("codex") {
+                session.provider_session_id.clone()
+            } else {
+                None
+            }
+        }
+    }
+}
+
+fn process_event_type(json: &Value) -> String {
+    let base = json
+        .get("type")
+        .and_then(Value::as_str)
+        .unwrap_or("json")
+        .to_string();
+
+    if base.starts_with("item.") {
+        if let Some(item_type) = json.pointer("/item/type").and_then(Value::as_str) {
+            return format!("{base}.{item_type}");
+        }
+    }
+
+    base
+}
+
+fn summarize_process_event(kind: AgentCliKind, json: &Value) -> Option<String> {
+    match kind {
+        AgentCliKind::Claude => summarize_agent_run_event(json)
+            .or_else(|| summarize_agent_run_result(json))
+            .or_else(|| summarize_agent_run_text(&json.to_string())),
+        AgentCliKind::Codex => {
+            let event_type = json.get("type").and_then(Value::as_str)?;
+            match event_type {
+                "thread.started" => json
+                    .get("thread_id")
+                    .and_then(Value::as_str)
+                    .map(|thread_id| format!("Started Codex thread {thread_id}")),
+                "item.completed" => {
+                    let item = json.get("item")?;
+                    match item.get("type").and_then(Value::as_str).unwrap_or("item") {
+                        "agent_message" => item
+                            .get("text")
+                            .and_then(Value::as_str)
+                            .and_then(summarize_agent_run_text),
+                        "command_execution" => item
+                            .get("aggregated_output")
+                            .and_then(Value::as_str)
+                            .and_then(summarize_agent_run_text)
+                            .or_else(|| {
+                                item.get("command")
+                                    .and_then(Value::as_str)
+                                    .map(|command| format!("Executed {command}"))
+                            }),
+                        _ => None,
+                    }
+                }
+                "turn.completed" => Some("Codex turn completed".to_string()),
+                _ => None,
+            }
+        }
+    }
+}
+
+fn extract_process_session_id(kind: AgentCliKind, json: &Value) -> Option<String> {
+    match kind {
+        AgentCliKind::Claude => json
+            .get("session_id")
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned),
+        AgentCliKind::Codex => {
+            if json.get("type").and_then(Value::as_str) == Some("thread.started") {
+                json.get("thread_id")
+                    .and_then(Value::as_str)
+                    .map(ToOwned::to_owned)
+            } else {
+                None
+            }
+        }
+    }
+}
+
+fn extract_process_usage(kind: AgentCliKind, json: &Value) -> Option<Value> {
+    match kind {
+        AgentCliKind::Claude => json
+            .get("usage")
+            .cloned()
+            .or_else(|| json.pointer("/result/usage").cloned()),
+        AgentCliKind::Codex => {
+            if json.get("type").and_then(Value::as_str) == Some("turn.completed") {
+                json.get("usage").cloned()
+            } else {
+                None
+            }
+        }
+    }
+}
+
+fn is_process_result_payload(kind: AgentCliKind, json: &Value) -> bool {
+    match kind {
+        AgentCliKind::Claude => json.get("type").and_then(Value::as_str) == Some("result"),
+        AgentCliKind::Codex => json.get("type").and_then(Value::as_str) == Some("turn.completed"),
+    }
+}
+
+fn extract_process_error(kind: AgentCliKind, json: &Value) -> Option<String> {
+    match kind {
+        AgentCliKind::Claude => {
+            if json.get("type").and_then(Value::as_str) == Some("result")
+                && json
+                    .get("is_error")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false)
+            {
+                Some(extract_result_error_message(&json.to_string()))
+            } else {
+                None
+            }
+        }
+        AgentCliKind::Codex => match json.get("type").and_then(Value::as_str) {
+            Some("error") | Some("turn.failed") => json
+                .get("message")
+                .and_then(Value::as_str)
+                .or_else(|| json.pointer("/error/message").and_then(Value::as_str))
+                .map(ToOwned::to_owned)
+                .or_else(|| Some(json.to_string())),
+            _ => None,
+        },
+    }
 }
 
 fn compute_log_metadata(path: &Path) -> Result<(i64, Option<String>), BoardError> {
@@ -2715,6 +3392,233 @@ mod tests {
             Some("system"),
             Some("issue_commented")
         ));
+    }
+
+    #[test]
+    fn extract_agent_decision_request_reads_claude_question_blocks() {
+        let json = json!({
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_123",
+                        "name": "AskUserQuestion",
+                        "input": {
+                            "question": "Ship the migration?",
+                            "options": ["Ship it", "Hold"]
+                        }
+                    }
+                ]
+            }
+        });
+
+        let request =
+            extract_agent_decision_request(AgentCliKind::Claude, &json).expect("decision request");
+
+        assert_eq!(request.provider, "claude");
+        assert_eq!(request.provider_request_id.as_deref(), Some("toolu_123"));
+        assert_eq!(request.question, "Ship the migration?");
+        assert_eq!(request.options, vec!["Ship it", "Hold"]);
+        assert_eq!(
+            request
+                .questions
+                .as_ref()
+                .and_then(|questions| questions.pointer("/0/question"))
+                .and_then(Value::as_str),
+            Some("Ship the migration?")
+        );
+    }
+
+    #[test]
+    fn extract_agent_decision_request_reads_codex_request_user_input_questions() {
+        let json = json!({
+            "type": "response.output_item.added",
+            "item": {
+                "id": "call_456",
+                "type": "function_call",
+                "name": "request_user_input",
+                "arguments": "{\"questions\":[{\"id\":\"ship_it\",\"header\":\"Migration\",\"question\":\"Ship the migration?\",\"options\":[{\"label\":\"Ship it\",\"description\":\"Deploy now\"},{\"label\":\"Hold\",\"description\":\"Wait for review\"}]}]}"
+            }
+        });
+
+        let request =
+            extract_agent_decision_request(AgentCliKind::Codex, &json).expect("decision request");
+
+        assert_eq!(request.provider, "codex");
+        assert_eq!(request.provider_request_id.as_deref(), Some("call_456"));
+        assert_eq!(request.question, "Ship the migration?");
+        assert_eq!(request.options, vec!["Ship it", "Hold"]);
+        assert_eq!(
+            request
+                .questions
+                .as_ref()
+                .and_then(|questions| questions.pointer("/0/header"))
+                .and_then(Value::as_str),
+            Some("Migration")
+        );
+    }
+
+    #[test]
+    fn approval_prompt_context_includes_board_answer() {
+        let approval = Approval {
+            id: "approval-1".to_string(),
+            company_id: "company-1".to_string(),
+            approval_type: "agent_decision".to_string(),
+            requested_by_agent_id: Some("agent-1".to_string()),
+            requested_by_user_id: None,
+            status: "approved".to_string(),
+            payload: json!({
+                "question": "Ship the migration?",
+                "questions": [
+                    {
+                        "header": "Migration",
+                        "question": "Ship the migration?",
+                        "options": [
+                            { "label": "Ship it" },
+                            { "label": "Hold" }
+                        ]
+                    }
+                ]
+            }),
+            decision_note: Some("Migration: Ship it".to_string()),
+            decided_by_user_id: Some("local-board".to_string()),
+            decided_at: Some("2026-03-20T10:05:00Z".to_string()),
+            created_at: "2026-03-20T10:00:00Z".to_string(),
+            updated_at: "2026-03-20T10:05:00Z".to_string(),
+        };
+
+        let context = format_approval_prompt_context(&approval).expect("approval context");
+
+        assert!(context.contains("Approval ID: approval-1"));
+        assert!(context.contains("Ship the migration?"));
+        assert!(context.contains("Ship it, Hold"));
+        assert!(context.contains("Migration: Ship it"));
+    }
+
+    #[test]
+    fn comment_driven_runs_skip_idempotency_coalescing() {
+        assert_eq!(
+            build_idempotency_key(
+                "agent-1",
+                "automation",
+                Some("system"),
+                Some("issue_commented"),
+                Some("issue-1"),
+                None,
+            ),
+            None
+        );
+        assert_eq!(
+            build_idempotency_key(
+                "agent-1",
+                "automation",
+                Some("system"),
+                Some("issue_comment_mentioned"),
+                Some("issue-1"),
+                None,
+            ),
+            None
+        );
+        assert_eq!(
+            build_idempotency_key(
+                "agent-1",
+                "automation",
+                Some("system"),
+                Some("issue_reopened_via_comment"),
+                Some("issue-1"),
+                None,
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn only_comment_runs_wait_for_prior_issue_queue() {
+        assert!(queued_run_waits_for_prior_issue_runs(
+            Some("issue-1"),
+            Some("issue_commented")
+        ));
+        assert!(queued_run_waits_for_prior_issue_runs(
+            Some("issue-1"),
+            Some("issue_comment_mentioned")
+        ));
+        assert!(!queued_run_waits_for_prior_issue_runs(
+            Some("issue-1"),
+            Some("issue_assigned")
+        ));
+        assert!(!queued_run_waits_for_prior_issue_runs(
+            None,
+            Some("issue_commented")
+        ));
+    }
+
+    #[test]
+    fn older_pending_issue_runs_block_comment_claims() {
+        let conn = rusqlite::Connection::open_in_memory().expect("in-memory db");
+        conn.execute_batch(
+            "CREATE TABLE agent_runs (
+                id TEXT PRIMARY KEY,
+                issue_id TEXT,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );",
+        )
+        .expect("create agent_runs table");
+
+        conn.execute(
+            "INSERT INTO agent_runs (id, issue_id, status, created_at)
+             VALUES (?1, ?2, 'running', ?3)",
+            params!["run-1", "issue-1", "2026-03-20T10:00:00Z"],
+        )
+        .expect("seed running run");
+        conn.execute(
+            "INSERT INTO agent_runs (id, issue_id, status, created_at)
+             VALUES (?1, ?2, 'queued', ?3)",
+            params!["run-2", "issue-1", "2026-03-20T10:01:00Z"],
+        )
+        .expect("seed candidate run");
+        conn.execute(
+            "INSERT INTO agent_runs (id, issue_id, status, created_at)
+             VALUES (?1, ?2, 'queued', ?3)",
+            params!["run-3", "issue-2", "2026-03-20T09:59:00Z"],
+        )
+        .expect("seed unrelated run");
+        conn.execute(
+            "INSERT INTO agent_runs (id, issue_id, status, created_at)
+             VALUES (?1, ?2, 'succeeded', ?3)",
+            params!["run-4", "issue-1", "2026-03-20T09:58:00Z"],
+        )
+        .expect("seed finished run");
+
+        let candidate_rowid: i64 = conn
+            .query_row(
+                "SELECT rowid FROM agent_runs WHERE id = 'run-2'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("candidate rowid");
+
+        assert!(has_older_pending_issue_runs(
+            &conn,
+            "issue-1",
+            "2026-03-20T10:01:00Z",
+            candidate_rowid,
+        )
+        .expect("older pending runs query"));
+
+        assert!(!has_older_pending_issue_runs(
+            &conn,
+            "issue-2",
+            "2026-03-20T09:59:00Z",
+            conn.query_row(
+                "SELECT rowid FROM agent_runs WHERE id = 'run-3'",
+                [],
+                |row| row.get(0)
+            )
+            .expect("other issue rowid"),
+        )
+        .expect("other issue pending query"));
     }
 
     #[test]

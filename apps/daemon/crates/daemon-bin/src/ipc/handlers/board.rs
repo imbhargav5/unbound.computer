@@ -713,6 +713,13 @@ async fn register_approval_handlers(server: &IpcServer, state: DaemonState) {
                 match service::approve_approval(&db, &paths, input).await {
                     Ok(approval) => {
                         if let Some(agent_id) = approval.requested_by_agent_id.clone() {
+                            let issue_id = approval
+                                .payload
+                                .get("source_issue_id")
+                                .and_then(serde_json::Value::as_str)
+                                .map(str::trim)
+                                .filter(|value| !value.is_empty())
+                                .map(ToOwned::to_owned);
                             let _ = runs
                                 .enqueue_run(crate::app::AgentRunEnqueueRequest {
                                     agent_id,
@@ -722,6 +729,7 @@ async fn register_approval_handlers(server: &IpcServer, state: DaemonState) {
                                     wake_reason: Some("approval_approved".to_string()),
                                     payload: Some(serde_json::json!({
                                         "approval_id": approval.id,
+                                        "issue_id": issue_id,
                                     })),
                                     prompt: None,
                                     requested_by_actor_type: Some("system".to_string()),

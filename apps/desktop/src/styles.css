@@ -2898,22 +2898,143 @@ p {
   gap: 12px;
 }
 
+.approvals-decision-section,
+.approvals-answer-section,
 .approvals-payload-section {
   display: grid;
   gap: 12px;
+}
+
+.approvals-decision-header {
+  display: grid;
+  gap: 4px;
+}
+
+.approvals-decision-header p {
+  margin: 0;
+  color: #8a8a8a;
+  font-size: 12px;
+}
+
+.approvals-decision-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.approvals-decision-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #1f1f23;
+  border-radius: 16px;
+  background: #0c0c0d;
+}
+
+.approvals-decision-card-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.approvals-decision-card-copy strong {
+  color: #f5f5f5;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.approvals-decision-chip {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid #2a2a2f;
+  border-radius: 999px;
+  background: #131316;
+  color: #b4b4bc;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+.approvals-decision-options {
+  display: grid;
+  gap: 10px;
+}
+
+.approvals-decision-option {
+  width: 100%;
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid #232328;
+  border-radius: 14px;
+  background: #101012;
+  color: #e4e4e7;
+  text-align: left;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.approvals-decision-option.active {
+  border-color: #991b1b;
+  background: rgba(153, 27, 27, 0.14);
+  color: #fafafa;
+}
+
+.approvals-decision-option small {
+  color: #8a8a8a;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.approvals-decision-note-field {
+  display: grid;
+  gap: 8px;
+}
+
+.approvals-decision-note-field span {
+  color: #d4d4d8;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .approvals-payload-section h3 {
   font-size: 16px;
 }
 
+.approvals-decision-textarea,
+.approvals-answer-section pre,
 .approvals-payload-section pre {
   margin: 0;
-  padding: 16px;
   border: 1px solid #1b1b1d;
   border-radius: 18px;
   background: #0c0c0d;
   color: #d4d4d4;
+}
+
+.approvals-decision-textarea {
+  width: 100%;
+  min-height: 92px;
+  padding: 14px 16px;
+  resize: vertical;
+  font: inherit;
+  line-height: 1.5;
+}
+
+.approvals-answer-section pre,
+.approvals-payload-section pre {
+  padding: 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.approvals-decision-error {
+  margin: 0;
+  color: #f87171;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .approvals-empty-state {

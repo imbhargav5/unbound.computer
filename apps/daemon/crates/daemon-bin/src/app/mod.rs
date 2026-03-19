@@ -1,5 +1,6 @@
 //! Application wiring and lifecycle management.
 
+pub(crate) mod agent_cli;
 mod agent_runs;
 mod init;
 mod issue_workspaces;
