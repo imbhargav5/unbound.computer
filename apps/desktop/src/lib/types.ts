@@ -173,6 +173,11 @@ export interface IssueRunCardUpdateRecord {
   last_activity_at: string;
 }
 
+export interface AgentLiveRunCountRecord {
+  agent_id: string;
+  live_count: number;
+}
+
 export interface AgentRunLogChunk {
   content: string;
   next_offset: number;

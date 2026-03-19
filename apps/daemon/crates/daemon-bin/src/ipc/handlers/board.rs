@@ -762,6 +762,24 @@ async fn register_agent_run_handlers(server: &IpcServer, state: DaemonState) {
         })
         .await;
 
+    let live_counts_db = state.db.clone();
+    server
+        .register_handler(Method::AgentRunLiveCounts, move |req| {
+            let db = live_counts_db.clone();
+            async move {
+                let company_id =
+                    match required_string_param(&req.id, req.params.as_ref(), "company_id") {
+                        Ok(company_id) => company_id,
+                        Err(response) => return response,
+                    };
+                match service::list_agent_live_run_counts(&db, &company_id).await {
+                    Ok(counts) => json_response(&req.id, &serde_json::json!({ "counts": counts })),
+                    Err(error) => board_error_response(&req.id, error),
+                }
+            }
+        })
+        .await;
+
     let get_db = state.db.clone();
     server
         .register_handler(Method::AgentRunGet, move |req| {

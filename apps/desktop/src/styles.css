@@ -488,9 +488,16 @@ p {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
   padding: 8px 12px;
   color: #a3a3a3;
+}
+
+.board-sidebar-button-copy {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .board-sidebar-button-icon {
@@ -523,6 +530,7 @@ p {
   display: flex;
   align-items: center;
   gap: 10px;
+  justify-content: space-between;
   padding: 6px 12px;
   color: #b3b3b3;
 }
@@ -555,9 +563,30 @@ p {
 
 .agent-sidebar-button-label {
   min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.sidebar-live-count {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #60a5fa;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sidebar-live-count::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14);
 }
 
 .agent-sidebar-empty {

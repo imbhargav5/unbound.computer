@@ -117,6 +117,8 @@ pub enum Method {
     // Agent runs
     #[serde(rename = "agent_run.list")]
     AgentRunList,
+    #[serde(rename = "agent_run.live_counts")]
+    AgentRunLiveCounts,
     #[serde(rename = "agent_run.get")]
     AgentRunGet,
     #[serde(rename = "agent_run.events")]

@@ -64,6 +64,7 @@ fn main() {
             commands::board_checkout_issue,
             commands::board_approve_approval,
             commands::board_list_agent_runs,
+            commands::board_list_agent_live_run_counts,
             commands::board_get_agent_run,
             commands::board_list_agent_run_events,
             commands::board_read_agent_run_log,

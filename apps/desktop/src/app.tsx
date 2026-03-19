@@ -27,6 +27,7 @@ import {
   boardDeleteProject,
   boardGetAgentRun,
   boardGetIssue,
+  boardListAgentLiveRunCounts,
   boardListIssueAttachments,
   boardListAgentRunEvents,
   boardListAgentRuns,
@@ -75,6 +76,7 @@ import {
   terminalStop,
 } from "./lib/api";
 import type {
+  AgentLiveRunCountRecord,
   AgentRunEventRecord,
   AgentRunRecord,
   AgentRecord,
@@ -669,6 +671,8 @@ export function App() {
   >({});
   const [issueRunCardUpdatesByIssueId, setIssueRunCardUpdatesByIssueId] =
     useState<Record<string, IssueRunCardUpdateRecord>>({});
+  const [liveAgentRunCountsByAgentId, setLiveAgentRunCountsByAgentId] =
+    useState<Record<string, number>>({});
   const [issueAttachmentsByIssueId, setIssueAttachmentsByIssueId] = useState<
     Record<string, IssueAttachmentRecord[]>
   >({});
@@ -949,6 +953,14 @@ export function App() {
         )
       ),
     [boardProjects]
+  );
+  const totalLiveAgentRuns = useMemo(
+    () =>
+      Object.values(liveAgentRunCountsByAgentId).reduce(
+        (sum, count) => sum + count,
+        0
+      ),
+    [liveAgentRunCountsByAgentId]
   );
   const activeSession =
     sessions.find((session) => session.id === selectedSessionId) ?? null;
@@ -1493,6 +1505,66 @@ export function App() {
       )
     );
   }, [companySnapshot]);
+
+  useEffect(() => {
+    if (bootstrap?.state !== "ready" || !selectedCompanyId) {
+      setLiveAgentRunCountsByAgentId({});
+      return;
+    }
+
+    let cancelled = false;
+    let timeoutId: number | null = null;
+
+    const scheduleRefresh = (delayMs: number) => {
+      if (cancelled) {
+        return;
+      }
+
+      timeoutId = window.setTimeout(() => {
+        void loadLiveAgentRunCounts();
+      }, delayMs);
+    };
+
+    const loadLiveAgentRunCounts = async () => {
+      try {
+        const counts = (await boardListAgentLiveRunCounts(
+          selectedCompanyId
+        )) as AgentLiveRunCountRecord[];
+        if (cancelled) {
+          return;
+        }
+
+        const nextCounts = Object.fromEntries(
+          counts.map((entry) => [entry.agent_id, entry.live_count])
+        );
+        const hasLiveRuns = Object.values(nextCounts).some((count) => count > 0);
+
+        startTransition(() => {
+          setLiveAgentRunCountsByAgentId(nextCounts);
+        });
+
+        scheduleRefresh(hasLiveRuns ? 2000 : 10000);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setStatusMessage(
+          error instanceof Error ? error.message : String(error)
+        );
+        scheduleRefresh(5000);
+      }
+    };
+
+    void loadLiveAgentRunCounts();
+
+    return () => {
+      cancelled = true;
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [bootstrap?.state, selectedCompanyId]);
 
   useEffect(() => {
     if (
@@ -3866,6 +3938,11 @@ export function App() {
                     icon="dashboard"
                     label="Dashboard"
                     onClick={() => handleSelectScreen("dashboard")}
+                    trailing={
+                      totalLiveAgentRuns > 0
+                        ? formatLiveRunCountLabel(totalLiveAgentRuns)
+                        : null
+                    }
                   />
                   <BoardSidebarButton
                     active={selectedScreen === "inbox"}
@@ -3918,6 +3995,13 @@ export function App() {
                         <span className="agent-sidebar-button-label">
                           {agent.name || agent.title || agent.role || agent.id}
                         </span>
+                        {liveAgentRunCountsByAgentId[agent.id] ? (
+                          <span className="sidebar-live-count">
+                            {formatLiveRunCountLabel(
+                              liveAgentRunCountsByAgentId[agent.id]
+                            )}
+                          </span>
+                        ) : null}
                       </button>
                     ))
                   ) : (
@@ -6408,11 +6492,13 @@ function BoardSidebarButton({
   icon,
   label,
   onClick,
+  trailing,
 }: {
   active: boolean;
   icon?: CompanyContextMenuIconKey | null;
   label: string;
   onClick: () => void;
+  trailing?: string | null;
 }) {
   return (
     <button
@@ -6422,15 +6508,18 @@ function BoardSidebarButton({
       onClick={onClick}
       type="button"
     >
-      {icon ? (
-        <span aria-hidden="true" className="board-sidebar-button-icon">
-          <CompanyContextMenuIcon
-            className="board-sidebar-icon"
-            icon={icon}
-          />
-        </span>
-      ) : null}
-      <span>{label}</span>
+      <span className="board-sidebar-button-copy">
+        {icon ? (
+          <span aria-hidden="true" className="board-sidebar-button-icon">
+            <CompanyContextMenuIcon
+              className="board-sidebar-icon"
+              icon={icon}
+            />
+          </span>
+        ) : null}
+        <span>{label}</span>
+      </span>
+      {trailing ? <span className="sidebar-live-count">{trailing}</span> : null}
     </button>
   );
 }
@@ -13257,6 +13346,10 @@ function agentRunStatusLabel(status: string) {
     default:
       return humanizeIssueValue(status);
   }
+}
+
+function formatLiveRunCountLabel(count: number) {
+  return `${count} live`;
 }
 
 function agentRunStatusTone(status: string) {

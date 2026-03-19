@@ -232,6 +232,12 @@ pub struct AgentRun {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentLiveRunCount {
+    pub agent_id: String,
+    pub live_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentRunEvent {
     pub id: i64,
     pub company_id: String,

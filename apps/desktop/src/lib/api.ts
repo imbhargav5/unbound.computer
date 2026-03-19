@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
+  AgentLiveRunCountRecord,
   AgentRecord,
   AgentRunEventRecord,
   AgentRunLogChunk,
@@ -126,6 +127,11 @@ export const boardListAgentRuns = (agentId: string, limit?: number) =>
   invokeCommand<AgentRunRecord[]>("board_list_agent_runs", {
     agentId,
     limit,
+  });
+
+export const boardListAgentLiveRunCounts = (companyId: string) =>
+  invokeCommand<AgentLiveRunCountRecord[]>("board_list_agent_live_run_counts", {
+    companyId,
   });
 
 export const boardGetAgentRun = (runId: string) =>

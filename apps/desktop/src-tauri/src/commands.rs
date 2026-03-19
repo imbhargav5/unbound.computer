@@ -348,6 +348,16 @@ pub async fn board_list_agent_runs(agent_id: String, limit: Option<u32>) -> Resu
 }
 
 #[tauri::command]
+pub async fn board_list_agent_live_run_counts(company_id: String) -> Result<Value, String> {
+    let value = call_daemon(
+        Method::AgentRunLiveCounts,
+        Some(json!({ "company_id": company_id })),
+    )
+    .await?;
+    Ok(extract_field(value, "counts"))
+}
+
+#[tauri::command]
 pub async fn board_get_agent_run(run_id: String) -> Result<Value, String> {
     let value = call_daemon(Method::AgentRunGet, Some(json!({ "run_id": run_id }))).await?;
     Ok(extract_field(value, "run"))

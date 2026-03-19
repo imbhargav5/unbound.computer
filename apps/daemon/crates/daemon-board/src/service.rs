@@ -1,10 +1,10 @@
 use crate::error::{BoardError, BoardResult};
 use crate::models::{
-    AddIssueAttachmentInput, AddIssueCommentInput, Agent, AgentRun, AgentRunEvent, Approval,
-    ApprovalDecisionInput, Company, CreateAgentDecisionApprovalInput, CreateAgentHireInput,
-    CreateAgentInput, CreateCompanyInput, CreateIssueInput, CreateProjectInput, Goal, Issue,
-    IssueAttachment, IssueComment, IssueListFilter, IssueRunCardUpdate, Project, ProjectWorkspace,
-    UpdateAgentInput, UpdateIssueInput, Workspace,
+    AddIssueAttachmentInput, AddIssueCommentInput, Agent, AgentLiveRunCount, AgentRun,
+    AgentRunEvent, Approval, ApprovalDecisionInput, Company, CreateAgentDecisionApprovalInput,
+    CreateAgentHireInput, CreateAgentInput, CreateCompanyInput, CreateIssueInput,
+    CreateProjectInput, Goal, Issue, IssueAttachment, IssueComment, IssueListFilter,
+    IssueRunCardUpdate, Project, ProjectWorkspace, UpdateAgentInput, UpdateIssueInput, Workspace,
 };
 use crate::run_summary::{
     summarize_agent_run_event, summarize_agent_run_excerpt, summarize_agent_run_result,
@@ -2026,6 +2026,38 @@ pub async fn list_agent_runs(
             )?;
             let rows = stmt
                 .query_map(params![agent_id, limit], row_to_agent_run)?
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(rows)
+        })
+        .await?)
+}
+
+pub async fn list_agent_live_run_counts(
+    db: &AsyncDatabase,
+    company_id: &str,
+) -> BoardResult<Vec<AgentLiveRunCount>> {
+    let company_id = company_id.to_string();
+    Ok(db
+        .call_with_operation("board.agent_run.live_counts", move |conn| {
+            let mut stmt = conn.prepare(
+                "SELECT
+                    a.id,
+                    COUNT(r.id) AS live_count
+                 FROM agents a
+                 LEFT JOIN agent_runs r
+                   ON r.agent_id = a.id
+                  AND r.status = 'running'
+                 WHERE a.company_id = ?1
+                 GROUP BY a.id
+                 ORDER BY a.created_at ASC",
+            )?;
+            let rows = stmt
+                .query_map(params![company_id], |row| {
+                    Ok(AgentLiveRunCount {
+                        agent_id: row.get(0)?,
+                        live_count: row.get(1)?,
+                    })
+                })?
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(rows)
         })
@@ -5363,6 +5395,132 @@ mod tests {
         assert!(runs
             .iter()
             .all(|run| run.issue_id.as_deref() == Some(issue.id.as_str())));
+    }
+
+    #[tokio::test]
+    async fn list_agent_live_run_counts_returns_running_instances_per_agent() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let agent_a = create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "CEO".to_string(),
+                role: Some("ceo".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let agent_b = create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "Operator".to_string(),
+                role: Some("general".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let company_id = company.id.clone();
+        let agent_a_id = agent_a.id.clone();
+        let agent_b_id = agent_b.id.clone();
+        db.call_with_operation("board.agent_run.live_counts_test.seed", move |conn| {
+            conn.execute(
+                "INSERT INTO agent_runs (
+                    id, company_id, agent_id, invocation_source, status, created_at, updated_at
+                 ) VALUES (?1, ?2, ?3, 'assignment', 'running', ?4, ?4)",
+                params!["run-1", &company_id, &agent_a_id, "2026-03-20T12:00:00Z"],
+            )?;
+            conn.execute(
+                "INSERT INTO agent_runs (
+                    id, company_id, agent_id, invocation_source, status, created_at, updated_at
+                 ) VALUES (?1, ?2, ?3, 'assignment', 'running', ?4, ?4)",
+                params!["run-2", &company_id, &agent_a_id, "2026-03-20T12:01:00Z"],
+            )?;
+            conn.execute(
+                "INSERT INTO agent_runs (
+                    id, company_id, agent_id, invocation_source, status, created_at, updated_at
+                 ) VALUES (?1, ?2, ?3, 'assignment', 'queued', ?4, ?4)",
+                params!["run-3", &company_id, &agent_a_id, "2026-03-20T12:02:00Z"],
+            )?;
+            conn.execute(
+                "INSERT INTO agent_runs (
+                    id, company_id, agent_id, invocation_source, status, created_at, updated_at
+                 ) VALUES (?1, ?2, ?3, 'assignment', 'running', ?4, ?4)",
+                params!["run-4", &company_id, &agent_b_id, "2026-03-20T12:03:00Z"],
+            )?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+
+        let counts = list_agent_live_run_counts(&db, &company.id).await.unwrap();
+        let counts_by_agent = counts
+            .into_iter()
+            .map(|entry| (entry.agent_id, entry.live_count))
+            .collect::<HashMap<_, _>>();
+
+        assert_eq!(counts_by_agent.get(&agent_a.id), Some(&2));
+        assert_eq!(counts_by_agent.get(&agent_b.id), Some(&1));
+    }
+
+    #[tokio::test]
+    async fn list_agent_live_run_counts_returns_zero_for_idle_agents() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let agent = create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "Idle Agent".to_string(),
+                role: Some("general".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let counts = list_agent_live_run_counts(&db, &company.id).await.unwrap();
+        assert_eq!(counts.len(), 1);
+        assert_eq!(counts[0].agent_id, agent.id);
+        assert_eq!(counts[0].live_count, 0);
     }
 
     #[tokio::test]
