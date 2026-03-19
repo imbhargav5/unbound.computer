@@ -1,6 +1,6 @@
 //! Local board IPC handlers.
 
-use crate::app::{ensure_issue_workspace, DaemonState};
+use crate::app::{ensure_issue_workspace, issue_has_attached_workspace_target, DaemonState};
 use daemon_board::service;
 use daemon_board::{
     AddIssueAttachmentInput, AddIssueCommentInput, ApprovalDecisionInput, BoardError,
@@ -349,10 +349,12 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
         .await;
 
     let create_db = state.db.clone();
+    let create_state = state.clone();
     let create_runs = state.agent_run_coordinator.clone();
     server
         .register_handler(Method::IssueCreate, move |req| {
             let db = create_db.clone();
+            let state = create_state.clone();
             let runs = create_runs.clone();
             async move {
                 let input = match parse_params::<CreateIssueInput>(&req.id, req.params.as_ref()) {
@@ -361,6 +363,7 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
                 };
                 match service::create_issue(&db, input).await {
                     Ok(issue) => {
+                        let issue = prepare_attached_issue_workspace_if_needed(&state, issue).await;
                         if should_wake_assignee_for_todo_issue(&issue) {
                             maybe_enqueue_issue_run(
                                 runs.as_ref(),
@@ -380,10 +383,12 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
         .await;
 
     let update_db = state.db.clone();
+    let update_state = state.clone();
     let update_runs = state.agent_run_coordinator.clone();
     server
         .register_handler(Method::IssueUpdate, move |req| {
             let db = update_db.clone();
+            let state = update_state.clone();
             let runs = update_runs.clone();
             async move {
                 let input = match parse_params::<UpdateIssueInput>(&req.id, req.params.as_ref()) {
@@ -401,6 +406,7 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
 
                 match service::update_issue(&db, input).await {
                     Ok(issue) => {
+                        let issue = prepare_attached_issue_workspace_if_needed(&state, issue).await;
                         if previous.assignee_agent_id != issue.assignee_agent_id
                             && should_wake_assignee_for_todo_issue(&issue)
                         {
@@ -1049,6 +1055,42 @@ async fn enqueue_issue_comment_run(
             target_agent_id = agent_id,
             "Failed to enqueue issue comment run"
         );
+    }
+}
+
+async fn prepare_attached_issue_workspace_if_needed(state: &DaemonState, issue: Issue) -> Issue {
+    if !issue_has_attached_workspace_target(&issue) {
+        return issue;
+    }
+
+    if let Err(error) = ensure_issue_workspace(
+        &state.db,
+        state.armin.as_ref(),
+        &state.db_encryption_key,
+        &state.session_secret_cache,
+        &issue.id,
+    )
+    .await
+    {
+        warn!(
+            error = %error,
+            issue_id = %issue.id,
+            "Failed to prepare attached issue workspace"
+        );
+        return issue;
+    }
+
+    match service::get_issue(&state.db, &issue.id).await {
+        Ok(Some(updated_issue)) => updated_issue,
+        Ok(None) => issue,
+        Err(error) => {
+            warn!(
+                error = %error,
+                issue_id = %issue.id,
+                "Failed to reload issue after preparing attached workspace"
+            );
+            issue
+        }
     }
 }
 

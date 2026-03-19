@@ -394,8 +394,13 @@ function issueExecutionWorkspaceSettingsFromDraft(
     | "workspaceWorktreePath"
     | "workspaceWorktreeBranch"
     | "workspaceWorktreeName"
-  >
+  >,
+  projectId?: string | null
 ) {
+  if (!projectId?.trim()) {
+    return null;
+  }
+
   switch (draft.workspaceTargetMode) {
     case "new_worktree":
       return {
@@ -411,8 +416,13 @@ function issueExecutionWorkspaceSettingsFromDraft(
           }
         : null;
     case "main":
+      return {
+        mode: "main",
+      };
     default:
-      return null;
+      return {
+        mode: "main",
+      };
   }
 }
 
@@ -874,6 +884,13 @@ export function App() {
     ) ??
     companyWorkspaces[0] ??
     null;
+  const selectedIssueWorkspace = selectedIssue?.workspace_session_id
+    ? companyWorkspaces.find(
+        (workspace) =>
+          workspace.id === selectedIssue.workspace_session_id ||
+          workspace.session_id === selectedIssue.workspace_session_id
+      ) ?? null
+    : null;
   const selectedAgent =
     boardAgents.find((agent) => agent.id === selectedAgentId) ??
     boardAgents[0] ??
@@ -1723,6 +1740,26 @@ export function App() {
     selectedBoardWorkspace?.id,
     selectedBoardWorkspace?.repository_id,
     selectedBoardWorkspace?.session_id,
+  ]);
+
+  useEffect(() => {
+    if (
+      selectedScreen !== "issues" ||
+      issuesRouteMode !== "detail" ||
+      !selectedIssueWorkspace ||
+      selectedIssueWorkspace.id === selectedBoardWorkspaceId
+    ) {
+      return;
+    }
+
+    startTransition(() => {
+      setSelectedBoardWorkspaceId(selectedIssueWorkspace.id);
+    });
+  }, [
+    issuesRouteMode,
+    selectedBoardWorkspaceId,
+    selectedIssueWorkspace?.id,
+    selectedScreen,
   ]);
 
   useEffect(() => {
@@ -2699,7 +2736,7 @@ export function App() {
           workspaceWorktreePath: issueDialogWorkspaceWorktreePath,
           workspaceWorktreeBranch: issueDialogWorkspaceWorktreeBranch,
           workspaceWorktreeName: issueDialogWorkspaceWorktreeName,
-        });
+        }, issueDialogProjectId);
       if (executionWorkspaceSettings) {
         params.execution_workspace_settings = executionWorkspaceSettings;
       }
@@ -2980,7 +3017,7 @@ export function App() {
             workspaceWorktreeName:
               normalizedPatch.workspaceWorktreeName ??
               issueDraft.workspaceWorktreeName,
-          });
+          }, normalizedPatch.projectId ?? issueDraft.projectId);
       }
 
       if (
@@ -3890,6 +3927,36 @@ export function App() {
                   issue={selectedIssue}
                   issueDraft={issueDraft}
                   issueEditorError={issueEditorError}
+                  issueWorkspaceSidebar={
+                    selectedIssueWorkspace ? (
+                      <WorkspaceInspectorSidebar
+                        currentBranch={currentBranch}
+                        currentBranchName={currentBranchName}
+                        currentDirectory={currentDirectory}
+                        fileEntries={fileEntries}
+                        gitCommitMessage={gitCommitMessage}
+                        gitHistory={gitHistory}
+                        gitState={gitState}
+                        hasUncommittedChanges={hasUncommittedChanges}
+                        hasUnpushedCommits={hasUnpushedCommits}
+                        isWorking={isWorking}
+                        selectedDiff={selectedDiff}
+                        selectedFilePath={selectedFilePath}
+                        workspace={selectedIssueWorkspace}
+                        workspaceSidebarTab={workspaceSidebarTab}
+                        onDiscardFile={(file) => void handleDiscardFile(file)}
+                        onGitCommit={(push) => void handleGitCommit(push)}
+                        onGitCommitMessageChange={setGitCommitMessage}
+                        onGitPush={() => void handleGitPush()}
+                        onOpenDiff={(path) => void handleOpenDiff(path)}
+                        onOpenDirectory={(path) => void handleOpenDirectory(path)}
+                        onOpenFile={(path) => void handleOpenFile(path)}
+                        onSelectSidebarTab={setWorkspaceSidebarTab}
+                        onStageFile={(file) => void handleStageFile(file)}
+                        onUnstageFile={(file) => void handleUnstageFile(file)}
+                      />
+                    ) : null
+                  }
                   isEditingIssue={isEditingIssue}
                   linkedApprovals={linkedIssueApprovals}
                   newCommentBody={newIssueCommentBody}
@@ -4395,235 +4462,39 @@ export function App() {
               <section className="workspace-empty-state workspace-center-empty">
                 <h3>Select a worktree</h3>
                 <p>
-                  Issue-owned coding sessions appear here. The main worktree is
-                  used directly.
+                  Issue-owned coding sessions appear here. Repo-root targets run
+                  directly in the project checkout.
                 </p>
               </section>
             )}
           </main>
 
-          <aside className="workspace-inspector">
-            {selectedBoardWorkspace ? (
-              <section className="inspector-panel workspace-details-panel">
-                <h3>Worktree Details</h3>
-                <div className="workspace-detail-grid">
-                  <DetailRow
-                    label="Issue"
-                    value={
-                      selectedBoardWorkspace.issue_identifier ??
-                      selectedBoardWorkspace.issue_id ??
-                      "Missing"
-                    }
-                  />
-                  <DetailRow
-                    label="Agent"
-                    value={
-                      selectedBoardWorkspace.agent_name ??
-                      selectedBoardWorkspace.agent_id ??
-                      "Missing"
-                    }
-                  />
-                  <DetailRow
-                    label="Project"
-                    value={
-                      selectedBoardWorkspace.project_name ??
-                      selectedBoardWorkspace.project_id ??
-                      "Missing"
-                    }
-                  />
-                  <DetailRow
-                    label="Branch"
-                    value={selectedBoardWorkspace.workspace_branch ?? "main"}
-                  />
-                  <DetailRow
-                    label="Repo"
-                    value={
-                      selectedBoardWorkspace.workspace_repo_path ?? "Missing"
-                    }
-                  />
-                </div>
-              </section>
-            ) : null}
-
-            <section className="inspector-panel workspace-git-panel">
-              <div className="git-sidebar-header">
-                <div className="git-branch-pill">
-                  <span>{currentBranchName}</span>
-                  {currentBranch ? (
-                    <small>
-                      {currentBranch.ahead > 0 ? `+${currentBranch.ahead}` : ""}
-                      {currentBranch.ahead > 0 && currentBranch.behind > 0
-                        ? " "
-                        : ""}
-                      {currentBranch.behind > 0
-                        ? `-${currentBranch.behind}`
-                        : ""}
-                    </small>
-                  ) : null}
-                </div>
-
-                <div className="git-sidebar-actions">
-                  {hasUncommittedChanges ? (
-                    <>
-                      <button
-                        className="primary-button compact-button"
-                        disabled={isWorking || !gitCommitMessage.trim()}
-                        onClick={() => void handleGitCommit(false)}
-                        type="button"
-                      >
-                        Commit
-                      </button>
-                      <button
-                        className="secondary-button compact-button"
-                        disabled={isWorking || !gitCommitMessage.trim()}
-                        onClick={() => void handleGitCommit(true)}
-                        type="button"
-                      >
-                        Commit + Push
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      className="primary-button compact-button"
-                      disabled={isWorking || !hasUnpushedCommits}
-                      onClick={() => void handleGitPush()}
-                      type="button"
-                    >
-                      Push
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="workspace-sidebar-tabs">
-                <WorkspaceSidebarTabButton
-                  active={workspaceSidebarTab === "changes"}
-                  count={gitState?.files.length ?? 0}
-                  label="Changes"
-                  onClick={() => setWorkspaceSidebarTab("changes")}
-                />
-                <WorkspaceSidebarTabButton
-                  active={workspaceSidebarTab === "files"}
-                  label="Files"
-                  onClick={() => setWorkspaceSidebarTab("files")}
-                />
-                <WorkspaceSidebarTabButton
-                  active={workspaceSidebarTab === "commits"}
-                  label="Commits"
-                  onClick={() => setWorkspaceSidebarTab("commits")}
-                />
-              </div>
-
-              {workspaceSidebarTab === "changes" ? (
-                <div className="workspace-sidebar-content">
-                  <label className="git-commit-field">
-                    <span>Commit message</span>
-                    <input
-                      onChange={(event) =>
-                        setGitCommitMessage(event.target.value)
-                      }
-                      placeholder="Describe this change"
-                      value={gitCommitMessage}
-                    />
-                  </label>
-
-                  <GitChangeSection
-                    activePath={selectedDiff ? selectedFilePath : null}
-                    files={(gitState?.files ?? []).filter(
-                      (file) => file.staged
-                    )}
-                    onDiscard={(file) => void handleDiscardFile(file)}
-                    onOpen={(file) => void handleOpenDiff(file.path)}
-                    onPrimaryAction={(file) => void handleUnstageFile(file)}
-                    primaryActionLabel="Unstage"
-                    title="Staged"
-                  />
-                  <GitChangeSection
-                    activePath={selectedDiff ? selectedFilePath : null}
-                    files={(gitState?.files ?? []).filter(
-                      (file) => !file.staged
-                    )}
-                    onDiscard={(file) => void handleDiscardFile(file)}
-                    onOpen={(file) => void handleOpenDiff(file.path)}
-                    onPrimaryAction={(file) => void handleStageFile(file)}
-                    primaryActionLabel="Stage"
-                    title="Working Tree"
-                  />
-                </div>
-              ) : null}
-
-              {workspaceSidebarTab === "files" ? (
-                <div className="workspace-sidebar-content">
-                  <div className="inspector-header">
-                    <h3>Repository Files</h3>
-                    {currentDirectory ? (
-                      <button
-                        className="secondary-button compact-button"
-                        onClick={() => {
-                          const parent = currentDirectory
-                            .split("/")
-                            .slice(0, -1)
-                            .join("/");
-                          void handleOpenDirectory(parent);
-                        }}
-                        type="button"
-                      >
-                        Up
-                      </button>
-                    ) : null}
-                  </div>
-                  <div className="surface-list dense">
-                    {fileEntries.map((entry) => (
-                      <button
-                        className="file-list-button"
-                        key={entry.path}
-                        onClick={() =>
-                          entry.is_dir
-                            ? void handleOpenDirectory(entry.path)
-                            : void handleOpenFile(entry.path)
-                        }
-                        type="button"
-                      >
-                        <strong>
-                          {entry.is_dir ? `${entry.name}/` : entry.name}
-                        </strong>
-                        <span>{entry.path}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {workspaceSidebarTab === "commits" ? (
-                <div className="workspace-sidebar-content">
-                  <div className="summary-grid">
-                    <SummaryPill label="Branch" value={currentBranchName} />
-                    <SummaryPill
-                      label="Changed"
-                      value={gitState?.files.length ?? 0}
-                    />
-                    <SummaryPill
-                      label="Clean"
-                      value={gitState?.is_clean ? "yes" : "no"}
-                    />
-                  </div>
-                  <div className="surface-list dense">
-                    {(gitHistory?.commits ?? []).map((commit) => (
-                      <article className="commit-row" key={commit.oid}>
-                        <div>
-                          <strong>{commit.summary}</strong>
-                          <span>
-                            {commit.short_oid} · {commit.author_name} ·{" "}
-                            {formatRelativeTimestamp(commit.author_time)}
-                          </span>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </section>
-          </aside>
+          <WorkspaceInspectorSidebar
+            currentBranch={currentBranch}
+            currentBranchName={currentBranchName}
+            currentDirectory={currentDirectory}
+            fileEntries={fileEntries}
+            gitCommitMessage={gitCommitMessage}
+            gitHistory={gitHistory}
+            gitState={gitState}
+            hasUncommittedChanges={hasUncommittedChanges}
+            hasUnpushedCommits={hasUnpushedCommits}
+            isWorking={isWorking}
+            selectedDiff={selectedDiff}
+            selectedFilePath={selectedFilePath}
+            workspace={selectedBoardWorkspace}
+            workspaceSidebarTab={workspaceSidebarTab}
+            onDiscardFile={(file) => void handleDiscardFile(file)}
+            onGitCommit={(push) => void handleGitCommit(push)}
+            onGitCommitMessageChange={setGitCommitMessage}
+            onGitPush={() => void handleGitPush()}
+            onOpenDiff={(path) => void handleOpenDiff(path)}
+            onOpenDirectory={(path) => void handleOpenDirectory(path)}
+            onOpenFile={(path) => void handleOpenFile(path)}
+            onSelectSidebarTab={setWorkspaceSidebarTab}
+            onStageFile={(file) => void handleStageFile(file)}
+            onUnstageFile={(file) => void handleUnstageFile(file)}
+          />
         </div>
       ) : null}
 
@@ -7257,6 +7128,7 @@ function IssueDetailView({
   subissues,
   comments,
   issueEditorError,
+  issueWorkspaceSidebar,
   newCommentBody,
   newCommentTargetAgentId,
   onBack,
@@ -7296,6 +7168,7 @@ function IssueDetailView({
   subissues: IssueRecord[];
   comments: IssueCommentRecord[];
   issueEditorError: string | null;
+  issueWorkspaceSidebar?: ReactNode;
   newCommentBody: string;
   newCommentTargetAgentId: string;
   onBack: () => void;
@@ -7946,6 +7819,8 @@ function IssueDetailView({
             </div>
           </section>
         </section>
+
+        {issueWorkspaceSidebar}
 
         {isPropertiesOpen ? (
           <>
@@ -10664,6 +10539,253 @@ function WorkspaceSidebarTabButton({
       <span>{label}</span>
       {count ? <small>{count}</small> : null}
     </button>
+  );
+}
+
+function WorkspaceInspectorSidebar({
+  currentBranch,
+  currentBranchName,
+  currentDirectory,
+  fileEntries,
+  gitCommitMessage,
+  gitHistory,
+  gitState,
+  hasUncommittedChanges,
+  hasUnpushedCommits,
+  isWorking,
+  selectedDiff,
+  selectedFilePath,
+  workspace,
+  workspaceSidebarTab,
+  onDiscardFile,
+  onGitCommit,
+  onGitCommitMessageChange,
+  onGitPush,
+  onOpenDiff,
+  onOpenDirectory,
+  onOpenFile,
+  onSelectSidebarTab,
+  onStageFile,
+  onUnstageFile,
+}: {
+  currentBranch: GitBranchesResult["local"][number] | null;
+  currentBranchName: string;
+  currentDirectory: string | null;
+  fileEntries: FileEntry[];
+  gitCommitMessage: string;
+  gitHistory: GitLogResult | null;
+  gitState: GitStatusResult | null;
+  hasUncommittedChanges: boolean;
+  hasUnpushedCommits: boolean;
+  isWorking: boolean;
+  selectedDiff: GitDiffResult | null;
+  selectedFilePath: string | null;
+  workspace: WorkspaceRecord | null;
+  workspaceSidebarTab: WorkspaceSidebarTab;
+  onDiscardFile: (file: GitStatusFile) => void;
+  onGitCommit: (push: boolean) => void;
+  onGitCommitMessageChange: (value: string) => void;
+  onGitPush: () => void;
+  onOpenDiff: (path: string) => void;
+  onOpenDirectory: (path: string) => void;
+  onOpenFile: (path: string) => void;
+  onSelectSidebarTab: (tab: WorkspaceSidebarTab) => void;
+  onStageFile: (file: GitStatusFile) => void;
+  onUnstageFile: (file: GitStatusFile) => void;
+}) {
+  return (
+    <aside className="workspace-inspector">
+      {workspace ? (
+        <section className="inspector-panel workspace-details-panel">
+          <h3>Worktree Details</h3>
+          <div className="workspace-detail-grid">
+            <DetailRow
+              label="Issue"
+              value={
+                workspace.issue_identifier ?? workspace.issue_id ?? "Missing"
+              }
+            />
+            <DetailRow
+              label="Agent"
+              value={workspace.agent_name ?? workspace.agent_id ?? "Missing"}
+            />
+            <DetailRow
+              label="Project"
+              value={
+                workspace.project_name ?? workspace.project_id ?? "Missing"
+              }
+            />
+            <DetailRow
+              label="Branch"
+              value={workspace.workspace_branch ?? "main"}
+            />
+            <DetailRow
+              label="Repo"
+              value={workspace.workspace_repo_path ?? "Missing"}
+            />
+          </div>
+        </section>
+      ) : null}
+
+      <section className="inspector-panel workspace-git-panel">
+        <div className="git-sidebar-header">
+          <div className="git-branch-pill">
+            <span>{currentBranchName}</span>
+            {currentBranch ? (
+              <small>
+                {currentBranch.ahead > 0 ? `+${currentBranch.ahead}` : ""}
+                {currentBranch.ahead > 0 && currentBranch.behind > 0 ? " " : ""}
+                {currentBranch.behind > 0 ? `-${currentBranch.behind}` : ""}
+              </small>
+            ) : null}
+          </div>
+
+          <div className="git-sidebar-actions">
+            {hasUncommittedChanges ? (
+              <>
+                <button
+                  className="primary-button compact-button"
+                  disabled={isWorking || !gitCommitMessage.trim()}
+                  onClick={() => onGitCommit(false)}
+                  type="button"
+                >
+                  Commit
+                </button>
+                <button
+                  className="secondary-button compact-button"
+                  disabled={isWorking || !gitCommitMessage.trim()}
+                  onClick={() => onGitCommit(true)}
+                  type="button"
+                >
+                  Commit + Push
+                </button>
+              </>
+            ) : (
+              <button
+                className="primary-button compact-button"
+                disabled={isWorking || !hasUnpushedCommits}
+                onClick={onGitPush}
+                type="button"
+              >
+                Push
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="workspace-sidebar-tabs">
+          <WorkspaceSidebarTabButton
+            active={workspaceSidebarTab === "changes"}
+            count={gitState?.files.length ?? 0}
+            label="Changes"
+            onClick={() => onSelectSidebarTab("changes")}
+          />
+          <WorkspaceSidebarTabButton
+            active={workspaceSidebarTab === "files"}
+            label="Files"
+            onClick={() => onSelectSidebarTab("files")}
+          />
+          <WorkspaceSidebarTabButton
+            active={workspaceSidebarTab === "commits"}
+            label="Commits"
+            onClick={() => onSelectSidebarTab("commits")}
+          />
+        </div>
+
+        {workspaceSidebarTab === "changes" ? (
+          <div className="workspace-sidebar-content">
+            <label className="git-commit-field">
+              <span>Commit message</span>
+              <input
+                onChange={(event) => onGitCommitMessageChange(event.target.value)}
+                placeholder="Describe this change"
+                value={gitCommitMessage}
+              />
+            </label>
+
+            <GitChangeSection
+              activePath={selectedDiff ? selectedFilePath : null}
+              files={(gitState?.files ?? []).filter((file) => file.staged)}
+              onDiscard={(file) => onDiscardFile(file)}
+              onOpen={(file) => onOpenDiff(file.path)}
+              onPrimaryAction={(file) => onUnstageFile(file)}
+              primaryActionLabel="Unstage"
+              title="Staged"
+            />
+            <GitChangeSection
+              activePath={selectedDiff ? selectedFilePath : null}
+              files={(gitState?.files ?? []).filter((file) => !file.staged)}
+              onDiscard={(file) => onDiscardFile(file)}
+              onOpen={(file) => onOpenDiff(file.path)}
+              onPrimaryAction={(file) => onStageFile(file)}
+              primaryActionLabel="Stage"
+              title="Working Tree"
+            />
+          </div>
+        ) : null}
+
+        {workspaceSidebarTab === "files" ? (
+          <div className="workspace-sidebar-content">
+            <div className="inspector-header">
+              <h3>Repository Files</h3>
+              {currentDirectory ? (
+                <button
+                  className="secondary-button compact-button"
+                  onClick={() => {
+                    const parent = currentDirectory
+                      .split("/")
+                      .slice(0, -1)
+                      .join("/");
+                    onOpenDirectory(parent);
+                  }}
+                  type="button"
+                >
+                  Up
+                </button>
+              ) : null}
+            </div>
+            <div className="surface-list dense">
+              {fileEntries.map((entry) => (
+                <button
+                  className="file-list-button"
+                  key={entry.path}
+                  onClick={() =>
+                    entry.is_dir ? onOpenDirectory(entry.path) : onOpenFile(entry.path)
+                  }
+                  type="button"
+                >
+                  <strong>{entry.is_dir ? `${entry.name}/` : entry.name}</strong>
+                  <span>{entry.path}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {workspaceSidebarTab === "commits" ? (
+          <div className="workspace-sidebar-content">
+            <div className="summary-grid">
+              <SummaryPill label="Branch" value={currentBranchName} />
+              <SummaryPill label="Changed" value={gitState?.files.length ?? 0} />
+              <SummaryPill label="Clean" value={gitState?.is_clean ? "yes" : "no"} />
+            </div>
+            <div className="surface-list dense">
+              {(gitHistory?.commits ?? []).map((commit) => (
+                <article className="commit-row" key={commit.oid}>
+                  <div>
+                    <strong>{commit.summary}</strong>
+                    <span>
+                      {commit.short_oid} · {commit.author_name} ·{" "}
+                      {formatRelativeTimestamp(commit.author_time)}
+                    </span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </section>
+    </aside>
   );
 }
 

@@ -8,6 +8,7 @@ use daemon_board::{service, BoardError, Issue, Workspace};
 use git_ops::get_branches;
 use serde::Deserialize;
 use serde_json::json;
+use serde_json::Value;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -149,7 +150,21 @@ pub async fn ensure_issue_workspace(
     .await
 }
 
-fn ensure_workspace_repository(
+pub(crate) fn issue_has_attached_workspace_target(issue: &Issue) -> bool {
+    if issue.workspace_session_id.is_some() {
+        return true;
+    }
+
+    issue
+        .execution_workspace_settings
+        .as_ref()
+        .and_then(Value::as_object)
+        .and_then(|record| record.get("mode"))
+        .and_then(Value::as_str)
+        .is_some_and(|mode| matches!(mode, "main" | "new_worktree" | "existing_worktree"))
+}
+
+pub(crate) fn ensure_workspace_repository(
     armin: &DaemonArmin,
     repo_path: &str,
     default_branch: Option<String>,

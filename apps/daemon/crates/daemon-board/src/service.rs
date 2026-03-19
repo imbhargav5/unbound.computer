@@ -2185,11 +2185,7 @@ pub async fn attach_issue_workspace_session(
 
             tx.execute(
                 "UPDATE issues
-                 SET status = CASE
-                        WHEN status IN ('done', 'cancelled') THEN status
-                        ELSE 'in_progress'
-                     END,
-                     started_at = COALESCE(started_at, ?1),
+                 SET started_at = COALESCE(started_at, ?1),
                      updated_at = ?1
                  WHERE id = ?2",
                 params![now.clone(), issue_row_id.clone()],
@@ -4365,6 +4361,121 @@ mod tests {
         assert_eq!(cleared.execution_workspace_settings, None);
         assert!(cleared.hidden_at.is_some());
         assert_eq!(cleared.request_depth, 0);
+    }
+
+    #[tokio::test]
+    async fn attach_issue_workspace_session_preserves_todo_status() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let agent = create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "Builder".to_string(),
+                role: Some("engineer".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let repo_path = dir.path().join("project").to_string_lossy().into_owned();
+        let project = create_project(
+            &db,
+            CreateProjectInput {
+                company_id: company.id.clone(),
+                name: "Project".to_string(),
+                repo_path: Some(repo_path.clone()),
+                repo_ref: Some("main".to_string()),
+                ..CreateProjectInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let issue = create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                project_id: Some(project.id.clone()),
+                title: "Keep status".to_string(),
+                status: Some("todo".to_string()),
+                assignee_agent_id: Some(agent.id.clone()),
+                execution_workspace_settings: Some(json!({ "mode": "main" })),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let session_id = uuid::Uuid::new_v4().to_string();
+        let session_created_at = now_rfc3339();
+        let company_id = company.id.clone();
+        let project_id = project.id.clone();
+        let issue_id = issue.id.clone();
+        let session_id_for_insert = session_id.clone();
+        let repo_path_for_lookup = repo_path.clone();
+        db.call_with_operation(
+            "board.attach_issue_workspace_test.seed_session",
+            move |conn| {
+                let repository_id: String = conn.query_row(
+                    "SELECT id FROM repositories WHERE path = ?1",
+                    params![repo_path_for_lookup],
+                    |row| row.get(0),
+                )?;
+
+                conn.execute(
+                    "INSERT INTO agent_coding_sessions (
+                    id, repository_id, title, status, is_worktree,
+                    created_at, last_accessed_at, updated_at,
+                    company_id, project_id, issue_id
+                 ) VALUES (?1, ?2, ?3, 'active', 0, ?4, ?4, ?4, ?5, ?6, ?7)",
+                    params![
+                        session_id_for_insert,
+                        repository_id,
+                        "Issue workspace",
+                        session_created_at,
+                        company_id,
+                        project_id,
+                        issue_id,
+                    ],
+                )?;
+                Ok(())
+            },
+        )
+        .await
+        .unwrap();
+
+        let workspace = attach_issue_workspace_session(
+            &db,
+            &issue.id,
+            &session_id,
+            &repo_path,
+            Some("main".to_string()),
+        )
+        .await
+        .unwrap();
+
+        let refreshed_issue = get_issue(&db, &issue.id).await.unwrap().unwrap();
+        assert_eq!(workspace.session_id, session_id);
+        assert_eq!(refreshed_issue.status, "todo");
+        assert!(refreshed_issue.started_at.is_some());
     }
 
     #[tokio::test]

@@ -1,4 +1,6 @@
-use crate::app::ensure_issue_workspace;
+use crate::app::{
+    ensure_issue_workspace, ensure_workspace_repository, issue_has_attached_workspace_target,
+};
 use crate::armin_adapter::DaemonArmin;
 use crate::observability::{current_trace_context, spawn_in_current_span};
 use crate::utils::SessionSecretCache;
@@ -9,7 +11,7 @@ use chrono::Utc;
 use claude_process_manager::{ClaudeConfig, ClaudeEvent, ClaudeProcess};
 use daemon_board::{
     service, summarize_agent_run_event, summarize_agent_run_result, summarize_agent_run_text,
-    Agent, AgentRun, BoardError, IssueComment,
+    Agent, AgentRun, BoardError, Issue, IssueComment,
 };
 use daemon_config_and_utils::Paths;
 use daemon_database::{queries, AsyncDatabase, NewRepository};
@@ -87,6 +89,20 @@ struct RunLaunchContext {
 struct RunSessionContext {
     local_session_id: String,
     local_session_title: String,
+    task_session_ref: RunTaskSessionRef,
+}
+
+#[derive(Debug, Clone)]
+struct RunTaskSessionRef {
+    adapter_type: String,
+    task_key: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IssueRunSessionStrategy {
+    AttachedWorkspace,
+    ProjectRoot,
+    AgentHome,
 }
 
 #[derive(Debug, Clone)]
@@ -708,6 +724,8 @@ impl AgentRunCoordinator {
                 let run_id = run.id.clone();
                 let session_id_before = claude_session_id_before.clone();
                 let local_session_id = session.local_session_id.clone();
+                let task_session_adapter_type = session.task_session_ref.adapter_type.clone();
+                let task_session_key = session.task_session_ref.task_key.clone();
                 move |conn| {
                     conn.execute(
                         "UPDATE agent_runs
@@ -715,10 +733,19 @@ impl AgentRunCoordinator {
                              updated_at = ?2,
                              context_snapshot = json_set(
                                  COALESCE(context_snapshot, '{}'),
-                                 '$.local_session_id', ?3
+                                 '$.local_session_id', ?3,
+                                 '$.task_session.adapter_type', ?4,
+                                 '$.task_session.task_key', ?5
                              )
-                         WHERE id = ?4",
-                        params![session_id_before, now_rfc3339(), local_session_id, run_id],
+                         WHERE id = ?6",
+                        params![
+                            session_id_before,
+                            now_rfc3339(),
+                            local_session_id,
+                            task_session_adapter_type,
+                            task_session_key,
+                            run_id
+                        ],
                     )?;
                     Ok(())
                 }
@@ -741,6 +768,7 @@ impl AgentRunCoordinator {
                 self.finalize_run(
                     &run,
                     issue_id.as_deref(),
+                    Some(session.task_session_ref.clone()),
                     RunCompletion {
                         status: STATUS_FAILED.to_string(),
                         error: Some(format!("Failed to spawn claude: {error}")),
@@ -1085,8 +1113,13 @@ impl AgentRunCoordinator {
             processes.remove(&run.id);
         }
 
-        self.finalize_run(&run, issue_id.as_deref(), completion)
-            .await?;
+        self.finalize_run(
+            &run,
+            issue_id.as_deref(),
+            Some(session.task_session_ref.clone()),
+            completion,
+        )
+        .await?;
         self.queue_notify.notify_waiters();
         Ok(())
     }
@@ -1095,6 +1128,7 @@ impl AgentRunCoordinator {
         &self,
         run: &AgentRun,
         issue_id: Option<&str>,
+        task_session_ref: Option<RunTaskSessionRef>,
         completion: RunCompletion,
     ) -> Result<(), BoardError> {
         let now = now_rfc3339();
@@ -1119,6 +1153,8 @@ impl AgentRunCoordinator {
         let stderr_excerpt = completion.stderr_excerpt.clone();
         let external_run_id = completion.external_run_id.clone();
         let issue_id_owned = issue_id.map(ToOwned::to_owned);
+        let task_session_ref =
+            task_session_ref.or_else(|| task_session_ref_from_run(run, issue_id_owned.as_deref()));
 
         self.db
             .call_with_operation("agent_run.finalize", move |conn| {
@@ -1191,21 +1227,26 @@ impl AgentRunCoordinator {
                     )?;
                 }
 
-                let task_key = match issue_id_owned.as_ref() {
-                    Some(issue_id) => format!("issue:{issue_id}"),
-                    None => "home".to_string(),
-                };
-                let updated_issue_workspace_session = if issue_id_owned.is_some() {
+                let updated_task_session = if let Some(task_session_ref) = task_session_ref.as_ref()
+                {
                     tx.execute(
                         "UPDATE agent_task_sessions
                          SET last_run_id = ?1, last_error = ?2, updated_at = ?3
-                         WHERE company_id = ?4 AND agent_id = ?5 AND adapter_type = 'issue_workspace' AND task_key = ?6",
-                        params![run_id, error, now, company_id, agent_id, task_key],
+                         WHERE company_id = ?4 AND agent_id = ?5 AND adapter_type = ?6 AND task_key = ?7",
+                        params![
+                            run_id,
+                            error,
+                            now,
+                            company_id,
+                            agent_id,
+                            task_session_ref.adapter_type,
+                            task_session_ref.task_key,
+                        ],
                     )?
                 } else {
                     0
                 };
-                if updated_issue_workspace_session == 0 {
+                if updated_task_session == 0 {
                     tx.execute(
                         "UPDATE agent_task_sessions
                          SET last_run_id = ?1, last_error = ?2, updated_at = ?3
@@ -1426,6 +1467,7 @@ impl AgentRunCoordinator {
         self.finalize_run(
             &run,
             issue_id,
+            None,
             RunCompletion {
                 status: STATUS_FAILED.to_string(),
                 error: Some(error_message.clone()),
@@ -1473,6 +1515,7 @@ impl AgentRunCoordinator {
         self.finalize_run(
             &run,
             issue_id,
+            None,
             RunCompletion {
                 status: STATUS_FAILED.to_string(),
                 error: Some("Run process was lost before completion".to_string()),
@@ -1502,23 +1545,201 @@ impl AgentRunCoordinator {
             let issue = service::get_issue(&self.db, &issue_id)
                 .await?
                 .ok_or_else(|| BoardError::NotFound("Issue not found for run".to_string()))?;
-            if issue.project_id.is_some() {
-                let workspace = ensure_issue_workspace(
-                    &self.db,
-                    self.armin.as_ref(),
-                    &self.db_encryption_key,
-                    &self.session_secret_cache,
-                    &issue_id,
-                )
-                .await?;
-                return Ok(RunSessionContext {
-                    local_session_id: workspace.session_id,
-                    local_session_title: workspace.title,
-                });
+            match issue_run_session_strategy(&issue) {
+                IssueRunSessionStrategy::AttachedWorkspace => {
+                    let workspace = ensure_issue_workspace(
+                        &self.db,
+                        self.armin.as_ref(),
+                        &self.db_encryption_key,
+                        &self.session_secret_cache,
+                        &issue_id,
+                    )
+                    .await?;
+                    return Ok(RunSessionContext {
+                        local_session_id: workspace.session_id,
+                        local_session_title: workspace.title,
+                        task_session_ref: RunTaskSessionRef::issue_workspace(&issue.id),
+                    });
+                }
+                IssueRunSessionStrategy::ProjectRoot => {
+                    return self.ensure_issue_project_root_session(agent, &issue).await;
+                }
+                IssueRunSessionStrategy::AgentHome => {}
             }
         }
 
         self.ensure_agent_home_session(agent).await
+    }
+
+    async fn ensure_issue_project_root_session(
+        &self,
+        agent: &Agent,
+        issue: &Issue,
+    ) -> Result<RunSessionContext, BoardError> {
+        let project_id = issue.project_id.clone().ok_or_else(|| {
+            BoardError::InvalidInput("Issue must belong to a project".to_string())
+        })?;
+        let project = service::get_project(&self.db, &project_id)
+            .await?
+            .ok_or_else(|| BoardError::NotFound("Project not found".to_string()))?;
+        let primary_workspace = project.primary_workspace.ok_or_else(|| {
+            BoardError::NotFound("Project repo root is not configured".to_string())
+        })?;
+        let repo_path = primary_workspace.cwd.clone().ok_or_else(|| {
+            BoardError::InvalidInput("Project repo root path is missing".to_string())
+        })?;
+        let repository = ensure_workspace_repository(
+            self.armin.as_ref(),
+            &repo_path,
+            primary_workspace.repo_ref.clone(),
+        )?;
+        let title = issue
+            .identifier
+            .as_ref()
+            .map(|identifier| format!("{identifier}: {}", issue.title))
+            .unwrap_or_else(|| issue.title.clone());
+        let task_session_ref = RunTaskSessionRef::issue_project_root(&issue.id);
+        let existing_task_session = task_session_ref.clone();
+        let company_id = agent.company_id.clone();
+        let agent_id = agent.id.clone();
+
+        let existing_session_id = self
+            .db
+            .call_with_operation("agent_run.issue_project_root.lookup", move |conn| {
+                conn.query_row(
+                    "SELECT json_extract(session_params_json, '$.session_id')
+                     FROM agent_task_sessions
+                     WHERE company_id = ?1
+                       AND agent_id = ?2
+                       AND adapter_type = ?3
+                       AND task_key = ?4
+                     LIMIT 1",
+                    params![
+                        company_id,
+                        agent_id,
+                        existing_task_session.adapter_type,
+                        existing_task_session.task_key
+                    ],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()
+                .map_err(Into::into)
+            })
+            .await?;
+
+        if let Some(existing_session_id) = existing_session_id {
+            return Ok(RunSessionContext {
+                local_session_id: existing_session_id,
+                local_session_title: title,
+                task_session_ref,
+            });
+        }
+
+        let session = self
+            .armin
+            .create_session_with_metadata(NewSession {
+                id: SessionId::new(),
+                repository_id: repository.id.clone(),
+                title: title.clone(),
+                agent_id: Some(agent.id.clone()),
+                agent_name: Some(agent.name.clone()),
+                issue_id: Some(issue.id.clone()),
+                issue_title: Some(issue.title.clone()),
+                issue_url: None,
+                claude_session_id: None,
+                is_worktree: false,
+                worktree_path: None,
+            })
+            .map_err(|error| BoardError::Runtime(error.to_string()))?;
+
+        let session_id = session.id.as_str().to_string();
+        let now = now_rfc3339();
+        let project_id = project.id.clone();
+        let issue_id = issue.id.clone();
+        let issue_identifier = issue
+            .identifier
+            .clone()
+            .unwrap_or_else(|| session_id.clone());
+        let workspace_repo_path = repo_path.clone();
+        let workspace_branch = primary_workspace
+            .repo_ref
+            .clone()
+            .or(repository.default_branch.clone());
+        let session_id_for_db = session_id.clone();
+        let company_id = agent.company_id.clone();
+        let agent_id = agent.id.clone();
+        let title_for_db = title.clone();
+        let task_session_ref_for_db = task_session_ref.clone();
+        self.db
+            .call_with_operation("agent_run.issue_project_root.persist", move |conn| {
+                let tx = conn.unchecked_transaction()?;
+                tx.execute(
+                    "UPDATE agent_coding_sessions
+                     SET company_id = ?1,
+                         project_id = ?2,
+                         issue_id = ?3,
+                         agent_id = ?4,
+                         workspace_type = 'issue_project_root',
+                         workspace_status = 'active',
+                         workspace_repo_path = ?5,
+                         workspace_branch = ?6,
+                         workspace_metadata = ?7,
+                         updated_at = ?8,
+                         title = ?9
+                     WHERE id = ?10",
+                    params![
+                        company_id,
+                        project_id,
+                        issue_id,
+                        agent_id,
+                        workspace_repo_path,
+                        workspace_branch,
+                        json!({
+                            "scope": "issue_project_root",
+                            "issue_id": issue_id,
+                            "issue_identifier": issue_identifier,
+                            "project_id": project_id,
+                            "agent_id": agent_id,
+                        })
+                        .to_string(),
+                        now,
+                        title_for_db,
+                        session_id_for_db,
+                    ],
+                )?;
+                tx.execute(
+                    "INSERT INTO agent_task_sessions (
+                        id, company_id, agent_id, adapter_type, task_key, session_params_json,
+                        session_display_id, last_run_id, last_error, created_at, updated_at
+                     ) VALUES (
+                        ?1, ?2, ?3, ?4, ?5, ?6, ?7, NULL, NULL, ?8, ?8
+                     )
+                     ON CONFLICT(company_id, agent_id, adapter_type, task_key) DO UPDATE SET
+                        session_params_json = excluded.session_params_json,
+                        session_display_id = excluded.session_display_id,
+                        updated_at = excluded.updated_at",
+                    params![
+                        Uuid::new_v4().to_string(),
+                        company_id,
+                        agent_id,
+                        task_session_ref_for_db.adapter_type,
+                        task_session_ref_for_db.task_key,
+                        json!({ "session_id": session_id_for_db, "issue_id": issue_id })
+                            .to_string(),
+                        issue_identifier,
+                        now,
+                    ],
+                )?;
+                tx.commit()?;
+                Ok(())
+            })
+            .await?;
+
+        Ok(RunSessionContext {
+            local_session_id: session_id,
+            local_session_title: title,
+            task_session_ref,
+        })
     }
 
     async fn ensure_agent_home_session(
@@ -1560,6 +1781,7 @@ impl AgentRunCoordinator {
             return Ok(RunSessionContext {
                 local_session_id: existing_session_id,
                 local_session_title: title,
+                task_session_ref: RunTaskSessionRef::agent_home(),
             });
         }
 
@@ -1672,6 +1894,7 @@ impl AgentRunCoordinator {
         Ok(RunSessionContext {
             local_session_id: session_id,
             local_session_title: title,
+            task_session_ref: RunTaskSessionRef::agent_home(),
         })
     }
 
@@ -1719,9 +1942,8 @@ impl AgentRunCoordinator {
                  {issue_list_command}\n"
             )
         };
-        let rendered_prompt_template =
-            rendered_prompt_template(agent, run, issue_id)
-                .unwrap_or_else(|| default_agent_run_prompt(agent, issue_id));
+        let rendered_prompt_template = rendered_prompt_template(agent, run, issue_id)
+            .unwrap_or_else(|| default_agent_run_prompt(agent, issue_id));
         let bootstrap_prompt = if include_bootstrap_prompt {
             agent
                 .runtime_config
@@ -1887,6 +2109,67 @@ fn issue_id_from_value(payload: &Value) -> Option<String> {
         .get("issue_id")
         .and_then(Value::as_str)
         .map(ToOwned::to_owned)
+}
+
+impl RunTaskSessionRef {
+    fn agent_home() -> Self {
+        Self {
+            adapter_type: "agent_home".to_string(),
+            task_key: "home".to_string(),
+        }
+    }
+
+    fn issue_workspace(issue_id: &str) -> Self {
+        Self {
+            adapter_type: "issue_workspace".to_string(),
+            task_key: format!("issue:{issue_id}"),
+        }
+    }
+
+    fn issue_project_root(issue_id: &str) -> Self {
+        Self {
+            adapter_type: "issue_project_root".to_string(),
+            task_key: format!("issue:{issue_id}"),
+        }
+    }
+}
+
+fn issue_run_session_strategy(issue: &Issue) -> IssueRunSessionStrategy {
+    if issue_has_attached_workspace_target(issue) {
+        IssueRunSessionStrategy::AttachedWorkspace
+    } else if issue.project_id.is_some() {
+        IssueRunSessionStrategy::ProjectRoot
+    } else {
+        IssueRunSessionStrategy::AgentHome
+    }
+}
+
+fn task_session_ref_from_run(run: &AgentRun, issue_id: Option<&str>) -> Option<RunTaskSessionRef> {
+    let snapshot = run.context_snapshot.as_ref()?;
+    let adapter_type = snapshot
+        .pointer("/task_session/adapter_type")
+        .and_then(Value::as_str)
+        .map(ToOwned::to_owned);
+    let task_key = snapshot
+        .pointer("/task_session/task_key")
+        .and_then(Value::as_str)
+        .map(ToOwned::to_owned);
+
+    match (adapter_type, task_key) {
+        (Some(adapter_type), Some(task_key)) => Some(RunTaskSessionRef {
+            adapter_type,
+            task_key,
+        }),
+        _ => issue_id
+            .map(RunTaskSessionRef::issue_workspace)
+            .or_else(|| {
+                if run.issue_id.is_none() {
+                    Some(RunTaskSessionRef::agent_home())
+                } else {
+                    None
+                }
+            }),
+    }
 }
 
 fn format_issue_attachment_summary(attachments: &[daemon_board::IssueAttachment]) -> String {
@@ -2295,6 +2578,46 @@ async fn next_run_seq(db: &AsyncDatabase, run_id: &str) -> Result<i64, BoardErro
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+
+    fn test_issue_for_strategy(
+        project_id: Option<&str>,
+        execution_workspace_settings: Option<Value>,
+        workspace_session_id: Option<&str>,
+    ) -> Issue {
+        Issue {
+            id: "issue-1".to_string(),
+            company_id: "company-1".to_string(),
+            project_id: project_id.map(ToOwned::to_owned),
+            goal_id: None,
+            parent_id: None,
+            title: "Test issue".to_string(),
+            description: None,
+            status: "todo".to_string(),
+            priority: "medium".to_string(),
+            assignee_agent_id: Some("agent-1".to_string()),
+            assignee_user_id: None,
+            checkout_run_id: None,
+            execution_run_id: None,
+            execution_agent_name_key: Some("agent-1".to_string()),
+            execution_locked_at: None,
+            created_by_agent_id: None,
+            created_by_user_id: None,
+            issue_number: Some(1),
+            identifier: Some("TEST-1".to_string()),
+            request_depth: 0,
+            billing_code: None,
+            assignee_adapter_overrides: None,
+            execution_workspace_settings,
+            started_at: None,
+            completed_at: None,
+            cancelled_at: None,
+            hidden_at: None,
+            workspace_session_id: workspace_session_id.map(ToOwned::to_owned),
+            created_at: "2026-03-20T00:00:00Z".to_string(),
+            updated_at: "2026-03-20T00:00:00Z".to_string(),
+        }
+    }
 
     #[test]
     fn governance_instructions_forbid_filesystem_hiring_and_include_board_helper() {
@@ -2406,5 +2729,114 @@ mod tests {
         );
 
         assert_eq!(rendered, "Agent CEO on issue-1 via run-1");
+    }
+
+    #[test]
+    fn issue_run_strategy_prefers_attached_workspace_targets() {
+        assert_eq!(
+            issue_run_session_strategy(&test_issue_for_strategy(
+                Some("project-1"),
+                Some(json!({ "mode": "main" })),
+                None,
+            )),
+            IssueRunSessionStrategy::AttachedWorkspace
+        );
+        assert_eq!(
+            issue_run_session_strategy(&test_issue_for_strategy(
+                Some("project-1"),
+                Some(json!({ "mode": "new_worktree" })),
+                None,
+            )),
+            IssueRunSessionStrategy::AttachedWorkspace
+        );
+        assert_eq!(
+            issue_run_session_strategy(&test_issue_for_strategy(
+                Some("project-1"),
+                None,
+                Some("session-1"),
+            )),
+            IssueRunSessionStrategy::AttachedWorkspace
+        );
+    }
+
+    #[test]
+    fn issue_run_strategy_uses_project_root_without_attached_workspace() {
+        assert_eq!(
+            issue_run_session_strategy(&test_issue_for_strategy(Some("project-1"), None, None,)),
+            IssueRunSessionStrategy::ProjectRoot
+        );
+    }
+
+    #[test]
+    fn issue_run_strategy_falls_back_to_agent_home_without_project() {
+        assert_eq!(
+            issue_run_session_strategy(&test_issue_for_strategy(None, None, None)),
+            IssueRunSessionStrategy::AgentHome
+        );
+    }
+
+    #[test]
+    fn task_session_ref_reads_snapshot_and_legacy_fallbacks() {
+        let run = AgentRun {
+            id: "run-1".to_string(),
+            company_id: "company-1".to_string(),
+            agent_id: "agent-1".to_string(),
+            issue_id: Some("issue-1".to_string()),
+            invocation_source: "assignment".to_string(),
+            trigger_detail: Some("system".to_string()),
+            wake_reason: Some("issue_assigned".to_string()),
+            status: "running".to_string(),
+            started_at: None,
+            finished_at: None,
+            error: None,
+            wakeup_request_id: None,
+            exit_code: None,
+            signal: None,
+            usage_json: None,
+            result_json: None,
+            session_id_before: None,
+            session_id_after: None,
+            log_store: None,
+            log_ref: None,
+            log_bytes: None,
+            log_sha256: None,
+            log_compressed: false,
+            stdout_excerpt: None,
+            stderr_excerpt: None,
+            error_code: None,
+            external_run_id: None,
+            context_snapshot: Some(json!({
+                "task_session": {
+                    "adapter_type": "issue_project_root",
+                    "task_key": "issue:issue-1"
+                }
+            })),
+            created_at: "2026-03-20T00:00:00Z".to_string(),
+            updated_at: "2026-03-20T00:00:00Z".to_string(),
+        };
+
+        let restored = task_session_ref_from_run(&run, Some("issue-1"))
+            .expect("expected task session ref from snapshot");
+        assert_eq!(restored.adapter_type, "issue_project_root");
+        assert_eq!(restored.task_key, "issue:issue-1");
+
+        let legacy_issue_run = AgentRun {
+            context_snapshot: Some(json!({})),
+            ..run.clone()
+        };
+        let legacy_issue_ref = task_session_ref_from_run(&legacy_issue_run, Some("issue-2"))
+            .expect("expected legacy issue workspace fallback");
+        assert_eq!(legacy_issue_ref.adapter_type, "issue_workspace");
+        assert_eq!(legacy_issue_ref.task_key, "issue:issue-2");
+
+        let home_run = AgentRun {
+            issue_id: None,
+            context_snapshot: Some(json!({})),
+            ..run
+        };
+        let home_ref =
+            task_session_ref_from_run(&home_run, None).expect("expected agent home fallback");
+        assert_eq!(home_ref.adapter_type, "agent_home");
+        assert_eq!(home_ref.task_key, "home");
     }
 }

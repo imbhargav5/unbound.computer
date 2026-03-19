@@ -3735,6 +3735,7 @@ p {
   position: relative;
   display: flex;
   align-items: flex-start;
+  gap: 24px;
 }
 
 .issues-back-button {

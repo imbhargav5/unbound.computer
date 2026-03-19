@@ -109,6 +109,22 @@ Event payloads include sequence numbers and can carry trace context.
   SIGKILL when the PID still points to `unbound-daemon`.
 - Runtime cleanup removes socket and pid files on shutdown.
 
+## Issue Auto-Run Workspace Routing
+
+When an assigned issue is created in `todo` or moved into `todo`, the daemon
+immediately enqueues the assignee and resolves the run location in this order:
+
+- Explicit issue workspace target (`execution_workspace_settings` for repo root,
+  new worktree, or existing worktree): create or reuse the issue-owned workspace
+  session and run there.
+- No attached issue workspace target, but the issue belongs to a project: create
+  or reuse an issue session in the project's repo root and run there directly.
+- No project on the issue: create or reuse the agent-home session and run from
+  the agent directory.
+
+Attaching an issue workspace records the session against the issue, but it does
+not implicitly rewrite the issue status to `in_progress`.
+
 ## Crate Layout
 
 ```
