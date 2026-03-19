@@ -27,6 +27,29 @@ export interface DesktopBootstrapStatus {
   daemon_info: DaemonVersionInfo | null;
 }
 
+export interface ToolCapabilities {
+  installed: boolean;
+  path?: string | null;
+  models?: string[] | null;
+}
+
+export interface CliCapabilities {
+  claude: ToolCapabilities;
+  gh: ToolCapabilities;
+  codex: ToolCapabilities;
+  ollama: ToolCapabilities;
+}
+
+export interface CapabilitiesMetadata {
+  schema_version: number;
+  collected_at: string;
+}
+
+export interface RuntimeCapabilities {
+  cli: CliCapabilities;
+  metadata: CapabilitiesMetadata;
+}
+
 export interface DesktopSettings {
   preferred_company_id?: string | null;
   preferred_repository_id?: string | null;
@@ -137,6 +160,17 @@ export interface AgentRunEventRecord {
   message?: string | null;
   payload?: unknown;
   created_at: string;
+}
+
+export interface IssueRunCardUpdateRecord {
+  issue_id: string;
+  issue_status: string;
+  run_id: string;
+  agent_id: string;
+  run_status: string;
+  summary?: string | null;
+  last_event_type?: string | null;
+  last_activity_at: string;
 }
 
 export interface AgentRunLogChunk {
@@ -327,6 +361,8 @@ export interface SessionRecord {
   status?: string;
   is_worktree?: boolean;
   worktree_path?: string | null;
+  provider?: string | null;
+  provider_session_id?: string | null;
   claude_session_id?: string | null;
   [key: string]: unknown;
 }

@@ -307,6 +307,16 @@ pub async fn board_list_issue_runs(issue_id: String, limit: Option<u32>) -> Resu
 }
 
 #[tauri::command]
+pub async fn board_list_issue_run_card_updates(company_id: String) -> Result<Value, String> {
+    let value = call_daemon(
+        Method::IssueRunCardUpdates,
+        Some(json!({ "company_id": company_id })),
+    )
+    .await?;
+    Ok(extract_field(value, "updates"))
+}
+
+#[tauri::command]
 pub async fn board_add_issue_comment(params: Value) -> Result<Value, String> {
     let value = call_daemon(Method::IssueCommentAdd, Some(params)).await?;
     Ok(extract_field(value, "comment"))
@@ -576,9 +586,10 @@ pub async fn message_list(session_id: String) -> Result<Value, String> {
 }
 
 #[tauri::command]
-pub async fn claude_send(
+pub async fn agent_send(
     session_id: String,
     content: String,
+    provider: Option<String>,
     permission_mode: Option<String>,
 ) -> Result<Value, String> {
     let mut params = json!({
@@ -586,11 +597,45 @@ pub async fn claude_send(
         "content": content,
     });
 
+    if let Some(provider) = provider {
+        params["provider"] = json!(provider);
+    }
     if let Some(permission_mode) = permission_mode {
         params["permission_mode"] = json!(permission_mode);
     }
 
-    call_daemon(Method::ClaudeSend, Some(params)).await
+    call_daemon(Method::AgentSend, Some(params)).await
+}
+
+#[tauri::command]
+pub async fn agent_status(session_id: String) -> Result<Value, String> {
+    call_daemon(
+        Method::AgentStatus,
+        Some(json!({ "session_id": session_id })),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn agent_stop(session_id: String) -> Result<Value, String> {
+    call_daemon(Method::AgentStop, Some(json!({ "session_id": session_id }))).await
+}
+
+#[tauri::command]
+pub async fn claude_send(
+    session_id: String,
+    content: String,
+    permission_mode: Option<String>,
+) -> Result<Value, String> {
+    call_daemon(
+        Method::ClaudeSend,
+        Some(json!({
+            "session_id": session_id,
+            "content": content,
+            "permission_mode": permission_mode,
+        })),
+    )
+    .await
 }
 
 #[tauri::command]

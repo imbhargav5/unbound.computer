@@ -109,6 +109,8 @@ pub enum Method {
     IssueAttachmentAdd,
     #[serde(rename = "issue.run.list")]
     IssueRunList,
+    #[serde(rename = "issue.run.card_updates")]
+    IssueRunCardUpdates,
     #[serde(rename = "issue.checkout")]
     IssueCheckout,
 
@@ -176,7 +178,15 @@ pub enum Method {
     #[serde(rename = "repository.replace_file_range")]
     RepositoryReplaceFileRange,
 
-    // Claude CLI
+    // Agent CLI
+    #[serde(rename = "agent.send")]
+    AgentSend,
+    #[serde(rename = "agent.status")]
+    AgentStatus,
+    #[serde(rename = "agent.stop")]
+    AgentStop,
+
+    // Claude CLI legacy compatibility
     #[serde(rename = "claude.send")]
     ClaudeSend,
     #[serde(rename = "claude.status")]
@@ -276,6 +286,8 @@ pub enum EventType {
     TerminalOutput,
     /// Terminal command finished with exit code.
     TerminalFinished,
+    /// Raw provider-neutral agent NDJSON event.
+    AgentEvent,
     /// Raw Claude NDJSON event (TUI parses typed messages from this).
     ClaudeEvent,
     /// A new session was created.
@@ -552,6 +564,9 @@ mod tests {
                 Method::RepositoryReplaceFileRange,
                 "\"repository.replace_file_range\"",
             ),
+            (Method::AgentSend, "\"agent.send\""),
+            (Method::AgentStatus, "\"agent.status\""),
+            (Method::AgentStop, "\"agent.stop\""),
             (Method::ClaudeSend, "\"claude.send\""),
             (Method::ClaudeStatus, "\"claude.status\""),
             (Method::ClaudeStop, "\"claude.stop\""),
@@ -611,6 +626,9 @@ mod tests {
             Method::RepositoryReadFileSlice,
             Method::RepositoryWriteFile,
             Method::RepositoryReplaceFileRange,
+            Method::AgentSend,
+            Method::AgentStatus,
+            Method::AgentStop,
             Method::ClaudeSend,
             Method::ClaudeStatus,
             Method::ClaudeStop,
@@ -904,7 +922,7 @@ mod tests {
     #[test]
     fn event_serialization_roundtrip() {
         let e = Event::new(
-            EventType::ClaudeEvent,
+            EventType::AgentEvent,
             "sess-abc",
             serde_json::json!({"raw": "data"}),
             100,
@@ -915,7 +933,7 @@ mod tests {
         });
         let json = e.to_json().unwrap();
         let parsed = Event::from_json(&json).unwrap();
-        assert_eq!(parsed.event_type, EventType::ClaudeEvent);
+        assert_eq!(parsed.event_type, EventType::AgentEvent);
         assert_eq!(parsed.session_id, "sess-abc");
         assert_eq!(parsed.sequence, 100);
         assert_eq!(parsed.context, e.context);
@@ -931,6 +949,7 @@ mod tests {
             (EventType::Ping, "\"ping\""),
             (EventType::TerminalOutput, "\"terminal_output\""),
             (EventType::TerminalFinished, "\"terminal_finished\""),
+            (EventType::AgentEvent, "\"agent_event\""),
             (EventType::ClaudeEvent, "\"claude_event\""),
             (EventType::SessionCreated, "\"session_created\""),
             (EventType::SessionDeleted, "\"session_deleted\""),
@@ -956,6 +975,7 @@ mod tests {
             EventType::Ping,
             EventType::TerminalOutput,
             EventType::TerminalFinished,
+            EventType::AgentEvent,
             EventType::ClaudeEvent,
             EventType::SessionCreated,
             EventType::SessionDeleted,
@@ -1112,6 +1132,9 @@ mod tests {
             Method::RepositoryReadFileSlice,
             Method::RepositoryWriteFile,
             Method::RepositoryReplaceFileRange,
+            Method::AgentSend,
+            Method::AgentStatus,
+            Method::AgentStop,
             Method::ClaudeSend,
             Method::ClaudeStatus,
             Method::ClaudeStop,
@@ -1138,6 +1161,6 @@ mod tests {
             Method::TerminalStatus,
             Method::TerminalStop,
         ];
-        assert_eq!(methods.len(), 45);
+        assert_eq!(methods.len(), 48);
     }
 }

@@ -1472,6 +1472,30 @@ p {
   line-height: 1.45;
 }
 
+.project-kanban-card-update {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.project-kanban-card-update-status {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  font-size: 10px;
+}
+
+.project-kanban-card-update-copy {
+  min-width: 0;
+  overflow: hidden;
+  color: #a1a1aa;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .project-kanban-card-meta {
   display: flex;
   align-items: center;

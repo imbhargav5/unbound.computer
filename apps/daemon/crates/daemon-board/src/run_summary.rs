@@ -21,6 +21,14 @@ pub fn summarize_agent_run_result(value: &Value) -> Option<String> {
 pub fn summarize_agent_run_event(value: &Value) -> Option<String> {
     match value.get("type").and_then(Value::as_str) {
         Some("result") => return summarize_agent_run_result(value),
+        Some("thread.started") => {
+            return value
+                .get("thread_id")
+                .and_then(Value::as_str)
+                .map(|thread_id| format!("Started Codex thread {thread_id}"));
+        }
+        Some("item.completed") => return summarize_completed_item(value.get("item")?),
+        Some("turn.completed") => return Some("Codex turn completed".to_string()),
         Some("assistant") | None => {
             if let Some(message) = value.get("message") {
                 if let Some(summary) = summarize_message_content(message) {
@@ -35,6 +43,25 @@ pub fn summarize_agent_run_event(value: &Value) -> Option<String> {
         .get("content")
         .and_then(Value::as_str)
         .and_then(sanitize_summary_text)
+}
+
+fn summarize_completed_item(item: &Value) -> Option<String> {
+    match item.get("type").and_then(Value::as_str).unwrap_or("item") {
+        "agent_message" => item
+            .get("text")
+            .and_then(Value::as_str)
+            .and_then(sanitize_summary_text),
+        "command_execution" => item
+            .get("aggregated_output")
+            .and_then(Value::as_str)
+            .and_then(sanitize_summary_text)
+            .or_else(|| {
+                item.get("command")
+                    .and_then(Value::as_str)
+                    .map(|command| format!("Executed {command}"))
+            }),
+        _ => None,
+    }
 }
 
 pub fn summarize_agent_run_excerpt(text: &str) -> Option<String> {
@@ -204,6 +231,36 @@ mod tests {
         });
 
         assert_eq!(summarize_agent_run_event(&value), None);
+    }
+
+    #[test]
+    fn summarize_event_extracts_codex_command_execution() {
+        let value = json!({
+            "type": "item.completed",
+            "item": {
+                "type": "command_execution",
+                "command": "cargo test",
+                "aggregated_output": "Tests passed successfully."
+            }
+        });
+
+        assert_eq!(
+            summarize_agent_run_event(&value),
+            Some("Tests passed successfully.".to_string())
+        );
+    }
+
+    #[test]
+    fn summarize_event_extracts_codex_thread_start() {
+        let value = json!({
+            "type": "thread.started",
+            "thread_id": "thread_123"
+        });
+
+        assert_eq!(
+            summarize_agent_run_event(&value),
+            Some("Started Codex thread thread_123".to_string())
+        );
     }
 
     #[test]

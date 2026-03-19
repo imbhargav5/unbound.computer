@@ -19,9 +19,11 @@ import type {
   GitWorktreeRecord,
   IssueAttachmentRecord,
   IssueCommentRecord,
+  IssueRunCardUpdateRecord,
   IssueRecord,
   ProjectRecord,
   RepositoryRecord,
+  RuntimeCapabilities,
   SessionMessage,
   SessionRecord,
   SessionStreamPayload,
@@ -42,7 +44,7 @@ export const systemVersion = () =>
   invokeCommand<DaemonVersionInfo>("system_version");
 
 export const systemCheckDependencies = () =>
-  invokeCommand<Record<string, unknown>>("system_check_dependencies");
+  invokeCommand<RuntimeCapabilities>("system_check_dependencies");
 
 export const boardListCompanies = () =>
   invokeCommand<Company[]>("board_list_companies");
@@ -100,6 +102,14 @@ export const boardListIssueRuns = (issueId: string, limit?: number) =>
     issueId,
     limit,
   });
+
+export const boardListIssueRunCardUpdates = (companyId: string) =>
+  invokeCommand<IssueRunCardUpdateRecord[]>(
+    "board_list_issue_run_card_updates",
+    {
+      companyId,
+    }
+  );
 
 export const boardAddIssueComment = (params: Record<string, unknown>) =>
   invokeCommand<IssueCommentRecord>("board_add_issue_comment", { params });
@@ -266,6 +276,29 @@ export const sessionUpdate = (params: Record<string, unknown>) =>
 
 export const messageList = (sessionId: string) =>
   invokeCommand<SessionMessage[]>("message_list", {
+    sessionId,
+  });
+
+export const agentSend = (
+  sessionId: string,
+  content: string,
+  provider?: string,
+  permissionMode?: string
+) =>
+  invokeCommand<Record<string, unknown>>("agent_send", {
+    sessionId,
+    content,
+    provider,
+    permissionMode,
+  });
+
+export const agentStatus = (sessionId: string) =>
+  invokeCommand<Record<string, unknown>>("agent_status", {
+    sessionId,
+  });
+
+export const agentStop = (sessionId: string) =>
+  invokeCommand<Record<string, unknown>>("agent_stop", {
     sessionId,
   });
 

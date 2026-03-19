@@ -20,7 +20,6 @@ import {
   boardAddIssueAttachment,
   boardCancelAgentRun,
   boardApproveApproval,
-  boardCheckoutIssue,
   boardCompanySnapshot,
   boardCreateCompany,
   boardCreateIssue,
@@ -33,6 +32,7 @@ import {
   boardListAgentRuns,
   boardListCompanies,
   boardListIssueComments,
+  boardListIssueRunCardUpdates,
   boardListIssueRuns,
   boardReadAgentRunLog,
   boardResumeAgentRun,
@@ -40,8 +40,9 @@ import {
   boardUpdateAgent,
   boardUpdateCompany,
   boardUpdateIssue,
-  claudeSend,
-  claudeStatus,
+  agentSend,
+  agentStatus,
+  agentStop,
   desktopBootstrap,
   desktopOpenExternal,
   desktopPickFile,
@@ -93,9 +94,11 @@ import type {
   IssueAttachmentRecord,
   GoalRecord,
   IssueCommentRecord,
+  IssueRunCardUpdateRecord,
   IssueRecord,
   ProjectRecord,
   RepositoryRecord,
+  RuntimeCapabilities,
   SessionMessage,
   SessionRecord,
   SessionStreamPayload,
@@ -664,6 +667,8 @@ export function App() {
   const [issueCommentsByIssueId, setIssueCommentsByIssueId] = useState<
     Record<string, IssueCommentRecord[]>
   >({});
+  const [issueRunCardUpdatesByIssueId, setIssueRunCardUpdatesByIssueId] =
+    useState<Record<string, IssueRunCardUpdateRecord>>({});
   const [issueAttachmentsByIssueId, setIssueAttachmentsByIssueId] = useState<
     Record<string, IssueAttachmentRecord[]>
   >({});
@@ -682,10 +687,8 @@ export function App() {
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<FileReadResult | null>(null);
   const [selectedDiff, setSelectedDiff] = useState<GitDiffResult | null>(null);
-  const [dependencyCheck, setDependencyCheck] = useState<Record<
-    string,
-    unknown
-  > | null>(null);
+  const [dependencyCheck, setDependencyCheck] =
+    useState<RuntimeCapabilities | null>(null);
   const [claudeStatusState, setClaudeStatusState] = useState<Record<
     string,
     unknown
@@ -704,6 +707,17 @@ export function App() {
   const [terminalCommand, setTerminalCommand] = useState("");
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] =
     useState(false);
+  const [isCreateCompanyDialogOpen, setIsCreateCompanyDialogOpen] =
+    useState(false);
+  const [companyDialogName, setCompanyDialogName] = useState("");
+  const [companyDialogDescription, setCompanyDialogDescription] = useState("");
+  const [companyDialogBrandColor, setCompanyDialogBrandColor] = useState(
+    defaultCompanyBrandColor
+  );
+  const [companyDialogError, setCompanyDialogError] = useState<string | null>(
+    null
+  );
+  const [isCompanyDialogSaving, setIsCompanyDialogSaving] = useState(false);
   const [projectDialogRepoPath, setProjectDialogRepoPath] = useState("");
   const [projectDialogStatus, setProjectDialogStatus] = useState("planned");
   const [projectDialogGoalId, setProjectDialogGoalId] = useState("");
@@ -864,6 +878,21 @@ export function App() {
       ),
     [boardAgents, boardIssues, boardProjects, dashboardProjectViews]
   );
+  const dashboardProjectIssueIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          boardIssues
+            .filter((issue) => issue.project_id && !issue.hidden_at)
+            .map((issue) => issue.id)
+        )
+      ).sort(),
+    [boardIssues]
+  );
+  const dashboardProjectIssueIdSet = useMemo(
+    () => new Set(dashboardProjectIssueIds),
+    [dashboardProjectIssueIds]
+  );
   const dashboardCanvasBounds = useMemo(
     () => buildDashboardCanvasBounds(dashboardProjectColumns),
     [dashboardProjectColumns]
@@ -923,6 +952,19 @@ export function App() {
   );
   const activeSession =
     sessions.find((session) => session.id === selectedSessionId) ?? null;
+  const activeWorkspaceAgent =
+    boardAgents.find((agent) => agent.id === selectedBoardWorkspace?.agent_id) ??
+    null;
+  const activeWorkspaceProvider = detectWorkspaceAgentProvider(
+    activeSession,
+    activeWorkspaceAgent
+  );
+  const activeWorkspaceProviderLabel =
+    activeWorkspaceProvider === "codex"
+      ? "Codex"
+      : activeWorkspaceProvider === "claude"
+        ? "Claude"
+        : "Agent";
   const previewTabLabel = selectedFilePath
     ? (selectedFilePath.split("/").filter(Boolean).at(-1) ?? "Preview")
     : "Preview";
@@ -937,32 +979,8 @@ export function App() {
     [projectDialogRepoPath]
   );
   const issueStatusOptions = useMemo(
-    () =>
-      mergeIssueOptions(
-        issueStatusesForAssignee(
-          canonicalIssueStatuses,
-          issueDraft.assigneeAgentId,
-          boardAgents
-        ),
-        issueDraft.status
-      ),
-    [boardAgents, issueDraft.assigneeAgentId, issueDraft.status]
-  );
-  const createIssueStatusOptions = useMemo(
-    () =>
-      mergeIssueOptions(
-        issueStatusesForAssignee(
-          createableIssueStatuses,
-          issueDialogAssigneeAgentId,
-          boardAgents
-        ),
-        normalizeCreateIssueStatus(
-          issueDialogStatus,
-          issueDialogAssigneeAgentId,
-          boardAgents
-        )
-      ),
-    [boardAgents, issueDialogAssigneeAgentId, issueDialogStatus]
+    () => mergeIssueOptions(canonicalIssueStatuses, issueDraft.status),
+    [issueDraft.status]
   );
   const issuePriorityOptions = useMemo(
     () =>
@@ -1467,7 +1485,112 @@ export function App() {
         )
       )
     );
+    setIssueRunCardUpdatesByIssueId((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(([issueId]) =>
+          nextIssues.some((issue) => issue.id === issueId)
+        )
+      )
+    );
   }, [companySnapshot]);
+
+  useEffect(() => {
+    if (
+      selectedScreen !== "dashboard" ||
+      bootstrap?.state !== "ready" ||
+      !selectedCompanyId
+    ) {
+      setIssueRunCardUpdatesByIssueId({});
+      return;
+    }
+
+    if (dashboardProjectIssueIds.length === 0) {
+      setIssueRunCardUpdatesByIssueId({});
+      return;
+    }
+
+    let cancelled = false;
+    let timeoutId: number | null = null;
+
+    const scheduleRefresh = (delayMs: number) => {
+      if (cancelled) {
+        return;
+      }
+
+      timeoutId = window.setTimeout(() => {
+        void loadIssueRunCardUpdates();
+      }, delayMs);
+    };
+
+    const loadIssueRunCardUpdates = async () => {
+      try {
+        const updates = (await boardListIssueRunCardUpdates(
+          selectedCompanyId
+        )) as IssueRunCardUpdateRecord[];
+        if (cancelled) {
+          return;
+        }
+
+        const nextUpdates = Object.fromEntries(
+          updates
+            .filter((update) => dashboardProjectIssueIdSet.has(update.issue_id))
+            .map((update) => [update.issue_id, update])
+        );
+        const hasLiveUpdates = Object.values(nextUpdates).some(
+          (update) =>
+            update.run_status === "queued" || update.run_status === "running"
+        );
+
+        startTransition(() => {
+          setIssueRunCardUpdatesByIssueId(nextUpdates);
+          setCompanySnapshot((current) => {
+            if (!current) {
+              return current;
+            }
+
+            let hasChanges = false;
+            const nextIssues = current.issues.map((issue) => {
+              const update = nextUpdates[issue.id];
+              if (!update || issue.status === update.issue_status) {
+                return issue;
+              }
+
+              hasChanges = true;
+              return { ...issue, status: update.issue_status };
+            });
+
+            return hasChanges ? { ...current, issues: nextIssues } : current;
+          });
+        });
+
+        scheduleRefresh(hasLiveUpdates ? 2000 : 10000);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setStatusMessage(
+          error instanceof Error ? error.message : String(error)
+        );
+        scheduleRefresh(5000);
+      }
+    };
+
+    void loadIssueRunCardUpdates();
+
+    return () => {
+      cancelled = true;
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [
+    bootstrap?.state,
+    dashboardProjectIssueIdSet,
+    dashboardProjectIssueIds.length,
+    selectedCompanyId,
+    selectedScreen,
+  ]);
 
   useEffect(() => {
     if (issuesRouteMode === "detail" && !selectedIssueId) {
@@ -1858,7 +1981,7 @@ export function App() {
           gitStatus(selectedSessionId),
           gitLog(selectedSessionId),
           gitBranches(selectedSessionId),
-          claudeStatus(selectedSessionId),
+          agentStatus(selectedSessionId),
           terminalStatus(selectedSessionId),
         ]);
 
@@ -1916,6 +2039,30 @@ export function App() {
       unlistenErrors?.();
     };
   }, [selectedSessionId]);
+
+  useEffect(() => {
+    if (bootstrap?.state !== "ready" || dependencyCheck) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void systemCheckDependencies()
+      .then((result) => {
+        if (!cancelled) {
+          setDependencyCheck(result);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setStatusMessage(error instanceof Error ? error.message : String(error));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bootstrap?.state, dependencyCheck]);
 
   useEffect(() => {
     const terminal = terminalRef.current;
@@ -2009,7 +2156,7 @@ export function App() {
         gitLog(sessionId),
         gitBranches(sessionId),
         terminalStatus(sessionId),
-        claudeStatus(sessionId),
+        agentStatus(sessionId),
       ]);
       setMessages(nextMessages as SessionMessage[]);
       setFileEntries(nextFiles as FileEntry[]);
@@ -2643,16 +2790,9 @@ export function App() {
     defaults?: CreateIssueDialogDefaults
   ) => {
     resetIssueDialog();
-    const nextAssigneeAgentId = defaults?.assigneeAgentId ?? "";
-    setIssueDialogAssigneeAgentId(nextAssigneeAgentId);
+    setIssueDialogAssigneeAgentId(defaults?.assigneeAgentId ?? "");
     setIssueDialogPriority(defaults?.priority ?? "medium");
-    setIssueDialogStatus(
-      normalizeCreateIssueStatus(
-        defaults?.status ?? "todo",
-        nextAssigneeAgentId,
-        boardAgents
-      )
-    );
+    setIssueDialogStatus(normalizeBoardIssueValue(defaults?.status ?? "todo"));
     setIssueDialogProjectId(defaults?.projectId ?? "");
     setIsCreateIssueDialogOpen(true);
   };
@@ -2690,15 +2830,17 @@ export function App() {
     );
   };
 
-  const handleIssueDialogAssigneeChange = (value: string) => {
-    setIssueDialogAssigneeAgentId(value);
-    setIssueDialogStatus((current) =>
-      normalizeCreateIssueStatus(current, value, boardAgents)
-    );
-  };
-
   const handleCreateIssueFromDialog = async () => {
     if (!selectedCompanyId || !issueDialogTitle.trim() || isIssueDialogSaving) {
+      return;
+    }
+
+    const validationMessage = issueStatusAssigneeValidationMessage(
+      issueDialogStatus,
+      issueDialogAssigneeAgentId,
+      boardAgents
+    );
+    if (validationMessage) {
       return;
     }
 
@@ -2706,15 +2848,10 @@ export function App() {
     setIssueDialogError(null);
 
     try {
-      const normalizedIssueStatus = normalizeCreateIssueStatus(
-        issueDialogStatus,
-        issueDialogAssigneeAgentId,
-        boardAgents
-      );
       const params: Record<string, unknown> = {
         company_id: selectedCompanyId,
         title: issueDialogTitle.trim(),
-        status: normalizedIssueStatus,
+        status: normalizeBoardIssueValue(issueDialogStatus),
         priority: issueDialogPriority,
       };
 
@@ -2933,17 +3070,30 @@ export function App() {
     options?: { hiddenAt?: string | null }
   ) =>
     enqueueIssueUpdate(async () => {
-      const normalizedPatch = normalizeIssueDraftPatchForAssignee(
-        patch,
-        issueDraft,
-        boardAgents
-      );
+      const shouldValidateIssueStatus =
+        Object.prototype.hasOwnProperty.call(patch, "status") ||
+        Object.prototype.hasOwnProperty.call(patch, "assigneeAgentId");
+      if (shouldValidateIssueStatus) {
+        const validationMessage = issueStatusAssigneeValidationMessage(
+          Object.prototype.hasOwnProperty.call(patch, "status")
+            ? patch.status
+            : issueDraft.status,
+          Object.prototype.hasOwnProperty.call(patch, "assigneeAgentId")
+            ? patch.assigneeAgentId
+            : issueDraft.assigneeAgentId,
+          boardAgents
+        );
+        if (validationMessage) {
+          return null;
+        }
+      }
+
       const params: Record<string, unknown> = {
         issue_id: issue.id,
       };
 
-      if (Object.prototype.hasOwnProperty.call(normalizedPatch, "title")) {
-        const trimmedTitle = (normalizedPatch.title ?? "").trim();
+      if (Object.prototype.hasOwnProperty.call(patch, "title")) {
+        const trimmedTitle = (patch.title ?? "").trim();
         if (!trimmedTitle) {
           setIssueEditorError("Issue title is required.");
           return null;
@@ -2951,73 +3101,58 @@ export function App() {
         params.title = trimmedTitle;
       }
 
-      if (Object.prototype.hasOwnProperty.call(normalizedPatch, "description")) {
-        const trimmedDescription = (normalizedPatch.description ?? "").trim();
+      if (Object.prototype.hasOwnProperty.call(patch, "description")) {
+        const trimmedDescription = (patch.description ?? "").trim();
         params.description = trimmedDescription ? trimmedDescription : null;
       }
 
-      if (Object.prototype.hasOwnProperty.call(normalizedPatch, "status")) {
-        params.status = normalizedPatch.status;
+      if (Object.prototype.hasOwnProperty.call(patch, "status")) {
+        params.status = patch.status;
       }
 
-      if (Object.prototype.hasOwnProperty.call(normalizedPatch, "priority")) {
-        params.priority = normalizedPatch.priority;
+      if (Object.prototype.hasOwnProperty.call(patch, "priority")) {
+        params.priority = patch.priority;
       }
 
-      if (Object.prototype.hasOwnProperty.call(normalizedPatch, "projectId")) {
-        params.project_id = normalizedPatch.projectId?.trim()
-          ? normalizedPatch.projectId.trim()
+      if (Object.prototype.hasOwnProperty.call(patch, "projectId")) {
+        params.project_id = patch.projectId?.trim()
+          ? patch.projectId.trim()
           : null;
       }
 
-      if (
-        Object.prototype.hasOwnProperty.call(normalizedPatch, "assigneeAgentId")
-      ) {
-        params.assignee_agent_id = normalizedPatch.assigneeAgentId?.trim()
-          ? normalizedPatch.assigneeAgentId.trim()
+      if (Object.prototype.hasOwnProperty.call(patch, "assigneeAgentId")) {
+        params.assignee_agent_id = patch.assigneeAgentId?.trim()
+          ? patch.assigneeAgentId.trim()
           : null;
       }
 
-      if (Object.prototype.hasOwnProperty.call(normalizedPatch, "parentId")) {
-        params.parent_id = normalizedPatch.parentId?.trim()
-          ? normalizedPatch.parentId.trim()
+      if (Object.prototype.hasOwnProperty.call(patch, "parentId")) {
+        params.parent_id = patch.parentId?.trim()
+          ? patch.parentId.trim()
           : null;
       }
 
       const shouldPersistWorkspaceSettings =
+        Object.prototype.hasOwnProperty.call(patch, "workspaceTargetMode") ||
+        Object.prototype.hasOwnProperty.call(patch, "workspaceWorktreePath") ||
         Object.prototype.hasOwnProperty.call(
-          normalizedPatch,
-          "workspaceTargetMode"
-        ) ||
-        Object.prototype.hasOwnProperty.call(
-          normalizedPatch,
-          "workspaceWorktreePath"
-        ) ||
-        Object.prototype.hasOwnProperty.call(
-          normalizedPatch,
+          patch,
           "workspaceWorktreeBranch"
         ) ||
-        Object.prototype.hasOwnProperty.call(
-          normalizedPatch,
-          "workspaceWorktreeName"
-        );
+        Object.prototype.hasOwnProperty.call(patch, "workspaceWorktreeName");
 
       if (shouldPersistWorkspaceSettings) {
         params.execution_workspace_settings =
           issueExecutionWorkspaceSettingsFromDraft({
             workspaceTargetMode:
-              normalizedPatch.workspaceTargetMode ??
-              issueDraft.workspaceTargetMode,
+              patch.workspaceTargetMode ?? issueDraft.workspaceTargetMode,
             workspaceWorktreePath:
-              normalizedPatch.workspaceWorktreePath ??
-              issueDraft.workspaceWorktreePath,
+              patch.workspaceWorktreePath ?? issueDraft.workspaceWorktreePath,
             workspaceWorktreeBranch:
-              normalizedPatch.workspaceWorktreeBranch ??
-              issueDraft.workspaceWorktreeBranch,
+              patch.workspaceWorktreeBranch ?? issueDraft.workspaceWorktreeBranch,
             workspaceWorktreeName:
-              normalizedPatch.workspaceWorktreeName ??
-              issueDraft.workspaceWorktreeName,
-          }, normalizedPatch.projectId ?? issueDraft.projectId);
+              patch.workspaceWorktreeName ?? issueDraft.workspaceWorktreeName,
+          }, patch.projectId ?? issueDraft.projectId);
       }
 
       if (
@@ -3037,7 +3172,7 @@ export function App() {
         applyIssueUpdateToSnapshot(updatedIssue, {
           removeFromSnapshot: isHidden,
         });
-        syncIssueDraftFromUpdate(updatedIssue, normalizedPatch);
+        syncIssueDraftFromUpdate(updatedIssue, patch);
         setSelectedIssueId(isHidden ? null : updatedIssue.id);
         setIsEditingIssue(false);
         setIssuesRouteMode(isHidden ? "list" : "detail");
@@ -3149,34 +3284,6 @@ export function App() {
     }
   };
 
-  const handleStartIssueWorkspace = async (issue: IssueRecord) => {
-    setIsWorking(true);
-    setStatusMessage(null);
-    try {
-      const workspace = await boardCheckoutIssue(issue.id);
-      const [nextRepositories, snapshot] = await Promise.all([
-        repositoryList(),
-        boardCompanySnapshot(issue.company_id),
-      ]);
-      setRepositories(nextRepositories as RepositoryRecord[]);
-      setCompanySnapshot(snapshot);
-      setSelectedBoardWorkspaceId((workspace as WorkspaceRecord).id);
-      setSelectedRepositoryId((workspace as WorkspaceRecord).repository_id);
-      setSelectedSessionId((workspace as WorkspaceRecord).session_id);
-      setSelectedScreen("workspaces");
-      setWorkspaceCenterTab("conversation");
-      void persistSettings({
-        ...settings,
-        preferred_repository_id: (workspace as WorkspaceRecord).repository_id,
-        preferred_view: preferredViewForScreen("workspaces"),
-      });
-    } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setIsWorking(false);
-    }
-  };
-
   const handleApproveApproval = async (
     approvalId: string,
     decisionNote?: string
@@ -3255,7 +3362,7 @@ export function App() {
     }
   };
 
-  const handleRunClaude = async (event: FormEvent) => {
+  const handleRunAgent = async (event: FormEvent) => {
     event.preventDefault();
     if (!selectedSessionId || !prompt.trim()) {
       return;
@@ -3264,7 +3371,11 @@ export function App() {
     setIsWorking(true);
     setStatusMessage(null);
     try {
-      await claudeSend(selectedSessionId, prompt.trim());
+      await agentSend(
+        selectedSessionId,
+        prompt.trim(),
+        activeWorkspaceProvider === "custom" ? undefined : activeWorkspaceProvider
+      );
       setPrompt("");
       await refreshActiveSession(selectedSessionId);
     } catch (error) {
@@ -3294,18 +3405,77 @@ export function App() {
     }
   };
 
-  const createCompany = async (name: string) => {
+  const createCompany = async ({
+    name,
+    description,
+    brandColor,
+  }: {
+    name: string;
+    description?: string;
+    brandColor?: string;
+  }) => {
     setIsWorking(true);
     try {
-      await boardCreateCompany({ name });
+      const createdCompany = await boardCreateCompany({
+        name,
+        description,
+        brand_color: brandColor,
+      });
       const nextCompanies = (await boardListCompanies()) as Company[];
       setCompanies(nextCompanies);
-      setSelectedCompanyId(nextCompanies[0]?.id ?? null);
-      setSelectedScreen("dashboard");
+      handleSelectCompany(createdCompany.id);
+      return createdCompany;
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : String(error));
+      throw error;
     } finally {
       setIsWorking(false);
+    }
+  };
+
+  const resetCompanyDialog = () => {
+    setCompanyDialogName("");
+    setCompanyDialogDescription("");
+    setCompanyDialogBrandColor(defaultCompanyBrandColor);
+    setCompanyDialogError(null);
+    setIsCompanyDialogSaving(false);
+  };
+
+  const handleOpenCreateCompanyDialog = () => {
+    resetCompanyDialog();
+    setIsCreateCompanyDialogOpen(true);
+  };
+
+  const handleCloseCreateCompanyDialog = () => {
+    if (isCompanyDialogSaving) {
+      return;
+    }
+
+    setIsCreateCompanyDialogOpen(false);
+    resetCompanyDialog();
+  };
+
+  const handleCreateCompanyFromDialog = async () => {
+    if (!companyDialogName.trim() || isCompanyDialogSaving) {
+      return;
+    }
+
+    setIsCompanyDialogSaving(true);
+    setCompanyDialogError(null);
+
+    try {
+      await createCompany({
+        name: companyDialogName.trim(),
+        description: companyDialogDescription.trim() || undefined,
+        brandColor: companyDialogBrandColor.trim() || undefined,
+      });
+      setIsCreateCompanyDialogOpen(false);
+      resetCompanyDialog();
+    } catch (error) {
+      setCompanyDialogError(
+        error instanceof Error ? error.message : String(error)
+      );
+      setIsCompanyDialogSaving(false);
     }
   };
 
@@ -3539,13 +3709,10 @@ export function App() {
             );
           })}
           <button
+            aria-label="Create company"
             className="company-rail-button add"
-            onClick={() => {
-              const name = window.prompt("Company name");
-              if (name?.trim()) {
-                void createCompany(name.trim());
-              }
-            }}
+            onClick={handleOpenCreateCompanyDialog}
+            title="Create company"
             type="button"
           >
             <span>+</span>
@@ -3831,6 +3998,7 @@ export function App() {
                 onCreateIssueForColumn={handleOpenCreateIssueDialog}
                 onCreateProjectView={handleCreateProjectBoardView}
                 onProjectGroupingChange={handleProjectBoardGroupingChange}
+                issueRunCardUpdatesByIssueId={issueRunCardUpdatesByIssueId}
                 projectColumns={dashboardProjectColumns}
                 selectedProjectId={selectedProjectId}
                 viewportRef={dashboardCanvasViewportRef}
@@ -3874,6 +4042,7 @@ export function App() {
                 agentRunLogContent={agentRunLogContent}
                 agentRuns={agentRuns}
                 companyName={selectedCompany?.name ?? "Unbound"}
+                dependencyCheck={dependencyCheck}
                 isLoadingAgentRunDetail={isLoadingAgentRunDetail}
                 isLoadingAgentRuns={isLoadingAgentRuns}
                 isPerformingAgentRunAction={isPerformingAgentRunAction}
@@ -3920,11 +4089,6 @@ export function App() {
                   attachments={selectedIssueAttachments}
                   availablePriorityOptions={issuePriorityOptions}
                   availableStatusOptions={issueStatusOptions}
-                  canStartWorkspace={
-                    Boolean(selectedIssue.assignee_agent_id) &&
-                    Boolean(selectedIssue.project_id) &&
-                    !isEditingIssue
-                  }
                   comments={selectedIssueComments}
                   isSavingIssue={isSavingIssue}
                   isWorking={isWorking}
@@ -3979,11 +4143,7 @@ export function App() {
                   onIssueDraftChange={(patch) =>
                     setIssueDraft((current) => ({
                       ...current,
-                      ...normalizeIssueDraftPatchForAssignee(
-                        patch,
-                        current,
-                        boardAgents
-                      ),
+                      ...patch,
                     }))
                   }
                   onLinkedApprovalSelect={(approvalId) => {
@@ -4009,9 +4169,6 @@ export function App() {
                     }))
                   }
                   onSave={() => void handleSaveIssueEdits(selectedIssue)}
-                  onStartWorkspace={() =>
-                    void handleStartIssueWorkspace(selectedIssue)
-                  }
                   parentIssueLabel={(parentIssueId) =>
                     issueParentLabel(boardIssues, parentIssueId)
                   }
@@ -4312,7 +4469,7 @@ export function App() {
                   </div>
                   <div className="workspace-header-actions">
                     <SummaryPill
-                      label="Claude"
+                      label={activeWorkspaceProviderLabel}
                       value={stringifyStatus(claudeStatusState)}
                     />
                     <SummaryPill
@@ -4333,19 +4490,30 @@ export function App() {
                         <span className="route-kicker">Conversation</span>
                         <h1>{selectedRepository?.name ?? "Session"}</h1>
                       </div>
-                      {selectedBoardWorkspace.workspace_repo_path ? (
-                        <button
-                          className="secondary-button"
-                          onClick={() =>
-                            void desktopRevealInFinder(
-                              selectedBoardWorkspace.workspace_repo_path ?? ""
-                            )
-                          }
-                          type="button"
-                        >
-                          Reveal repo
-                        </button>
-                      ) : null}
+                      <div className="workspace-header-actions">
+                        {selectedSessionId ? (
+                          <button
+                            className="secondary-button"
+                            onClick={() => void agentStop(selectedSessionId)}
+                            type="button"
+                          >
+                            Stop {activeWorkspaceProviderLabel}
+                          </button>
+                        ) : null}
+                        {selectedBoardWorkspace.workspace_repo_path ? (
+                          <button
+                            className="secondary-button"
+                            onClick={() =>
+                              void desktopRevealInFinder(
+                                selectedBoardWorkspace.workspace_repo_path ?? ""
+                              )
+                            }
+                            type="button"
+                          >
+                            Reveal repo
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
 
                     <div className="message-timeline">
@@ -4365,10 +4533,10 @@ export function App() {
                       ))}
                     </div>
 
-                    <form className="composer" onSubmit={handleRunClaude}>
+                    <form className="composer" onSubmit={handleRunAgent}>
                       <textarea
                         onChange={(event) => setPrompt(event.target.value)}
-                        placeholder="Send a prompt to Claude for the selected session"
+                        placeholder={`Send a prompt to ${activeWorkspaceProviderLabel} for the selected session`}
                         value={prompt}
                       />
                       <button
@@ -4701,13 +4869,28 @@ export function App() {
         />
       ) : null}
 
+      {isCreateCompanyDialogOpen ? (
+        <CreateCompanyDialogView
+          brandColor={companyDialogBrandColor}
+          description={companyDialogDescription}
+          errorMessage={companyDialogError}
+          isSaving={isCompanyDialogSaving}
+          name={companyDialogName}
+          onBrandColorChange={setCompanyDialogBrandColor}
+          onClose={handleCloseCreateCompanyDialog}
+          onCreate={() => void handleCreateCompanyFromDialog()}
+          onDescriptionChange={setCompanyDialogDescription}
+          onNameChange={setCompanyDialogName}
+        />
+      ) : null}
+
       {isCreateIssueDialogOpen ? (
         <CreateIssueDialogView
           agents={companySnapshot?.agents ?? []}
           companyPrefix={selectedCompany?.issue_prefix ?? "ISS"}
           errorMessage={issueDialogError}
           isSaving={isIssueDialogSaving}
-          onAssigneeChange={handleIssueDialogAssigneeChange}
+          onAssigneeChange={setIssueDialogAssigneeAgentId}
           onAddAttachment={() => void handleAddIssueDialogAttachment()}
           onClose={handleCloseCreateIssueDialog}
           onCreate={() => void handleCreateIssueFromDialog()}
@@ -4715,15 +4898,7 @@ export function App() {
           onPriorityChange={setIssueDialogPriority}
           onProjectChange={handleIssueDialogProjectChange}
           onRemoveAttachment={handleRemoveIssueDialogAttachment}
-          onStatusChange={(value) =>
-            setIssueDialogStatus(
-              normalizeCreateIssueStatus(
-                value,
-                issueDialogAssigneeAgentId,
-                boardAgents
-              )
-            )
-          }
+          onStatusChange={setIssueDialogStatus}
           onTitleChange={setIssueDialogTitle}
           onWorkspaceTargetChange={handleIssueDialogWorkspaceTargetChange}
           attachments={issueDialogAttachments}
@@ -4735,12 +4910,8 @@ export function App() {
           selectedAssigneeAgentId={issueDialogAssigneeAgentId}
           selectedPriority={issueDialogPriority}
           selectedProjectId={issueDialogProjectId}
-          selectedStatus={normalizeCreateIssueStatus(
-            issueDialogStatus,
-            issueDialogAssigneeAgentId,
-            boardAgents
-          )}
-          statuses={createIssueStatusOptions}
+          selectedStatus={issueDialogStatus}
+          statuses={mergeIssueOptions(canonicalIssueStatuses, issueDialogStatus)}
           selectedWorkspaceTargetValue={issueWorkspaceTargetSelectValue(
             issueDialogWorkspaceTargetMode,
             issueDialogWorkspaceWorktreePath
@@ -5103,6 +5274,7 @@ function AgentsRouteView({
   companyName,
   configurationDraft,
   configurationError,
+  dependencyCheck,
   isLoadingAgentRunDetail,
   isLoadingAgentRuns,
   isPerformingAgentRunAction,
@@ -5131,6 +5303,7 @@ function AgentsRouteView({
   companyName: string;
   configurationDraft: AgentConfigDraft;
   configurationError: string | null;
+  dependencyCheck: RuntimeCapabilities | null;
   isLoadingAgentRunDetail: boolean;
   isLoadingAgentRuns: boolean;
   isPerformingAgentRunAction: boolean;
@@ -5263,6 +5436,7 @@ function AgentsRouteView({
               <AgentConfigurationTab
                 draft={configurationDraft}
                 errorMessage={configurationError}
+                dependencyCheck={dependencyCheck}
                 isSaving={isSavingConfiguration}
                 onAddEnvVar={onAddEnvVar}
                 onChooseInstructionsFile={onChooseInstructionsFile}
@@ -5369,6 +5543,7 @@ function AgentDashboardTab({
 function AgentConfigurationTab({
   draft,
   errorMessage,
+  dependencyCheck,
   isSaving,
   onAddEnvVar,
   onChooseInstructionsFile,
@@ -5380,6 +5555,7 @@ function AgentConfigurationTab({
 }: {
   draft: AgentConfigDraft;
   errorMessage: string | null;
+  dependencyCheck: RuntimeCapabilities | null;
   isSaving: boolean;
   onAddEnvVar: () => void;
   onChooseInstructionsFile: () => void;
@@ -5393,12 +5569,23 @@ function AgentConfigurationTab({
   onSave: () => void;
 }) {
   const canSave = !isSaving && draft.name.trim().length > 0;
+  const provider = detectAgentCliProvider(draft.command, draft.model);
   const adapterTypeOptions = mergeIssueOptions(["process"], draft.adapterType);
-  const modelOptions = mergeIssueOptions(["default"], draft.model);
+  const commandOptions = buildAgentCommandOptions(
+    dependencyCheck,
+    draft.command
+  );
+  const modelOptions = buildAgentModelOptions(draft, dependencyCheck);
   const thinkingEffortOptions = mergeIssueOptions(
     ["auto", "low", "medium", "high"],
     draft.thinkingEffort
   );
+  const browserToggleLabel =
+    provider === "codex" ? "Enable web search" : "Enable Chrome";
+  const browserToggleDescription =
+    provider === "codex"
+      ? "Expose Codex web search during runs."
+      : "Allow browser automation inside runs.";
 
   return (
     <form
@@ -5531,12 +5718,18 @@ function AgentConfigurationTab({
             <input
               className="issue-dialog-input"
               id="agent-config-command"
+              list="agent-config-command-options"
               onChange={(event) =>
                 onDraftChange({ command: event.target.value })
               }
-              placeholder="claude"
+              placeholder="claude or codex"
               value={draft.command}
             />
+            <datalist id="agent-config-command-options">
+              {commandOptions.map((option) => (
+                <option key={option} value={option} />
+              ))}
+            </datalist>
           </AgentConfigField>
           <AgentConfigField htmlFor="agent-config-model" label="Model">
             <AgentConfigSelect
@@ -5588,8 +5781,8 @@ function AgentConfigurationTab({
           <div className="agent-config-toggle-grid agent-config-field-full">
             <AgentConfigToggleField
               checked={draft.enableChrome}
-              description="Allow browser automation inside runs."
-              label="Enable Chrome"
+              description={browserToggleDescription}
+              label={browserToggleLabel}
               onChange={(checked) => onDraftChange({ enableChrome: checked })}
             />
             <AgentConfigToggleField
@@ -5621,16 +5814,9 @@ function AgentConfigurationTab({
             htmlFor="agent-config-max-turns"
             label="Max turns per run"
           >
-            <input
-              className="issue-dialog-input"
-              id="agent-config-max-turns"
-              inputMode="numeric"
-              onChange={(event) =>
-                onDraftChange({ maxTurns: event.target.value })
-              }
-              placeholder="80"
-              value={draft.maxTurns}
-            />
+            <div className="surface-empty-copy">
+              Not currently enforced for local Claude or Codex CLI agents.
+            </div>
           </AgentConfigField>
           <AgentConfigField
             fullWidth
@@ -6460,6 +6646,7 @@ function DashboardCanvasRouteView({
   onCreateIssueForColumn,
   onCreateProjectView,
   onProjectGroupingChange,
+  issueRunCardUpdatesByIssueId,
   onWheel,
   projectColumns,
   selectedProjectId,
@@ -6485,6 +6672,7 @@ function DashboardCanvasRouteView({
     viewId: string,
     grouping: DashboardProjectGrouping
   ) => void;
+  issueRunCardUpdatesByIssueId: Record<string, IssueRunCardUpdateRecord>;
   onWheel: (event: WheelEvent<HTMLDivElement>) => void;
   projectColumns: DashboardProjectColumnLayout[];
   selectedProjectId: string | null;
@@ -6702,33 +6890,60 @@ function DashboardCanvasRouteView({
                               <div className="project-kanban-cards">
                                 {column.issues.length ? (
                                   <>
-                                    {column.issues.map((issue) => (
-                                      <button
-                                        className="project-kanban-card"
-                                        data-priority={normalizeBoardIssueValue(
-                                          issue.priority
-                                        )}
-                                        key={issue.id}
-                                        onClick={() => onOpenIssue(issue.id)}
-                                        type="button"
-                                      >
-                                        <strong>
-                                          {issue.identifier ?? issue.title}
-                                        </strong>
-                                        <p>{issue.title}</p>
-                                        <div className="project-kanban-card-meta">
-                                          {projectBoardCardMeta(
-                                            projectBoard.grouping,
-                                            issue,
-                                            agents
-                                          ).map((meta, index) => (
-                                            <span key={`${issue.id}-${index}`}>
-                                              {meta}
-                                            </span>
-                                          ))}
-                                        </div>
-                                      </button>
-                                    ))}
+                                    {column.issues.map((issue) => {
+                                      const cardUpdate =
+                                        issueRunCardUpdatesByIssueId[
+                                          issue.id
+                                        ] ?? null;
+                                      const cardUpdateSummary = cardUpdate
+                                        ? issueRunCardUpdateSummary(cardUpdate)
+                                        : null;
+
+                                      return (
+                                        <button
+                                          className="project-kanban-card"
+                                          data-priority={normalizeBoardIssueValue(
+                                            issue.priority
+                                          )}
+                                          key={issue.id}
+                                          onClick={() => onOpenIssue(issue.id)}
+                                          type="button"
+                                        >
+                                          <strong>
+                                            {issue.identifier ?? issue.title}
+                                          </strong>
+                                          <p>{issue.title}</p>
+                                          {cardUpdate ? (
+                                            <div className="project-kanban-card-update">
+                                              <span
+                                                className={`agent-run-status-badge ${agentRunStatusTone(cardUpdate.run_status)} project-kanban-card-update-status`}
+                                              >
+                                                {agentRunStatusLabel(
+                                                  cardUpdate.run_status
+                                                )}
+                                              </span>
+                                              <span
+                                                className="project-kanban-card-update-copy"
+                                                title={cardUpdateSummary ?? undefined}
+                                              >
+                                                {cardUpdateSummary}
+                                              </span>
+                                            </div>
+                                          ) : null}
+                                          <div className="project-kanban-card-meta">
+                                            {projectBoardCardMeta(
+                                              projectBoard.grouping,
+                                              issue,
+                                              agents
+                                            ).map((meta, index) => (
+                                              <span key={`${issue.id}-${index}`}>
+                                                {meta}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        </button>
+                                      );
+                                    })}
                                     {createIssueCard}
                                   </>
                                 ) : (
@@ -6879,7 +7094,7 @@ function StatsRouteView({
 }: {
   bootstrap: DesktopBootstrapStatus;
   company: Company | null;
-  dependencyCheck: Record<string, unknown> | null;
+  dependencyCheck: RuntimeCapabilities | null;
   onCheckDependencies: () => void;
   onOpenWorkspace: (workspace: WorkspaceRecord) => void;
   repositoriesCount: number;
@@ -6937,8 +7152,30 @@ function StatsRouteView({
             <SummaryPill label="App" value={bootstrap.expected_app_version} />
           </div>
           {dependencyCheck ? (
-            <pre>{JSON.stringify(dependencyCheck, null, 2)}</pre>
-          ) : null}
+            <div className="surface-list dense">
+              <DependencyToolRow
+                capability={dependencyCheck.cli.claude}
+                label="Claude"
+              />
+              <DependencyToolRow
+                capability={dependencyCheck.cli.codex}
+                label="Codex"
+              />
+              <DependencyToolRow
+                capability={dependencyCheck.cli.gh}
+                label="GitHub CLI"
+              />
+              <DependencyToolRow
+                capability={dependencyCheck.cli.ollama}
+                label="Ollama"
+              />
+            </div>
+          ) : (
+            <p>
+              Check dependencies to see which local coding CLIs are available
+              and which model families the daemon can offer.
+            </p>
+          )}
         </section>
 
         <section className="surface-panel">
@@ -7005,6 +7242,34 @@ function StatsRouteView({
         </section>
       </div>
     </section>
+  );
+}
+
+function DependencyToolRow({
+  capability,
+  label,
+}: {
+  capability: RuntimeCapabilities["cli"][keyof RuntimeCapabilities["cli"]];
+  label: string;
+}) {
+  return (
+    <div className="surface-list-row">
+      <div>
+        <strong>{label}</strong>
+        <span>
+          {capability.installed
+            ? capability.path ?? "Installed and ready"
+            : "Not detected in PATH"}
+        </span>
+      </div>
+      <span>
+        {capability.installed && capability.models?.length
+          ? `${capability.models.length} ${capability.models.length === 1 ? "model" : "models"}`
+          : capability.installed
+            ? "Ready"
+            : "Missing"}
+      </span>
+    </div>
   );
 }
 
@@ -7121,7 +7386,6 @@ function IssueDetailView({
   issueDraft,
   isSavingIssue,
   isWorking,
-  canStartWorkspace,
   attachments,
   availableStatusOptions,
   availablePriorityOptions,
@@ -7138,7 +7402,6 @@ function IssueDetailView({
   onBack,
   onCommitIssuePatch,
   onHideIssue,
-  onStartWorkspace,
   onIssueDraftChange,
   onLinkedApprovalSelect,
   onOpenRunDetail,
@@ -7161,7 +7424,6 @@ function IssueDetailView({
   isEditingIssue: boolean;
   isSavingIssue: boolean;
   isWorking: boolean;
-  canStartWorkspace: boolean;
   attachments: IssueAttachmentRecord[];
   availableStatusOptions: string[];
   availablePriorityOptions: string[];
@@ -7181,7 +7443,6 @@ function IssueDetailView({
   onCommitIssuePatch: (patch: Partial<IssueEditDraft>) => void;
   onHideIssue: () => void;
   onSave: () => void;
-  onStartWorkspace: () => void;
   onIssueDraftChange: (patch: Partial<IssueEditDraft>) => void;
   onProjectSelect: (projectId: string) => void;
   onParentIssueSelect: (parentIssueId: string) => void;
@@ -7212,6 +7473,12 @@ function IssueDetailView({
   const issueActionsButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const issueProjectName = projectLabel(issueDraft.projectId || null);
+  const issueValidationMessage = issueStatusAssigneeValidationMessage(
+    issueDraft.status,
+    issueDraft.assigneeAgentId,
+    agents
+  );
+  const visibleIssueEditorError = issueValidationMessage ?? issueEditorError;
   const selectedProject =
     projects.find((project) => project.id === issueDraft.projectId) ?? null;
   const selectedProjectRepoPath =
@@ -7524,21 +7791,8 @@ function IssueDetailView({
             </div>
           </div>
 
-          {issueEditorError ? (
-            <div className="issue-dialog-alert">{issueEditorError}</div>
-          ) : null}
-
-          {canStartWorkspace ? (
-            <div className="issues-detail-primary-actions">
-              <button
-                className="primary-button"
-                disabled={isWorking}
-                onClick={onStartWorkspace}
-                type="button"
-              >
-                Start Worktree
-              </button>
-            </div>
+          {visibleIssueEditorError ? (
+            <div className="issue-dialog-alert">{visibleIssueEditorError}</div>
           ) : null}
 
           <section className="issues-detail-section">
@@ -7597,7 +7851,7 @@ function IssueDetailView({
                         <h3>Attachments</h3>
                         <p className="issues-detail-copy muted">
                           Files live with the local board data and are included
-                          in new Claude runs for this issue.
+                          in new agent runs for this issue.
                         </p>
                       </div>
                       <button
@@ -7852,8 +8106,10 @@ function IssueDetailView({
                 </button>
               </div>
               <div className="issues-properties-drawer-body">
-                {issueEditorError ? (
-                  <div className="issue-dialog-alert">{issueEditorError}</div>
+                {visibleIssueEditorError ? (
+                  <div className="issue-dialog-alert">
+                    {visibleIssueEditorError}
+                  </div>
                 ) : null}
 
                 <section className="issues-properties-section">
@@ -9834,6 +10090,135 @@ function CreateProjectDialogView({
   );
 }
 
+function CreateCompanyDialogView({
+  name,
+  description,
+  brandColor,
+  errorMessage,
+  isSaving,
+  onNameChange,
+  onDescriptionChange,
+  onBrandColorChange,
+  onCreate,
+  onClose,
+}: {
+  name: string;
+  description: string;
+  brandColor: string;
+  errorMessage: string | null;
+  isSaving: boolean;
+  onNameChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
+  onBrandColorChange: (value: string) => void;
+  onCreate: () => void;
+  onClose: () => void;
+}) {
+  const canCreate = Boolean(name.trim()) && !isSaving;
+
+  return (
+    <div className="modal-backdrop" onClick={onClose} role="presentation">
+      <div
+        aria-modal="true"
+        aria-labelledby="create-company-dialog-title"
+        className="project-dialog"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <div className="project-dialog-header">
+          <div className="project-dialog-title-block">
+            <h2 id="create-company-dialog-title">New company</h2>
+            <p>
+              Add a company shell to the board so you can start routing agents,
+              issues, and projects into it.
+            </p>
+          </div>
+
+          <button
+            aria-label="Close create company dialog"
+            className="project-dialog-close"
+            onClick={onClose}
+            type="button"
+          >
+            x
+          </button>
+        </div>
+
+        <div className="project-dialog-body">
+          <div className="project-dialog-divider" />
+
+          {errorMessage ? (
+            <div className="issue-dialog-alert">{errorMessage}</div>
+          ) : null}
+
+          <div className="project-dialog-stack">
+            <label className="project-dialog-field project-dialog-field-full">
+              <span className="issue-dialog-label">Company name</span>
+              <input
+                autoFocus
+                className="issue-dialog-input"
+                onChange={(event) => onNameChange(event.target.value)}
+                placeholder="Acme Systems"
+                type="text"
+                value={name}
+              />
+              <small className="issue-dialog-hint">
+                Shown in the companies rail, dashboard, and board context menus.
+              </small>
+            </label>
+
+            <label className="project-dialog-field project-dialog-field-full">
+              <span className="issue-dialog-label">Description</span>
+              <textarea
+                className="issue-dialog-input issue-dialog-textarea"
+                onChange={(event) => onDescriptionChange(event.target.value)}
+                placeholder="Optional context for what this company owns or how it should operate inside the board..."
+                value={description}
+              />
+              <small className="issue-dialog-hint">
+                Optional setup context you can refine later from company
+                settings.
+              </small>
+            </label>
+
+            <label className="project-dialog-field project-dialog-field-full">
+              <span className="issue-dialog-label">Brand color</span>
+              <input
+                className="issue-dialog-input"
+                onChange={(event) => onBrandColorChange(event.target.value)}
+                placeholder={defaultCompanyBrandColor}
+                type="text"
+                value={brandColor}
+              />
+              <small className="issue-dialog-hint">
+                Optional hex color used for the company badge in the rail.
+              </small>
+            </label>
+          </div>
+        </div>
+
+        <div className="issue-dialog-footer project-dialog-footer">
+          <button
+            className="secondary-button"
+            disabled={isSaving}
+            onClick={onClose}
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            className="primary-button"
+            disabled={!canCreate}
+            onClick={onCreate}
+            type="button"
+          >
+            {isSaving ? "Creating company..." : "Create company"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProjectDialogSelectField({
   children,
   hint,
@@ -9974,7 +10359,16 @@ function CreateIssueDialogView({
   const worktreeOptions = normalizeGitWorktreeRecords(
     workspaceTargetWorktrees
   );
-  const canCreate = !isSavingIssue && issueTitle.trim().length > 0;
+  const issueValidationMessage = issueStatusAssigneeValidationMessage(
+    issueStatus,
+    issueAssigneeAgentId,
+    agentOptions
+  );
+  const visibleIssueErrorMessage = issueValidationMessage ?? issueErrorMessage;
+  const canCreate =
+    !isSavingIssue &&
+    issueTitle.trim().length > 0 &&
+    issueValidationMessage === null;
   const selectedProject =
     projectOptions.find((project) => project.id === issueProjectId) ?? null;
   const selectedProjectRepoPath =
@@ -10030,8 +10424,10 @@ function CreateIssueDialogView({
         </div>
 
         <div className="issue-dialog-body">
-          {issueErrorMessage ? (
-            <div className="issue-dialog-alert">{issueErrorMessage}</div>
+          {visibleIssueErrorMessage ? (
+            <div className="issue-dialog-alert">
+              {visibleIssueErrorMessage}
+            </div>
           ) : null}
 
           <div className="issue-dialog-composer">
@@ -11080,7 +11476,10 @@ function WorkspaceInspectorSidebar({
             <div className="summary-grid">
               <SummaryPill label="Branch" value={currentBranchName} />
               <SummaryPill label="Changed" value={gitState?.files.length ?? 0} />
-              <SummaryPill label="Clean" value={gitState?.is_clean ? "yes" : "no"} />
+              <SummaryPill
+                label="Clean"
+                value={gitState?.is_clean ? "yes" : "no"}
+              />
             </div>
             <div className="surface-list dense">
               {(gitHistory?.commits ?? []).map((commit) => (
@@ -11806,7 +12205,10 @@ function createAgentConfigDraft(agent: AgentRecord): AgentConfigDraft {
     instructionsPath: agent.instructions_path ?? "",
     command: stringFromUnknown(adapterConfig.command, "claude"),
     model: stringFromUnknown(adapterConfig.model, "default"),
-    thinkingEffort: stringFromUnknown(adapterConfig.thinkingEffort, "auto"),
+    thinkingEffort: stringFromUnknown(
+      adapterConfig.thinkingEffort ?? adapterConfig.reasoningEffort,
+      "auto"
+    ),
     bootstrapPrompt: stringFromUnknown(runtimeConfig.bootstrapPrompt),
     enableChrome: booleanFromUnknown(adapterConfig.enableChrome),
     skipPermissions: booleanFromUnknown(adapterConfig.skipPermissions),
@@ -11848,7 +12250,8 @@ function buildAgentConfigUpdateParams(
     ...objectFromUnknown(agent.adapter_config),
     command: normalizeOptionalDraftString(draft.command) ?? "claude",
     model: normalizeOptionalDraftString(draft.model) ?? "default",
-    thinkingEffort:
+    thinkingEffort: normalizeOptionalDraftString(draft.thinkingEffort) ?? "auto",
+    reasoningEffort:
       normalizeOptionalDraftString(draft.thinkingEffort) ?? "auto",
     enableChrome: draft.enableChrome,
     skipPermissions: draft.skipPermissions,
@@ -12038,6 +12441,102 @@ function mergeIssueOptions(defaults: string[], selected: string) {
   return options;
 }
 
+type AgentCliProvider = "claude" | "codex" | "custom";
+
+function detectAgentCliProvider(
+  command: string | null | undefined,
+  model?: string | null
+): AgentCliProvider {
+  const normalizedCommand = normalizeAgentCommand(command);
+  const normalizedModel = (model ?? "").trim().toLowerCase();
+
+  if (
+    normalizedCommand.includes("codex") ||
+    normalizedModel.includes("codex")
+  ) {
+    return "codex";
+  }
+
+  if (
+    !normalizedCommand ||
+    normalizedCommand.includes("claude") ||
+    normalizedModel.includes("claude")
+  ) {
+    return "claude";
+  }
+
+  return "custom";
+}
+
+function normalizeAgentCommand(value: string | null | undefined) {
+  const trimmed = value?.trim().toLowerCase() ?? "";
+  if (!trimmed) {
+    return "";
+  }
+
+  return trimmed.split(/[\\/]/).pop() ?? trimmed;
+}
+
+function buildAgentCommandOptions(
+  dependencyCheck: RuntimeCapabilities | null,
+  selectedCommand: string
+) {
+  const options: string[] = [];
+
+  const pushOption = (value: string | null | undefined) => {
+    const trimmed = value?.trim();
+    if (trimmed && !options.includes(trimmed)) {
+      options.push(trimmed);
+    }
+  };
+
+  pushOption(selectedCommand);
+  pushOption("claude");
+  pushOption(dependencyCheck?.cli.claude.path);
+  pushOption("codex");
+  pushOption(dependencyCheck?.cli.codex.path);
+
+  return options;
+}
+
+function buildAgentModelOptions(
+  draft: Pick<AgentConfigDraft, "command" | "model">,
+  dependencyCheck: RuntimeCapabilities | null
+) {
+  const provider = detectAgentCliProvider(draft.command, draft.model);
+  const discoveredModels =
+    provider === "codex"
+      ? dependencyCheck?.cli.codex.installed
+        ? dependencyCheck?.cli.codex.models ?? []
+        : []
+      : provider === "claude"
+        ? dependencyCheck?.cli.claude.installed
+          ? dependencyCheck?.cli.claude.models ?? []
+          : []
+        : [];
+
+  return mergeIssueOptions(["default", ...discoveredModels], draft.model);
+}
+
+function detectWorkspaceAgentProvider(
+  session: SessionRecord | null,
+  agent: AgentRecord | null
+): AgentCliProvider {
+  if (session?.provider) {
+    return session.provider === "codex" ? "codex" : "claude";
+  }
+
+  if (agent) {
+    const adapterConfig = objectFromUnknown(agent.adapter_config);
+    return detectAgentCliProvider(
+      stringFromUnknown(adapterConfig.command),
+      stringFromUnknown(adapterConfig.model)
+    );
+  }
+
+  return "claude";
+}
+
 const canonicalIssueStatuses = [
   "backlog",
   "blocked",
@@ -12046,9 +12545,6 @@ const canonicalIssueStatuses = [
   "done",
   "cancelled",
 ];
-const createableIssueStatuses = canonicalIssueStatuses.filter(
-  (status) => status !== "in_progress"
-);
 
 function hasAssignedAgent(
   assigneeAgentId: string | null | undefined,
@@ -12061,18 +12557,23 @@ function hasAssignedAgent(
   );
 }
 
-function issueStatusesForAssignee(
-  statuses: string[],
+function issueStatusAssigneeValidationMessage(
+  status: string | null | undefined,
   assigneeAgentId: string | null | undefined,
   agents: AgentRecord[]
 ) {
-  if (hasAssignedAgent(assigneeAgentId, agents)) {
-    return statuses;
+  const hasAgentAssignee = hasAssignedAgent(assigneeAgentId, agents);
+  const normalizedStatus = normalizeBoardIssueValue(status);
+
+  if (normalizedStatus === "todo" && !hasAgentAssignee) {
+    return "To Do issues must be assigned to an agent.";
   }
 
-  return statuses.filter(
-    (status) => normalizeBoardIssueValue(status) !== "todo"
-  );
+  if (normalizedStatus === "in_progress" && hasAgentAssignee) {
+    return "In Progress issues cannot have an assigned agent.";
+  }
+
+  return null;
 }
 
 function normalizeHexColor(
@@ -12110,66 +12611,6 @@ function normalizeBoardIssueValue(value: string | null | undefined) {
   }
 
   return normalized;
-}
-
-function normalizeIssueStatusForAssignee(
-  value: string | null | undefined,
-  assigneeAgentId: string | null | undefined,
-  agents: AgentRecord[]
-) {
-  const normalized = normalizeBoardIssueValue(value);
-  if (normalized === "todo" && !hasAssignedAgent(assigneeAgentId, agents)) {
-    return "backlog";
-  }
-
-  return normalized;
-}
-
-function normalizeCreateIssueStatus(
-  value: string | null | undefined,
-  assigneeAgentId = "",
-  agents: AgentRecord[] = []
-) {
-  const normalized = normalizeBoardIssueValue(value);
-  return normalizeIssueStatusForAssignee(
-    normalized === "in_progress" ? "todo" : normalized,
-    assigneeAgentId,
-    agents
-  );
-}
-
-function normalizeIssueDraftPatchForAssignee(
-  patch: Partial<IssueEditDraft>,
-  current: Pick<IssueEditDraft, "assigneeAgentId" | "status">,
-  agents: AgentRecord[]
-) {
-  const normalizedPatch = { ...patch };
-  const nextAssigneeAgentId = Object.prototype.hasOwnProperty.call(
-    patch,
-    "assigneeAgentId"
-  )
-    ? patch.assigneeAgentId ?? ""
-    : current.assigneeAgentId;
-
-  if (Object.prototype.hasOwnProperty.call(patch, "status")) {
-    normalizedPatch.status = normalizeIssueStatusForAssignee(
-      patch.status,
-      nextAssigneeAgentId,
-      agents
-    );
-  } else if (Object.prototype.hasOwnProperty.call(patch, "assigneeAgentId")) {
-    const normalizedStatus = normalizeIssueStatusForAssignee(
-      current.status,
-      nextAssigneeAgentId,
-      agents
-    );
-
-    if (normalizedStatus !== current.status) {
-      normalizedPatch.status = normalizedStatus;
-    }
-  }
-
-  return normalizedPatch;
 }
 
 function normalizeDashboardProjectGrouping(
@@ -12211,7 +12652,7 @@ function projectBoardColumnsByStatus(
   issues: IssueRecord[]
 ): DashboardProjectColumn[] {
   return projectBoardColumnStatuses(issues).map((status) => ({
-    createDefaults: { status: normalizeCreateIssueStatus(status) },
+    createDefaults: { status },
     id: `status:${status}`,
     issues: issues.filter(
       (issue) => normalizeBoardIssueValue(issue.status) === status
@@ -12836,6 +13277,30 @@ function agentRunStatusTone(status: string) {
   }
 }
 
+function issueRunCardUpdateSummary(update: IssueRunCardUpdateRecord) {
+  const summary = update.summary?.trim();
+  if (summary) {
+    return summary;
+  }
+
+  switch (update.run_status) {
+    case "queued":
+      return "Waiting to start";
+    case "running":
+      return "Working on the issue";
+    case "succeeded":
+      return "Run finished";
+    case "failed":
+      return "Run failed";
+    case "cancelled":
+      return "Run cancelled";
+    case "timed_out":
+      return "Run timed out";
+    default:
+      return "Run updated";
+  }
+}
+
 function normalizeAgentStatusTone(status: string | null | undefined) {
   switch (status) {
     case "idle":
@@ -12862,7 +13327,7 @@ function agentAdapterTypeLabel(value: string | null | undefined) {
   }
 
   if (value === "process") {
-    return "Claude (local)";
+    return "Local CLI agent";
   }
 
   return humanizeIssueValue(value);
@@ -13323,20 +13788,33 @@ function orgChartAgentRoleLabel(agent: AgentRecord) {
 function orgChartAgentProviderLabel(agent: AgentRecord) {
   const adapterConfig = objectFromUnknown(agent.adapter_config);
   const runtimeConfig = objectFromUnknown(agent.runtime_config);
+  const commandValue = stringFromUnknown(adapterConfig.command);
   const providerValue =
     stringFromUnknown(runtimeConfig.model) ||
     stringFromUnknown(adapterConfig.model) ||
     stringFromUnknown(runtimeConfig.provider) ||
     stringFromUnknown(adapterConfig.provider) ||
     stringFromUnknown(agent.adapter_type);
-  const normalized = providerValue.trim().toLowerCase();
+  const provider = detectAgentCliProvider(commandValue, providerValue);
+  if (provider === "codex") {
+    return "Codex";
+  }
 
-  if (!normalized || normalized === "process") {
+  if (
+    provider === "claude" &&
+    (!providerValue.trim() || providerValue.trim().toLowerCase() === "process")
+  ) {
     return "Claude";
   }
 
+  const normalized = `${providerValue} ${commandValue}`.trim().toLowerCase();
+
   if (normalized.includes("claude")) {
     return "Claude";
+  }
+
+  if (normalized.includes("codex")) {
+    return "Codex";
   }
 
   if (normalized.includes("gpt") || normalized.includes("openai")) {

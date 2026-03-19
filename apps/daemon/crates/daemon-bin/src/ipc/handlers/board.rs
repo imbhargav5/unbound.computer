@@ -3,7 +3,7 @@
 use crate::app::{ensure_issue_workspace, issue_has_attached_workspace_target, DaemonState};
 use daemon_board::service;
 use daemon_board::{
-    AddIssueAttachmentInput, AddIssueCommentInput, ApprovalDecisionInput, BoardError,
+    AddIssueAttachmentInput, AddIssueCommentInput, Approval, ApprovalDecisionInput, BoardError,
     CreateAgentHireInput, CreateAgentInput, CreateCompanyInput, CreateIssueInput,
     CreateProjectInput, Issue, IssueListFilter, UpdateAgentInput, UpdateIssueInput,
 };
@@ -364,13 +364,13 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
                 match service::create_issue(&db, input).await {
                     Ok(issue) => {
                         let issue = prepare_attached_issue_workspace_if_needed(&state, issue).await;
-                        if should_wake_assignee_for_todo_issue(&issue) {
+                        if let Some(wake_reason) = issue_create_wake_reason(&issue) {
                             maybe_enqueue_issue_run(
                                 runs.as_ref(),
                                 &issue,
                                 "assignment",
                                 Some("system"),
-                                Some("issue_assigned"),
+                                Some(wake_reason),
                             )
                             .await;
                         }
@@ -407,25 +407,13 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
                 match service::update_issue(&db, input).await {
                     Ok(issue) => {
                         let issue = prepare_attached_issue_workspace_if_needed(&state, issue).await;
-                        if previous.assignee_agent_id != issue.assignee_agent_id
-                            && should_wake_assignee_for_todo_issue(&issue)
-                        {
+                        if let Some(wake_reason) = issue_update_wake_reason(&previous, &issue) {
                             maybe_enqueue_issue_run(
                                 runs.as_ref(),
                                 &issue,
                                 "assignment",
                                 Some("system"),
-                                Some("issue_assigned"),
-                            )
-                            .await;
-                        }
-                        if issue_became_todo(&previous, &issue) {
-                            maybe_enqueue_issue_run(
-                                runs.as_ref(),
-                                &issue,
-                                "assignment",
-                                Some("system"),
-                                Some("issue_status_changed"),
+                                Some(wake_reason),
                             )
                             .await;
                         }
@@ -512,6 +500,26 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
                 };
                 match service::list_issue_runs(&db, &input.issue_id, input.limit).await {
                     Ok(runs) => json_response(&req.id, &serde_json::json!({ "runs": runs })),
+                    Err(error) => board_error_response(&req.id, error),
+                }
+            }
+        })
+        .await;
+
+    let card_updates_db = state.db.clone();
+    server
+        .register_handler(Method::IssueRunCardUpdates, move |req| {
+            let db = card_updates_db.clone();
+            async move {
+                let company_id =
+                    match required_string_param(&req.id, req.params.as_ref(), "company_id") {
+                        Ok(company_id) => company_id,
+                        Err(response) => return response,
+                    };
+                match service::list_issue_run_card_updates(&db, &company_id).await {
+                    Ok(updates) => {
+                        json_response(&req.id, &serde_json::json!({ "updates": updates }))
+                    }
                     Err(error) => board_error_response(&req.id, error),
                 }
             }
@@ -713,13 +721,6 @@ async fn register_approval_handlers(server: &IpcServer, state: DaemonState) {
                 match service::approve_approval(&db, &paths, input).await {
                     Ok(approval) => {
                         if let Some(agent_id) = approval.requested_by_agent_id.clone() {
-                            let issue_id = approval
-                                .payload
-                                .get("source_issue_id")
-                                .and_then(serde_json::Value::as_str)
-                                .map(str::trim)
-                                .filter(|value| !value.is_empty())
-                                .map(ToOwned::to_owned);
                             let _ = runs
                                 .enqueue_run(crate::app::AgentRunEnqueueRequest {
                                     agent_id,
@@ -727,10 +728,7 @@ async fn register_approval_handlers(server: &IpcServer, state: DaemonState) {
                                     invocation_source: "automation".to_string(),
                                     trigger_detail: Some("system".to_string()),
                                     wake_reason: Some("approval_approved".to_string()),
-                                    payload: Some(serde_json::json!({
-                                        "approval_id": approval.id,
-                                        "issue_id": issue_id,
-                                    })),
+                                    payload: Some(approval_follow_up_payload(&approval)),
                                     prompt: None,
                                     requested_by_actor_type: Some("system".to_string()),
                                     requested_by_actor_id: Some(approval.id.clone()),
@@ -1028,8 +1026,43 @@ fn should_wake_assignee_for_todo_issue(issue: &Issue) -> bool {
         && is_todo_status(&issue.status)
 }
 
+fn issue_create_wake_reason(issue: &Issue) -> Option<&'static str> {
+    should_wake_assignee_for_todo_issue(issue).then_some("issue_assigned")
+}
+
 fn issue_became_todo(previous: &Issue, next: &Issue) -> bool {
     !is_todo_status(&previous.status) && should_wake_assignee_for_todo_issue(next)
+}
+
+fn issue_update_wake_reason(previous: &Issue, next: &Issue) -> Option<&'static str> {
+    if previous.assignee_agent_id != next.assignee_agent_id
+        && should_wake_assignee_for_todo_issue(next)
+    {
+        return Some("issue_assigned");
+    }
+
+    if issue_became_todo(previous, next) {
+        return Some("issue_status_changed");
+    }
+
+    None
+}
+
+fn approval_follow_up_issue_id(approval: &Approval) -> Option<String> {
+    approval
+        .payload
+        .get("source_issue_id")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn approval_follow_up_payload(approval: &Approval) -> serde_json::Value {
+    serde_json::json!({
+        "approval_id": approval.id,
+        "issue_id": approval_follow_up_issue_id(approval),
+    })
 }
 
 async fn enqueue_issue_comment_run(
@@ -1238,6 +1271,18 @@ mod tests {
     }
 
     #[test]
+    fn create_todo_issue_uses_assignment_wake_reason() {
+        assert_eq!(
+            issue_create_wake_reason(&test_issue("todo", Some("agent-1"))),
+            Some("issue_assigned")
+        );
+        assert_eq!(
+            issue_create_wake_reason(&test_issue("backlog", Some("agent-1"))),
+            None
+        );
+    }
+
+    #[test]
     fn issue_became_todo_detects_assignment_ready_transition() {
         assert!(issue_became_todo(
             &test_issue("backlog", Some("agent-1")),
@@ -1247,5 +1292,110 @@ mod tests {
             &test_issue("todo", Some("agent-1")),
             &test_issue("todo", Some("agent-1"))
         ));
+    }
+
+    #[test]
+    fn update_to_todo_with_existing_assignee_uses_status_change_wake_reason() {
+        assert_eq!(
+            issue_update_wake_reason(
+                &test_issue("backlog", Some("agent-1")),
+                &test_issue("todo", Some("agent-1"))
+            ),
+            Some("issue_status_changed")
+        );
+    }
+
+    #[test]
+    fn update_to_todo_with_new_assignee_prefers_single_assignment_wake_reason() {
+        assert_eq!(
+            issue_update_wake_reason(
+                &test_issue("backlog", None),
+                &test_issue("todo", Some("agent-1"))
+            ),
+            Some("issue_assigned")
+        );
+    }
+
+    #[test]
+    fn adding_assignee_to_existing_todo_issue_wakes_once() {
+        assert_eq!(
+            issue_update_wake_reason(
+                &test_issue("todo", None),
+                &test_issue("todo", Some("agent-1"))
+            ),
+            Some("issue_assigned")
+        );
+    }
+
+    #[test]
+    fn non_todo_updates_do_not_enqueue_immediate_runs() {
+        assert_eq!(
+            issue_update_wake_reason(
+                &test_issue("blocked", Some("agent-1")),
+                &test_issue("blocked", Some("agent-2"))
+            ),
+            None
+        );
+        assert_eq!(
+            issue_update_wake_reason(
+                &test_issue("backlog", None),
+                &test_issue("backlog", Some("agent-1"))
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn approval_follow_up_payload_keeps_linked_issue_context() {
+        let approval = Approval {
+            id: "approval-1".to_string(),
+            company_id: "company-1".to_string(),
+            approval_type: "agent_decision".to_string(),
+            requested_by_agent_id: Some("agent-1".to_string()),
+            requested_by_user_id: None,
+            status: "approved".to_string(),
+            payload: json!({
+                "source_issue_id": "issue-7",
+            }),
+            decision_note: Some("Proceed".to_string()),
+            decided_by_user_id: Some("local-board".to_string()),
+            decided_at: Some("2026-03-20T10:00:00Z".to_string()),
+            created_at: "2026-03-20T09:55:00Z".to_string(),
+            updated_at: "2026-03-20T10:00:00Z".to_string(),
+        };
+
+        assert_eq!(
+            approval_follow_up_payload(&approval),
+            json!({
+                "approval_id": "approval-1",
+                "issue_id": "issue-7",
+            })
+        );
+    }
+
+    #[test]
+    fn approval_follow_up_payload_leaves_issue_id_null_when_unlinked() {
+        let approval = Approval {
+            id: "approval-1".to_string(),
+            company_id: "company-1".to_string(),
+            approval_type: "agent_decision".to_string(),
+            requested_by_agent_id: Some("agent-1".to_string()),
+            requested_by_user_id: None,
+            status: "approved".to_string(),
+            payload: json!({}),
+            decision_note: Some("Proceed".to_string()),
+            decided_by_user_id: Some("local-board".to_string()),
+            decided_at: Some("2026-03-20T10:00:00Z".to_string()),
+            created_at: "2026-03-20T09:55:00Z".to_string(),
+            updated_at: "2026-03-20T10:00:00Z".to_string(),
+        };
+
+        assert_eq!(
+            approval_follow_up_payload(&approval),
+            json!({
+                "approval_id": "approval-1",
+                "issue_id": null,
+            })
+        );
     }
 }

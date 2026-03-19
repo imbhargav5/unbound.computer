@@ -3,20 +3,23 @@ use crate::models::{
     AddIssueAttachmentInput, AddIssueCommentInput, Agent, AgentRun, AgentRunEvent, Approval,
     ApprovalDecisionInput, Company, CreateAgentDecisionApprovalInput, CreateAgentHireInput,
     CreateAgentInput, CreateCompanyInput, CreateIssueInput, CreateProjectInput, Goal, Issue,
-    IssueAttachment, IssueComment, IssueListFilter, Project, ProjectWorkspace, UpdateAgentInput,
-    UpdateIssueInput, Workspace,
+    IssueAttachment, IssueComment, IssueListFilter, IssueRunCardUpdate, Project, ProjectWorkspace,
+    UpdateAgentInput, UpdateIssueInput, Workspace,
 };
 use crate::run_summary::{
-    summarize_agent_run_excerpt, summarize_agent_run_result, summarize_agent_run_text,
+    summarize_agent_run_event, summarize_agent_run_excerpt, summarize_agent_run_result,
+    summarize_agent_run_text,
 };
 use agent_session_sqlite_persist_core::{NewSession, RepositoryId, SessionWriter};
 use chrono::Utc;
 use daemon_config_and_utils::Paths;
 use daemon_database::{queries, AsyncDatabase, DatabaseError, DatabaseResult, NewRepository};
-use rusqlite::{params, Connection, OptionalExtension, Row};
+use rusqlite::{
+    params, params_from_iter, types::Value as SqlValue, Connection, OptionalExtension, Row,
+};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
@@ -2060,6 +2063,83 @@ pub async fn list_issue_runs(
         .await?)
 }
 
+pub async fn list_issue_run_card_updates(
+    db: &AsyncDatabase,
+    company_id: &str,
+) -> BoardResult<Vec<IssueRunCardUpdate>> {
+    let company_id = company_id.to_string();
+    Ok(db
+        .call_with_operation("board.issue.run.card_updates", move |conn| {
+            let rows = {
+                let mut stmt = conn.prepare(
+                    "SELECT
+                        i.id,
+                        i.status,
+                        r.id,
+                        r.agent_id,
+                        r.status,
+                        r.result_json,
+                        r.stdout_excerpt,
+                        r.stderr_excerpt,
+                        r.updated_at
+                     FROM issues i
+                     JOIN agent_runs r
+                       ON r.id = COALESCE(i.execution_run_id, i.checkout_run_id)
+                     WHERE i.company_id = ?1
+                       AND COALESCE(i.execution_run_id, i.checkout_run_id) IS NOT NULL
+                     ORDER BY i.updated_at DESC, i.created_at DESC",
+                )?;
+                let rows = stmt
+                    .query_map(params![company_id], row_to_issue_run_card_update_row)?
+                    .collect::<Result<Vec<_>, _>>()?;
+                rows
+            };
+
+            if rows.is_empty() {
+                return Ok(Vec::new());
+            }
+
+            let run_ids = rows
+                .iter()
+                .map(|row| row.run_id.clone())
+                .collect::<Vec<_>>();
+            let events_by_run = list_recent_events_for_run_ids(conn, &run_ids, 8)?;
+
+            Ok(rows
+                .into_iter()
+                .map(|row| {
+                    let summary = summarize_issue_run_card_update(
+                        &row.run_status,
+                        events_by_run
+                            .get(&row.run_id)
+                            .map(Vec::as_slice)
+                            .unwrap_or(&[]),
+                        row.result_json.as_ref(),
+                        row.stdout_excerpt.as_deref(),
+                        row.stderr_excerpt.as_deref(),
+                    );
+                    let last_event = events_by_run
+                        .get(&row.run_id)
+                        .and_then(|events| events.first());
+
+                    IssueRunCardUpdate {
+                        issue_id: row.issue_id,
+                        issue_status: row.issue_status,
+                        run_id: row.run_id,
+                        agent_id: row.agent_id,
+                        run_status: row.run_status,
+                        summary: Some(summary),
+                        last_event_type: last_event.map(|event| event.event_type.clone()),
+                        last_activity_at: last_event
+                            .map(|event| event.created_at.clone())
+                            .unwrap_or(row.run_updated_at),
+                    }
+                })
+                .collect())
+        })
+        .await?)
+}
+
 pub async fn get_agent_run(db: &AsyncDatabase, run_id: &str) -> BoardResult<Option<AgentRun>> {
     let run_id = run_id.to_string();
     Ok(db
@@ -2808,6 +2888,33 @@ fn row_to_workspace(row: &Row<'_>) -> rusqlite::Result<Workspace> {
     })
 }
 
+#[derive(Debug, Clone)]
+struct IssueRunCardUpdateRow {
+    issue_id: String,
+    issue_status: String,
+    run_id: String,
+    agent_id: String,
+    run_status: String,
+    result_json: Option<Value>,
+    stdout_excerpt: Option<String>,
+    stderr_excerpt: Option<String>,
+    run_updated_at: String,
+}
+
+fn row_to_issue_run_card_update_row(row: &Row<'_>) -> rusqlite::Result<IssueRunCardUpdateRow> {
+    Ok(IssueRunCardUpdateRow {
+        issue_id: row.get(0)?,
+        issue_status: row.get(1)?,
+        run_id: row.get(2)?,
+        agent_id: row.get(3)?,
+        run_status: row.get(4)?,
+        result_json: row.get::<_, Option<String>>(5)?.map(parse_json),
+        stdout_excerpt: row.get(6)?,
+        stderr_excerpt: row.get(7)?,
+        run_updated_at: row.get(8)?,
+    })
+}
+
 fn row_to_agent_run(row: &Row<'_>) -> rusqlite::Result<AgentRun> {
     let mut run = AgentRun {
         id: row.get(0)?,
@@ -2869,6 +2976,54 @@ fn row_to_agent_run_event(row: &Row<'_>) -> rusqlite::Result<AgentRunEvent> {
             .map(|value| parse_json(value)),
         created_at: row.get(11)?,
     })
+}
+
+fn list_recent_events_for_run_ids(
+    conn: &Connection,
+    run_ids: &[String],
+    per_run_limit: usize,
+) -> rusqlite::Result<HashMap<String, Vec<AgentRunEvent>>> {
+    if run_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let placeholders = vec!["?"; run_ids.len()].join(", ");
+    let sql = format!(
+        "SELECT
+            id, company_id, run_id, agent_id, seq, event_type, stream, level,
+            color, message, payload, created_at
+         FROM (
+            SELECT
+                id, company_id, run_id, agent_id, seq, event_type, stream, level,
+                color, message, payload, created_at,
+                ROW_NUMBER() OVER (PARTITION BY run_id ORDER BY seq DESC, id DESC) AS row_number
+            FROM agent_run_events
+            WHERE run_id IN ({placeholders})
+         )
+         WHERE row_number <= ?
+         ORDER BY run_id ASC, seq DESC, id DESC"
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let mut bind_params = run_ids
+        .iter()
+        .cloned()
+        .map(SqlValue::from)
+        .collect::<Vec<_>>();
+    bind_params.push(SqlValue::from(per_run_limit as i64));
+
+    let events = stmt
+        .query_map(params_from_iter(bind_params), row_to_agent_run_event)?
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut grouped = HashMap::new();
+
+    for event in events {
+        grouped
+            .entry(event.run_id.clone())
+            .or_insert_with(Vec::new)
+            .push(event);
+    }
+
+    Ok(grouped)
 }
 
 fn get_primary_project_workspace_by_project_sync(
@@ -3112,6 +3267,46 @@ fn normalize_agent_run_for_display(run: &mut AgentRun) {
                 .as_deref()
                 .and_then(summarize_agent_run_text)
         });
+}
+
+fn summarize_issue_run_card_update(
+    run_status: &str,
+    recent_events: &[AgentRunEvent],
+    result_json: Option<&Value>,
+    stdout_excerpt: Option<&str>,
+    stderr_excerpt: Option<&str>,
+) -> String {
+    for event in recent_events {
+        if let Some(summary) = event
+            .payload
+            .as_ref()
+            .and_then(summarize_agent_run_event)
+            .or_else(|| event.payload.as_ref().and_then(summarize_agent_run_result))
+            .or_else(|| event.message.as_deref().and_then(summarize_agent_run_text))
+        {
+            return summary;
+        }
+    }
+
+    if let Some(summary) = result_json
+        .and_then(summarize_agent_run_result)
+        .or_else(|| stdout_excerpt.and_then(summarize_agent_run_excerpt))
+        .or_else(|| stdout_excerpt.and_then(summarize_agent_run_text))
+        .or_else(|| stderr_excerpt.and_then(summarize_agent_run_excerpt))
+        .or_else(|| stderr_excerpt.and_then(summarize_agent_run_text))
+    {
+        return summary;
+    }
+
+    match run_status {
+        "queued" => "Waiting to start".to_string(),
+        "running" => "Working on the issue".to_string(),
+        "succeeded" => "Run finished".to_string(),
+        "failed" => "Run failed".to_string(),
+        "cancelled" => "Run cancelled".to_string(),
+        "timed_out" => "Run timed out".to_string(),
+        _ => "Run updated".to_string(),
+    }
 }
 
 fn require_name(value: &str, field_name: &str) -> BoardResult<String> {
@@ -4039,6 +4234,93 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(issue_link_count, 1);
+    }
+
+    #[tokio::test]
+    async fn approving_agent_decision_approval_persists_decision_note() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let agent = create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "Operator".to_string(),
+                role: Some("general".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let issue = create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                title: "Need board guidance".to_string(),
+                assignee_agent_id: Some(agent.id.clone()),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let approval = create_agent_decision_approval(
+            &db,
+            CreateAgentDecisionApprovalInput {
+                company_id: company.id.clone(),
+                requested_by_agent_id: agent.id.clone(),
+                requested_by_run_id: "run-123".to_string(),
+                source_issue_id: Some(issue.id.clone()),
+                request_key: "decision-key-2".to_string(),
+                question: "Should I ship this now?".to_string(),
+                options: Some(vec!["Ship".to_string(), "Wait".to_string()]),
+                ..CreateAgentDecisionApprovalInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let approved = approve_approval(
+            &db,
+            &paths,
+            ApprovalDecisionInput {
+                approval_id: approval.id.clone(),
+                decided_by_user_id: Some(LOCAL_BOARD_USER_ID.to_string()),
+                decision_note: Some("Decision: Ship".to_string()),
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(approved.status, "approved");
+        assert_eq!(
+            approved.decided_by_user_id.as_deref(),
+            Some(LOCAL_BOARD_USER_ID)
+        );
+        assert_eq!(approved.decision_note.as_deref(), Some("Decision: Ship"));
+        assert_eq!(
+            approved
+                .payload
+                .get("source_issue_id")
+                .and_then(Value::as_str),
+            Some(issue.id.as_str())
+        );
     }
 
     #[tokio::test]
@@ -5081,6 +5363,233 @@ mod tests {
         assert!(runs
             .iter()
             .all(|run| run.issue_id.as_deref() == Some(issue.id.as_str())));
+    }
+
+    #[tokio::test]
+    async fn list_issue_run_card_updates_prefers_latest_summarizable_event() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let agent = create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "Operator".to_string(),
+                role: Some("general".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let issue = create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                title: "Live card update".to_string(),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let company_id = company.id.clone();
+        let agent_id = agent.id.clone();
+        let issue_id = issue.id.clone();
+        db.call_with_operation("board.issue.run.card_updates_test.seed_events", move |conn| {
+            conn.execute(
+                "INSERT INTO agent_runs (
+                    id, company_id, agent_id, issue_id, invocation_source, trigger_detail,
+                    wake_reason, status, created_at, updated_at
+                 ) VALUES (?1, ?2, ?3, ?4, 'assignment', 'system', 'issue_assigned', 'running', ?5, ?5)",
+                params![
+                    "run-1",
+                    &company_id,
+                    &agent_id,
+                    &issue_id,
+                    "2026-03-20T10:00:00Z"
+                ],
+            )?;
+            conn.execute(
+                "UPDATE issues
+                 SET status = 'in_progress', execution_run_id = 'run-1', updated_at = ?1
+                 WHERE id = ?2",
+                params!["2026-03-20T10:00:00Z", &issue_id],
+            )?;
+            conn.execute(
+                "INSERT INTO agent_run_events (
+                    company_id, run_id, agent_id, seq, event_type, stream, level,
+                    color, message, payload, created_at
+                 ) VALUES (?1, ?2, ?3, 1, 'run_started', 'system', 'info', NULL, ?4, ?5, ?6)",
+                params![
+                    &company_id,
+                    "run-1",
+                    &agent_id,
+                    "Run started in issue session",
+                    Value::Null.to_string(),
+                    "2026-03-20T10:00:01Z"
+                ],
+            )?;
+            conn.execute(
+                "INSERT INTO agent_run_events (
+                    company_id, run_id, agent_id, seq, event_type, stream, level,
+                    color, message, payload, created_at
+                 ) VALUES (?1, ?2, ?3, 2, 'item.completed.command_execution', 'stdout', 'info', NULL, ?4, ?5, ?6)",
+                params![
+                    &company_id,
+                    "run-1",
+                    &agent_id,
+                    "{\"type\":\"item.completed\"}",
+                    json!({
+                        "type": "item.completed",
+                        "item": {
+                            "type": "command_execution",
+                            "command": "cargo test",
+                            "aggregated_output": "Ran cargo test for the workspace."
+                        }
+                    })
+                    .to_string(),
+                    "2026-03-20T10:00:02Z"
+                ],
+            )?;
+            conn.execute(
+                "INSERT INTO agent_run_events (
+                    company_id, run_id, agent_id, seq, event_type, stream, level,
+                    color, message, payload, created_at
+                 ) VALUES (?1, ?2, ?3, 3, 'response.output_text.delta', 'stdout', 'info', NULL, ?4, ?5, ?6)",
+                params![
+                    &company_id,
+                    "run-1",
+                    &agent_id,
+                    "{\"type\":\"response.output_text.delta\"}",
+                    json!({
+                        "type": "response.output_text.delta",
+                        "delta": "Working through the next step"
+                    })
+                    .to_string(),
+                    "2026-03-20T10:00:03Z"
+                ],
+            )?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+
+        let updates = list_issue_run_card_updates(&db, &issue.company_id)
+            .await
+            .unwrap();
+
+        assert_eq!(updates.len(), 1);
+        assert_eq!(updates[0].issue_id, issue.id);
+        assert_eq!(updates[0].issue_status, "in_progress");
+        assert_eq!(updates[0].run_status, "running");
+        assert_eq!(
+            updates[0].summary.as_deref(),
+            Some("Ran cargo test for the workspace.")
+        );
+        assert_eq!(
+            updates[0].last_event_type.as_deref(),
+            Some("response.output_text.delta")
+        );
+    }
+
+    #[tokio::test]
+    async fn list_issue_run_card_updates_fall_back_to_run_excerpt() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let agent = create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "Operator".to_string(),
+                role: Some("general".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let issue = create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                title: "Finished work".to_string(),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let company_id = company.id.clone();
+        let agent_id = agent.id.clone();
+        let issue_id = issue.id.clone();
+        db.call_with_operation("board.issue.run.card_updates_test.seed_excerpt", move |conn| {
+            conn.execute(
+                "INSERT INTO agent_runs (
+                    id, company_id, agent_id, issue_id, invocation_source, trigger_detail,
+                    wake_reason, status, stdout_excerpt, created_at, updated_at
+                 ) VALUES (?1, ?2, ?3, ?4, 'assignment', 'system', 'issue_assigned', 'succeeded', ?5, ?6, ?6)",
+                params![
+                    "run-2",
+                    &company_id,
+                    &agent_id,
+                    &issue_id,
+                    "Implemented the retry guard and updated the daemon tests.",
+                    "2026-03-20T11:00:00Z"
+                ],
+            )?;
+            conn.execute(
+                "UPDATE issues
+                 SET execution_run_id = 'run-2', updated_at = ?1
+                 WHERE id = ?2",
+                params!["2026-03-20T11:00:00Z", &issue_id],
+            )?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+
+        let updates = list_issue_run_card_updates(&db, &issue.company_id)
+            .await
+            .unwrap();
+
+        assert_eq!(updates.len(), 1);
+        assert_eq!(
+            updates[0].summary.as_deref(),
+            Some("Implemented the retry guard and updated the daemon tests.")
+        );
+        assert_eq!(updates[0].run_status, "succeeded");
     }
 
     #[tokio::test]

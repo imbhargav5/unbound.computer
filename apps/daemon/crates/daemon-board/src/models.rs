@@ -247,6 +247,18 @@ pub struct AgentRunEvent {
     pub created_at: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IssueRunCardUpdate {
+    pub issue_id: String,
+    pub issue_status: String,
+    pub run_id: String,
+    pub agent_id: String,
+    pub run_status: String,
+    pub summary: Option<String>,
+    pub last_event_type: Option<String>,
+    pub last_activity_at: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CreateCompanyInput {
     pub name: String,
