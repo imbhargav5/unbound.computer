@@ -8557,7 +8557,6 @@ function ApprovalsRouteView({
               : [{ label: "Approvals" }]
           }
         />
-        <span className="route-kicker">Approvals</span>
         <h1>Decision queue</h1>
       </div>
 
