@@ -9,7 +9,7 @@ use chrono::Utc;
 use claude_process_manager::{ClaudeConfig, ClaudeEvent, ClaudeProcess};
 use daemon_board::{
     service, summarize_agent_run_event, summarize_agent_run_result, summarize_agent_run_text,
-    Agent, AgentRun, BoardError, Issue, IssueComment, IssueListFilter,
+    Agent, AgentRun, BoardError, IssueComment,
 };
 use daemon_config_and_utils::Paths;
 use daemon_database::{queries, AsyncDatabase, NewRepository};
@@ -18,7 +18,6 @@ use rusqlite::{params, OptionalExtension};
 use serde::Serialize;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -43,7 +42,6 @@ const SOURCE_ON_DEMAND: &str = "on_demand";
 const TRIGGER_MANUAL: &str = "manual";
 const TRIGGER_SYSTEM: &str = "system";
 
-const REASON_HEARTBEAT_TIMER: &str = "heartbeat_timer";
 const ERROR_CODE_PROCESS_LOST: &str = "process_lost";
 
 #[derive(Clone)]
@@ -136,11 +134,6 @@ impl AgentRunCoordinator {
         let queue_runner = self.clone();
         spawn_in_current_span(async move {
             queue_runner.queue_loop().await;
-        });
-
-        let timer_runner = self.clone();
-        spawn_in_current_span(async move {
-            timer_runner.timer_loop().await;
         });
 
         let reaper = self;
@@ -560,15 +553,6 @@ impl AgentRunCoordinator {
         }
     }
 
-    async fn timer_loop(self: Arc<Self>) {
-        loop {
-            if let Err(error) = self.enqueue_due_timer_runs().await {
-                warn!(error = %error, "Failed to enqueue timer runs");
-            }
-            sleep(Duration::from_secs(5)).await;
-        }
-    }
-
     async fn stale_run_reaper_loop(self: Arc<Self>) {
         if let Err(error) = self.reap_orphaned_running_runs().await {
             warn!(error = %error, "Failed to reap orphaned runs");
@@ -579,109 +563,6 @@ impl AgentRunCoordinator {
                 warn!(error = %error, "Failed to reap orphaned runs");
             }
         }
-    }
-
-    async fn enqueue_due_timer_runs(&self) -> Result<(), BoardError> {
-        let agents = self
-            .db
-            .call_with_operation("agent_run.timer.agents", move |conn| {
-                let mut stmt = conn.prepare(
-                    "SELECT id, company_id, runtime_config, last_heartbeat_at, created_at
-                     FROM agents
-                     WHERE status NOT IN ('pending_approval', 'disabled')",
-                )?;
-                let rows = stmt
-                    .query_map([], |row| {
-                        Ok((
-                            row.get::<_, String>(0)?,
-                            row.get::<_, String>(1)?,
-                            row.get::<_, String>(2)?,
-                            row.get::<_, Option<String>>(3)?,
-                            row.get::<_, String>(4)?,
-                        ))
-                    })?
-                    .collect::<Result<Vec<_>, _>>()?;
-                Ok(rows)
-            })
-            .await?;
-
-        for (agent_id, company_id, runtime_config_text, last_heartbeat_at, created_at) in agents {
-            let runtime_config = serde_json::from_str::<Value>(&runtime_config_text).ok();
-            let heartbeat_config = runtime_config
-                .as_ref()
-                .and_then(|config| config.get("heartbeat"));
-            let heartbeat_enabled = heartbeat_config
-                .and_then(|config| config.get("enabled"))
-                .and_then(Value::as_bool)
-                .unwrap_or(true);
-            let interval_sec = heartbeat_config
-                .and_then(|config| config.get("intervalSec"))
-                .and_then(Value::as_i64)
-                .or_else(|| {
-                    runtime_config
-                        .as_ref()
-                        .and_then(|config| config.get("intervalSec"))
-                        .and_then(Value::as_i64)
-                });
-            if !heartbeat_enabled {
-                continue;
-            }
-            let Some(interval_sec) = interval_sec else {
-                continue;
-            };
-            if interval_sec <= 0 {
-                continue;
-            }
-
-            let baseline = last_heartbeat_at.as_deref().unwrap_or(created_at.as_str());
-            let due = match parse_rfc3339(baseline) {
-                Some(date) => (Utc::now() - date).num_seconds() >= interval_sec,
-                None => true,
-            };
-            if !due {
-                continue;
-            }
-
-            let agent_id_for_due = agent_id.clone();
-            let active_count: i64 = self
-                .db
-                .call_with_operation("agent_run.timer.active", move |conn| {
-                    Ok(conn.query_row(
-                        "SELECT COUNT(*) FROM agent_runs
-                         WHERE agent_id = ?1
-                           AND status IN ('queued', 'running')",
-                        params![agent_id_for_due],
-                        |row| row.get(0),
-                    )?)
-                })
-                .await?;
-            if active_count > 0 {
-                continue;
-            }
-
-            let heartbeat_issue = self
-                .next_heartbeat_issue_for_agent(&company_id, &agent_id)
-                .await?;
-            let payload = heartbeat_issue
-                .as_ref()
-                .map(|issue| json!({ "issue_id": issue.id }));
-
-            let _ = self
-                .enqueue_run(AgentRunEnqueueRequest {
-                    agent_id: agent_id.clone(),
-                    company_id: Some(company_id),
-                    invocation_source: SOURCE_TIMER.to_string(),
-                    trigger_detail: Some(TRIGGER_SYSTEM.to_string()),
-                    wake_reason: Some(REASON_HEARTBEAT_TIMER.to_string()),
-                    payload,
-                    prompt: None,
-                    requested_by_actor_type: Some("system".to_string()),
-                    requested_by_actor_id: Some("scheduler".to_string()),
-                })
-                .await?;
-        }
-
-        Ok(())
     }
 
     async fn process_pending_runs(&self) -> Result<bool, BoardError> {
@@ -726,25 +607,6 @@ impl AgentRunCoordinator {
         }
 
         Ok(started_any)
-    }
-
-    async fn next_heartbeat_issue_for_agent(
-        &self,
-        company_id: &str,
-        agent_id: &str,
-    ) -> Result<Option<Issue>, BoardError> {
-        let issues = service::list_issues(
-            &self.db,
-            IssueListFilter {
-                company_id: company_id.to_string(),
-                assignee_agent_id: Some(agent_id.to_string()),
-                include_hidden: Some(false),
-                ..IssueListFilter::default()
-            },
-        )
-        .await?;
-
-        Ok(select_heartbeat_issue(issues))
     }
 
     async fn try_claim_run(&self, run_id: &str) -> Result<Option<RunLaunchContext>, BoardError> {
@@ -1857,8 +1719,9 @@ impl AgentRunCoordinator {
                  {issue_list_command}\n"
             )
         };
-        let rendered_prompt_template = rendered_prompt_template(agent, run, issue_id)
-            .unwrap_or_else(|| default_heartbeat_prompt(agent, issue_id));
+        let rendered_prompt_template =
+            rendered_prompt_template(agent, run, issue_id)
+                .unwrap_or_else(|| default_agent_run_prompt(agent, issue_id));
         let bootstrap_prompt = if include_bootstrap_prompt {
             agent
                 .runtime_config
@@ -1882,13 +1745,13 @@ impl AgentRunCoordinator {
              {rendered_prompt_template}\n\n\
              {governance_instructions}\n\
              {issue_context}\n\
-             Heartbeat operating rules:\n\
-             - Heartbeats are short execution windows: wake up, inspect the assigned work, do the next useful step, and exit.\n\
-             - If this run is linked to an issue, treat that issue as the primary work item for this heartbeat.\n\
+             Run operating rules:\n\
+             - Treat each run as a focused execution window: inspect the assigned work, do the next useful step, and exit.\n\
+             - If this run is linked to an issue, treat that issue as the primary work item for this run.\n\
              - If this run is not linked to an issue, list your assigned issues, work on in_progress first, then todo, and skip blocked work unless there is fresh context that lets you unblock it.\n\
              - Before doing issue work, make sure the issue worktree is ready with the board issue-checkout helper instead of creating ad hoc folders yourself.\n\
              - If you actively start a todo issue, move it to in_progress. If you finish it, mark it done with a concise summary. If you are blocked, mark it blocked and explain exactly what is needed.\n\
-             - If you made progress but did not finish, leave a concise issue comment before exiting so the next heartbeat can continue cleanly.\n\
+             - If you made progress but did not finish, leave a concise issue comment before exiting so the next run can continue cleanly.\n\
              - Work directly in the resolved local worktree. Only create or switch to a fresh git worktree when the issue or user explicitly asks for it.\n\
              Finish with a concise summary that covers:\n\
              1. what you changed or concluded\n\
@@ -2010,12 +1873,6 @@ fn now_rfc3339() -> String {
     Utc::now().to_rfc3339()
 }
 
-fn parse_rfc3339(value: &str) -> Option<chrono::DateTime<Utc>> {
-    chrono::DateTime::parse_from_rfc3339(value)
-        .ok()
-        .map(|date| date.with_timezone(&Utc))
-}
-
 fn map_resolve_error(error: ResolveError) -> BoardError {
     match error {
         ResolveError::SessionNotFound(message)
@@ -2030,46 +1887,6 @@ fn issue_id_from_value(payload: &Value) -> Option<String> {
         .get("issue_id")
         .and_then(Value::as_str)
         .map(ToOwned::to_owned)
-}
-
-fn select_heartbeat_issue(mut issues: Vec<Issue>) -> Option<Issue> {
-    issues.sort_by(compare_heartbeat_issue_priority);
-    issues
-        .into_iter()
-        .find(|issue| heartbeat_issue_status_rank(&issue.status).is_some())
-}
-
-fn compare_heartbeat_issue_priority(left: &Issue, right: &Issue) -> Ordering {
-    heartbeat_issue_status_rank(&left.status)
-        .unwrap_or(i32::MAX)
-        .cmp(&heartbeat_issue_status_rank(&right.status).unwrap_or(i32::MAX))
-        .then_with(|| {
-            heartbeat_priority_rank(&left.priority).cmp(&heartbeat_priority_rank(&right.priority))
-        })
-        .then_with(|| {
-            left.issue_number
-                .unwrap_or(i64::MAX)
-                .cmp(&right.issue_number.unwrap_or(i64::MAX))
-        })
-        .then_with(|| left.created_at.cmp(&right.created_at))
-}
-
-fn heartbeat_issue_status_rank(status: &str) -> Option<i32> {
-    match status {
-        "in_progress" => Some(0),
-        "todo" => Some(1),
-        _ => None,
-    }
-}
-
-fn heartbeat_priority_rank(priority: &str) -> i32 {
-    match priority {
-        "critical" => 0,
-        "high" => 1,
-        "medium" => 2,
-        "low" => 3,
-        _ => 4,
-    }
 }
 
 fn format_issue_attachment_summary(attachments: &[daemon_board::IssueAttachment]) -> String {
@@ -2182,15 +1999,15 @@ fn rendered_prompt_template(
     Some(render_template(template, &data))
 }
 
-fn default_heartbeat_prompt(agent: &Agent, issue_id: Option<&str>) -> String {
+fn default_agent_run_prompt(agent: &Agent, issue_id: Option<&str>) -> String {
     if let Some(issue_id) = issue_id {
         return format!(
-            "You run in short heartbeats. This heartbeat is focused on issue {issue_id}. Read the issue context, do the next useful piece of work in the linked worktree, and update the issue before you exit."
+            "This run is focused on issue {issue_id}. Read the issue context, do the next useful piece of work in the linked worktree, and update the issue before you exit."
         );
     }
 
     format!(
-        "You run in short heartbeats. Use this heartbeat to inspect work assigned to {agent_name} ({agent_role}), pick the highest-value actionable issue, do useful work in its worktree, and update that issue before you exit.",
+        "Inspect work assigned to {agent_name} ({agent_role}), pick the highest-value actionable issue, do useful work in its worktree, and update that issue before you exit.",
         agent_name = agent.name,
         agent_role = agent.role,
     )
@@ -2575,68 +2392,6 @@ mod tests {
             Some("system"),
             Some("issue_commented")
         ));
-    }
-
-    #[test]
-    fn heartbeat_issue_selection_prefers_in_progress_then_priority() {
-        let todo_high = Issue {
-            id: "issue-todo-high".to_string(),
-            company_id: "company-1".to_string(),
-            project_id: None,
-            goal_id: None,
-            parent_id: None,
-            title: "Todo high".to_string(),
-            description: None,
-            status: "todo".to_string(),
-            priority: "high".to_string(),
-            assignee_agent_id: Some("agent-1".to_string()),
-            assignee_user_id: None,
-            checkout_run_id: None,
-            execution_run_id: None,
-            execution_agent_name_key: None,
-            execution_locked_at: None,
-            created_by_agent_id: None,
-            created_by_user_id: None,
-            issue_number: Some(3),
-            identifier: Some("ISS-3".to_string()),
-            request_depth: 0,
-            billing_code: None,
-            assignee_adapter_overrides: None,
-            execution_workspace_settings: None,
-            started_at: None,
-            completed_at: None,
-            cancelled_at: None,
-            hidden_at: None,
-            workspace_session_id: None,
-            created_at: "2026-03-18T10:00:00Z".to_string(),
-            updated_at: "2026-03-18T10:00:00Z".to_string(),
-        };
-        let in_progress_medium = Issue {
-            id: "issue-in-progress".to_string(),
-            status: "in_progress".to_string(),
-            priority: "medium".to_string(),
-            issue_number: Some(4),
-            identifier: Some("ISS-4".to_string()),
-            created_at: "2026-03-18T09:00:00Z".to_string(),
-            updated_at: "2026-03-18T09:00:00Z".to_string(),
-            ..todo_high.clone()
-        };
-        let blocked_critical = Issue {
-            id: "issue-blocked".to_string(),
-            status: "blocked".to_string(),
-            priority: "critical".to_string(),
-            issue_number: Some(1),
-            identifier: Some("ISS-1".to_string()),
-            created_at: "2026-03-18T08:00:00Z".to_string(),
-            updated_at: "2026-03-18T08:00:00Z".to_string(),
-            ..todo_high.clone()
-        };
-
-        let selected =
-            select_heartbeat_issue(vec![todo_high, in_progress_medium, blocked_critical])
-                .expect("expected issue selection");
-
-        assert_eq!(selected.id, "issue-in-progress");
     }
 
     #[test]

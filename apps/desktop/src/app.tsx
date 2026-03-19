@@ -28,7 +28,6 @@ import {
   boardDeleteProject,
   boardGetAgentRun,
   boardGetIssue,
-  boardInvokeAgentRun,
   boardListIssueAttachments,
   boardListAgentRunEvents,
   boardListAgentRuns,
@@ -277,11 +276,6 @@ interface AgentConfigDraft {
   envVars: AgentConfigEnvVarDraft[];
   timeoutSec: string;
   interruptGraceSec: string;
-  heartbeatEnabled: boolean;
-  heartbeatIntervalSec: string;
-  wakeOnDemand: boolean;
-  heartbeatCooldownSec: string;
-  maxConcurrentRuns: string;
   canCreateAgents: boolean;
   monthlyBudget: string;
 }
@@ -2292,15 +2286,6 @@ export function App() {
     await refreshSelectedAgentRun(true);
   };
 
-  const handleInvokeSelectedAgentRun = async () => {
-    if (!selectedAgent) {
-      return;
-    }
-
-    setAgentsRouteMode("runs");
-    await performAgentRunAction(() => boardInvokeAgentRun(selectedAgent.id));
-  };
-
   const handleSelectAgentRun = (runId: string) => {
     setSelectedAgentRunId(runId);
   };
@@ -3811,7 +3796,6 @@ export function App() {
                 onConfigurationEnvVarChange={handleAgentConfigEnvVarChange}
                 onRemoveEnvVar={handleRemoveAgentConfigEnvVar}
                 onRefreshRuns={() => void handleRefreshAgentRuns()}
-                onRunHeartbeat={() => void handleInvokeSelectedAgentRun()}
                 onResumeSelectedRun={() => void handleResumeSelectedAgentRun()}
                 onRetrySelectedRun={() => void handleRetrySelectedAgentRun()}
                 onSaveConfiguration={() => void handleSaveAgentConfiguration()}
@@ -5180,7 +5164,6 @@ function AgentsRouteView({
   onConfigurationEnvVarChange,
   onRemoveEnvVar,
   onRefreshRuns,
-  onRunHeartbeat,
   onResumeSelectedRun,
   onRetrySelectedRun,
   onSaveConfiguration,
@@ -5212,7 +5195,6 @@ function AgentsRouteView({
   ) => void;
   onRemoveEnvVar: (envId: string) => void;
   onRefreshRuns: () => void;
-  onRunHeartbeat: () => void;
   onResumeSelectedRun: () => void;
   onRetrySelectedRun: () => void;
   onSaveConfiguration: () => void;
@@ -5267,11 +5249,6 @@ function AgentsRouteView({
                   <AgentHeaderActionChip
                     icon={<AgentHeaderPlusIcon />}
                     label="Assign Task"
-                  />
-                  <AgentHeaderActionChip
-                    icon={<AgentHeaderPlayIcon />}
-                    label="Run Heartbeat"
-                    onClick={onRunHeartbeat}
                   />
                   <AgentHeaderActionChip
                     icon={<AgentHeaderPauseIcon />}
@@ -5413,10 +5390,6 @@ function AgentDashboardTab({
         <DetailRow
           label="Monthly spend"
           value={formatCents(agent.spent_monthly_cents)}
-        />
-        <DetailRow
-          label="Last heartbeat"
-          value={formatIssueDate(agent.last_heartbeat_at)}
         />
         <DetailRow label="Created" value={formatIssueDate(agent.created_at)} />
         <DetailRow label="Updated" value={formatIssueDate(agent.updated_at)} />
@@ -5809,71 +5782,6 @@ function AgentConfigurationTab({
               }
               placeholder="15"
               value={draft.interruptGraceSec}
-            />
-          </AgentConfigField>
-        </div>
-      </section>
-
-      <section className="agent-config-section">
-        <div className="surface-header">
-          <h3>Run policy</h3>
-        </div>
-        <div className="agent-config-grid">
-          <AgentConfigToggleField
-            checked={draft.heartbeatEnabled}
-            description="Schedule recurring heartbeat runs for this agent."
-            label="Heartbeat on interval"
-            onChange={(checked) => onDraftChange({ heartbeatEnabled: checked })}
-          />
-          <AgentConfigToggleField
-            checked={draft.wakeOnDemand}
-            description="Allow the daemon to wake the agent outside the timer loop."
-            label="Wake on demand"
-            onChange={(checked) => onDraftChange({ wakeOnDemand: checked })}
-          />
-          <AgentConfigField
-            htmlFor="agent-config-heartbeat-interval"
-            label="Run heartbeat every (sec)"
-          >
-            <input
-              className="issue-dialog-input"
-              id="agent-config-heartbeat-interval"
-              inputMode="numeric"
-              onChange={(event) =>
-                onDraftChange({ heartbeatIntervalSec: event.target.value })
-              }
-              placeholder="3600"
-              value={draft.heartbeatIntervalSec}
-            />
-          </AgentConfigField>
-          <AgentConfigField
-            htmlFor="agent-config-heartbeat-cooldown"
-            label="Cooldown (sec)"
-          >
-            <input
-              className="issue-dialog-input"
-              id="agent-config-heartbeat-cooldown"
-              inputMode="numeric"
-              onChange={(event) =>
-                onDraftChange({ heartbeatCooldownSec: event.target.value })
-              }
-              placeholder="10"
-              value={draft.heartbeatCooldownSec}
-            />
-          </AgentConfigField>
-          <AgentConfigField
-            htmlFor="agent-config-max-concurrent-runs"
-            label="Max concurrent runs"
-          >
-            <input
-              className="issue-dialog-input"
-              id="agent-config-max-concurrent-runs"
-              inputMode="numeric"
-              onChange={(event) =>
-                onDraftChange({ maxConcurrentRuns: event.target.value })
-              }
-              placeholder="1"
-              value={draft.maxConcurrentRuns}
             />
           </AgentConfigField>
         </div>
@@ -8341,25 +8249,6 @@ function AgentHeaderPlusIcon() {
   );
 }
 
-function AgentHeaderPlayIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      fill="none"
-      height="16"
-      viewBox="0 0 24 24"
-      width="16"
-    >
-      <path
-        d="m9 7 8 5-8 5V7Z"
-        stroke="currentColor"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-    </svg>
-  );
-}
-
 function AgentHeaderPauseIcon() {
   return (
     <svg
@@ -8959,11 +8848,6 @@ function CostAgentRow({ agent }: { agent: AgentRecord }) {
       : formatCents(spent);
   const spendStatus = agentBudgetStatusLabel(spent, budget);
   const secondaryMeta = [agent.title ?? agent.role, agent.status ?? "unknown"];
-  const heartbeatLabel = formatTimestamp(agent.last_heartbeat_at);
-
-  if (heartbeatLabel !== "n/a") {
-    secondaryMeta.push(heartbeatLabel);
-  }
 
   return (
     <div className="cost-agent-row">
@@ -11390,11 +11274,6 @@ function createEmptyAgentConfigDraft(): AgentConfigDraft {
     envVars: [],
     timeoutSec: "",
     interruptGraceSec: "",
-    heartbeatEnabled: false,
-    heartbeatIntervalSec: "",
-    wakeOnDemand: false,
-    heartbeatCooldownSec: "",
-    maxConcurrentRuns: "",
     canCreateAgents: false,
     monthlyBudget: "",
   };
@@ -11403,15 +11282,8 @@ function createEmptyAgentConfigDraft(): AgentConfigDraft {
 function createAgentConfigDraft(agent: AgentRecord): AgentConfigDraft {
   const adapterConfig = objectFromUnknown(agent.adapter_config);
   const runtimeConfig = objectFromUnknown(agent.runtime_config);
-  const heartbeatConfig = objectFromUnknown(
-    runtimeConfig.heartbeat ?? runtimeConfig.heartbeatConfig
-  );
   const permissions = objectFromUnknown(agent.permissions);
   const metadata = objectFromUnknown(agent.metadata);
-  const intervalSec =
-    numberFromUnknown(heartbeatConfig.intervalSec) ??
-    numberFromUnknown(runtimeConfig.intervalSec);
-  const heartbeatEnabledValue = heartbeatConfig.enabled;
 
   return {
     name: agent.name ?? "",
@@ -11437,15 +11309,6 @@ function createAgentConfigDraft(agent: AgentRecord): AgentConfigDraft {
     ),
     timeoutSec: numericInputValue(runtimeConfig.timeoutSec),
     interruptGraceSec: numericInputValue(runtimeConfig.interruptGraceSec),
-    heartbeatEnabled:
-      typeof heartbeatEnabledValue === "boolean"
-        ? heartbeatEnabledValue
-        : typeof intervalSec === "number",
-    heartbeatIntervalSec:
-      typeof intervalSec === "number" ? String(intervalSec) : "",
-    wakeOnDemand: booleanFromUnknown(heartbeatConfig.wakeOnDemand),
-    heartbeatCooldownSec: numericInputValue(heartbeatConfig.cooldownSec),
-    maxConcurrentRuns: numericInputValue(heartbeatConfig.maxConcurrentRuns),
     canCreateAgents: booleanFromUnknown(permissions.canCreateAgents),
     monthlyBudget: budgetInputValue(agent.budget_monthly_cents),
   };
@@ -11492,33 +11355,13 @@ function buildAgentConfigUpdateParams(
     delete adapterConfig.environmentVariables;
   }
 
-  const heartbeat: Record<string, unknown> = {
-    enabled: draft.heartbeatEnabled,
-    wakeOnDemand: draft.wakeOnDemand,
-  };
-  const heartbeatIntervalSec = integerFromDraft(draft.heartbeatIntervalSec);
-  const heartbeatCooldownSec = integerFromDraft(draft.heartbeatCooldownSec);
-  const maxConcurrentRuns = integerFromDraft(draft.maxConcurrentRuns);
-  if (heartbeatIntervalSec !== undefined) {
-    heartbeat.intervalSec = heartbeatIntervalSec;
-  }
-  if (heartbeatCooldownSec !== undefined) {
-    heartbeat.cooldownSec = heartbeatCooldownSec;
-  }
-  if (maxConcurrentRuns !== undefined) {
-    heartbeat.maxConcurrentRuns = maxConcurrentRuns;
-  }
-
   const runtimeConfig = {
     ...objectFromUnknown(agent.runtime_config),
-    heartbeat,
   } as Record<string, unknown>;
-  const maxTurns = integerFromDraft(draft.maxTurns);
-  if (maxTurns !== undefined) {
-    runtimeConfig.maxTurns = maxTurns;
-  } else {
-    delete runtimeConfig.maxTurns;
-  }
+  delete runtimeConfig.heartbeat;
+  delete runtimeConfig.heartbeatConfig;
+  delete runtimeConfig.intervalSec;
+  delete runtimeConfig.maxTurns;
   const timeoutSec = integerFromDraft(draft.timeoutSec);
   if (timeoutSec !== undefined) {
     runtimeConfig.timeoutSec = timeoutSec;
@@ -11536,11 +11379,6 @@ function buildAgentConfigUpdateParams(
     runtimeConfig.bootstrapPrompt = bootstrapPrompt;
   } else {
     delete runtimeConfig.bootstrapPrompt;
-  }
-  if (heartbeatIntervalSec !== undefined) {
-    runtimeConfig.intervalSec = heartbeatIntervalSec;
-  } else {
-    delete runtimeConfig.intervalSec;
   }
 
   const permissions = {
@@ -12472,7 +12310,7 @@ function agentRunWakeReasonLabel(wakeReason: string | null | undefined) {
 
   switch (wakeReason) {
     case "heartbeat_timer":
-      return "Heartbeat Timer";
+      return "Scheduled";
     case "issue_assigned":
       return "Issue Assigned";
     case "issue_status_changed":
