@@ -921,8 +921,31 @@ export function App() {
   );
   const issueStatusOptions = useMemo(
     () =>
-      mergeIssueOptions(canonicalIssueStatuses, issueDraft.status),
-    [issueDraft.status]
+      mergeIssueOptions(
+        issueStatusesForAssignee(
+          canonicalIssueStatuses,
+          issueDraft.assigneeAgentId,
+          boardAgents
+        ),
+        issueDraft.status
+      ),
+    [boardAgents, issueDraft.assigneeAgentId, issueDraft.status]
+  );
+  const createIssueStatusOptions = useMemo(
+    () =>
+      mergeIssueOptions(
+        issueStatusesForAssignee(
+          createableIssueStatuses,
+          issueDialogAssigneeAgentId,
+          boardAgents
+        ),
+        normalizeCreateIssueStatus(
+          issueDialogStatus,
+          issueDialogAssigneeAgentId,
+          boardAgents
+        )
+      ),
+    [boardAgents, issueDialogAssigneeAgentId, issueDialogStatus]
   );
   const issuePriorityOptions = useMemo(
     () =>
@@ -2583,9 +2606,16 @@ export function App() {
     defaults?: CreateIssueDialogDefaults
   ) => {
     resetIssueDialog();
-    setIssueDialogAssigneeAgentId(defaults?.assigneeAgentId ?? "");
+    const nextAssigneeAgentId = defaults?.assigneeAgentId ?? "";
+    setIssueDialogAssigneeAgentId(nextAssigneeAgentId);
     setIssueDialogPriority(defaults?.priority ?? "medium");
-    setIssueDialogStatus(normalizeCreateIssueStatus(defaults?.status ?? "todo"));
+    setIssueDialogStatus(
+      normalizeCreateIssueStatus(
+        defaults?.status ?? "todo",
+        nextAssigneeAgentId,
+        boardAgents
+      )
+    );
     setIssueDialogProjectId(defaults?.projectId ?? "");
     setIsCreateIssueDialogOpen(true);
   };
@@ -2623,6 +2653,13 @@ export function App() {
     );
   };
 
+  const handleIssueDialogAssigneeChange = (value: string) => {
+    setIssueDialogAssigneeAgentId(value);
+    setIssueDialogStatus((current) =>
+      normalizeCreateIssueStatus(current, value, boardAgents)
+    );
+  };
+
   const handleCreateIssueFromDialog = async () => {
     if (!selectedCompanyId || !issueDialogTitle.trim() || isIssueDialogSaving) {
       return;
@@ -2632,10 +2669,15 @@ export function App() {
     setIssueDialogError(null);
 
     try {
+      const normalizedIssueStatus = normalizeCreateIssueStatus(
+        issueDialogStatus,
+        issueDialogAssigneeAgentId,
+        boardAgents
+      );
       const params: Record<string, unknown> = {
         company_id: selectedCompanyId,
         title: issueDialogTitle.trim(),
-        status: normalizeCreateIssueStatus(issueDialogStatus),
+        status: normalizedIssueStatus,
         priority: issueDialogPriority,
       };
 
@@ -2854,12 +2896,17 @@ export function App() {
     options?: { hiddenAt?: string | null }
   ) =>
     enqueueIssueUpdate(async () => {
+      const normalizedPatch = normalizeIssueDraftPatchForAssignee(
+        patch,
+        issueDraft,
+        boardAgents
+      );
       const params: Record<string, unknown> = {
         issue_id: issue.id,
       };
 
-      if (Object.prototype.hasOwnProperty.call(patch, "title")) {
-        const trimmedTitle = (patch.title ?? "").trim();
+      if (Object.prototype.hasOwnProperty.call(normalizedPatch, "title")) {
+        const trimmedTitle = (normalizedPatch.title ?? "").trim();
         if (!trimmedTitle) {
           setIssueEditorError("Issue title is required.");
           return null;
@@ -2867,58 +2914,72 @@ export function App() {
         params.title = trimmedTitle;
       }
 
-      if (Object.prototype.hasOwnProperty.call(patch, "description")) {
-        const trimmedDescription = (patch.description ?? "").trim();
+      if (Object.prototype.hasOwnProperty.call(normalizedPatch, "description")) {
+        const trimmedDescription = (normalizedPatch.description ?? "").trim();
         params.description = trimmedDescription ? trimmedDescription : null;
       }
 
-      if (Object.prototype.hasOwnProperty.call(patch, "status")) {
-        params.status = patch.status;
+      if (Object.prototype.hasOwnProperty.call(normalizedPatch, "status")) {
+        params.status = normalizedPatch.status;
       }
 
-      if (Object.prototype.hasOwnProperty.call(patch, "priority")) {
-        params.priority = patch.priority;
+      if (Object.prototype.hasOwnProperty.call(normalizedPatch, "priority")) {
+        params.priority = normalizedPatch.priority;
       }
 
-      if (Object.prototype.hasOwnProperty.call(patch, "projectId")) {
-        params.project_id = patch.projectId?.trim()
-          ? patch.projectId.trim()
+      if (Object.prototype.hasOwnProperty.call(normalizedPatch, "projectId")) {
+        params.project_id = normalizedPatch.projectId?.trim()
+          ? normalizedPatch.projectId.trim()
           : null;
       }
 
-      if (Object.prototype.hasOwnProperty.call(patch, "assigneeAgentId")) {
-        params.assignee_agent_id = patch.assigneeAgentId?.trim()
-          ? patch.assigneeAgentId.trim()
+      if (
+        Object.prototype.hasOwnProperty.call(normalizedPatch, "assigneeAgentId")
+      ) {
+        params.assignee_agent_id = normalizedPatch.assigneeAgentId?.trim()
+          ? normalizedPatch.assigneeAgentId.trim()
           : null;
       }
 
-      if (Object.prototype.hasOwnProperty.call(patch, "parentId")) {
-        params.parent_id = patch.parentId?.trim()
-          ? patch.parentId.trim()
+      if (Object.prototype.hasOwnProperty.call(normalizedPatch, "parentId")) {
+        params.parent_id = normalizedPatch.parentId?.trim()
+          ? normalizedPatch.parentId.trim()
           : null;
       }
 
       const shouldPersistWorkspaceSettings =
-        Object.prototype.hasOwnProperty.call(patch, "workspaceTargetMode") ||
-        Object.prototype.hasOwnProperty.call(patch, "workspaceWorktreePath") ||
         Object.prototype.hasOwnProperty.call(
-          patch,
+          normalizedPatch,
+          "workspaceTargetMode"
+        ) ||
+        Object.prototype.hasOwnProperty.call(
+          normalizedPatch,
+          "workspaceWorktreePath"
+        ) ||
+        Object.prototype.hasOwnProperty.call(
+          normalizedPatch,
           "workspaceWorktreeBranch"
         ) ||
-        Object.prototype.hasOwnProperty.call(patch, "workspaceWorktreeName");
+        Object.prototype.hasOwnProperty.call(
+          normalizedPatch,
+          "workspaceWorktreeName"
+        );
 
       if (shouldPersistWorkspaceSettings) {
         params.execution_workspace_settings =
           issueExecutionWorkspaceSettingsFromDraft({
             workspaceTargetMode:
-              patch.workspaceTargetMode ?? issueDraft.workspaceTargetMode,
+              normalizedPatch.workspaceTargetMode ??
+              issueDraft.workspaceTargetMode,
             workspaceWorktreePath:
-              patch.workspaceWorktreePath ?? issueDraft.workspaceWorktreePath,
+              normalizedPatch.workspaceWorktreePath ??
+              issueDraft.workspaceWorktreePath,
             workspaceWorktreeBranch:
-              patch.workspaceWorktreeBranch ??
+              normalizedPatch.workspaceWorktreeBranch ??
               issueDraft.workspaceWorktreeBranch,
             workspaceWorktreeName:
-              patch.workspaceWorktreeName ?? issueDraft.workspaceWorktreeName,
+              normalizedPatch.workspaceWorktreeName ??
+              issueDraft.workspaceWorktreeName,
           });
       }
 
@@ -2939,7 +3000,7 @@ export function App() {
         applyIssueUpdateToSnapshot(updatedIssue, {
           removeFromSnapshot: isHidden,
         });
-        syncIssueDraftFromUpdate(updatedIssue, patch);
+        syncIssueDraftFromUpdate(updatedIssue, normalizedPatch);
         setSelectedIssueId(isHidden ? null : updatedIssue.id);
         setIsEditingIssue(false);
         setIssuesRouteMode(isHidden ? "list" : "detail");
@@ -3847,7 +3908,11 @@ export function App() {
                   onIssueDraftChange={(patch) =>
                     setIssueDraft((current) => ({
                       ...current,
-                      ...patch,
+                      ...normalizeIssueDraftPatchForAssignee(
+                        patch,
+                        current,
+                        boardAgents
+                      ),
                     }))
                   }
                   onLinkedApprovalSelect={(approvalId) => {
@@ -4767,7 +4832,7 @@ export function App() {
           companyPrefix={selectedCompany?.issue_prefix ?? "ISS"}
           errorMessage={issueDialogError}
           isSaving={isIssueDialogSaving}
-          onAssigneeChange={setIssueDialogAssigneeAgentId}
+          onAssigneeChange={handleIssueDialogAssigneeChange}
           onAddAttachment={() => void handleAddIssueDialogAttachment()}
           onClose={handleCloseCreateIssueDialog}
           onCreate={() => void handleCreateIssueFromDialog()}
@@ -4776,7 +4841,13 @@ export function App() {
           onProjectChange={handleIssueDialogProjectChange}
           onRemoveAttachment={handleRemoveIssueDialogAttachment}
           onStatusChange={(value) =>
-            setIssueDialogStatus(normalizeCreateIssueStatus(value))
+            setIssueDialogStatus(
+              normalizeCreateIssueStatus(
+                value,
+                issueDialogAssigneeAgentId,
+                boardAgents
+              )
+            )
           }
           onTitleChange={setIssueDialogTitle}
           onWorkspaceTargetChange={handleIssueDialogWorkspaceTargetChange}
@@ -4789,11 +4860,12 @@ export function App() {
           selectedAssigneeAgentId={issueDialogAssigneeAgentId}
           selectedPriority={issueDialogPriority}
           selectedProjectId={issueDialogProjectId}
-          selectedStatus={normalizeCreateIssueStatus(issueDialogStatus)}
-          statuses={mergeIssueOptions(
-            createableIssueStatuses,
-            normalizeCreateIssueStatus(issueDialogStatus)
+          selectedStatus={normalizeCreateIssueStatus(
+            issueDialogStatus,
+            issueDialogAssigneeAgentId,
+            boardAgents
           )}
+          statuses={createIssueStatusOptions}
           selectedWorkspaceTargetValue={issueWorkspaceTargetSelectValue(
             issueDialogWorkspaceTargetMode,
             issueDialogWorkspaceWorktreePath
@@ -11544,6 +11616,31 @@ const createableIssueStatuses = canonicalIssueStatuses.filter(
   (status) => status !== "in_progress"
 );
 
+function hasAssignedAgent(
+  assigneeAgentId: string | null | undefined,
+  agents: AgentRecord[]
+) {
+  const trimmedAssigneeAgentId = assigneeAgentId?.trim() ?? "";
+  return (
+    trimmedAssigneeAgentId.length > 0 &&
+    agents.some((agent) => agent.id === trimmedAssigneeAgentId)
+  );
+}
+
+function issueStatusesForAssignee(
+  statuses: string[],
+  assigneeAgentId: string | null | undefined,
+  agents: AgentRecord[]
+) {
+  if (hasAssignedAgent(assigneeAgentId, agents)) {
+    return statuses;
+  }
+
+  return statuses.filter(
+    (status) => normalizeBoardIssueValue(status) !== "todo"
+  );
+}
+
 function normalizeHexColor(
   value: string | null | undefined,
   fallback = defaultCompanyBrandColor
@@ -11581,9 +11678,64 @@ function normalizeBoardIssueValue(value: string | null | undefined) {
   return normalized;
 }
 
-function normalizeCreateIssueStatus(value: string | null | undefined) {
+function normalizeIssueStatusForAssignee(
+  value: string | null | undefined,
+  assigneeAgentId: string | null | undefined,
+  agents: AgentRecord[]
+) {
   const normalized = normalizeBoardIssueValue(value);
-  return normalized === "in_progress" ? "todo" : normalized;
+  if (normalized === "todo" && !hasAssignedAgent(assigneeAgentId, agents)) {
+    return "backlog";
+  }
+
+  return normalized;
+}
+
+function normalizeCreateIssueStatus(
+  value: string | null | undefined,
+  assigneeAgentId = "",
+  agents: AgentRecord[] = []
+) {
+  const normalized = normalizeBoardIssueValue(value);
+  return normalizeIssueStatusForAssignee(
+    normalized === "in_progress" ? "todo" : normalized,
+    assigneeAgentId,
+    agents
+  );
+}
+
+function normalizeIssueDraftPatchForAssignee(
+  patch: Partial<IssueEditDraft>,
+  current: Pick<IssueEditDraft, "assigneeAgentId" | "status">,
+  agents: AgentRecord[]
+) {
+  const normalizedPatch = { ...patch };
+  const nextAssigneeAgentId = Object.prototype.hasOwnProperty.call(
+    patch,
+    "assigneeAgentId"
+  )
+    ? patch.assigneeAgentId ?? ""
+    : current.assigneeAgentId;
+
+  if (Object.prototype.hasOwnProperty.call(patch, "status")) {
+    normalizedPatch.status = normalizeIssueStatusForAssignee(
+      patch.status,
+      nextAssigneeAgentId,
+      agents
+    );
+  } else if (Object.prototype.hasOwnProperty.call(patch, "assigneeAgentId")) {
+    const normalizedStatus = normalizeIssueStatusForAssignee(
+      current.status,
+      nextAssigneeAgentId,
+      agents
+    );
+
+    if (normalizedStatus !== current.status) {
+      normalizedPatch.status = normalizedStatus;
+    }
+  }
+
+  return normalizedPatch;
 }
 
 function normalizeDashboardProjectGrouping(
