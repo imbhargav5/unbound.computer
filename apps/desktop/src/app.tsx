@@ -2585,7 +2585,7 @@ export function App() {
     resetIssueDialog();
     setIssueDialogAssigneeAgentId(defaults?.assigneeAgentId ?? "");
     setIssueDialogPriority(defaults?.priority ?? "medium");
-    setIssueDialogStatus(normalizeBoardIssueValue(defaults?.status ?? "todo"));
+    setIssueDialogStatus(normalizeCreateIssueStatus(defaults?.status ?? "todo"));
     setIssueDialogProjectId(defaults?.projectId ?? "");
     setIsCreateIssueDialogOpen(true);
   };
@@ -2635,7 +2635,7 @@ export function App() {
       const params: Record<string, unknown> = {
         company_id: selectedCompanyId,
         title: issueDialogTitle.trim(),
-        status: issueDialogStatus,
+        status: normalizeCreateIssueStatus(issueDialogStatus),
         priority: issueDialogPriority,
       };
 
@@ -4775,7 +4775,9 @@ export function App() {
           onPriorityChange={setIssueDialogPriority}
           onProjectChange={handleIssueDialogProjectChange}
           onRemoveAttachment={handleRemoveIssueDialogAttachment}
-          onStatusChange={setIssueDialogStatus}
+          onStatusChange={(value) =>
+            setIssueDialogStatus(normalizeCreateIssueStatus(value))
+          }
           onTitleChange={setIssueDialogTitle}
           onWorkspaceTargetChange={handleIssueDialogWorkspaceTargetChange}
           attachments={issueDialogAttachments}
@@ -4787,8 +4789,11 @@ export function App() {
           selectedAssigneeAgentId={issueDialogAssigneeAgentId}
           selectedPriority={issueDialogPriority}
           selectedProjectId={issueDialogProjectId}
-          selectedStatus={issueDialogStatus}
-          statuses={mergeIssueOptions(canonicalIssueStatuses, issueDialogStatus)}
+          selectedStatus={normalizeCreateIssueStatus(issueDialogStatus)}
+          statuses={mergeIssueOptions(
+            createableIssueStatuses,
+            normalizeCreateIssueStatus(issueDialogStatus)
+          )}
           selectedWorkspaceTargetValue={issueWorkspaceTargetSelectValue(
             issueDialogWorkspaceTargetMode,
             issueDialogWorkspaceWorktreePath
@@ -11535,6 +11540,9 @@ const canonicalIssueStatuses = [
   "done",
   "cancelled",
 ];
+const createableIssueStatuses = canonicalIssueStatuses.filter(
+  (status) => status !== "in_progress"
+);
 
 function normalizeHexColor(
   value: string | null | undefined,
@@ -11571,6 +11579,11 @@ function normalizeBoardIssueValue(value: string | null | undefined) {
   }
 
   return normalized;
+}
+
+function normalizeCreateIssueStatus(value: string | null | undefined) {
+  const normalized = normalizeBoardIssueValue(value);
+  return normalized === "in_progress" ? "todo" : normalized;
 }
 
 function normalizeDashboardProjectGrouping(
@@ -11612,7 +11625,7 @@ function projectBoardColumnsByStatus(
   issues: IssueRecord[]
 ): DashboardProjectColumn[] {
   return projectBoardColumnStatuses(issues).map((status) => ({
-    createDefaults: { status },
+    createDefaults: { status: normalizeCreateIssueStatus(status) },
     id: `status:${status}`,
     issues: issues.filter(
       (issue) => normalizeBoardIssueValue(issue.status) === status
