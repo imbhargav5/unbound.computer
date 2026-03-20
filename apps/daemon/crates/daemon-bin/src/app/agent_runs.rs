@@ -13,8 +13,9 @@ use agent_session_sqlite_persist_core::{
 };
 use chrono::Utc;
 use daemon_board::{
-    service, summarize_agent_run_event, summarize_agent_run_result, summarize_agent_run_text,
-    Agent, AgentRun, Approval, BoardError, CreateAgentDecisionApprovalInput, Issue, IssueComment,
+    service, summarize_agent_run_event, summarize_agent_run_excerpt,
+    summarize_agent_run_result, summarize_agent_run_text, AddIssueCommentInput, Agent, AgentRun,
+    Approval, BoardError, CreateAgentDecisionApprovalInput, Issue, IssueComment, UpdateIssueInput,
 };
 use daemon_config_and_utils::Paths;
 use daemon_database::{queries, AsyncDatabase, NewRepository};
@@ -121,6 +122,7 @@ struct RunCompletion {
     stdout_excerpt: Option<String>,
     stderr_excerpt: Option<String>,
     external_run_id: Option<String>,
+    final_message: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -824,6 +826,7 @@ impl AgentRunCoordinator {
                         stdout_excerpt: None,
                         stderr_excerpt: None,
                         external_run_id: None,
+                        final_message: None,
                     },
                 )
                 .await?;
@@ -840,6 +843,16 @@ impl AgentRunCoordinator {
         {
             let mut processes = self.run_processes.lock().unwrap();
             processes.insert(run.id.clone(), stop_tx);
+        }
+        if let Some(issue_id) = issue_id.as_deref() {
+            if let Err(error) = self.mark_linked_issue_in_progress(issue_id, &agent.id).await {
+                warn!(
+                    error = %error,
+                    run_id = %run.id,
+                    issue_id = issue_id,
+                    "Failed to move linked issue into progress at run start"
+                );
+            }
         }
 
         let mut stream = process.take_stream().ok_or_else(|| {
@@ -858,6 +871,7 @@ impl AgentRunCoordinator {
         let mut result_json: Option<Value> = None;
         let mut session_id_after = provider_session_id_before.clone();
         let mut external_run_id: Option<String> = None;
+        let mut final_message: Option<String> = None;
         let mut timed_out = false;
         let mut completion = RunCompletion {
             status: STATUS_FAILED.to_string(),
@@ -874,6 +888,7 @@ impl AgentRunCoordinator {
             stdout_excerpt: None,
             stderr_excerpt: None,
             external_run_id: None,
+            final_message: None,
         };
 
         self.write_runtime_status_if_changed(
@@ -934,6 +949,9 @@ impl AgentRunCoordinator {
             match &event {
                 AgentCliEvent::Json { raw, json } => {
                     let decision_request = extract_agent_decision_request(cli_kind, json);
+                    if let Some(message) = extract_process_final_message(cli_kind, json) {
+                        final_message = Some(message);
+                    }
                     self.append_claude_message(
                         &armin_session_id,
                         raw,
@@ -1197,6 +1215,7 @@ impl AgentRunCoordinator {
         completion.stdout_excerpt = trim_excerpt(stdout_excerpt);
         completion.stderr_excerpt = trim_excerpt(stderr_excerpt);
         completion.external_run_id = external_run_id;
+        completion.final_message = final_message.and_then(|message| normalize_issue_comment_text(&message));
 
         {
             let mut processes = self.claude_processes.lock().unwrap();
@@ -1247,6 +1266,7 @@ impl AgentRunCoordinator {
         let stderr_excerpt = completion.stderr_excerpt.clone();
         let external_run_id = completion.external_run_id.clone();
         let issue_id_owned = issue_id.map(ToOwned::to_owned);
+        let issue_id_for_finalize = issue_id_owned.clone();
         let task_session_ref =
             task_session_ref.or_else(|| task_session_ref_from_run(run, issue_id_owned.as_deref()));
 
@@ -1308,7 +1328,7 @@ impl AgentRunCoordinator {
                      WHERE id = ?2",
                     params![now, agent_id],
                 )?;
-                if let Some(ref issue_id) = issue_id_owned {
+                if let Some(ref issue_id) = issue_id_for_finalize {
                     tx.execute(
                         "UPDATE issues
                          SET execution_locked_at = CASE
@@ -1356,6 +1376,85 @@ impl AgentRunCoordinator {
 
         if let Err(error) = self.record_agent_directory_drift_warning(run).await {
             warn!(error = %error, run_id = %run.id, "Failed to record agent home drift warning");
+        }
+
+        if let Some(issue_id) = issue_id_owned.as_deref() {
+            if let Err(error) = self
+                .sync_linked_issue_after_completion(run, issue_id, &completion)
+                .await
+            {
+                warn!(
+                    error = %error,
+                    run_id = %run.id,
+                    issue_id = issue_id,
+                    "Failed to sync linked issue after run completion"
+                );
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn mark_linked_issue_in_progress(
+        &self,
+        issue_id: &str,
+        agent_id: &str,
+    ) -> Result<(), BoardError> {
+        let Some(issue) = service::get_issue(&self.db, issue_id).await? else {
+            return Ok(());
+        };
+
+        if issue.status != "todo" || issue.assignee_agent_id.as_deref() != Some(agent_id) {
+            return Ok(());
+        }
+
+        let _ = service::update_issue(
+            &self.db,
+            UpdateIssueInput {
+                issue_id: issue.id,
+                status: Some("in_progress".to_string()),
+                ..UpdateIssueInput::default()
+            },
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn sync_linked_issue_after_completion(
+        &self,
+        run: &AgentRun,
+        issue_id: &str,
+        completion: &RunCompletion,
+    ) -> Result<(), BoardError> {
+        let Some(issue) = service::get_issue(&self.db, issue_id).await? else {
+            return Ok(());
+        };
+
+        if let Some(body) = build_issue_run_completion_comment(completion) {
+            let _ = service::add_issue_comment(
+                &self.db,
+                AddIssueCommentInput {
+                    company_id: issue.company_id.clone(),
+                    issue_id: issue.id.clone(),
+                    author_agent_id: Some(run.agent_id.clone()),
+                    author_user_id: None,
+                    target_agent_id: None,
+                    body,
+                },
+            )
+            .await?;
+        }
+
+        if let Some(next_status) = next_issue_status_after_completion(&issue.status, completion) {
+            let _ = service::update_issue(
+                &self.db,
+                UpdateIssueInput {
+                    issue_id: issue.id,
+                    status: Some(next_status.to_string()),
+                    ..UpdateIssueInput::default()
+                },
+            )
+            .await?;
         }
 
         Ok(())
@@ -1577,6 +1676,7 @@ impl AgentRunCoordinator {
                 stdout_excerpt: run.stdout_excerpt.clone(),
                 stderr_excerpt: Some(error_message),
                 external_run_id: run.external_run_id.clone(),
+                final_message: None,
             },
         )
         .await
@@ -1625,6 +1725,7 @@ impl AgentRunCoordinator {
                 stdout_excerpt: run.stdout_excerpt.clone(),
                 stderr_excerpt: run.stderr_excerpt.clone(),
                 external_run_id: run.external_run_id.clone(),
+                final_message: None,
             },
         )
         .await
@@ -2124,14 +2225,16 @@ impl AgentRunCoordinator {
              - If this run is linked to an issue, treat that issue as the primary work item for this run.\n\
              - If this run is not linked to an issue, list your assigned issues, work on in_progress first, then todo, and skip blocked work unless there is fresh context that lets you unblock it.\n\
              - Before doing issue work, make sure the issue worktree is ready with the board issue-checkout helper instead of creating ad hoc folders yourself.\n\
-             - If you actively start a todo issue, move it to in_progress. If you finish it, mark it done with a concise summary. If you are blocked, mark it blocked and explain exactly what is needed.\n\
-             - If you made progress but did not finish, leave a concise issue comment before exiting so the next run can continue cleanly.\n\
+             - The daemon will move a linked todo issue into in_progress when the run actually starts.\n\
+             - Do not use the board helper for the routine end-of-run status update or summary comment on the linked issue; the daemon records that automatically from your final output.\n\
+             - If you need the linked issue status to change, say it explicitly in your final summary using the exact phrase: `Issue status should change to <status>`.\n\
+             - If you need mid-run coordination, want to wake another agent, or need a non-routine board action, you can still use the board helper commands intentionally.\n\
              - Work directly in the resolved local worktree. Only create or switch to a fresh git worktree when the issue or user explicitly asks for it.\n\
              - If this wake reason is approval_approved, continue the same provider session and treat the board decision as authoritative new input.\n\
              Finish with a concise summary that covers:\n\
              1. what you changed or concluded\n\
              2. any blockers or follow-up needed\n\
-             3. whether the linked issue status should change\n",
+             3. whether the linked issue status should change, written as `Issue status should change to <status>` when applicable\n",
             bootstrap_prompt = bootstrap_prompt,
             agent_name = agent.name,
             agent_role = agent.role,
@@ -2378,12 +2481,12 @@ fn rendered_prompt_template(
 fn default_agent_run_prompt(agent: &Agent, issue_id: Option<&str>) -> String {
     if let Some(issue_id) = issue_id {
         return format!(
-            "This run is focused on issue {issue_id}. Read the issue context, do the next useful piece of work in the linked worktree, and update the issue before you exit."
+            "This run is focused on issue {issue_id}. Read the issue context, do the next useful piece of work in the linked worktree, and finish with a clear final summary before you exit."
         );
     }
 
     format!(
-        "Inspect work assigned to {agent_name} ({agent_role}), pick the highest-value actionable issue, do useful work in its worktree, and update that issue before you exit.",
+        "Inspect work assigned to {agent_name} ({agent_role}), pick the highest-value actionable issue, do useful work in its worktree, and finish with a clear final summary before you exit.",
         agent_name = agent.name,
         agent_role = agent.role,
     )
@@ -2531,6 +2634,185 @@ fn trim_excerpt(buffer: String) -> Option<String> {
     } else {
         Some(trimmed)
     }
+}
+
+fn build_issue_run_completion_comment(completion: &RunCompletion) -> Option<String> {
+    let detail = completion
+        .final_message
+        .clone()
+        .or_else(|| {
+            completion
+                .result_json
+                .as_ref()
+                .and_then(extract_completion_text_from_value)
+        })
+        .or_else(|| {
+            completion
+                .stdout_excerpt
+                .as_deref()
+                .and_then(summarize_agent_run_excerpt)
+        })
+        .or_else(|| {
+            completion
+                .stdout_excerpt
+                .as_deref()
+                .and_then(summarize_agent_run_text)
+        })
+        .or_else(|| {
+            completion
+                .stderr_excerpt
+                .as_deref()
+                .and_then(summarize_agent_run_excerpt)
+        })
+        .or_else(|| {
+            completion
+                .stderr_excerpt
+                .as_deref()
+                .and_then(summarize_agent_run_text)
+        })
+        .or_else(|| completion.error.clone());
+
+    match completion.status.as_str() {
+        STATUS_SUCCEEDED => detail,
+        STATUS_FAILED => Some(prefix_issue_run_comment("Run failed.", detail.as_deref())),
+        STATUS_CANCELLED => Some(prefix_issue_run_comment("Run was cancelled.", detail.as_deref())),
+        STATUS_TIMED_OUT => Some(prefix_issue_run_comment("Run timed out.", detail.as_deref())),
+        _ => detail,
+    }
+}
+
+fn prefix_issue_run_comment(prefix: &str, detail: Option<&str>) -> String {
+    match detail.map(str::trim).filter(|value| !value.is_empty()) {
+        Some(detail) if detail != prefix => format!("{prefix}\n\n{detail}"),
+        _ => prefix.to_string(),
+    }
+}
+
+fn parse_issue_status_recommendation(text: &str) -> Option<&'static str> {
+    let collapsed = text
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_ascii_lowercase();
+    if collapsed.is_empty()
+        || collapsed.contains("no status change")
+        || collapsed.contains("status should not change")
+    {
+        return None;
+    }
+
+    [
+        ("in progress", "in_progress"),
+        ("in_progress", "in_progress"),
+        ("to do", "todo"),
+        ("todo", "todo"),
+        ("blocked", "blocked"),
+        ("done", "done"),
+        ("cancelled", "cancelled"),
+        ("canceled", "cancelled"),
+        ("backlog", "backlog"),
+    ]
+    .into_iter()
+    .find_map(|(needle, status)| {
+        [
+            format!("issue status should change to {needle}"),
+            format!("linked issue status should change to {needle}"),
+            format!("status should change to {needle}"),
+            format!("issue should change to {needle}"),
+            format!("mark the issue {needle}"),
+            format!("mark the issue as {needle}"),
+            format!("mark it {needle}"),
+            format!("mark it as {needle}"),
+            format!("move the issue to {needle}"),
+            format!("move it to {needle}"),
+        ]
+        .into_iter()
+        .any(|pattern| collapsed.contains(&pattern))
+        .then_some(status)
+    })
+}
+
+fn next_issue_status_after_completion(
+    current_issue_status: &str,
+    completion: &RunCompletion,
+) -> Option<&'static str> {
+    let next_status = match completion.status.as_str() {
+        STATUS_FAILED | STATUS_TIMED_OUT => Some("blocked"),
+        STATUS_SUCCEEDED => completion
+            .final_message
+            .as_deref()
+            .and_then(parse_issue_status_recommendation),
+        _ => None,
+    }?;
+
+    if next_status == current_issue_status {
+        None
+    } else {
+        Some(next_status)
+    }
+}
+
+fn extract_process_final_message(kind: AgentCliKind, json: &Value) -> Option<String> {
+    match kind {
+        AgentCliKind::Claude => json
+            .get("message")
+            .and_then(extract_completion_text_from_value)
+            .or_else(|| extract_completion_text_from_value(json)),
+        AgentCliKind::Codex => match json.get("type").and_then(Value::as_str) {
+            Some("item.completed") => json
+                .pointer("/item/text")
+                .and_then(Value::as_str)
+                .and_then(normalize_issue_comment_text),
+            _ => extract_completion_text_from_value(json),
+        },
+    }
+}
+
+fn extract_completion_text_from_value(value: &Value) -> Option<String> {
+    [
+        value.get("result").and_then(Value::as_str),
+        value.get("content").and_then(Value::as_str),
+        value
+            .pointer("/result/content/0/text")
+            .and_then(Value::as_str),
+        value
+            .pointer("/message/content/0/text")
+            .and_then(Value::as_str),
+        value.pointer("/content/0/text").and_then(Value::as_str),
+    ]
+    .into_iter()
+    .flatten()
+    .find_map(normalize_issue_comment_text)
+}
+
+fn normalize_issue_comment_text(text: &str) -> Option<String> {
+    let lines = text
+        .lines()
+        .map(str::trim_end)
+        .collect::<Vec<_>>();
+    let start = lines.iter().position(|line| !line.trim().is_empty())?;
+    let end = lines
+        .iter()
+        .rposition(|line| !line.trim().is_empty())
+        .unwrap_or(start);
+    let normalized = lines[start..=end].join("\n");
+    let normalized = normalized.trim();
+    if normalized.is_empty() {
+        return None;
+    }
+    Some(truncate_issue_comment_text(normalized, 4000))
+}
+
+fn truncate_issue_comment_text(text: &str, max_chars: usize) -> String {
+    if text.chars().count() <= max_chars {
+        return text.to_string();
+    }
+
+    let truncated = text
+        .chars()
+        .take(max_chars.saturating_sub(1))
+        .collect::<String>();
+    format!("{truncated}…")
 }
 
 fn extract_agent_decision_request(
@@ -3255,6 +3537,7 @@ async fn next_run_seq(db: &AsyncDatabase, run_id: &str) -> Result<i64, BoardErro
 #[cfg(test)]
 mod tests {
     use super::*;
+    use daemon_board::{CreateAgentInput, CreateCompanyInput, CreateIssueInput};
     use serde_json::json;
 
     fn test_issue_for_strategy(
@@ -3364,6 +3647,373 @@ mod tests {
         assert!(instructions.contains("Never create sibling agent directories"));
         assert!(instructions.contains("board hire-agent"));
         assert!(instructions.contains("--source-issue-id \"issue-1\""));
+    }
+
+    #[test]
+    fn parse_issue_status_recommendation_reads_explicit_summary_line() {
+        assert_eq!(
+            parse_issue_status_recommendation(
+                "1. Updated the README.\n2. No blockers.\n3. Issue status should change to done."
+            ),
+            Some("done")
+        );
+        assert_eq!(
+            parse_issue_status_recommendation(
+                "Blocked on credentials. Issue status should change to blocked."
+            ),
+            Some("blocked")
+        );
+        assert_eq!(
+            parse_issue_status_recommendation("No status change needed."),
+            None
+        );
+    }
+
+    #[test]
+    fn build_issue_run_completion_comment_prefers_final_message() {
+        let completion = RunCompletion {
+            status: STATUS_SUCCEEDED.to_string(),
+            error: None,
+            error_code: None,
+            exit_code: None,
+            signal: None,
+            usage_json: None,
+            result_json: None,
+            session_id_after: None,
+            stdout_excerpt: Some("intermediate summary".to_string()),
+            stderr_excerpt: None,
+            external_run_id: None,
+            final_message: Some(
+                "1. Updated docs.\n2. No blockers.\n3. Issue status should change to done."
+                    .to_string(),
+            ),
+        };
+
+        assert_eq!(
+            build_issue_run_completion_comment(&completion),
+            Some(
+                "1. Updated docs.\n2. No blockers.\n3. Issue status should change to done."
+                    .to_string()
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn linked_issue_completion_sync_adds_comment_and_applies_status_recommendation() {
+        let paths = Paths::with_base_dir(
+            std::env::temp_dir().join(format!("unbound-run-sync-{}", Uuid::new_v4())),
+        );
+        paths.ensure_dirs().expect("paths");
+        let db = AsyncDatabase::open(&paths.database_file()).await.expect("db");
+
+        let company = service::create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .expect("company");
+        let agent = service::create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "Builder".to_string(),
+                role: Some("engineer".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .expect("agent");
+        let issue = service::create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                title: "Ship docs".to_string(),
+                assignee_agent_id: Some(agent.id.clone()),
+                status: Some("in_progress".to_string()),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .expect("issue");
+        let run = AgentRun {
+            id: "run-1".to_string(),
+            company_id: company.id.clone(),
+            agent_id: agent.id.clone(),
+            issue_id: Some(issue.id.clone()),
+            invocation_source: "assignment".to_string(),
+            trigger_detail: Some("system".to_string()),
+            wake_reason: Some("issue_assigned".to_string()),
+            status: STATUS_SUCCEEDED.to_string(),
+            started_at: None,
+            finished_at: None,
+            error: None,
+            wakeup_request_id: None,
+            exit_code: None,
+            signal: None,
+            usage_json: None,
+            result_json: None,
+            session_id_before: None,
+            session_id_after: None,
+            log_store: None,
+            log_ref: None,
+            log_bytes: None,
+            log_sha256: None,
+            log_compressed: false,
+            stdout_excerpt: None,
+            stderr_excerpt: None,
+            error_code: None,
+            external_run_id: None,
+            context_snapshot: None,
+            created_at: "2026-03-20T00:00:00Z".to_string(),
+            updated_at: "2026-03-20T00:00:00Z".to_string(),
+        };
+        let completion = RunCompletion {
+            status: STATUS_SUCCEEDED.to_string(),
+            error: None,
+            error_code: None,
+            exit_code: None,
+            signal: None,
+            usage_json: None,
+            result_json: None,
+            session_id_after: None,
+            stdout_excerpt: None,
+            stderr_excerpt: None,
+            external_run_id: None,
+            final_message: Some(
+                "1. Updated README.\n2. No blockers.\n3. Issue status should change to done."
+                    .to_string(),
+            ),
+        };
+
+        let subscriptions = SubscriptionManager::new();
+        let armin = crate::armin_adapter::create_test_armin(subscriptions.clone()).expect("armin");
+        let coordinator = AgentRunCoordinator {
+            db: db.clone(),
+            paths: Arc::new(paths.clone()),
+            armin,
+            db_encryption_key: Arc::new(Mutex::new(None)),
+            session_secret_cache: SessionSecretCache::new(),
+            subscriptions,
+            claude_processes: Arc::new(Mutex::new(HashMap::new())),
+            device_id: Arc::new(Mutex::new(None)),
+            run_processes: Arc::new(Mutex::new(HashMap::new())),
+            queue_notify: Arc::new(Notify::new()),
+        };
+
+        coordinator
+            .sync_linked_issue_after_completion(&run, &issue.id, &completion)
+            .await
+            .expect("sync linked issue");
+
+        let updated_issue = service::get_issue(&db, &issue.id)
+            .await
+            .expect("get issue")
+            .expect("issue present");
+        assert_eq!(updated_issue.status, "done");
+
+        let comments = service::list_issue_comments(&db, &issue.id)
+            .await
+            .expect("list comments");
+        assert_eq!(comments.len(), 1);
+        assert_eq!(comments[0].author_agent_id.as_deref(), Some(agent.id.as_str()));
+        assert!(comments[0].body.contains("Updated README"));
+    }
+
+    #[tokio::test]
+    async fn linked_issue_completion_sync_moves_failed_runs_to_blocked() {
+        let paths = Paths::with_base_dir(
+            std::env::temp_dir().join(format!("unbound-run-blocked-{}", Uuid::new_v4())),
+        );
+        paths.ensure_dirs().expect("paths");
+        let db = AsyncDatabase::open(&paths.database_file()).await.expect("db");
+
+        let company = service::create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .expect("company");
+        let agent = service::create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "Builder".to_string(),
+                role: Some("engineer".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .expect("agent");
+        let issue = service::create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                title: "Ship docs".to_string(),
+                assignee_agent_id: Some(agent.id.clone()),
+                status: Some("in_progress".to_string()),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .expect("issue");
+        let run = AgentRun {
+            id: "run-1".to_string(),
+            company_id: company.id.clone(),
+            agent_id: agent.id.clone(),
+            issue_id: Some(issue.id.clone()),
+            invocation_source: "assignment".to_string(),
+            trigger_detail: Some("system".to_string()),
+            wake_reason: Some("issue_assigned".to_string()),
+            status: STATUS_FAILED.to_string(),
+            started_at: None,
+            finished_at: None,
+            error: Some("Tests failed".to_string()),
+            wakeup_request_id: None,
+            exit_code: None,
+            signal: None,
+            usage_json: None,
+            result_json: None,
+            session_id_before: None,
+            session_id_after: None,
+            log_store: None,
+            log_ref: None,
+            log_bytes: None,
+            log_sha256: None,
+            log_compressed: false,
+            stdout_excerpt: None,
+            stderr_excerpt: Some("Assertion failed".to_string()),
+            error_code: None,
+            external_run_id: None,
+            context_snapshot: None,
+            created_at: "2026-03-20T00:00:00Z".to_string(),
+            updated_at: "2026-03-20T00:00:00Z".to_string(),
+        };
+        let completion = RunCompletion {
+            status: STATUS_FAILED.to_string(),
+            error: Some("Tests failed".to_string()),
+            error_code: None,
+            exit_code: None,
+            signal: None,
+            usage_json: None,
+            result_json: None,
+            session_id_after: None,
+            stdout_excerpt: None,
+            stderr_excerpt: Some("Assertion failed".to_string()),
+            external_run_id: None,
+            final_message: Some(
+                "1. Tried the fix.\n2. Tests failed.\n3. Issue status should change to done."
+                    .to_string(),
+            ),
+        };
+
+        let subscriptions = SubscriptionManager::new();
+        let armin = crate::armin_adapter::create_test_armin(subscriptions.clone()).expect("armin");
+        let coordinator = AgentRunCoordinator {
+            db: db.clone(),
+            paths: Arc::new(paths.clone()),
+            armin,
+            db_encryption_key: Arc::new(Mutex::new(None)),
+            session_secret_cache: SessionSecretCache::new(),
+            subscriptions,
+            claude_processes: Arc::new(Mutex::new(HashMap::new())),
+            device_id: Arc::new(Mutex::new(None)),
+            run_processes: Arc::new(Mutex::new(HashMap::new())),
+            queue_notify: Arc::new(Notify::new()),
+        };
+
+        coordinator
+            .sync_linked_issue_after_completion(&run, &issue.id, &completion)
+            .await
+            .expect("sync linked issue");
+
+        let updated_issue = service::get_issue(&db, &issue.id)
+            .await
+            .expect("get issue")
+            .expect("issue present");
+        assert_eq!(updated_issue.status, "blocked");
+    }
+
+    #[tokio::test]
+    async fn mark_linked_issue_in_progress_only_updates_assigned_todo_issue() {
+        let paths = Paths::with_base_dir(
+            std::env::temp_dir().join(format!("unbound-run-start-{}", Uuid::new_v4())),
+        );
+        paths.ensure_dirs().expect("paths");
+        let db = AsyncDatabase::open(&paths.database_file()).await.expect("db");
+
+        let company = service::create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .expect("company");
+        let agent = service::create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "Builder".to_string(),
+                role: Some("engineer".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .expect("agent");
+        let issue = service::create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                title: "Pick this up".to_string(),
+                assignee_agent_id: Some(agent.id.clone()),
+                status: Some("todo".to_string()),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .expect("issue");
+
+        let subscriptions = SubscriptionManager::new();
+        let armin = crate::armin_adapter::create_test_armin(subscriptions.clone()).expect("armin");
+        let coordinator = AgentRunCoordinator {
+            db: db.clone(),
+            paths: Arc::new(paths.clone()),
+            armin,
+            db_encryption_key: Arc::new(Mutex::new(None)),
+            session_secret_cache: SessionSecretCache::new(),
+            subscriptions,
+            claude_processes: Arc::new(Mutex::new(HashMap::new())),
+            device_id: Arc::new(Mutex::new(None)),
+            run_processes: Arc::new(Mutex::new(HashMap::new())),
+            queue_notify: Arc::new(Notify::new()),
+        };
+
+        coordinator
+            .mark_linked_issue_in_progress(&issue.id, &agent.id)
+            .await
+            .expect("mark issue in progress");
+
+        let updated_issue = service::get_issue(&db, &issue.id)
+            .await
+            .expect("get issue")
+            .expect("issue present");
+        assert_eq!(updated_issue.status, "in_progress");
     }
 
     #[test]

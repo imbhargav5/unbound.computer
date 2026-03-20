@@ -608,7 +608,7 @@ const defaultDashboardCanvasOffset: DashboardCanvasOffset = {
 };
 
 const dashboardProjectBoardMinWidth = 920;
-const dashboardProjectBoardHeight = 540;
+const dashboardProjectBoardHeight = 640;
 const dashboardProjectBoardGapX = 88;
 const dashboardProjectBoardGapY = 80;
 const dashboardProjectBoardStackGap = dashboardProjectBoardGapY;
@@ -765,6 +765,14 @@ export function App() {
   const [issueDialogAttachments, setIssueDialogAttachments] = useState<
     IssueAttachmentDraft[]
   >([]);
+  const [dashboardIssuePreviewId, setDashboardIssuePreviewId] = useState<
+    string | null
+  >(null);
+  const [isDashboardIssuePreviewLoading, setIsDashboardIssuePreviewLoading] =
+    useState(false);
+  const [dashboardIssuePreviewError, setDashboardIssuePreviewError] = useState<
+    string | null
+  >(null);
   const [newIssueCommentBody, setNewIssueCommentBody] = useState("");
   const [newIssueCommentTargetAgentId, setNewIssueCommentTargetAgentId] =
     useState("");
@@ -859,6 +867,33 @@ export function App() {
   const selectedIssueAttachments = selectedIssue
     ? (issueAttachmentsByIssueId[selectedIssue.id] ?? [])
     : [];
+  const dashboardPreviewIssue =
+    boardIssues.find((issue) => issue.id === dashboardIssuePreviewId) ?? null;
+  const dashboardPreviewComments = dashboardPreviewIssue
+    ? (issueCommentsByIssueId[dashboardPreviewIssue.id] ?? [])
+    : [];
+  const dashboardPreviewAttachments = dashboardPreviewIssue
+    ? (issueAttachmentsByIssueId[dashboardPreviewIssue.id] ?? [])
+    : [];
+  const dashboardPreviewSubissues = useMemo(
+    () =>
+      dashboardPreviewIssue
+        ? boardIssues.filter((issue) => issue.parent_id === dashboardPreviewIssue.id)
+        : [],
+    [boardIssues, dashboardPreviewIssue]
+  );
+  const dashboardPreviewLinkedApprovals = useMemo(
+    () =>
+      dashboardPreviewIssue
+        ? (companySnapshot?.approvals ?? []).filter((approval) =>
+            approvalLinksIssue(approval, dashboardPreviewIssue.id)
+          )
+        : [],
+    [companySnapshot?.approvals, dashboardPreviewIssue]
+  );
+  const dashboardPreviewRunCardUpdate = dashboardPreviewIssue
+    ? (issueRunCardUpdatesByIssueId[dashboardPreviewIssue.id] ?? null)
+    : null;
   const boardGoals = companySnapshot?.goals ?? emptyGoalRecords;
   const selectedGoal =
     boardGoals.find((goal) => goal.id === selectedGoalId) ??
@@ -1679,6 +1714,89 @@ export function App() {
       setIssuesRouteMode("list");
     }
   }, [issuesRouteMode, selectedIssueId]);
+
+  useEffect(() => {
+    if (!dashboardIssuePreviewId) {
+      setIsDashboardIssuePreviewLoading(false);
+      setDashboardIssuePreviewError(null);
+      return;
+    }
+
+    if (selectedScreen !== "dashboard" || !selectedCompanyId) {
+      setDashboardIssuePreviewId(null);
+      setIsDashboardIssuePreviewLoading(false);
+      setDashboardIssuePreviewError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setIsDashboardIssuePreviewLoading(true);
+    setDashboardIssuePreviewError(null);
+
+    const loadDashboardIssuePreview = async () => {
+      try {
+        const [freshIssue, comments, attachments] = await Promise.all([
+          boardGetIssue(dashboardIssuePreviewId),
+          boardListIssueComments(dashboardIssuePreviewId),
+          boardListIssueAttachments(dashboardIssuePreviewId),
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        const detailIssue = freshIssue as IssueRecord;
+        setCompanySnapshot((current) => {
+          if (!current) {
+            return current;
+          }
+
+          return {
+            ...current,
+            issues: current.issues.map((issue) =>
+              issue.id === detailIssue.id ? detailIssue : issue
+            ),
+          };
+        });
+        setIssueCommentsByIssueId((current) => ({
+          ...current,
+          [dashboardIssuePreviewId]: comments as IssueCommentRecord[],
+        }));
+        setIssueAttachmentsByIssueId((current) => ({
+          ...current,
+          [dashboardIssuePreviewId]: attachments as IssueAttachmentRecord[],
+        }));
+        setDashboardIssuePreviewError(null);
+      } catch (error) {
+        if (!cancelled) {
+          setDashboardIssuePreviewError(
+            error instanceof Error ? error.message : String(error)
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsDashboardIssuePreviewLoading(false);
+        }
+      }
+    };
+
+    void loadDashboardIssuePreview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dashboardIssuePreviewId, selectedCompanyId, selectedScreen]);
+
+  useEffect(() => {
+    if (
+      dashboardIssuePreviewId &&
+      !boardIssues.some((issue) => issue.id === dashboardIssuePreviewId)
+    ) {
+      setDashboardIssuePreviewId(null);
+      setDashboardIssuePreviewError(null);
+      setIsDashboardIssuePreviewLoading(false);
+    }
+  }, [boardIssues, dashboardIssuePreviewId]);
 
   useEffect(() => {
     if (!selectedIssue || issuesRouteMode !== "detail") {
@@ -3035,6 +3153,17 @@ export function App() {
     });
   };
 
+  const handleOpenDashboardIssuePreview = (issueId: string) => {
+    setDashboardIssuePreviewId(issueId);
+    setDashboardIssuePreviewError(null);
+  };
+
+  const handleCloseDashboardIssuePreview = () => {
+    setDashboardIssuePreviewId(null);
+    setDashboardIssuePreviewError(null);
+    setIsDashboardIssuePreviewLoading(false);
+  };
+
   const handleSelectIssue = async (issueId: string) => {
     setStatusMessage(null);
     try {
@@ -3050,6 +3179,11 @@ export function App() {
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : String(error));
     }
+  };
+
+  const handleOpenDashboardIssueDetail = async (issueId: string) => {
+    handleCloseDashboardIssuePreview();
+    await handleSelectIssue(issueId);
   };
 
   const beginEditingIssue = (issue: IssueRecord) => {
@@ -4084,7 +4218,7 @@ export function App() {
                 canvasOffset={dashboardCanvasOffset}
                 isDragging={isDashboardCanvasDragging}
                 onCreateProject={handleOpenCreateProjectDialog}
-                onOpenIssue={(issueId) => void handleSelectIssue(issueId)}
+                onOpenIssue={handleOpenDashboardIssuePreview}
                 onPointerCancel={handleDashboardCanvasPointerEnd}
                 onPointerDown={handleDashboardCanvasPointerDown}
                 onPointerMove={handleDashboardCanvasPointerMove}
@@ -5015,6 +5149,33 @@ export function App() {
           workspaceTargetErrorMessage={issueDialogWorktreeState.errorMessage}
           workspaceTargetLoading={issueDialogWorktreeState.isLoading}
           workspaceTargetWorktrees={issueDialogWorktreeState.worktrees}
+        />
+      ) : null}
+
+      {dashboardIssuePreviewId && dashboardPreviewIssue ? (
+        <DashboardIssuePreviewDialogView
+          agents={boardAgents}
+          assigneeLabel={(assigneeAgentId) =>
+            issueAssigneeLabel(boardAgents, assigneeAgentId)
+          }
+          attachments={dashboardPreviewAttachments}
+          comments={dashboardPreviewComments}
+          errorMessage={dashboardIssuePreviewError}
+          isLoading={isDashboardIssuePreviewLoading}
+          issue={dashboardPreviewIssue}
+          linkedApprovalCount={dashboardPreviewLinkedApprovals.length}
+          onClose={handleCloseDashboardIssuePreview}
+          onOpenIssue={() =>
+            void handleOpenDashboardIssueDetail(dashboardPreviewIssue.id)
+          }
+          parentIssueLabel={(parentIssueId) =>
+            issueParentLabel(boardIssues, parentIssueId)
+          }
+          priorityLabel={humanizeIssueValue}
+          projectLabel={(projectId) => issueProjectLabel(boardProjects, projectId)}
+          runCardUpdate={dashboardPreviewRunCardUpdate}
+          statusLabel={issueStatusLabel}
+          subissueCount={dashboardPreviewSubissues.length}
         />
       ) : null}
     </div>
@@ -6180,6 +6341,211 @@ function AgentConfigToggleField({
   );
 }
 
+function AgentRunEventDetails({ event }: { event: AgentRunEventRecord }) {
+  const payload = objectFromUnknown(event.payload);
+  const item = objectFromUnknown(payload.item);
+  const usage = objectFromUnknown(payload.usage);
+  const cleanMessage = cleanedAgentRunEventMessage(event.message);
+
+  if (event.event_type === "item.completed.agent_message") {
+    const text = stringFromUnknown(item.text).trim() || cleanMessage;
+    if (text) {
+      return (
+        <div className="agent-run-structured-card">
+          <div className="agent-run-structured-header">
+            <span className="agent-run-structured-kicker">Agent update</span>
+            <span className="agent-run-structured-state neutral">Completed</span>
+          </div>
+          <div className="agent-run-structured-copy">{text}</div>
+        </div>
+      );
+    }
+  }
+
+  if (
+    event.event_type === "item.started.command_execution" ||
+    event.event_type === "item.completed.command_execution"
+  ) {
+    const command = stringFromUnknown(item.command).trim();
+    const output = stringFromUnknown(item.aggregated_output).trim();
+    const status = stringFromUnknown(item.status, "completed");
+    const exitCode = numberFromUnknown(item.exit_code);
+
+    return (
+      <div className="agent-run-structured-card">
+        <div className="agent-run-structured-header">
+          <span className="agent-run-structured-kicker">Command</span>
+          <span
+            className={`agent-run-structured-state ${agentRunEventStateTone(status)}`}
+          >
+            {agentRunEventStateLabel(status)}
+          </span>
+        </div>
+        {command ? (
+          <pre className="agent-run-structured-command">{command}</pre>
+        ) : null}
+        {output ? <pre className="agent-run-structured-output">{output}</pre> : null}
+        {typeof exitCode === "number" ? (
+          <div className="agent-run-structured-meta">
+            <span>Exit code {exitCode}</span>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (event.event_type === "thread.started") {
+    const threadId = stringFromUnknown(payload.thread_id).trim();
+    return (
+      <div className="agent-run-structured-card subtle">
+        <div className="agent-run-structured-header">
+          <span className="agent-run-structured-kicker">Thread</span>
+          <span className="agent-run-structured-state neutral">Started</span>
+        </div>
+        <div className="agent-run-structured-copy">
+          {threadId ? `Codex resumed thread ${threadId}.` : "Codex thread started."}
+        </div>
+      </div>
+    );
+  }
+
+  if (event.event_type === "turn.started") {
+    return (
+      <div className="agent-run-structured-card subtle">
+        <div className="agent-run-structured-header">
+          <span className="agent-run-structured-kicker">Turn</span>
+          <span className="agent-run-structured-state running">Running</span>
+        </div>
+        <div className="agent-run-structured-copy">
+          Codex started a new turn.
+        </div>
+      </div>
+    );
+  }
+
+  if (event.event_type === "turn.completed") {
+    const inputTokens = numberFromUnknown(usage.input_tokens);
+    const cachedInputTokens = numberFromUnknown(usage.cached_input_tokens);
+    const outputTokens = numberFromUnknown(usage.output_tokens);
+
+    return (
+      <div className="agent-run-structured-card subtle">
+        <div className="agent-run-structured-header">
+          <span className="agent-run-structured-kicker">Turn</span>
+          <span className="agent-run-structured-state succeeded">Completed</span>
+        </div>
+        <div className="agent-run-structured-copy">
+          Codex finished the turn.
+        </div>
+        {inputTokens !== undefined ||
+        cachedInputTokens !== undefined ||
+        outputTokens !== undefined ? (
+          <div className="agent-run-structured-meta">
+            {inputTokens !== undefined ? (
+              <span>{formatAgentRunMetricLabel("Input", inputTokens)}</span>
+            ) : null}
+            {cachedInputTokens !== undefined ? (
+              <span>{formatAgentRunMetricLabel("Cached", cachedInputTokens)}</span>
+            ) : null}
+            {outputTokens !== undefined ? (
+              <span>{formatAgentRunMetricLabel("Output", outputTokens)}</span>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (event.event_type === "run_started") {
+    const localSessionId = stringFromUnknown(payload.local_session_id).trim();
+    return (
+      <div className="agent-run-structured-card subtle">
+        <div className="agent-run-structured-header">
+          <span className="agent-run-structured-kicker">Run</span>
+          <span className="agent-run-structured-state neutral">Started</span>
+        </div>
+        <div className="agent-run-structured-copy">
+          {cleanMessage || "The run has started."}
+        </div>
+        {localSessionId ? (
+          <div className="agent-run-structured-meta">
+            <span>Local session {localSessionId}</span>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (
+    event.event_type === "finished" ||
+    event.event_type === "stopped" ||
+    event.event_type === "timed_out"
+  ) {
+    const success = booleanFromUnknown(payload.success);
+    const exitCode = numberFromUnknown(payload.exit_code);
+    const message =
+      cleanMessage ||
+      (event.event_type === "timed_out"
+        ? "The run timed out."
+        : event.event_type === "stopped"
+          ? "The run was cancelled."
+          : success
+            ? "The run finished successfully."
+            : "The run finished.");
+
+    return (
+      <div className="agent-run-structured-card subtle">
+        <div className="agent-run-structured-header">
+          <span className="agent-run-structured-kicker">Run</span>
+          <span
+            className={`agent-run-structured-state ${agentRunEventStateTone(
+              success ? "completed" : event.event_type
+            )}`}
+          >
+            {agentRunEventStateLabel(
+              success ? "completed" : event.event_type
+            )}
+          </span>
+        </div>
+        <div className="agent-run-structured-copy">{message}</div>
+        {typeof exitCode === "number" ? (
+          <div className="agent-run-structured-meta">
+            <span>Exit code {exitCode}</span>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (event.stream === "stderr" || event.event_type === "stderr") {
+    if (cleanMessage) {
+      return (
+        <div className="agent-run-structured-card warning">
+          <div className="agent-run-structured-header">
+            <span className="agent-run-structured-kicker">Warning</span>
+            <span className="agent-run-structured-state failed">
+              {event.level ? capitalize(event.level) : "Stderr"}
+            </span>
+          </div>
+          <pre className="agent-run-structured-output">{cleanMessage}</pre>
+        </div>
+      );
+    }
+  }
+
+  if (cleanMessage) {
+    return <p>{cleanMessage}</p>;
+  }
+
+  if (event.payload !== undefined && event.payload !== null) {
+    return (
+      <pre className="agent-run-json-block">{formatJsonBlock(event.payload)}</pre>
+    );
+  }
+
+  return null;
+}
+
 function AgentRunsTabPanel({
   agentRunError,
   agentRunEvents,
@@ -6403,13 +6769,7 @@ function AgentRunsTabPanel({
                             </strong>
                             <span>{formatIssueDate(event.created_at)}</span>
                           </div>
-                          {event.message ? <p>{event.message}</p> : null}
-                          {event.payload !== undefined &&
-                          event.payload !== null ? (
-                            <pre className="agent-run-json-block">
-                              {formatJsonBlock(event.payload)}
-                            </pre>
-                          ) : null}
+                          <AgentRunEventDetails event={event} />
                         </article>
                       ))}
                     </div>
@@ -6998,6 +7358,15 @@ function DashboardCanvasRouteView({
                                         ? issueRunCardUpdateSummary(cardUpdate)
                                         : null;
 
+                                      const cardAssigneeLabel =
+                                        issueAssigneeLabel(
+                                          agents,
+                                          issue.assignee_agent_id
+                                        );
+                                      const hasCardAssignee = Boolean(
+                                        issue.assignee_agent_id
+                                      );
+
                                       return (
                                         <button
                                           className="project-kanban-card"
@@ -7008,10 +7377,25 @@ function DashboardCanvasRouteView({
                                           onClick={() => onOpenIssue(issue.id)}
                                           type="button"
                                         >
-                                          <strong>
-                                            {issue.identifier ?? issue.title}
-                                          </strong>
-                                          <p>{issue.title}</p>
+                                          <div className="project-kanban-card-header">
+                                            <span className="project-kanban-card-identifier">
+                                              {issue.identifier ?? ""}
+                                            </span>
+                                            <span
+                                              aria-hidden="true"
+                                              className={
+                                                hasCardAssignee
+                                                  ? "project-kanban-card-assignee-avatar"
+                                                  : "project-kanban-card-assignee-avatar is-unassigned"
+                                              }
+                                              title={cardAssigneeLabel}
+                                            >
+                                              {hasCardAssignee
+                                                ? agentInitials(cardAssigneeLabel)
+                                                : "?"}
+                                            </span>
+                                          </div>
+                                          <strong>{issue.title}</strong>
                                           {cardUpdate ? (
                                             <div className="project-kanban-card-update">
                                               <span
@@ -7029,17 +7413,6 @@ function DashboardCanvasRouteView({
                                               </span>
                                             </div>
                                           ) : null}
-                                          <div className="project-kanban-card-meta">
-                                            {projectBoardCardMeta(
-                                              projectBoard.grouping,
-                                              issue,
-                                              agents
-                                            ).map((meta, index) => (
-                                              <span key={`${issue.id}-${index}`}>
-                                                {meta}
-                                              </span>
-                                            ))}
-                                          </div>
                                         </button>
                                       );
                                     })}
@@ -8495,6 +8868,274 @@ function IssuePropertyToneMarker({ tone }: { tone?: string }) {
       className="issue-property-tone-marker"
       data-tone={tone ?? "neutral"}
     />
+  );
+}
+
+function DashboardIssuePreviewDialogView({
+  agents,
+  assigneeLabel,
+  attachments,
+  comments,
+  errorMessage,
+  isLoading,
+  issue,
+  linkedApprovalCount,
+  onClose,
+  onOpenIssue,
+  parentIssueLabel,
+  priorityLabel,
+  projectLabel,
+  runCardUpdate,
+  statusLabel,
+  subissueCount,
+}: {
+  agents: AgentRecord[];
+  assigneeLabel: (assigneeAgentId?: string | null) => string;
+  attachments: IssueAttachmentRecord[];
+  comments: IssueCommentRecord[];
+  errorMessage: string | null;
+  isLoading: boolean;
+  issue: IssueRecord;
+  linkedApprovalCount: number;
+  onClose: () => void;
+  onOpenIssue: () => void;
+  parentIssueLabel: (parentIssueId?: string | null) => string;
+  priorityLabel: (value: string) => string;
+  projectLabel: (projectId?: string | null) => string;
+  runCardUpdate: IssueRunCardUpdateRecord | null;
+  statusLabel: (value: string) => string;
+  subissueCount: number;
+}) {
+  const latestComments = [...comments].slice(-2).reverse();
+  const previewAttachments = attachments.slice(0, 3);
+  const issueDescription = issue.description?.trim() ?? "";
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
+  return (
+    <div className="modal-backdrop" onClick={onClose} role="presentation">
+      <div
+        aria-labelledby="dashboard-issue-preview-title"
+        aria-modal="true"
+        className="issue-dialog dashboard-issue-preview-dialog"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <div className="issue-dialog-header">
+          <div className="issue-dialog-breadcrumbs">
+            <span className="issue-dialog-badge">
+              {issue.identifier ?? issue.id}
+            </span>
+            <span aria-hidden="true" className="issue-dialog-breadcrumb-sep">
+              &gt;
+            </span>
+            <span>{projectLabel(issue.project_id)}</span>
+          </div>
+          <button
+            aria-label="Close issue preview"
+            className="project-dialog-close issue-dialog-close"
+            onClick={onClose}
+            type="button"
+          >
+            x
+          </button>
+        </div>
+
+        <div className="dashboard-issue-preview-body">
+          <div className="dashboard-issue-preview-main">
+            <div className="dashboard-issue-preview-identity">
+              <h2 id="dashboard-issue-preview-title">{issue.title}</h2>
+              <p>
+                {issueDescription ||
+                  "No description yet. Open the issue detail page to add context, scope, or notes."}
+              </p>
+            </div>
+
+            <div className="dashboard-issue-preview-summary">
+              <SummaryPill label="Status" value={statusLabel(issue.status)} />
+              <SummaryPill
+                label="Priority"
+                value={priorityLabel(issue.priority)}
+              />
+              <SummaryPill
+                label="Assignee"
+                value={assigneeLabel(issue.assignee_agent_id)}
+              />
+              <SummaryPill label="Comments" value={comments.length} />
+              <SummaryPill label="Attachments" value={attachments.length} />
+              <SummaryPill label="Sub-issues" value={subissueCount} />
+              <SummaryPill label="Approvals" value={linkedApprovalCount} />
+            </div>
+
+            {runCardUpdate ? (
+              <section className="dashboard-issue-preview-update">
+                <div className="dashboard-issue-preview-update-header">
+                  <strong>Latest run</strong>
+                  <RunStatusBadge status={runCardUpdate.run_status} />
+                </div>
+                <p>{issueRunCardUpdateSummary(runCardUpdate)}</p>
+                <span>
+                  Last activity {formatRelativeIssueDate(runCardUpdate.last_activity_at)}
+                </span>
+              </section>
+            ) : null}
+
+            {errorMessage ? (
+              <div className="issue-dialog-alert">{errorMessage}</div>
+            ) : null}
+
+            {isLoading ? (
+              <p className="issues-detail-copy muted">
+                Loading the latest issue details...
+              </p>
+            ) : null}
+
+            <div className="dashboard-issue-preview-sections">
+              <section className="dashboard-issue-preview-section">
+                <div className="issues-detail-subsection-header">
+                  <div className="issues-detail-subsection-copy">
+                    <h3>Recent comments</h3>
+                    <p className="issues-detail-copy muted">
+                      A quick snapshot from the issue conversation.
+                    </p>
+                  </div>
+                </div>
+
+                {latestComments.length ? (
+                  <div className="issues-comment-list">
+                    {latestComments.map((comment) => (
+                      <article className="issues-comment-card" key={comment.id}>
+                        {comment.target_agent_id ? (
+                          <div className="issues-comment-card-target">
+                            Tagged {assigneeLabel(comment.target_agent_id)}
+                          </div>
+                        ) : null}
+                        <p>{comment.body}</p>
+                        <span>{formatIssueDate(comment.created_at)}</span>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="issues-detail-copy muted">
+                    No comments yet.
+                  </p>
+                )}
+              </section>
+
+              <section className="dashboard-issue-preview-section">
+                <div className="issues-detail-subsection-header">
+                  <div className="issues-detail-subsection-copy">
+                    <h3>Attachments</h3>
+                    <p className="issues-detail-copy muted">
+                      Recent files linked to this issue.
+                    </p>
+                  </div>
+                </div>
+
+                {previewAttachments.length ? (
+                  <div className="issue-attachment-list">
+                    {previewAttachments.map((attachment) => (
+                      <div className="issue-attachment-row" key={attachment.id}>
+                        <div className="issue-attachment-meta">
+                          <strong>
+                            {attachment.original_filename ??
+                              fileName(attachment.local_path)}
+                          </strong>
+                          <span>
+                            {formatFileSize(attachment.byte_size)} ·{" "}
+                            {formatIssueDate(attachment.created_at)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="issues-detail-copy muted">
+                    No attachments yet.
+                  </p>
+                )}
+              </section>
+            </div>
+          </div>
+
+          <aside className="dashboard-issue-preview-sidebar">
+            <section className="issues-properties-section">
+              <IssuePropertyStaticRow
+                label="Status"
+                tone={normalizeBoardIssueValue(issue.status)}
+                value={statusLabel(issue.status)}
+              />
+              <IssuePropertyStaticRow
+                label="Priority"
+                tone={normalizeBoardIssueValue(issue.priority)}
+                value={priorityLabel(issue.priority)}
+              />
+              <IssuePropertyStaticRow
+                label="Assignee"
+                tone="agent"
+                value={assigneeLabel(issue.assignee_agent_id)}
+              />
+              <IssuePropertyStaticRow
+                label="Project"
+                tone="project"
+                value={projectLabel(issue.project_id)}
+              />
+              <IssuePropertyStaticRow
+                label="Parent"
+                value={parentIssueLabel(issue.parent_id)}
+              />
+              <IssuePropertyStaticRow
+                label="Created by"
+                value={issueCreatorLabel(issue, agents)}
+              />
+              <IssuePropertyStaticRow
+                label="Created"
+                value={formatBoardDate(issue.created_at)}
+              />
+              <IssuePropertyStaticRow
+                label="Updated"
+                value={formatRelativeIssueDate(issue.updated_at)}
+              />
+            </section>
+          </aside>
+        </div>
+
+        <div className="issue-dialog-footer dashboard-issue-preview-footer">
+          <div className="issue-dialog-footer-tools">
+            <span className="issues-detail-copy muted">
+              Previewing the issue from the dashboard kanban board.
+            </span>
+          </div>
+          <div className="issue-dialog-footer-actions">
+            <button
+              className="issue-dialog-discard-button"
+              onClick={onClose}
+              type="button"
+            >
+              Close
+            </button>
+            <button
+              className="primary-button issue-dialog-create-button"
+              onClick={onOpenIssue}
+              type="button"
+            >
+              Open issue detail
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -12905,30 +13546,6 @@ function buildDashboardProjectColumns(
   });
 }
 
-function projectBoardCardMeta(
-  grouping: DashboardProjectGrouping,
-  issue: IssueRecord,
-  agents: AgentRecord[]
-) {
-  switch (grouping) {
-    case "priority":
-      return [
-        humanizeIssueValue(issue.status),
-        issueAssigneeLabel(agents, issue.assignee_agent_id),
-      ];
-    case "assignee":
-      return [
-        humanizeIssueValue(issue.status),
-        humanizeIssueValue(issue.priority),
-      ];
-    default:
-      return [
-        humanizeIssueValue(issue.priority),
-        issueAssigneeLabel(agents, issue.assignee_agent_id),
-      ];
-  }
-}
-
 function buildDashboardCanvasBounds(
   projectColumns: DashboardProjectColumnLayout[]
 ) {
@@ -13516,7 +14133,32 @@ function issueCreatorLabel(issue: IssueRecord, agents: AgentRecord[]) {
 }
 
 function agentRunEventLabel(eventType: string) {
-  return humanizeIssueValue(eventType);
+  switch (eventType) {
+    case "item.completed.agent_message":
+      return "Agent Update";
+    case "item.started.command_execution":
+      return "Command Started";
+    case "item.completed.command_execution":
+      return "Command Finished";
+    case "thread.started":
+      return "Thread Started";
+    case "turn.started":
+      return "Turn Started";
+    case "turn.completed":
+      return "Turn Completed";
+    case "run_started":
+      return "Run Started";
+    case "finished":
+      return "Run Finished";
+    case "stopped":
+      return "Run Cancelled";
+    case "timed_out":
+      return "Run Timed Out";
+    case "stderr":
+      return "Warning";
+    default:
+      return humanizeIssueValue(eventType);
+  }
 }
 
 function formatRelativeAgentRunDate(value: string | null | undefined) {
@@ -13552,6 +14194,61 @@ function formatJsonBlock(value: unknown) {
   } catch {
     return String(value);
   }
+}
+
+function cleanedAgentRunEventMessage(message: string | null | undefined) {
+  const trimmed = message?.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (
+    (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+    (trimmed.startsWith("[") && trimmed.endsWith("]"))
+  ) {
+    return "";
+  }
+
+  return trimmed;
+}
+
+function agentRunEventStateLabel(value: string) {
+  switch (value) {
+    case "in_progress":
+      return "Running";
+    case "completed":
+      return "Completed";
+    case "timed_out":
+      return "Timed out";
+    case "stopped":
+      return "Cancelled";
+    default:
+      return humanizeIssueValue(value);
+  }
+}
+
+function agentRunEventStateTone(value: string) {
+  switch (value) {
+    case "in_progress":
+    case "running":
+      return "running";
+    case "completed":
+    case "succeeded":
+      return "succeeded";
+    case "timed_out":
+    case "failed":
+    case "stderr":
+      return "failed";
+    case "stopped":
+    case "cancelled":
+      return "cancelled";
+    default:
+      return "neutral";
+  }
+}
+
+function formatAgentRunMetricLabel(label: string, value: number) {
+  return `${label} ${value.toLocaleString("en-US")}`;
 }
 
 function companyBudgetCents(company: Company | null) {
