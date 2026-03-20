@@ -142,6 +142,8 @@ pub fn create_session<A: SessionWriter + SessionReader>(
         issue_id: params.issue_id.clone(),
         issue_title: params.issue_title.clone(),
         issue_url: params.issue_url.clone(),
+        provider: None,
+        provider_session_id: None,
         claude_session_id: None,
         is_worktree: params.is_worktree,
         worktree_path,

@@ -162,8 +162,8 @@ pub fn insert_session(
 ) -> DatabaseResult<AgentCodingSession> {
     let now = Utc::now().to_rfc3339();
     conn.execute(
-        "INSERT INTO agent_coding_sessions (id, repository_id, title, agent_id, agent_name, issue_id, issue_title, issue_url, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'active', ?10, ?11, ?12, ?12, ?12)",
+        "INSERT INTO agent_coding_sessions (id, repository_id, title, agent_id, agent_name, issue_id, issue_title, issue_url, provider, provider_session_id, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'active', ?12, ?13, ?14, ?14, ?14)",
         params![
             session.id,
             session.repository_id,
@@ -173,6 +173,8 @@ pub fn insert_session(
             session.issue_id,
             session.issue_title,
             session.issue_url,
+            session.provider,
+            session.provider_session_id,
             session.claude_session_id,
             session.is_worktree,
             session.worktree_path,
@@ -186,7 +188,7 @@ pub fn insert_session(
 /// Get a session by ID.
 pub fn get_session(conn: &Connection, id: &str) -> DatabaseResult<Option<AgentCodingSession>> {
     let mut stmt = conn.prepare_cached(
-        "SELECT id, repository_id, title, agent_id, agent_name, issue_id, issue_title, issue_url, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
+        "SELECT id, repository_id, title, agent_id, agent_name, issue_id, issue_title, issue_url, provider, provider_session_id, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
          FROM agent_coding_sessions WHERE id = ?1",
     )?;
 
@@ -200,13 +202,15 @@ pub fn get_session(conn: &Connection, id: &str) -> DatabaseResult<Option<AgentCo
             issue_id: row.get(5)?,
             issue_title: row.get(6)?,
             issue_url: row.get(7)?,
-            claude_session_id: row.get(8)?,
-            status: SessionStatus::from_str(&row.get::<_, String>(9)?),
-            is_worktree: row.get(10)?,
-            worktree_path: row.get(11)?,
-            created_at: parse_datetime(row.get::<_, String>(12)?),
-            last_accessed_at: parse_datetime(row.get::<_, String>(13)?),
-            updated_at: parse_datetime(row.get::<_, String>(14)?),
+            provider: row.get(8)?,
+            provider_session_id: row.get(9)?,
+            claude_session_id: row.get(10)?,
+            status: SessionStatus::from_str(&row.get::<_, String>(11)?),
+            is_worktree: row.get(12)?,
+            worktree_path: row.get(13)?,
+            created_at: parse_datetime(row.get::<_, String>(14)?),
+            last_accessed_at: parse_datetime(row.get::<_, String>(15)?),
+            updated_at: parse_datetime(row.get::<_, String>(16)?),
         })
     });
 
@@ -223,7 +227,7 @@ pub fn list_sessions_for_repository(
     repository_id: &str,
 ) -> DatabaseResult<Vec<AgentCodingSession>> {
     let mut stmt = conn.prepare_cached(
-        "SELECT id, repository_id, title, agent_id, agent_name, issue_id, issue_title, issue_url, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
+        "SELECT id, repository_id, title, agent_id, agent_name, issue_id, issue_title, issue_url, provider, provider_session_id, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
          FROM agent_coding_sessions WHERE repository_id = ?1 ORDER BY last_accessed_at DESC",
     )?;
 
@@ -238,13 +242,15 @@ pub fn list_sessions_for_repository(
                 issue_id: row.get(5)?,
                 issue_title: row.get(6)?,
                 issue_url: row.get(7)?,
-                claude_session_id: row.get(8)?,
-                status: SessionStatus::from_str(&row.get::<_, String>(9)?),
-                is_worktree: row.get(10)?,
-                worktree_path: row.get(11)?,
-                created_at: parse_datetime(row.get::<_, String>(12)?),
-                last_accessed_at: parse_datetime(row.get::<_, String>(13)?),
-                updated_at: parse_datetime(row.get::<_, String>(14)?),
+                provider: row.get(8)?,
+                provider_session_id: row.get(9)?,
+                claude_session_id: row.get(10)?,
+                status: SessionStatus::from_str(&row.get::<_, String>(11)?),
+                is_worktree: row.get(12)?,
+                worktree_path: row.get(13)?,
+                created_at: parse_datetime(row.get::<_, String>(14)?),
+                last_accessed_at: parse_datetime(row.get::<_, String>(15)?),
+                updated_at: parse_datetime(row.get::<_, String>(16)?),
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -289,7 +295,12 @@ pub fn update_session_claude_id(
 ) -> DatabaseResult<bool> {
     let now = Utc::now().to_rfc3339();
     let count = conn.execute(
-        "UPDATE agent_coding_sessions SET claude_session_id = ?1, updated_at = ?2 WHERE id = ?3",
+        "UPDATE agent_coding_sessions
+         SET provider = 'claude',
+             provider_session_id = ?1,
+             claude_session_id = ?1,
+             updated_at = ?2
+         WHERE id = ?3",
         params![claude_session_id, now, id],
     )?;
     Ok(count > 0)
@@ -714,6 +725,8 @@ mod tests {
                 issue_id: None,
                 issue_title: None,
                 issue_url: None,
+                provider: None,
+                provider_session_id: None,
                 claude_session_id: None,
                 is_worktree: false,
                 worktree_path: None,
@@ -870,6 +883,8 @@ mod tests {
                 issue_id: Some(issue_id.clone()),
                 issue_title: Some("Fix launch bug".into()),
                 issue_url: Some("https://example.com/issues/ENG-123".into()),
+                provider: Some("claude".into()),
+                provider_session_id: Some("claude-xyz".into()),
                 claude_session_id: Some("claude-xyz".into()),
                 is_worktree: true,
                 worktree_path: Some("/worktree".into()),
@@ -960,6 +975,8 @@ mod tests {
                 issue_id: None,
                 issue_title: None,
                 issue_url: None,
+                provider: None,
+                provider_session_id: None,
                 claude_session_id: None,
                 is_worktree: false,
                 worktree_path: None,
@@ -977,6 +994,8 @@ mod tests {
                 issue_id: Some(issue_id.clone()),
                 issue_title: Some("Investigate session linking".into()),
                 issue_url: Some("https://example.com/issues/ENG-999".into()),
+                provider: None,
+                provider_session_id: None,
                 claude_session_id: None,
                 is_worktree: false,
                 worktree_path: None,

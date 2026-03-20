@@ -339,6 +339,8 @@ pub struct Session {
     pub issue_id: Option<String>,
     pub issue_title: Option<String>,
     pub issue_url: Option<String>,
+    pub provider: Option<String>,
+    pub provider_session_id: Option<String>,
     pub claude_session_id: Option<String>,
     pub status: SessionStatus,
     pub is_worktree: bool,
@@ -359,6 +361,8 @@ pub struct NewSession {
     pub issue_id: Option<String>,
     pub issue_title: Option<String>,
     pub issue_url: Option<String>,
+    pub provider: Option<String>,
+    pub provider_session_id: Option<String>,
     pub claude_session_id: Option<String>,
     pub is_worktree: bool,
     pub worktree_path: Option<String>,
@@ -380,6 +384,8 @@ impl NewSession {
             issue_id: None,
             issue_title: None,
             issue_url: None,
+            provider: None,
+            provider_session_id: None,
             claude_session_id: None,
             is_worktree: false,
             worktree_path: None,
@@ -405,10 +411,26 @@ impl NewSession {
             issue_id: None,
             issue_title: None,
             issue_url: None,
+            provider: None,
+            provider_session_id: None,
             claude_session_id: None,
             is_worktree: true,
             worktree_path: Some(worktree_path.into()),
         }
+    }
+}
+
+impl Session {
+    pub fn effective_provider(&self) -> Option<&str> {
+        self.provider
+            .as_deref()
+            .or_else(|| self.claude_session_id.as_ref().map(|_| "claude"))
+    }
+
+    pub fn effective_provider_session_id(&self) -> Option<&str> {
+        self.provider_session_id
+            .as_deref()
+            .or(self.claude_session_id.as_deref())
     }
 }
 

@@ -19,7 +19,7 @@ pub struct Repository {
     pub updated_at: DateTime<Utc>,
 }
 
-/// Agent coding session - a Claude conversation.
+/// Agent coding session metadata for a local coding CLI conversation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentCodingSession {
     pub id: String,
@@ -30,6 +30,8 @@ pub struct AgentCodingSession {
     pub issue_id: Option<String>,
     pub issue_title: Option<String>,
     pub issue_url: Option<String>,
+    pub provider: Option<String>,
+    pub provider_session_id: Option<String>,
     pub claude_session_id: Option<String>,
     pub status: SessionStatus,
     pub is_worktree: bool,
@@ -196,6 +198,8 @@ pub struct NewAgentCodingSession {
     pub issue_id: Option<String>,
     pub issue_title: Option<String>,
     pub issue_url: Option<String>,
+    pub provider: Option<String>,
+    pub provider_session_id: Option<String>,
     pub claude_session_id: Option<String>,
     pub is_worktree: bool,
     pub worktree_path: Option<String>,

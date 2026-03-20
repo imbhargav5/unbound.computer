@@ -59,15 +59,25 @@ pub trait SessionWriter {
 
     /// Updates a session's metadata.
     ///
-    /// Use this to update title, claude_session_id, status, etc.
+    /// Use this to update title, provider session metadata, status, etc.
     fn update_session(&self, id: &SessionId, update: SessionUpdate) -> Result<bool, ArminError>;
+
+    /// Updates the active provider and provider session ID for a session.
+    fn update_session_provider_session(
+        &self,
+        id: &SessionId,
+        provider: &str,
+        provider_session_id: &str,
+    ) -> Result<bool, ArminError>;
 
     /// Updates the Claude session ID for a session.
     fn update_session_claude_id(
         &self,
         id: &SessionId,
         claude_session_id: &str,
-    ) -> Result<bool, ArminError>;
+    ) -> Result<bool, ArminError> {
+        self.update_session_provider_session(id, "claude", claude_session_id)
+    }
 
     /// Deletes a session.
     ///

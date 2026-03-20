@@ -123,6 +123,13 @@ type AppScreen =
   | "companySettings"
   | "appSettings";
 
+const emptyAgentRecords: AgentRecord[] = [];
+const emptyApprovalRecords: ApprovalRecord[] = [];
+const emptyGoalRecords: GoalRecord[] = [];
+const emptyIssueRecords: IssueRecord[] = [];
+const emptyProjectRecords: ProjectRecord[] = [];
+const emptyWorkspaceRecords: WorkspaceRecord[] = [];
+
 type SettingsSection =
   | "general"
   | "appearance"
@@ -808,7 +815,7 @@ export function App() {
     (repository) => repository.id === selectedRepositoryId
   );
   const selectedCompany = companySnapshot?.company ?? null;
-  const boardIssues = companySnapshot?.issues ?? [];
+  const boardIssues = companySnapshot?.issues ?? emptyIssueRecords;
   const selectedIssue =
     boardIssues.find((issue) => issue.id === selectedIssueId) ?? null;
   const visibleIssues = useMemo(
@@ -852,12 +859,12 @@ export function App() {
   const selectedIssueAttachments = selectedIssue
     ? (issueAttachmentsByIssueId[selectedIssue.id] ?? [])
     : [];
-  const boardGoals = companySnapshot?.goals ?? [];
+  const boardGoals = companySnapshot?.goals ?? emptyGoalRecords;
   const selectedGoal =
     boardGoals.find((goal) => goal.id === selectedGoalId) ??
     boardGoals[0] ??
     null;
-  const boardProjects = companySnapshot?.projects ?? [];
+  const boardProjects = companySnapshot?.projects ?? emptyProjectRecords;
   const issueDialogProjectRepoPath =
     boardProjects.find((project) => project.id === issueDialogProjectId)
       ?.primary_workspace?.cwd ?? null;
@@ -870,7 +877,7 @@ export function App() {
   const issueDetailWorktreeState = useProjectWorktrees(
     issueDetailProjectRepoPath
   );
-  const boardAgents = companySnapshot?.agents ?? [];
+  const boardAgents = companySnapshot?.agents ?? emptyAgentRecords;
   const dashboardProjectViews = settings.dashboard_project_views ?? {};
   const dashboardProjectColumns = useMemo(
     () =>
@@ -893,10 +900,7 @@ export function App() {
       ).sort(),
     [boardIssues]
   );
-  const dashboardProjectIssueIdSet = useMemo(
-    () => new Set(dashboardProjectIssueIds),
-    [dashboardProjectIssueIds]
-  );
+  const dashboardProjectIssueIdsKey = dashboardProjectIssueIds.join("|");
   const dashboardCanvasBounds = useMemo(
     () => buildDashboardCanvasBounds(dashboardProjectColumns),
     [dashboardProjectColumns]
@@ -905,12 +909,12 @@ export function App() {
     boardProjects.find((project) => project.id === selectedProjectId) ??
     boardProjects[0] ??
     null;
-  const boardApprovals = companySnapshot?.approvals ?? [];
+  const boardApprovals = companySnapshot?.approvals ?? emptyApprovalRecords;
   const selectedApproval =
     boardApprovals.find((approval) => approval.id === selectedApprovalId) ??
     boardApprovals[0] ??
     null;
-  const companyWorkspaces = companySnapshot?.workspaces ?? [];
+  const companyWorkspaces = companySnapshot?.workspaces ?? emptyWorkspaceRecords;
   const selectedBoardWorkspace =
     companyWorkspaces.find(
       (workspace) => workspace.id === selectedBoardWorkspaceId
@@ -1508,7 +1512,9 @@ export function App() {
 
   useEffect(() => {
     if (bootstrap?.state !== "ready" || !selectedCompanyId) {
-      setLiveAgentRunCountsByAgentId({});
+      setLiveAgentRunCountsByAgentId((current) =>
+        Object.keys(current).length === 0 ? current : {}
+      );
       return;
     }
 
@@ -1572,12 +1578,16 @@ export function App() {
       bootstrap?.state !== "ready" ||
       !selectedCompanyId
     ) {
-      setIssueRunCardUpdatesByIssueId({});
+      setIssueRunCardUpdatesByIssueId((current) =>
+        Object.keys(current).length === 0 ? current : {}
+      );
       return;
     }
 
     if (dashboardProjectIssueIds.length === 0) {
-      setIssueRunCardUpdatesByIssueId({});
+      setIssueRunCardUpdatesByIssueId((current) =>
+        Object.keys(current).length === 0 ? current : {}
+      );
       return;
     }
 
@@ -1596,6 +1606,7 @@ export function App() {
 
     const loadIssueRunCardUpdates = async () => {
       try {
+        const projectIssueIdSet = new Set(dashboardProjectIssueIds);
         const updates = (await boardListIssueRunCardUpdates(
           selectedCompanyId
         )) as IssueRunCardUpdateRecord[];
@@ -1605,7 +1616,7 @@ export function App() {
 
         const nextUpdates = Object.fromEntries(
           updates
-            .filter((update) => dashboardProjectIssueIdSet.has(update.issue_id))
+            .filter((update) => projectIssueIdSet.has(update.issue_id))
             .map((update) => [update.issue_id, update])
         );
         const hasLiveUpdates = Object.values(nextUpdates).some(
@@ -1658,8 +1669,7 @@ export function App() {
     };
   }, [
     bootstrap?.state,
-    dashboardProjectIssueIdSet,
-    dashboardProjectIssueIds.length,
+    dashboardProjectIssueIdsKey,
     selectedCompanyId,
     selectedScreen,
   ]);

@@ -9,7 +9,7 @@ use std::collections::HashSet;
 use tracing::{debug, info};
 
 /// Current schema version.
-pub const CURRENT_VERSION: i32 = 17;
+pub const CURRENT_VERSION: i32 = 18;
 
 /// Run all pending migrations.
 pub fn run_migrations(conn: &Connection) -> DatabaseResult<()> {
@@ -88,6 +88,9 @@ pub fn run_migrations(conn: &Connection) -> DatabaseResult<()> {
     if current_version < 17 {
         migrate_v17_issue_linked_runs_and_comment_targets(conn)?;
     }
+    if current_version < 18 {
+        migrate_v18_session_provider_metadata(conn)?;
+    }
 
     info!("Migrations complete");
     Ok(())
@@ -137,6 +140,8 @@ fn migrate_v1_initial_schema(conn: &Connection) -> DatabaseResult<()> {
             id TEXT PRIMARY KEY,
             repository_id TEXT NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
             title TEXT NOT NULL DEFAULT 'New conversation',
+            provider TEXT,
+            provider_session_id TEXT,
             claude_session_id TEXT,
             status TEXT NOT NULL DEFAULT 'active',
             is_worktree INTEGER NOT NULL DEFAULT 0,
@@ -1517,6 +1522,31 @@ fn ensure_session_issue_metadata(conn: &Connection) -> DatabaseResult<()> {
     Ok(())
 }
 
+fn ensure_session_provider_metadata(conn: &Connection) -> DatabaseResult<()> {
+    add_column_if_missing(conn, "agent_coding_sessions", "provider", "provider TEXT")?;
+    add_column_if_missing(
+        conn,
+        "agent_coding_sessions",
+        "provider_session_id",
+        "provider_session_id TEXT",
+    )?;
+    conn.execute(
+        "UPDATE agent_coding_sessions
+         SET provider = 'claude',
+             provider_session_id = claude_session_id
+         WHERE claude_session_id IS NOT NULL
+           AND TRIM(claude_session_id) != ''
+           AND (
+               provider IS NULL
+               OR TRIM(provider) = ''
+               OR provider_session_id IS NULL
+               OR TRIM(provider_session_id) = ''
+           )",
+        [],
+    )?;
+    Ok(())
+}
+
 /// V13: Persist stable cross-project agent metadata on sessions.
 fn migrate_v13_session_agent_metadata(conn: &Connection) -> DatabaseResult<()> {
     info!("Applying migration v13: session agent metadata");
@@ -1635,6 +1665,16 @@ fn migrate_v17_issue_linked_runs_and_comment_targets(conn: &Connection) -> Datab
     Ok(())
 }
 
+/// V18: Persist provider-neutral session resume metadata.
+fn migrate_v18_session_provider_metadata(conn: &Connection) -> DatabaseResult<()> {
+    info!("Applying migration v18: session_provider_metadata");
+
+    ensure_session_provider_metadata(conn)?;
+
+    record_migration(conn, 18, "session_provider_metadata")?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1695,7 +1735,7 @@ mod tests {
             .query_row("SELECT MAX(version) FROM migrations", [], |row| row.get(0))
             .unwrap();
 
-        assert_eq!(version, 17);
+        assert_eq!(version, 18);
     }
 
     #[test]

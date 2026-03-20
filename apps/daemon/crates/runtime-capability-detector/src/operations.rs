@@ -14,6 +14,15 @@ use std::time::Duration;
 use tracing::debug;
 
 const DEPENDENCY_CHECK_TIMEOUT: Duration = Duration::from_secs(5);
+const KNOWN_CODEX_MODELS: &[&str] = &[
+    "gpt-5-codex",
+    "gpt-5.3-codex",
+    "gpt-5.2-codex",
+    "gpt-5.1-codex",
+    "gpt-5.1-codex-max",
+    "gpt-5.1-codex-mini",
+    "codex-mini-latest",
+];
 
 /// Check whether a single dependency is installed.
 ///
@@ -89,6 +98,16 @@ pub async fn collect_capabilities() -> Result<Capabilities, RuntimeCapabilityDet
     } else {
         None
     };
+    let codex_models = if codex.installed {
+        Some(
+            KNOWN_CODEX_MODELS
+                .iter()
+                .map(|model| (*model).to_string())
+                .collect::<Vec<_>>(),
+        )
+    } else {
+        None
+    };
 
     Ok(Capabilities {
         cli: CliCapabilities {
@@ -105,7 +124,7 @@ pub async fn collect_capabilities() -> Result<Capabilities, RuntimeCapabilityDet
             codex: ToolCapabilities {
                 installed: codex.installed,
                 path: codex.path,
-                models: None,
+                models: codex_models,
             },
             ollama: ToolCapabilities {
                 installed: ollama.installed,
@@ -303,5 +322,20 @@ mod tests {
         .expect("models");
 
         assert_eq!(models.len(), 2);
+    }
+
+    #[test]
+    fn known_codex_models_are_unique() {
+        let models = normalize_models(
+            KNOWN_CODEX_MODELS
+                .iter()
+                .map(|model| (*model).to_string())
+                .collect(),
+        )
+        .expect("models");
+
+        assert_eq!(models.len(), KNOWN_CODEX_MODELS.len());
+        assert!(models.iter().any(|model| model == "gpt-5.3-codex"));
+        assert!(models.iter().any(|model| model == "codex-mini-latest"));
     }
 }

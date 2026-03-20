@@ -3395,6 +3395,15 @@ mod tests {
     }
 
     #[test]
+    fn approval_driven_issue_wakes_can_resume_existing_session() {
+        assert!(should_resume_claude_session(
+            "automation",
+            Some("system"),
+            Some("approval_approved")
+        ));
+    }
+
+    #[test]
     fn extract_agent_decision_request_reads_claude_question_blocks() {
         let json = json!({
             "type": "assistant",
@@ -3649,6 +3658,17 @@ mod tests {
             issue_run_session_strategy(&test_issue_for_strategy(
                 Some("project-1"),
                 Some(json!({ "mode": "new_worktree" })),
+                None,
+            )),
+            IssueRunSessionStrategy::AttachedWorkspace
+        );
+        assert_eq!(
+            issue_run_session_strategy(&test_issue_for_strategy(
+                Some("project-1"),
+                Some(json!({
+                    "mode": "existing_worktree",
+                    "worktree_path": "/tmp/existing-worktree"
+                })),
                 None,
             )),
             IssueRunSessionStrategy::AttachedWorkspace

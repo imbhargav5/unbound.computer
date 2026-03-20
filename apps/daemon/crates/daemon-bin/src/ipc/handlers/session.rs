@@ -131,6 +131,8 @@ fn session_json(session: &agent_session_sqlite_persist_core::Session) -> serde_j
         "issue_id": session.issue_id,
         "issue_title": session.issue_title,
         "issue_url": session.issue_url,
+        "provider": session.effective_provider(),
+        "provider_session_id": session.effective_provider_session_id(),
         "claude_session_id": session.claude_session_id,
         "status": session.status.as_str(),
         "is_worktree": session.is_worktree,
@@ -491,6 +493,8 @@ pub async fn create_session_core_with_services(
         .unwrap_or(false);
     let (agent_id, agent_name) = normalize_agent_metadata(params)?;
     let (issue_id, issue_title, issue_url) = normalize_issue_metadata(params)?;
+    let provider = normalize_optional_string(params.get("provider").and_then(|v| v.as_str()))
+        .map(|value| value.to_ascii_lowercase());
 
     let worktree_name = params
         .get("worktree_name")
@@ -513,6 +517,14 @@ pub async fn create_session_core_with_services(
     if let Some(name) = worktree_name.as_deref() {
         validate_worktree_name(name)
             .map_err(|msg| SessionCreateCoreError::new("invalid_params", msg))?;
+    }
+    if let Some(provider) = provider.as_deref() {
+        if provider != "claude" && provider != "codex" {
+            return Err(SessionCreateCoreError::new(
+                "invalid_params",
+                "provider must be either \"claude\" or \"codex\" when provided",
+            ));
+        }
     }
     if existing_worktree_path.is_some() && !is_worktree {
         return Err(SessionCreateCoreError::new(
@@ -645,6 +657,8 @@ pub async fn create_session_core_with_services(
         issue_id,
         issue_title,
         issue_url,
+        provider,
+        provider_session_id: None,
         claude_session_id: None,
         is_worktree,
         worktree_path,
@@ -1304,6 +1318,8 @@ mod tests {
             issue_id: Some("issue-123".to_string()),
             issue_title: Some("Fix launch bug".to_string()),
             issue_url: Some("https://example.com/issues/123".to_string()),
+            provider: Some("claude".to_string()),
+            provider_session_id: Some("claude-123".to_string()),
             claude_session_id: Some("claude-123".to_string()),
             status: agent_session_sqlite_persist_core::SessionStatus::Active,
             is_worktree: true,
@@ -1319,6 +1335,8 @@ mod tests {
         assert_eq!(json["issue_id"], "issue-123");
         assert_eq!(json["issue_title"], "Fix launch bug");
         assert_eq!(json["issue_url"], "https://example.com/issues/123");
+        assert_eq!(json["provider"], "claude");
+        assert_eq!(json["provider_session_id"], "claude-123");
         assert_eq!(json["claude_session_id"], "claude-123");
     }
 

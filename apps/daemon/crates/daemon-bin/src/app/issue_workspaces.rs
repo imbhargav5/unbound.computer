@@ -1,3 +1,4 @@
+use crate::app::agent_cli::{detect_agent_cli_kind, AgentCliKind};
 use crate::armin_adapter::DaemonArmin;
 use crate::ipc::handlers::session::{create_session_core_with_services, SessionCreateCoreError};
 use crate::utils::SessionSecretCache;
@@ -87,6 +88,7 @@ pub async fn ensure_issue_workspace(
         "agent_name": agent.name.clone(),
         "issue_id": issue.id.clone(),
         "issue_title": issue.title.clone(),
+        "provider": issue_workspace_provider(&agent),
     });
 
     let workspace_branch = match settings.mode {
@@ -243,11 +245,97 @@ fn default_issue_worktree_name(issue: &Issue) -> String {
     }
 }
 
+fn issue_workspace_provider(agent: &daemon_board::Agent) -> &'static str {
+    match detect_agent_cli_kind(
+        agent
+            .adapter_config
+            .get("command")
+            .and_then(|value| value.as_str()),
+        agent
+            .adapter_config
+            .get("model")
+            .and_then(|value| value.as_str()),
+    ) {
+        AgentCliKind::Claude => "claude",
+        AgentCliKind::Codex => "codex",
+    }
+}
+
 fn map_session_create_error(error: SessionCreateCoreError) -> BoardError {
     let (code, message, _) = error.into_response_parts();
     match code.as_str() {
         "invalid_params" => BoardError::InvalidInput(message),
         "not_found" => BoardError::NotFound(message),
         _ => BoardError::Runtime(message),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::{json, Value};
+
+    fn test_issue(
+        execution_workspace_settings: Option<Value>,
+        workspace_session_id: Option<&str>,
+    ) -> Issue {
+        Issue {
+            id: "issue-1".to_string(),
+            company_id: "company-1".to_string(),
+            project_id: Some("project-1".to_string()),
+            goal_id: None,
+            parent_id: None,
+            title: "Test issue".to_string(),
+            description: None,
+            status: "todo".to_string(),
+            priority: "medium".to_string(),
+            assignee_agent_id: Some("agent-1".to_string()),
+            assignee_user_id: None,
+            checkout_run_id: None,
+            execution_run_id: None,
+            execution_agent_name_key: Some("agent-1".to_string()),
+            execution_locked_at: None,
+            created_by_agent_id: None,
+            created_by_user_id: None,
+            issue_number: Some(1),
+            identifier: Some("TEST-1".to_string()),
+            request_depth: 0,
+            billing_code: None,
+            assignee_adapter_overrides: None,
+            execution_workspace_settings,
+            started_at: None,
+            completed_at: None,
+            cancelled_at: None,
+            hidden_at: None,
+            workspace_session_id: workspace_session_id.map(ToOwned::to_owned),
+            created_at: "2026-03-20T00:00:00Z".to_string(),
+            updated_at: "2026-03-20T00:00:00Z".to_string(),
+        }
+    }
+
+    #[test]
+    fn attached_workspace_targets_are_detected_for_all_supported_modes() {
+        assert!(issue_has_attached_workspace_target(&test_issue(
+            Some(json!({ "mode": "main" })),
+            None,
+        )));
+        assert!(issue_has_attached_workspace_target(&test_issue(
+            Some(json!({ "mode": "new_worktree" })),
+            None,
+        )));
+        assert!(issue_has_attached_workspace_target(&test_issue(
+            Some(json!({
+                "mode": "existing_worktree",
+                "worktree_path": "/tmp/existing-worktree"
+            })),
+            None,
+        )));
+        assert!(issue_has_attached_workspace_target(&test_issue(
+            None,
+            Some("session-1"),
+        )));
+        assert!(!issue_has_attached_workspace_target(&test_issue(
+            None, None
+        )));
     }
 }

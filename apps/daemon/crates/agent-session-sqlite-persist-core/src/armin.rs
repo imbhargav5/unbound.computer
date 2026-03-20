@@ -246,15 +246,16 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
         Ok(updated)
     }
 
-    fn update_session_claude_id(
+    fn update_session_provider_session(
         &self,
         id: &SessionId,
-        claude_session_id: &str,
+        provider: &str,
+        provider_session_id: &str,
     ) -> Result<bool, ArminError> {
         // 1. Commit fact to SQLite
-        let updated = self
-            .sqlite
-            .update_agent_session_claude_id(id, claude_session_id)?;
+        let updated =
+            self.sqlite
+                .update_agent_session_provider_session(id, provider, provider_session_id)?;
 
         if updated {
             // 3. Emit side-effect
@@ -355,6 +356,8 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
             issue_id: None,
             issue_title: None,
             issue_url: None,
+            provider: None,
+            provider_session_id: None,
             claude_session_id: None,
             is_worktree: false,
             worktree_path: None,
