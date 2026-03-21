@@ -350,6 +350,29 @@ export interface CompanySnapshot {
   workspaces: WorkspaceRecord[];
 }
 
+export interface DashboardOverviewChatRecord {
+  id: string;
+  project_id: string;
+  title: string;
+  status: string;
+  priority: string;
+  assignee_agent_id?: string | null;
+  assignee_adapter_overrides?: Record<string, unknown> | null;
+  execution_workspace_settings?: Record<string, unknown> | null;
+  identifier?: string | null;
+  created_at: string;
+  updated_at: string;
+  child_issue_count: number;
+  run_update?: IssueRunCardUpdateRecord | null;
+}
+
+export interface DashboardOverviewRecord {
+  agents: AgentRecord[];
+  projects: ProjectRecord[];
+  workspaces: WorkspaceRecord[];
+  chats: DashboardOverviewChatRecord[];
+}
+
 export interface RepositoryRecord {
   id: string;
   path: string;

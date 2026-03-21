@@ -13,9 +13,9 @@ use agent_session_sqlite_persist_core::{
 };
 use chrono::Utc;
 use daemon_board::{
-    service, summarize_agent_run_event, summarize_agent_run_excerpt,
-    summarize_agent_run_result, summarize_agent_run_text, AddIssueCommentInput, Agent, AgentRun,
-    Approval, BoardError, CreateAgentDecisionApprovalInput, Issue, IssueComment, UpdateIssueInput,
+    service, summarize_agent_run_event, summarize_agent_run_excerpt, summarize_agent_run_result,
+    summarize_agent_run_text, AddIssueCommentInput, Agent, AgentRun, Approval, BoardError,
+    CreateAgentDecisionApprovalInput, Issue, IssueComment, UpdateIssueInput,
 };
 use daemon_config_and_utils::Paths;
 use daemon_database::{queries, AsyncDatabase, NewRepository};
@@ -731,6 +731,10 @@ impl AgentRunCoordinator {
             .get("prompt")
             .and_then(Value::as_str)
             .map(ToOwned::to_owned);
+        let issue = match issue_id.as_deref() {
+            Some(issue_id) => service::get_issue(&self.db, issue_id).await?,
+            None => None,
+        };
         let agent = service::get_agent(&self.db, &run.agent_id)
             .await?
             .ok_or_else(|| BoardError::NotFound("Agent not found for run".to_string()))?;
@@ -740,7 +744,7 @@ impl AgentRunCoordinator {
         let resolved_workspace =
             resolve_working_dir_from_str(&*self.armin, &session.local_session_id)
                 .map_err(map_resolve_error)?;
-        let cli_kind = agent_cli_kind(&agent);
+        let cli_kind = agent_cli_kind(&agent, issue.as_ref());
         let provider_session_id_before =
             stored_provider_session_id_for_kind(&resolved_workspace.session, cli_kind);
         let resumes_existing_session = provider_session_id_before.as_ref().is_some_and(|_| {
@@ -796,6 +800,7 @@ impl AgentRunCoordinator {
 
         let config = build_agent_cli_config(
             &agent,
+            issue.as_ref(),
             &prompt,
             resolved_workspace.working_dir,
             if resumes_existing_session {
@@ -845,7 +850,10 @@ impl AgentRunCoordinator {
             processes.insert(run.id.clone(), stop_tx);
         }
         if let Some(issue_id) = issue_id.as_deref() {
-            if let Err(error) = self.mark_linked_issue_in_progress(issue_id, &agent.id).await {
+            if let Err(error) = self
+                .mark_linked_issue_in_progress(issue_id, &agent.id)
+                .await
+            {
                 warn!(
                     error = %error,
                     run_id = %run.id,
@@ -1215,7 +1223,8 @@ impl AgentRunCoordinator {
         completion.stdout_excerpt = trim_excerpt(stdout_excerpt);
         completion.stderr_excerpt = trim_excerpt(stderr_excerpt);
         completion.external_run_id = external_run_id;
-        completion.final_message = final_message.and_then(|message| normalize_issue_comment_text(&message));
+        completion.final_message =
+            final_message.and_then(|message| normalize_issue_comment_text(&message));
 
         {
             let mut processes = self.claude_processes.lock().unwrap();
@@ -1841,7 +1850,7 @@ impl AgentRunCoordinator {
                 issue_id: Some(issue.id.clone()),
                 issue_title: Some(issue.title.clone()),
                 issue_url: None,
-                provider: Some(provider_name_for_cli_kind(agent_cli_kind(agent)).to_string()),
+                provider: Some(provider_name_for_cli_kind(agent_cli_kind(agent, None)).to_string()),
                 provider_session_id: None,
                 claude_session_id: None,
                 is_worktree: false,
@@ -2022,7 +2031,7 @@ impl AgentRunCoordinator {
                 issue_id: None,
                 issue_title: None,
                 issue_url: None,
-                provider: Some(provider_name_for_cli_kind(agent_cli_kind(agent)).to_string()),
+                provider: Some(provider_name_for_cli_kind(agent_cli_kind(agent, None)).to_string()),
                 provider_session_id: None,
                 claude_session_id: None,
                 is_worktree: false,
@@ -2154,13 +2163,19 @@ impl AgentRunCoordinator {
     ) -> Result<String, BoardError> {
         let governance_instructions =
             governance_instructions(self.paths.as_ref(), agent, run, issue_id);
-        let issue_context = if let Some(issue_id) = issue_id {
-            let issue = service::get_issue(&self.db, issue_id)
-                .await?
-                .ok_or_else(|| BoardError::NotFound("Issue not found for run".to_string()))?;
-            let comments = service::list_issue_comments(&self.db, issue_id).await?;
+        let issue = if let Some(issue_id) = issue_id {
+            Some(
+                service::get_issue(&self.db, issue_id)
+                    .await?
+                    .ok_or_else(|| BoardError::NotFound("Issue not found for run".to_string()))?,
+            )
+        } else {
+            None
+        };
+        let issue_context = if let Some(issue) = issue.as_ref() {
+            let comments = service::list_issue_comments(&self.db, &issue.id).await?;
             let attachments =
-                service::list_issue_attachments(&self.db, self.paths.as_ref(), issue_id).await?;
+                service::list_issue_attachments(&self.db, self.paths.as_ref(), &issue.id).await?;
             let attachment_summary = format_issue_attachment_summary(&attachments);
             let comment_summary = format_issue_comment_summary(&comments);
             format!(
@@ -2171,7 +2186,8 @@ impl AgentRunCoordinator {
                 issue.priority,
                 issue
                     .description
-                    .unwrap_or_else(|| "No description.".to_string()),
+                    .as_deref()
+                    .unwrap_or("No description."),
                 comment_summary,
                 attachment_summary,
             )
@@ -2189,6 +2205,10 @@ impl AgentRunCoordinator {
                  {issue_list_command}\n"
             )
         };
+        let direct_model_run = issue
+            .as_ref()
+            .and_then(|issue| issue.assignee_adapter_overrides.as_ref())
+            .is_some();
         let approval_context = self
             .approval_prompt_context(run)
             .await?
@@ -2208,9 +2228,23 @@ impl AgentRunCoordinator {
         } else {
             String::new()
         };
+        let run_identity = if direct_model_run {
+            "You are the selected local model for this conversation inside Unbound.".to_string()
+        } else {
+            format!(
+                "You are {}, a {} agent inside Unbound.",
+                agent.name,
+                agent.role
+            )
+        };
+        let unlinked_issue_rule = if direct_model_run {
+            "- If this run is not linked to a specific conversation, stop and ask for a conversation instead of scanning an agent queue.\n".to_string()
+        } else {
+            "- If this run is not linked to an issue, list your assigned issues, work on in_progress first, then todo, and skip blocked work unless there is fresh context that lets you unblock it.\n".to_string()
+        };
 
         Ok(format!(
-            "{bootstrap_prompt}You are {agent_name}, a {agent_role} agent inside Unbound.\n\
+            "{bootstrap_prompt}{run_identity}\n\
              Invocation source: {source}\n\
              Trigger detail: {trigger}\n\
              Wake reason: {wake_reason}\n\
@@ -2223,7 +2257,7 @@ impl AgentRunCoordinator {
              Run operating rules:\n\
              - Treat each run as a focused execution window: inspect the assigned work, do the next useful step, and exit.\n\
              - If this run is linked to an issue, treat that issue as the primary work item for this run.\n\
-             - If this run is not linked to an issue, list your assigned issues, work on in_progress first, then todo, and skip blocked work unless there is fresh context that lets you unblock it.\n\
+             {unlinked_issue_rule}\
              - Before doing issue work, make sure the issue worktree is ready with the board issue-checkout helper instead of creating ad hoc folders yourself.\n\
              - The daemon will move a linked todo issue into in_progress when the run actually starts.\n\
              - Do not use the board helper for the routine end-of-run status update or summary comment on the linked issue; the daemon records that automatically from your final output.\n\
@@ -2236,8 +2270,7 @@ impl AgentRunCoordinator {
              2. any blockers or follow-up needed\n\
              3. whether the linked issue status should change, written as `Issue status should change to <status>` when applicable\n",
             bootstrap_prompt = bootstrap_prompt,
-            agent_name = agent.name,
-            agent_role = agent.role,
+            run_identity = run_identity,
             source = run.invocation_source,
             trigger = run.trigger_detail.clone().unwrap_or_else(|| "unknown".to_string()),
             wake_reason = run.wake_reason.clone().unwrap_or_else(|| "manual".to_string()),
@@ -2250,6 +2283,7 @@ impl AgentRunCoordinator {
             governance_instructions = governance_instructions,
             issue_context = issue_context,
             approval_context = approval_context,
+            unlinked_issue_rule = unlinked_issue_rule,
         ))
     }
 
@@ -2675,8 +2709,14 @@ fn build_issue_run_completion_comment(completion: &RunCompletion) -> Option<Stri
     match completion.status.as_str() {
         STATUS_SUCCEEDED => detail,
         STATUS_FAILED => Some(prefix_issue_run_comment("Run failed.", detail.as_deref())),
-        STATUS_CANCELLED => Some(prefix_issue_run_comment("Run was cancelled.", detail.as_deref())),
-        STATUS_TIMED_OUT => Some(prefix_issue_run_comment("Run timed out.", detail.as_deref())),
+        STATUS_CANCELLED => Some(prefix_issue_run_comment(
+            "Run was cancelled.",
+            detail.as_deref(),
+        )),
+        STATUS_TIMED_OUT => Some(prefix_issue_run_comment(
+            "Run timed out.",
+            detail.as_deref(),
+        )),
         _ => detail,
     }
 }
@@ -2786,10 +2826,7 @@ fn extract_completion_text_from_value(value: &Value) -> Option<String> {
 }
 
 fn normalize_issue_comment_text(text: &str) -> Option<String> {
-    let lines = text
-        .lines()
-        .map(str::trim_end)
-        .collect::<Vec<_>>();
+    let lines = text.lines().map(str::trim_end).collect::<Vec<_>>();
     let start = lines.iter().position(|line| !line.trim().is_empty())?;
     let end = lines
         .iter()
@@ -3312,14 +3349,30 @@ fn task_session_ref_from_run(run: &AgentRun, issue_id: Option<&str>) -> Option<R
     }
 }
 
-fn agent_cli_kind(agent: &Agent) -> AgentCliKind {
-    let adapter_config = agent.adapter_config.as_object();
+fn merged_issue_adapter_config(
+    agent: &Agent,
+    issue: Option<&Issue>,
+) -> serde_json::Map<String, Value> {
+    let mut adapter_config = agent.adapter_config.as_object().cloned().unwrap_or_default();
+    if let Some(overrides) = issue
+        .and_then(|issue| issue.assignee_adapter_overrides.as_ref())
+        .and_then(Value::as_object)
+    {
+        for (key, value) in overrides {
+            adapter_config.insert(key.clone(), value.clone());
+        }
+    }
+    adapter_config
+}
+
+fn agent_cli_kind(agent: &Agent, issue: Option<&Issue>) -> AgentCliKind {
+    let adapter_config = merged_issue_adapter_config(agent, issue);
     detect_agent_cli_kind(
         adapter_config
-            .and_then(|config| config.get("command"))
+            .get("command")
             .and_then(Value::as_str),
         adapter_config
-            .and_then(|config| config.get("model"))
+            .get("model")
             .and_then(Value::as_str),
     )
 }
@@ -3330,13 +3383,18 @@ fn agent_cli_label(kind: AgentCliKind) -> &'static str {
 
 fn build_agent_cli_config(
     agent: &Agent,
+    issue: Option<&Issue>,
     prompt: &str,
     working_dir: String,
     resume_session_id: Option<&str>,
 ) -> AgentCliConfig {
-    let adapter_config = agent.adapter_config.as_object();
-    let mut config =
-        build_agent_cli_config_from_adapter(adapter_config, prompt, working_dir, resume_session_id);
+    let merged_adapter_config = merged_issue_adapter_config(agent, issue);
+    let mut config = build_agent_cli_config_from_adapter(
+        Some(&merged_adapter_config),
+        prompt,
+        working_dir,
+        resume_session_id,
+    );
     config.interrupt_grace_sec = agent_interrupt_grace_sec(agent);
     config
 }
@@ -3537,8 +3595,24 @@ async fn next_run_seq(db: &AsyncDatabase, run_id: &str) -> Result<i64, BoardErro
 #[cfg(test)]
 mod tests {
     use super::*;
-    use daemon_board::{CreateAgentInput, CreateCompanyInput, CreateIssueInput};
+    use daemon_board::{
+        CreateAgentInput, CreateCompanyInput, CreateIssueInput, CreateProjectInput,
+    };
     use serde_json::json;
+
+    async fn create_test_project(db: &AsyncDatabase, company_id: &str, name: &str) -> String {
+        service::create_project(
+            db,
+            CreateProjectInput {
+                company_id: company_id.to_string(),
+                name: name.to_string(),
+                ..CreateProjectInput::default()
+            },
+        )
+        .await
+        .expect("project")
+        .id
+    }
 
     fn test_issue_for_strategy(
         project_id: Option<&str>,
@@ -3704,7 +3778,9 @@ mod tests {
             std::env::temp_dir().join(format!("unbound-run-sync-{}", Uuid::new_v4())),
         );
         paths.ensure_dirs().expect("paths");
-        let db = AsyncDatabase::open(&paths.database_file()).await.expect("db");
+        let db = AsyncDatabase::open(&paths.database_file())
+            .await
+            .expect("db");
 
         let company = service::create_company(
             &db,
@@ -3729,10 +3805,12 @@ mod tests {
         )
         .await
         .expect("agent");
+        let project_id = create_test_project(&db, &company.id, "Run sync").await;
         let issue = service::create_issue(
             &db,
             CreateIssueInput {
                 company_id: company.id.clone(),
+                project_id: Some(project_id),
                 title: "Ship docs".to_string(),
                 assignee_agent_id: Some(agent.id.clone()),
                 status: Some("in_progress".to_string()),
@@ -3821,7 +3899,10 @@ mod tests {
             .await
             .expect("list comments");
         assert_eq!(comments.len(), 1);
-        assert_eq!(comments[0].author_agent_id.as_deref(), Some(agent.id.as_str()));
+        assert_eq!(
+            comments[0].author_agent_id.as_deref(),
+            Some(agent.id.as_str())
+        );
         assert!(comments[0].body.contains("Updated README"));
     }
 
@@ -3831,7 +3912,9 @@ mod tests {
             std::env::temp_dir().join(format!("unbound-run-blocked-{}", Uuid::new_v4())),
         );
         paths.ensure_dirs().expect("paths");
-        let db = AsyncDatabase::open(&paths.database_file()).await.expect("db");
+        let db = AsyncDatabase::open(&paths.database_file())
+            .await
+            .expect("db");
 
         let company = service::create_company(
             &db,
@@ -3856,10 +3939,12 @@ mod tests {
         )
         .await
         .expect("agent");
+        let project_id = create_test_project(&db, &company.id, "Run failures").await;
         let issue = service::create_issue(
             &db,
             CreateIssueInput {
                 company_id: company.id.clone(),
+                project_id: Some(project_id),
                 title: "Ship docs".to_string(),
                 assignee_agent_id: Some(agent.id.clone()),
                 status: Some("in_progress".to_string()),
@@ -3951,7 +4036,9 @@ mod tests {
             std::env::temp_dir().join(format!("unbound-run-start-{}", Uuid::new_v4())),
         );
         paths.ensure_dirs().expect("paths");
-        let db = AsyncDatabase::open(&paths.database_file()).await.expect("db");
+        let db = AsyncDatabase::open(&paths.database_file())
+            .await
+            .expect("db");
 
         let company = service::create_company(
             &db,
@@ -3976,10 +4063,12 @@ mod tests {
         )
         .await
         .expect("agent");
+        let project_id = create_test_project(&db, &company.id, "Run start").await;
         let issue = service::create_issue(
             &db,
             CreateIssueInput {
                 company_id: company.id.clone(),
+                project_id: Some(project_id),
                 title: "Pick this up".to_string(),
                 assignee_agent_id: Some(agent.id.clone()),
                 status: Some("todo".to_string()),

@@ -80,6 +80,7 @@ pub async fn ensure_issue_workspace(
         .map(|identifier| format!("{identifier}: {}", issue.title))
         .unwrap_or_else(|| issue.title.clone());
     let settings = parse_issue_workspace_settings(&issue);
+    let adapter_config = merged_issue_adapter_config(&issue, &agent);
 
     let mut session_params = json!({
         "repository_id": repository.id.as_str(),
@@ -88,7 +89,7 @@ pub async fn ensure_issue_workspace(
         "agent_name": agent.name.clone(),
         "issue_id": issue.id.clone(),
         "issue_title": issue.title.clone(),
-        "provider": issue_workspace_provider(&agent),
+        "provider": issue_workspace_provider(&adapter_config),
     });
 
     let workspace_branch = match settings.mode {
@@ -245,14 +246,29 @@ fn default_issue_worktree_name(issue: &Issue) -> String {
     }
 }
 
-fn issue_workspace_provider(agent: &daemon_board::Agent) -> &'static str {
+fn merged_issue_adapter_config(
+    issue: &Issue,
+    agent: &daemon_board::Agent,
+) -> serde_json::Map<String, Value> {
+    let mut adapter_config = agent.adapter_config.as_object().cloned().unwrap_or_default();
+    if let Some(overrides) = issue
+        .assignee_adapter_overrides
+        .as_ref()
+        .and_then(Value::as_object)
+    {
+        for (key, value) in overrides {
+            adapter_config.insert(key.clone(), value.clone());
+        }
+    }
+    adapter_config
+}
+
+fn issue_workspace_provider(adapter_config: &serde_json::Map<String, Value>) -> &'static str {
     match detect_agent_cli_kind(
-        agent
-            .adapter_config
+        adapter_config
             .get("command")
             .and_then(|value| value.as_str()),
-        agent
-            .adapter_config
+        adapter_config
             .get("model")
             .and_then(|value| value.as_str()),
     ) {

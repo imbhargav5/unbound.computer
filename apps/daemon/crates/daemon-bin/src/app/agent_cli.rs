@@ -22,6 +22,7 @@ pub struct AgentCliConfig {
     pub resume_session_id: Option<String>,
     pub model: Option<String>,
     pub thinking_effort: Option<String>,
+    pub permission_mode: Option<String>,
     pub enable_chrome: bool,
     pub skip_permissions: bool,
     pub interrupt_grace_sec: Option<u64>,
@@ -44,6 +45,7 @@ impl AgentCliConfig {
             resume_session_id: None,
             model: None,
             thinking_effort: None,
+            permission_mode: None,
             enable_chrome: false,
             skip_permissions: false,
             interrupt_grace_sec: None,
@@ -321,6 +323,10 @@ pub fn build_agent_cli_config_from_adapter(
         })
         .and_then(Value::as_str)
         .map(ToOwned::to_owned);
+    config.permission_mode = adapter_config
+        .and_then(|config| config.get("permissionMode"))
+        .and_then(Value::as_str)
+        .map(ToOwned::to_owned);
     config.enable_chrome = adapter_config
         .and_then(|config| config.get("enableChrome"))
         .and_then(Value::as_bool)
@@ -368,6 +374,13 @@ fn build_claude_args(config: &AgentCliConfig) -> Vec<String> {
     if let Some(effort) = normalize_thinking_effort(config.thinking_effort.as_deref()) {
         args.push("--effort".to_string());
         args.push(effort);
+    }
+
+    if normalize_optional_string(config.permission_mode.as_deref())
+        .is_some_and(|mode| mode == "plan")
+    {
+        args.push("--permission-mode".to_string());
+        args.push("plan".to_string());
     }
 
     if let Some(session_id) = normalize_optional_string(config.resume_session_id.as_deref()) {

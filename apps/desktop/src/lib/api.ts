@@ -8,6 +8,7 @@ import type {
   AgentRunRecord,
   Company,
   CompanySnapshot,
+  DashboardOverviewRecord,
   DaemonVersionInfo,
   DesktopBootstrapStatus,
   DesktopSettings,
@@ -56,6 +57,9 @@ export const boardCreateCompany = (params: Record<string, unknown>) =>
 export const boardUpdateCompany = (params: Record<string, unknown>) =>
   invokeCommand<Company>("board_update_company", { params });
 
+export const boardCreateAgent = (params: Record<string, unknown>) =>
+  invokeCommand<AgentRecord>("board_create_agent", { params });
+
 export const boardUpdateAgent = (params: Record<string, unknown>) =>
   invokeCommand<AgentRecord>("board_update_agent", { params });
 
@@ -64,8 +68,16 @@ export const boardCompanySnapshot = (companyId: string) =>
     companyId,
   });
 
+export const boardDashboardOverview = (companyId: string) =>
+  invokeCommand<DashboardOverviewRecord>("board_dashboard_overview", {
+    companyId,
+  });
+
 export const boardCreateProject = (params: Record<string, unknown>) =>
   invokeCommand<ProjectRecord>("board_create_project", { params });
+
+export const boardUpdateProject = (params: Record<string, unknown>) =>
+  invokeCommand<ProjectRecord>("board_update_project", { params });
 
 export const boardDeleteProject = (projectId: string) =>
   invokeCommand<ProjectRecord>("board_delete_project", {

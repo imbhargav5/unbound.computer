@@ -198,6 +198,31 @@ pub struct Workspace {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DashboardOverview {
+    pub agents: Vec<Agent>,
+    pub projects: Vec<Project>,
+    pub workspaces: Vec<Workspace>,
+    pub chats: Vec<DashboardOverviewChat>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DashboardOverviewChat {
+    pub id: String,
+    pub project_id: String,
+    pub title: String,
+    pub status: String,
+    pub priority: String,
+    pub assignee_agent_id: Option<String>,
+    pub assignee_adapter_overrides: Option<serde_json::Value>,
+    pub execution_workspace_settings: Option<serde_json::Value>,
+    pub identifier: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+    pub child_issue_count: i64,
+    pub run_update: Option<IssueRunCardUpdate>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentRun {
     pub id: String,
     pub company_id: String,
@@ -352,6 +377,12 @@ pub struct CreateProjectInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct UpdateProjectInput {
+    pub project_id: String,
+    pub execution_workspace_policy: Option<Option<serde_json::Value>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CreateIssueInput {
     pub company_id: String,
     pub project_id: Option<String>,
@@ -382,6 +413,7 @@ pub struct UpdateIssueInput {
     pub parent_id: Option<Option<String>>,
     pub assignee_agent_id: Option<Option<String>>,
     pub assignee_user_id: Option<Option<String>>,
+    pub assignee_adapter_overrides: Option<Option<serde_json::Value>>,
     pub execution_workspace_settings: Option<Option<serde_json::Value>>,
     pub hidden_at: Option<Option<String>>,
 }

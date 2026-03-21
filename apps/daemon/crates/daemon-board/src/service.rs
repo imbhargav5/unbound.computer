@@ -3,8 +3,9 @@ use crate::models::{
     AddIssueAttachmentInput, AddIssueCommentInput, Agent, AgentLiveRunCount, AgentRun,
     AgentRunEvent, Approval, ApprovalDecisionInput, Company, CreateAgentDecisionApprovalInput,
     CreateAgentHireInput, CreateAgentInput, CreateCompanyInput, CreateIssueInput,
-    CreateProjectInput, Goal, Issue, IssueAttachment, IssueComment, IssueListFilter,
-    IssueRunCardUpdate, Project, ProjectWorkspace, UpdateAgentInput, UpdateIssueInput, Workspace,
+    CreateProjectInput, DashboardOverview, DashboardOverviewChat, Goal, Issue,
+    IssueAttachment, IssueComment, IssueListFilter, IssueRunCardUpdate, Project,
+    ProjectWorkspace, UpdateAgentInput, UpdateIssueInput, UpdateProjectInput, Workspace,
 };
 use crate::run_summary::{
     summarize_agent_run_event, summarize_agent_run_excerpt, summarize_agent_run_result,
@@ -211,20 +212,7 @@ pub async fn list_agents(db: &AsyncDatabase, company_id: &str) -> BoardResult<Ve
     let company_id = company_id.to_string();
     Ok(db
         .call_with_operation("board.agent.list", move |conn| {
-            let mut stmt = conn.prepare(
-                "SELECT
-                    id, company_id, name, slug, role, title, icon, status, reports_to, capabilities,
-                    adapter_type, adapter_config, runtime_config, budget_monthly_cents,
-                    spent_monthly_cents, permissions, last_heartbeat_at, metadata,
-                    home_path, instructions_path, created_at, updated_at
-                 FROM agents
-                 WHERE company_id = ?1
-                 ORDER BY created_at ASC",
-            )?;
-            let rows = stmt
-                .query_map(params![company_id], row_to_agent)?
-                .collect::<Result<Vec<_>, _>>()?;
-            Ok(rows)
+            list_agents_sync(conn, &company_id)
         })
         .await?)
 }
@@ -1068,6 +1056,58 @@ pub async fn delete_project(db: &AsyncDatabase, project_id: &str) -> BoardResult
         .await?)
 }
 
+pub async fn update_project(db: &AsyncDatabase, input: UpdateProjectInput) -> BoardResult<Project> {
+    let project_id = require_name(&input.project_id, "project_id")?;
+    let execution_workspace_policy = input.execution_workspace_policy;
+    let now = now_rfc3339();
+
+    Ok(db
+        .call_with_operation("board.project.update", move |conn| {
+            let tx = conn.unchecked_transaction()?;
+            let current = get_project_sync(&tx, &project_id)?
+                .ok_or_else(|| DatabaseError::NotFound("Project not found".to_string()))?;
+
+            let next_execution_workspace_policy = match execution_workspace_policy {
+                Some(value) => value,
+                None => current.execution_workspace_policy.clone(),
+            };
+
+            tx.execute(
+                "UPDATE projects
+                 SET execution_workspace_policy = ?1, updated_at = ?2
+                 WHERE id = ?3",
+                params![
+                    next_execution_workspace_policy.as_ref().map(Value::to_string),
+                    now,
+                    project_id,
+                ],
+            )?;
+
+            insert_activity_sync(
+                &tx,
+                &current.company_id,
+                "system",
+                LOCAL_BOARD_USER_ID,
+                "project.updated",
+                "project",
+                &current.id,
+                current.lead_agent_id.as_deref(),
+                Some(json!({
+                    "execution_workspace_policy": next_execution_workspace_policy,
+                })),
+                &now,
+            )?;
+
+            let project = get_project_sync(&tx, &current.id)?.ok_or_else(|| {
+                DatabaseError::NotFound("Project missing after update".to_string())
+            })?;
+
+            tx.commit()?;
+            Ok(project)
+        })
+        .await?)
+}
+
 pub async fn list_issues(db: &AsyncDatabase, filter: IssueListFilter) -> BoardResult<Vec<Issue>> {
     Ok(db
         .call_with_operation("board.issue.list", move |conn| {
@@ -1109,6 +1149,10 @@ pub async fn create_issue(db: &AsyncDatabase, input: CreateIssueInput) -> BoardR
             let tx = conn.unchecked_transaction()?;
             let company = get_company_sync(&tx, &company_id)?
                 .ok_or_else(|| DatabaseError::NotFound("Company not found".to_string()))?;
+            let project_id = project_id.ok_or_else(|| {
+                DatabaseError::InvalidData("Issues must belong to a project".to_string())
+            })?;
+            validate_issue_project_sync(&tx, &company_id, &project_id)?;
             let issue_id = Uuid::new_v4().to_string();
             let (issue_number, identifier) = next_issue_identifier(&tx, &company_id, &company.issue_prefix)?;
             let request_depth = if let Some(parent_id) = parent_id.as_ref() {
@@ -1222,15 +1266,26 @@ pub async fn update_issue(db: &AsyncDatabase, input: UpdateIssueInput) -> BoardR
     let parent_id = normalize_optional_update(input.parent_id);
     let assignee_agent_id = normalize_optional_update(input.assignee_agent_id);
     let assignee_user_id = normalize_optional_update(input.assignee_user_id);
+    let assignee_adapter_overrides = input.assignee_adapter_overrides;
     let execution_workspace_settings = input.execution_workspace_settings;
     let hidden_at = normalize_optional_update(input.hidden_at);
     let now = now_rfc3339();
+
+    if matches!(project_id, Some(None)) {
+        return Err(
+            DatabaseError::InvalidData("Issues must belong to a project".to_string()).into(),
+        );
+    }
 
     Ok(db
         .call_with_operation("board.issue.update", move |conn| {
             let tx = conn.unchecked_transaction()?;
             let current = get_issue_sync(&tx, &issue_id)?
                 .ok_or_else(|| DatabaseError::NotFound("Issue not found".to_string()))?;
+
+            if let Some(Some(next_project_id)) = project_id.as_ref() {
+                validate_issue_project_sync(&tx, &current.company_id, next_project_id)?;
+            }
 
             let next_title = title.unwrap_or_else(|| current.title.clone());
             let next_description = description.unwrap_or_else(|| current.description.clone());
@@ -1244,6 +1299,8 @@ pub async fn update_issue(db: &AsyncDatabase, input: UpdateIssueInput) -> BoardR
             let next_parent_id = parent_id.unwrap_or_else(|| current.parent_id.clone());
             let next_assignee_agent_id = assignee_agent_id.unwrap_or_else(|| current.assignee_agent_id.clone());
             let next_assignee_user_id = assignee_user_id.unwrap_or_else(|| current.assignee_user_id.clone());
+            let next_assignee_adapter_overrides = assignee_adapter_overrides
+                .unwrap_or_else(|| current.assignee_adapter_overrides.clone());
             let next_execution_workspace_settings = execution_workspace_settings
                 .unwrap_or_else(|| current.execution_workspace_settings.clone());
             let next_hidden_at = hidden_at.unwrap_or_else(|| current.hidden_at.clone());
@@ -1318,14 +1375,15 @@ pub async fn update_issue(db: &AsyncDatabase, input: UpdateIssueInput) -> BoardR
                      assignee_agent_id = ?7,
                      assignee_user_id = ?8,
                      execution_agent_name_key = ?9,
-                     execution_workspace_settings = ?10,
-                     request_depth = ?11,
-                     started_at = ?12,
-                     completed_at = ?13,
-                     cancelled_at = ?14,
-                     hidden_at = ?15,
-                     updated_at = ?16
-                 WHERE id = ?17",
+                     assignee_adapter_overrides = ?10,
+                     execution_workspace_settings = ?11,
+                     request_depth = ?12,
+                     started_at = ?13,
+                     completed_at = ?14,
+                     cancelled_at = ?15,
+                     hidden_at = ?16,
+                     updated_at = ?17
+                 WHERE id = ?18",
                 params![
                     next_title,
                     next_description,
@@ -1336,6 +1394,7 @@ pub async fn update_issue(db: &AsyncDatabase, input: UpdateIssueInput) -> BoardR
                     next_assignee_agent_id,
                     next_assignee_user_id,
                     execution_agent_name_key,
+                    next_assignee_adapter_overrides.as_ref().map(Value::to_string),
                     next_execution_workspace_settings.as_ref().map(Value::to_string),
                     next_request_depth,
                     started_at,
@@ -1364,6 +1423,7 @@ pub async fn update_issue(db: &AsyncDatabase, input: UpdateIssueInput) -> BoardR
                     "project_id": next_project_id,
                     "parent_id": next_parent_id,
                     "assignee_agent_id": next_assignee_agent_id,
+                    "assignee_adapter_overrides": next_assignee_adapter_overrides,
                     "execution_workspace_settings": next_execution_workspace_settings,
                     "hidden_at": next_hidden_at,
                 })),
@@ -2102,72 +2162,35 @@ pub async fn list_issue_run_card_updates(
     let company_id = company_id.to_string();
     Ok(db
         .call_with_operation("board.issue.run.card_updates", move |conn| {
-            let rows = {
-                let mut stmt = conn.prepare(
-                    "SELECT
-                        i.id,
-                        i.status,
-                        r.id,
-                        r.agent_id,
-                        r.status,
-                        r.result_json,
-                        r.stdout_excerpt,
-                        r.stderr_excerpt,
-                        r.updated_at
-                     FROM issues i
-                     JOIN agent_runs r
-                       ON r.id = COALESCE(i.execution_run_id, i.checkout_run_id)
-                     WHERE i.company_id = ?1
-                       AND COALESCE(i.execution_run_id, i.checkout_run_id) IS NOT NULL
-                     ORDER BY i.updated_at DESC, i.created_at DESC",
-                )?;
-                let rows = stmt
-                    .query_map(params![company_id], row_to_issue_run_card_update_row)?
-                    .collect::<Result<Vec<_>, _>>()?;
-                rows
-            };
+            list_issue_run_card_updates_sync(conn, &company_id)
+        })
+        .await?)
+}
 
-            if rows.is_empty() {
-                return Ok(Vec::new());
-            }
-
-            let run_ids = rows
-                .iter()
-                .map(|row| row.run_id.clone())
-                .collect::<Vec<_>>();
-            let events_by_run = list_recent_events_for_run_ids(conn, &run_ids, 8)?;
-
-            Ok(rows
+pub async fn get_dashboard_overview(
+    db: &AsyncDatabase,
+    company_id: &str,
+) -> BoardResult<DashboardOverview> {
+    let company_id = company_id.to_string();
+    Ok(db
+        .call_with_operation("board.dashboard.overview", move |conn| {
+            let agents = list_agents_sync(conn, &company_id)?;
+            let projects = list_projects_sync(conn, &company_id)?;
+            let workspaces = list_workspaces_sync(conn, &company_id)?;
+            let run_updates = list_issue_run_card_updates_sync(conn, &company_id)?;
+            let run_updates_by_issue_id = run_updates
                 .into_iter()
-                .map(|row| {
-                    let summary = summarize_issue_run_card_update(
-                        &row.run_status,
-                        events_by_run
-                            .get(&row.run_id)
-                            .map(Vec::as_slice)
-                            .unwrap_or(&[]),
-                        row.result_json.as_ref(),
-                        row.stdout_excerpt.as_deref(),
-                        row.stderr_excerpt.as_deref(),
-                    );
-                    let last_event = events_by_run
-                        .get(&row.run_id)
-                        .and_then(|events| events.first());
+                .map(|update| (update.issue_id.clone(), update))
+                .collect::<HashMap<_, _>>();
+            let chats =
+                list_dashboard_overview_chats_sync(conn, &company_id, &run_updates_by_issue_id)?;
 
-                    IssueRunCardUpdate {
-                        issue_id: row.issue_id,
-                        issue_status: row.issue_status,
-                        run_id: row.run_id,
-                        agent_id: row.agent_id,
-                        run_status: row.run_status,
-                        summary: Some(summary),
-                        last_event_type: last_event.map(|event| event.event_type.clone()),
-                        last_activity_at: last_event
-                            .map(|event| event.created_at.clone())
-                            .unwrap_or(row.run_updated_at),
-                    }
-                })
-                .collect())
+            Ok(DashboardOverview {
+                agents,
+                projects,
+                workspaces,
+                chats,
+            })
         })
         .await?)
 }
@@ -2578,6 +2601,21 @@ fn get_project_sync(conn: &Connection, project_id: &str) -> DatabaseResult<Optio
     Ok(project)
 }
 
+fn validate_issue_project_sync(
+    conn: &Connection,
+    company_id: &str,
+    project_id: &str,
+) -> DatabaseResult<()> {
+    let project = get_project_sync(conn, project_id)?
+        .ok_or_else(|| DatabaseError::NotFound("Project not found".to_string()))?;
+    if project.company_id != company_id {
+        return Err(DatabaseError::InvalidData(
+            "Project does not belong to the issue company".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 fn list_issues_sync(conn: &Connection, filter: &IssueListFilter) -> DatabaseResult<Vec<Issue>> {
     let mut sql = String::from(
         "SELECT
@@ -2681,6 +2719,49 @@ fn list_workspaces_sync(conn: &Connection, company_id: &str) -> DatabaseResult<V
     Ok(workspaces)
 }
 
+fn list_dashboard_overview_chats_sync(
+    conn: &Connection,
+    company_id: &str,
+    run_updates_by_issue_id: &HashMap<String, IssueRunCardUpdate>,
+) -> DatabaseResult<Vec<DashboardOverviewChat>> {
+    let mut stmt = conn.prepare(
+        "SELECT
+            i.id,
+            i.project_id,
+            i.title,
+            i.status,
+            i.priority,
+            i.assignee_agent_id,
+            i.assignee_adapter_overrides,
+            i.execution_workspace_settings,
+            i.identifier,
+            i.created_at,
+            i.updated_at,
+            (
+                SELECT COUNT(*)
+                FROM issues child
+                WHERE child.parent_id = i.id
+                  AND child.hidden_at IS NULL
+            ) AS child_issue_count
+         FROM issues i
+         WHERE i.company_id = ?1
+           AND i.project_id IS NOT NULL
+           AND i.parent_id IS NULL
+           AND i.hidden_at IS NULL
+         ORDER BY i.updated_at DESC, i.created_at DESC",
+    )?;
+    let chats = stmt
+        .query_map(params![company_id], row_to_dashboard_overview_chat_row)?
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .map(|chat| DashboardOverviewChat {
+            run_update: run_updates_by_issue_id.get(&chat.id).cloned(),
+            ..chat
+        })
+        .collect::<Vec<_>>();
+    Ok(chats)
+}
+
 fn row_to_company(row: &Row<'_>) -> rusqlite::Result<Company> {
     Ok(Company {
         id: row.get(0)?,
@@ -2697,6 +2778,24 @@ fn row_to_company(row: &Row<'_>) -> rusqlite::Result<Company> {
         created_at: row.get(11)?,
         updated_at: row.get(12)?,
     })
+}
+
+fn list_agents_sync(conn: &Connection, company_id: &str) -> DatabaseResult<Vec<Agent>> {
+    let mut stmt = conn.prepare(
+        "SELECT
+            id, company_id, name, slug, role, title, icon, status, reports_to, capabilities,
+            adapter_type, adapter_config, runtime_config, budget_monthly_cents,
+            spent_monthly_cents, permissions, last_heartbeat_at, metadata,
+            home_path, instructions_path, created_at, updated_at
+         FROM agents
+         WHERE company_id = ?1
+         ORDER BY created_at ASC",
+    )?;
+    let agents = stmt
+        .query_map(params![company_id], row_to_agent)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(DatabaseError::from)?;
+    Ok(agents)
 }
 
 fn get_agent_sync(conn: &Connection, agent_id: &str) -> rusqlite::Result<Option<Agent>> {
@@ -2945,6 +3044,99 @@ fn row_to_issue_run_card_update_row(row: &Row<'_>) -> rusqlite::Result<IssueRunC
         stderr_excerpt: row.get(7)?,
         run_updated_at: row.get(8)?,
     })
+}
+
+fn row_to_dashboard_overview_chat_row(
+    row: &Row<'_>,
+) -> rusqlite::Result<DashboardOverviewChat> {
+    Ok(DashboardOverviewChat {
+        id: row.get(0)?,
+        project_id: row.get(1)?,
+        title: row.get(2)?,
+        status: row.get(3)?,
+        priority: row.get(4)?,
+        assignee_agent_id: row.get(5)?,
+        assignee_adapter_overrides: row
+            .get::<_, Option<String>>(6)?
+            .map(|value| parse_json(value)),
+        execution_workspace_settings: row
+            .get::<_, Option<String>>(7)?
+            .map(|value| parse_json(value)),
+        identifier: row.get(8)?,
+        created_at: row.get(9)?,
+        updated_at: row.get(10)?,
+        child_issue_count: row.get(11)?,
+        run_update: None,
+    })
+}
+
+fn list_issue_run_card_updates_sync(
+    conn: &Connection,
+    company_id: &str,
+) -> DatabaseResult<Vec<IssueRunCardUpdate>> {
+    let rows = {
+        let mut stmt = conn.prepare(
+            "SELECT
+                i.id,
+                i.status,
+                r.id,
+                r.agent_id,
+                r.status,
+                r.result_json,
+                r.stdout_excerpt,
+                r.stderr_excerpt,
+                r.updated_at
+             FROM issues i
+             JOIN agent_runs r
+               ON r.id = COALESCE(i.execution_run_id, i.checkout_run_id)
+             WHERE i.company_id = ?1
+               AND COALESCE(i.execution_run_id, i.checkout_run_id) IS NOT NULL
+             ORDER BY i.updated_at DESC, i.created_at DESC",
+        )?;
+        let rows = stmt
+            .query_map(params![company_id], row_to_issue_run_card_update_row)?
+            .collect::<Result<Vec<_>, _>>()?;
+        rows
+    };
+
+    if rows.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let run_ids = rows.iter().map(|row| row.run_id.clone()).collect::<Vec<_>>();
+    let events_by_run = list_recent_events_for_run_ids(conn, &run_ids, 8)?;
+
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            let summary = summarize_issue_run_card_update(
+                &row.run_status,
+                events_by_run
+                    .get(&row.run_id)
+                    .map(Vec::as_slice)
+                    .unwrap_or(&[]),
+                row.result_json.as_ref(),
+                row.stdout_excerpt.as_deref(),
+                row.stderr_excerpt.as_deref(),
+            );
+            let last_event = events_by_run
+                .get(&row.run_id)
+                .and_then(|events| events.first());
+
+            IssueRunCardUpdate {
+                issue_id: row.issue_id,
+                issue_status: row.issue_status,
+                run_id: row.run_id,
+                agent_id: row.agent_id,
+                run_status: row.run_status,
+                summary: Some(summary),
+                last_event_type: last_event.map(|event| event.event_type.clone()),
+                last_activity_at: last_event
+                    .map(|event| event.created_at.clone())
+                    .unwrap_or(row.run_updated_at),
+            }
+        })
+        .collect())
 }
 
 fn row_to_agent_run(row: &Row<'_>) -> rusqlite::Result<AgentRun> {
@@ -3793,6 +3985,19 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
+    async fn create_test_project(db: &AsyncDatabase, company_id: &str, name: &str) -> Project {
+        create_project(
+            db,
+            CreateProjectInput {
+                company_id: company_id.to_string(),
+                name: name.to_string(),
+                ..CreateProjectInput::default()
+            },
+        )
+        .await
+        .unwrap()
+    }
+
     #[tokio::test]
     async fn create_company_starts_without_ceo_or_agent_files() {
         let dir = tempdir().unwrap();
@@ -4050,11 +4255,13 @@ mod tests {
         )
         .await
         .unwrap();
+        let project = create_test_project(&db, &company.id, "Hiring").await;
 
         let source_issue = create_issue(
             &db,
             CreateIssueInput {
                 company_id: company.id.clone(),
+                project_id: Some(project.id.clone()),
                 title: "Bootstrap the engineering team".to_string(),
                 assignee_agent_id: Some(ceo.id.clone()),
                 ..CreateIssueInput::default()
@@ -4166,11 +4373,13 @@ mod tests {
         )
         .await
         .unwrap();
+        let project = create_test_project(&db, &company.id, "Decisions").await;
 
         let issue = create_issue(
             &db,
             CreateIssueInput {
                 company_id: company.id.clone(),
+                project_id: Some(project.id.clone()),
                 title: "Need board guidance".to_string(),
                 assignee_agent_id: Some(agent.id.clone()),
                 ..CreateIssueInput::default()
@@ -4299,11 +4508,13 @@ mod tests {
         )
         .await
         .unwrap();
+        let project = create_test_project(&db, &company.id, "Approvals").await;
 
         let issue = create_issue(
             &db,
             CreateIssueInput {
                 company_id: company.id.clone(),
+                project_id: Some(project.id.clone()),
                 title: "Need board guidance".to_string(),
                 assignee_agent_id: Some(agent.id.clone()),
                 ..CreateIssueInput::default()
@@ -4651,11 +4862,13 @@ mod tests {
         )
         .await
         .unwrap();
+        let project = create_test_project(&db, &company.id, "Bootstrap").await;
 
         let issue = create_issue(
             &db,
             CreateIssueInput {
                 company_id: company.id.clone(),
+                project_id: Some(project.id.clone()),
                 title: "Create your CEO HEARTBEAT.md".to_string(),
                 assignee_agent_id: Some(ceo.id.clone()),
                 ..CreateIssueInput::default()
@@ -4667,6 +4880,41 @@ mod tests {
         assert_eq!(issue.assignee_agent_id, Some(ceo.id.clone()));
         assert_eq!(issue.execution_agent_name_key, Some(ceo.slug.clone()));
         assert_eq!(issue.status, "todo");
+    }
+
+    #[tokio::test]
+    async fn create_issue_requires_project_assignment() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let error = create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                title: "Unscoped issue".to_string(),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap_err();
+
+        assert!(error
+            .to_string()
+            .contains("Issues must belong to a project"));
     }
 
     #[tokio::test]
@@ -4879,6 +5127,7 @@ mod tests {
             &db,
             CreateIssueInput {
                 company_id: company.id.clone(),
+                project_id: Some(project.id.clone()),
                 title: "Parent".to_string(),
                 ..CreateIssueInput::default()
             },
@@ -4890,6 +5139,7 @@ mod tests {
             &db,
             CreateIssueInput {
                 company_id: company.id.clone(),
+                project_id: Some(project.id.clone()),
                 title: "Child".to_string(),
                 ..CreateIssueInput::default()
             },
@@ -4939,7 +5189,6 @@ mod tests {
             UpdateIssueInput {
                 issue_id: issue.id.clone(),
                 description: Some(None),
-                project_id: Some(None),
                 parent_id: Some(None),
                 assignee_agent_id: Some(None),
                 execution_workspace_settings: Some(None),
@@ -4951,13 +5200,123 @@ mod tests {
         .unwrap();
 
         assert_eq!(cleared.description, None);
-        assert_eq!(cleared.project_id, None);
+        assert_eq!(cleared.project_id, Some(project.id.clone()));
         assert_eq!(cleared.parent_id, None);
         assert_eq!(cleared.assignee_agent_id, None);
         assert_eq!(cleared.execution_agent_name_key, None);
         assert_eq!(cleared.execution_workspace_settings, None);
         assert!(cleared.hidden_at.is_some());
         assert_eq!(cleared.request_depth, 0);
+    }
+
+    #[tokio::test]
+    async fn update_project_updates_execution_workspace_policy() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let project = create_project(
+            &db,
+            CreateProjectInput {
+                company_id: company.id.clone(),
+                name: "Workspace defaults".to_string(),
+                ..CreateProjectInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let updated = update_project(
+            &db,
+            UpdateProjectInput {
+                project_id: project.id.clone(),
+                execution_workspace_policy: Some(Some(json!({
+                    "default_new_chat_area": "new_worktree"
+                }))),
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            updated.execution_workspace_policy,
+            Some(json!({
+                "default_new_chat_area": "new_worktree"
+            }))
+        );
+
+        let cleared = update_project(
+            &db,
+            UpdateProjectInput {
+                project_id: project.id.clone(),
+                execution_workspace_policy: Some(None),
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(cleared.execution_workspace_policy, None);
+    }
+
+    #[tokio::test]
+    async fn update_issue_rejects_clearing_project_assignment() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::with_base_dir(dir.path().join("unbound"));
+        paths.ensure_dirs().unwrap();
+        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
+
+        let company = create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .unwrap();
+        let project = create_test_project(&db, &company.id, "Bootstrap").await;
+
+        let issue = create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                project_id: Some(project.id.clone()),
+                title: "Keep scoped".to_string(),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let error = update_issue(
+            &db,
+            UpdateIssueInput {
+                issue_id: issue.id.clone(),
+                project_id: Some(None),
+                ..UpdateIssueInput::default()
+            },
+        )
+        .await
+        .unwrap_err();
+
+        assert!(error
+            .to_string()
+            .contains("Issues must belong to a project"));
     }
 
     #[tokio::test]
@@ -5093,11 +5452,13 @@ mod tests {
         )
         .await
         .unwrap();
+        let project = create_test_project(&db, &company.id, "Lifecycle").await;
 
         let issue = create_issue(
             &db,
             CreateIssueInput {
                 company_id: company.id.clone(),
+                project_id: Some(project.id.clone()),
                 title: "Closed".to_string(),
                 ..CreateIssueInput::default()
             },
@@ -5191,11 +5552,13 @@ mod tests {
         )
         .await
         .unwrap();
+        let project = create_test_project(&db, &company.id, "Comments").await;
 
         let issue = create_issue(
             &db,
             CreateIssueInput {
                 company_id: company.id.clone(),
+                project_id: Some(project.id.clone()),
                 title: "Comment target".to_string(),
                 ..CreateIssueInput::default()
             },
@@ -5237,11 +5600,13 @@ mod tests {
         )
         .await
         .unwrap();
+        let project = create_test_project(&db, &company.id, "Attachments").await;
 
         let issue = create_issue(
             &db,
             CreateIssueInput {
                 company_id: company.id.clone(),
+                project_id: Some(project.id.clone()),
                 title: "Attachments".to_string(),
                 ..CreateIssueInput::default()
             },
@@ -5315,11 +5680,13 @@ mod tests {
         )
         .await
         .unwrap();
+        let project = create_test_project(&db, &company.id, "Runs").await;
 
         let issue = create_issue(
             &db,
             CreateIssueInput {
                 company_id: company.id.clone(),
+                project_id: Some(project.id.clone()),
                 title: "Run history".to_string(),
                 ..CreateIssueInput::default()
             },
@@ -5331,6 +5698,7 @@ mod tests {
             &db,
             CreateIssueInput {
                 company_id: company.id.clone(),
+                project_id: Some(project.id.clone()),
                 title: "Other".to_string(),
                 ..CreateIssueInput::default()
             },
@@ -5554,11 +5922,13 @@ mod tests {
         )
         .await
         .unwrap();
+        let project = create_test_project(&db, &company.id, "Run cards").await;
 
         let issue = create_issue(
             &db,
             CreateIssueInput {
                 company_id: company.id.clone(),
+                project_id: Some(project.id.clone()),
                 title: "Live card update".to_string(),
                 ..CreateIssueInput::default()
             },
@@ -5697,11 +6067,13 @@ mod tests {
         )
         .await
         .unwrap();
+        let project = create_test_project(&db, &company.id, "Run excerpts").await;
 
         let issue = create_issue(
             &db,
             CreateIssueInput {
                 company_id: company.id.clone(),
+                project_id: Some(project.id.clone()),
                 title: "Finished work".to_string(),
                 ..CreateIssueInput::default()
             },
@@ -5781,11 +6153,13 @@ mod tests {
         )
         .await
         .unwrap();
+        let project = create_test_project(&db, &company.id, "Pending approval").await;
 
         let error = create_issue(
             &db,
             CreateIssueInput {
                 company_id: company.id.clone(),
+                project_id: Some(project.id.clone()),
                 title: "Onboard engineer".to_string(),
                 assignee_agent_id: Some(pending_agent.id.clone()),
                 ..CreateIssueInput::default()
@@ -5843,11 +6217,13 @@ mod tests {
         )
         .await
         .unwrap();
+        let project = create_test_project(&db, &company.id, "Leadership").await;
 
         let issue = create_issue(
             &db,
             CreateIssueInput {
                 company_id: company.id.clone(),
+                project_id: Some(project.id.clone()),
                 title: "CEO bootstrap".to_string(),
                 assignee_agent_id: Some(ceo.id.clone()),
                 ..CreateIssueInput::default()

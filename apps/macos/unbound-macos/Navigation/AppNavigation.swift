@@ -28,7 +28,7 @@ enum AppScreen: Hashable {
         case .inbox: return "Inbox"
         case .workspaces: return "Workspaces"
         case .agents: return "Agents"
-        case .issues: return "Issues"
+        case .issues: return "Conversations"
         case .approvals: return "Approvals"
         case .projects: return "Projects"
         case .goals: return "Goals"

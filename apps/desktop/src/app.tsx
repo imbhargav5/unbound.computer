@@ -16,11 +16,12 @@ import {
   useState,
 } from "react";
 import {
-  boardAddIssueComment,
   boardAddIssueAttachment,
   boardCancelAgentRun,
   boardApproveApproval,
   boardCompanySnapshot,
+  boardDashboardOverview,
+  boardCreateAgent,
   boardCreateCompany,
   boardCreateIssue,
   boardCreateProject,
@@ -41,6 +42,7 @@ import {
   boardUpdateAgent,
   boardUpdateCompany,
   boardUpdateIssue,
+  boardUpdateProject,
   agentSend,
   agentStatus,
   agentStop,
@@ -83,6 +85,8 @@ import type {
   ApprovalRecord,
   Company,
   CompanySnapshot,
+  DashboardOverviewChatRecord,
+  DashboardOverviewRecord,
   DesktopBootstrapStatus,
   DesktopSettings,
   FileEntry,
@@ -106,12 +110,28 @@ import type {
   SessionStreamPayload,
   WorkspaceRecord,
 } from "./lib/types";
+import {
+  type ConversationQuestion,
+  type ConversationRow,
+  type ConversationSubAgent,
+  type ConversationTodoItem,
+  type ConversationTool,
+  buildConversationTimeline,
+} from "./lib/conversationTimeline";
+import {
+  type SessionConversationCommandBlock,
+  type SessionConversationNoteBlock,
+  type SessionConversationRow,
+} from "./lib/sessionConversation";
+import {
+  DesktopSessionStateManager,
+  useDesktopSessionLiveState,
+} from "./lib/sessionLiveState";
 
 type AppScreen =
   | "dashboard"
   | "inbox"
   | "workspaces"
-  | "org"
   | "agents"
   | "issues"
   | "approvals"
@@ -129,6 +149,7 @@ const emptyGoalRecords: GoalRecord[] = [];
 const emptyIssueRecords: IssueRecord[] = [];
 const emptyProjectRecords: ProjectRecord[] = [];
 const emptyWorkspaceRecords: WorkspaceRecord[] = [];
+const emptyDashboardOverviewChats: DashboardOverviewChatRecord[] = [];
 
 type SettingsSection =
   | "general"
@@ -140,7 +161,6 @@ type ThemeMode = "system" | "light" | "dark";
 type FontSizePreset = "small" | "medium" | "large";
 type DesktopPreferredViewValue =
   | "dashboard"
-  | "org"
   | "stats"
   | "activity"
   | "costs"
@@ -148,8 +168,9 @@ type DesktopPreferredViewValue =
   | "settings";
 type IssuesListTab = "new" | "all";
 type IssuesRouteMode = "list" | "detail";
-type IssueDetailTab = "conversation" | "runs" | "subissues";
+type IssueDetailTab = "conversation" | "runs" | "queued";
 type AgentsRouteMode = "dashboard" | "configuration" | "runs";
+type IssueDialogMode = "conversation" | "queuedMessage";
 
 interface IssueLinkedRun {
   label: string | null;
@@ -157,12 +178,11 @@ interface IssueLinkedRun {
 }
 
 type BoardRootLayout = "companyDashboard" | "workspace" | "settings";
-type WorkspaceCenterTab = "conversation" | "terminal" | "preview";
-type WorkspaceSidebarTab = "changes" | "files" | "commits";
+type WorkspaceCenterTab = "conversation" | "runs" | "terminal" | "preview";
+type WorkspaceSidebarTab = "changes" | "files" | "commits" | "issue";
 type CompanyContextMenuScreen =
   | "dashboard"
   | "workspaces"
-  | "org"
   | "issues"
   | "companySettings";
 type CompanyContextMenuIconKey =
@@ -191,6 +211,16 @@ interface DashboardCanvasOffset {
 
 type DashboardProjectGrouping = "status" | "priority" | "assignee";
 type IssueWorkspaceTargetMode = "main" | "new_worktree" | "existing_worktree";
+type ProjectDefaultNewChatArea = "repo_root" | "new_worktree";
+
+interface IssueRuntimeDraft {
+  command: string;
+  model: string;
+  thinkingEffort: string;
+  planMode: boolean;
+  enableChrome: boolean;
+  skipPermissions: boolean;
+}
 
 interface DashboardProjectColumn {
   createDefaults: CreateIssueDialogDefaults;
@@ -225,11 +255,29 @@ interface SelectOption<T extends string> {
   value: T;
 }
 
+const projectDefaultNewChatAreaOptions: Array<
+  SelectOption<ProjectDefaultNewChatArea>
+> = [
+  { label: "Repo root", value: "repo_root" },
+  { label: "New worktree", value: "new_worktree" },
+];
+
 interface CreateIssueDialogDefaults {
-  assigneeAgentId?: string;
+  dialogMode?: IssueDialogMode;
+  parentId?: string;
   projectId?: string;
   priority?: string;
   status?: string;
+  command?: string;
+  model?: string;
+  thinkingEffort?: string;
+  planMode?: boolean;
+  enableChrome?: boolean;
+  skipPermissions?: boolean;
+  workspaceTargetMode?: IssueWorkspaceTargetMode;
+  workspaceWorktreeBranch?: string;
+  workspaceWorktreeName?: string;
+  workspaceWorktreePath?: string;
 }
 
 interface DashboardProjectViewDraft {
@@ -237,7 +285,7 @@ interface DashboardProjectViewDraft {
   name: string;
 }
 
-interface IssueEditDraft {
+interface IssueEditDraft extends IssueRuntimeDraft {
   title: string;
   description: string;
   status: string;
@@ -255,6 +303,8 @@ interface ProjectWorktreeState {
   worktrees: GitWorktreeRecord[];
   isLoading: boolean;
   errorMessage: string | null;
+  hasLoaded?: boolean;
+  repoPath?: string | null;
 }
 
 interface IssueAttachmentDraft {
@@ -292,9 +342,7 @@ interface AgentConfigDraft {
   monthlyBudget: string;
 }
 
-type ActivityFeedTarget =
-  | { kind: "approval"; approvalId: string }
-  | { kind: "issue"; issueId: string };
+type ActivityFeedTarget = { kind: "issue"; issueId: string };
 
 interface ActivityFeedItem {
   id: string;
@@ -309,6 +357,120 @@ interface DashboardBreadcrumbItem {
   label: string;
   onClick?: () => void;
 }
+
+interface BirdsEyeCodeImpactSummary {
+  additions: number;
+  deletions: number;
+  filesChanged: number;
+  state: "loading" | "ready" | "error";
+}
+
+interface BirdsEyeChatNode {
+  kind: "chat";
+  rowId: string;
+  chat: DashboardOverviewChatRecord;
+  projectId: string;
+  folderRowId: string;
+  title: string;
+  agentLabel: string;
+  lastActivityAt: string | null;
+  runStatus: string | null;
+  runSummary: string | null;
+  sessionId: string | null;
+  createDefaults: CreateIssueDialogDefaults;
+}
+
+interface BirdsEyeFolderNode {
+  kind: "folder";
+  rowId: string;
+  projectId: string;
+  folderKey: string;
+  label: string;
+  secondaryLabel: string | null;
+  path: string | null;
+  folderType: "repo_root" | "worktree" | "pending_worktree";
+  chats: BirdsEyeChatNode[];
+  chatCount: number;
+  liveRunCount: number;
+  lastActivityAt: string | null;
+  createDefaults: CreateIssueDialogDefaults;
+}
+
+interface BirdsEyeProjectNode {
+  kind: "project";
+  rowId: string;
+  project: ProjectRecord;
+  label: string;
+  repoPath: string | null;
+  folders: BirdsEyeFolderNode[];
+  folderCount: number;
+  chatCount: number;
+  liveRunCount: number;
+  lastActivityAt: string | null;
+  createDefaults: CreateIssueDialogDefaults;
+}
+
+type BirdsEyeTreeNode =
+  | BirdsEyeProjectNode
+  | BirdsEyeFolderNode
+  | BirdsEyeChatNode;
+
+interface BirdsEyeVisibleRow {
+  rowId: string;
+  depth: number;
+  hasChildren: boolean;
+  isExpanded: boolean;
+  parentRowId: string | null;
+  node: BirdsEyeTreeNode;
+}
+
+interface BirdsEyeTreeModel {
+  projects: BirdsEyeProjectNode[];
+  rowById: Map<string, BirdsEyeTreeNode>;
+  chatByIssueId: Map<string, BirdsEyeChatNode>;
+  rowIds: Set<string>;
+}
+
+interface BirdsEyeQuickCreateDraft {
+  command: string;
+  enableChrome: boolean;
+  model: string;
+  planMode: boolean;
+  priority: string;
+  projectId: string;
+  skipPermissions: boolean;
+  status: string;
+  thinkingEffort: string;
+  workspaceTargetMode: IssueWorkspaceTargetMode;
+  workspaceWorktreeBranch: string;
+  workspaceWorktreeName: string;
+  workspaceWorktreePath: string;
+}
+
+interface BirdsEyeQuickCreateState {
+  draft: BirdsEyeQuickCreateDraft;
+  errorMessage: string | null;
+  folderRowId: string | null;
+  isOpen: boolean;
+  isSaving: boolean;
+  sourceRowId: string | null;
+  title: string;
+}
+
+type BirdsEyeIssueLike = Pick<
+  IssueRecord,
+  | "id"
+  | "project_id"
+  | "title"
+  | "status"
+  | "priority"
+  | "assignee_agent_id"
+  | "assignee_adapter_overrides"
+  | "execution_workspace_settings"
+  | "identifier"
+  | "created_at"
+  | "updated_at"
+>;
 
 function normalizeGitWorktreeRecords(value: unknown): GitWorktreeRecord[] {
   if (Array.isArray(value)) {
@@ -377,6 +539,153 @@ function useProjectWorktrees(repoPath: string | null): ProjectWorktreeState {
   };
 }
 
+function emptyProjectWorktreeState(): ProjectWorktreeState {
+  return {
+    errorMessage: null,
+    hasLoaded: false,
+    isLoading: false,
+    repoPath: null,
+    worktrees: [],
+  };
+}
+
+function useDashboardProjectWorktrees(
+  projects: ProjectRecord[],
+  requestedProjectIds: string[]
+) {
+  const [stateByProjectId, setStateByProjectId] = useState<
+    Record<string, ProjectWorktreeState>
+  >({});
+  const requestedProjectIdSet = useMemo(
+    () => new Set(requestedProjectIds),
+    [requestedProjectIds]
+  );
+  const requestedRepoEntries = useMemo(
+    () =>
+      projects
+        .map((project) => ({
+          projectId: project.id,
+          repoPath: project.primary_workspace?.cwd?.trim() ?? "",
+        }))
+        .filter(
+          (entry) =>
+            entry.repoPath.length > 0 && requestedProjectIdSet.has(entry.projectId)
+        ),
+    [projects, requestedProjectIdSet]
+  );
+  const requestedRepoKey = requestedRepoEntries
+    .map((entry) => `${entry.projectId}:${entry.repoPath}`)
+    .join("|");
+
+  useEffect(() => {
+    setStateByProjectId((current) => {
+      const next: Record<string, ProjectWorktreeState> = {};
+
+      for (const project of projects) {
+        next[project.id] = current[project.id] ?? emptyProjectWorktreeState();
+      }
+
+      return next;
+    });
+  }, [projects]);
+
+  const pendingRepoEntries = useMemo(
+    () =>
+      requestedRepoEntries.filter((entry) => {
+        const current = stateByProjectId[entry.projectId];
+        return (
+          !current ||
+          current.repoPath !== entry.repoPath ||
+          (!current.hasLoaded && !current.isLoading)
+        );
+      }),
+    [requestedRepoEntries, stateByProjectId]
+  );
+  const pendingRepoKey = pendingRepoEntries
+    .map((entry) => `${entry.projectId}:${entry.repoPath}`)
+    .join("|");
+
+  useEffect(() => {
+    if (pendingRepoEntries.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+    setStateByProjectId((current) => {
+      const next = { ...current };
+
+      for (const entry of pendingRepoEntries) {
+        const previous = next[entry.projectId] ?? emptyProjectWorktreeState();
+        next[entry.projectId] = {
+          ...previous,
+          errorMessage: null,
+          hasLoaded: false,
+          isLoading: true,
+          repoPath: entry.repoPath,
+          worktrees:
+            previous.repoPath === entry.repoPath ? previous.worktrees : [],
+        };
+      }
+
+      return next;
+    });
+
+    void Promise.allSettled(
+      pendingRepoEntries.map(async (entry) => ({
+        projectId: entry.projectId,
+        worktrees: normalizeGitWorktreeRecords(
+          await gitWorktrees(undefined, undefined, entry.repoPath)
+        ),
+      }))
+    ).then((results) => {
+      if (cancelled) {
+        return;
+      }
+
+      setStateByProjectId((current) => {
+        const next = { ...current };
+
+        results.forEach((result, index) => {
+          const entry = pendingRepoEntries[index];
+          if (!entry) {
+            return;
+          }
+
+          if (result.status === "fulfilled") {
+            next[entry.projectId] = {
+              errorMessage: null,
+              hasLoaded: true,
+              isLoading: false,
+              repoPath: entry.repoPath,
+              worktrees: result.value.worktrees,
+            };
+            return;
+          }
+
+          next[entry.projectId] = {
+            errorMessage:
+              result.reason instanceof Error
+                ? result.reason.message
+                : String(result.reason),
+            hasLoaded: true,
+            isLoading: false,
+            repoPath: entry.repoPath,
+            worktrees: [],
+          };
+        });
+
+        return next;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pendingRepoEntries, pendingRepoKey, requestedRepoEntries, requestedRepoKey]);
+
+  return stateByProjectId;
+}
+
 function parseIssueExecutionWorkspaceSettings(value: unknown) {
   const record =
     value && typeof value === "object"
@@ -396,6 +705,171 @@ function parseIssueExecutionWorkspaceSettings(value: unknown) {
       typeof record?.worktree_branch === "string" ? record.worktree_branch : "",
     workspaceWorktreeName:
       typeof record?.worktree_name === "string" ? record.worktree_name : "",
+  };
+}
+
+function defaultIssueRuntimeCommandForProvider(
+  provider: AgentCliProvider,
+  dependencyCheck: RuntimeCapabilities | null
+) {
+  if (provider === "codex") {
+    return dependencyCheck?.cli.codex.path?.trim() || "codex";
+  }
+
+  return dependencyCheck?.cli.claude.path?.trim() || "claude";
+}
+
+function createDefaultIssueRuntimeDraft(
+  dependencyCheck: RuntimeCapabilities | null
+): IssueRuntimeDraft {
+  const defaultProvider =
+    dependencyCheck?.cli.claude.installed ||
+    !dependencyCheck?.cli.codex.installed
+      ? "claude"
+      : "codex";
+
+  return {
+    command: defaultIssueRuntimeCommandForProvider(
+      defaultProvider,
+      dependencyCheck
+    ),
+    model: "default",
+    thinkingEffort: "auto",
+    planMode: false,
+    enableChrome: false,
+    skipPermissions: false,
+  };
+}
+
+function issueDialogDefaultsFromRuntimeDraft(
+  runtimeDraft: Pick<
+    IssueRuntimeDraft,
+    | "command"
+    | "enableChrome"
+    | "model"
+    | "planMode"
+    | "skipPermissions"
+    | "thinkingEffort"
+  >
+): IssueRuntimeDraft {
+  return {
+    command: runtimeDraft.command,
+    enableChrome: runtimeDraft.enableChrome,
+    model: runtimeDraft.model,
+    planMode: runtimeDraft.planMode,
+    skipPermissions: runtimeDraft.skipPermissions,
+    thinkingEffort: runtimeDraft.thinkingEffort,
+  };
+}
+
+function createBirdsEyeQuickCreateState(
+  dependencyCheck: RuntimeCapabilities | null
+): BirdsEyeQuickCreateState {
+  const runtimeDraft = createDefaultIssueRuntimeDraft(dependencyCheck);
+  return {
+    draft: {
+      ...issueDialogDefaultsFromRuntimeDraft(runtimeDraft),
+      priority: "medium",
+      projectId: "",
+      status: "backlog",
+      workspaceTargetMode: "main",
+      workspaceWorktreeBranch: "",
+      workspaceWorktreeName: "",
+      workspaceWorktreePath: "",
+    },
+    errorMessage: null,
+    folderRowId: null,
+    isOpen: false,
+    isSaving: false,
+    sourceRowId: null,
+    title: "",
+  };
+}
+
+function createDefaultExecutorParams(
+  companyId: string,
+  dependencyCheck: RuntimeCapabilities | null
+) {
+  const runtimeDraft = createDefaultIssueRuntimeDraft(dependencyCheck);
+
+  return {
+    company_id: companyId,
+    name: "Default Executor",
+    role: "ceo",
+    title: "Default Executor",
+    icon: "sparkles",
+    adapter_type: "process",
+    adapter_config: {
+      command: runtimeDraft.command,
+      model: runtimeDraft.model,
+      thinkingEffort: runtimeDraft.thinkingEffort,
+      reasoningEffort: runtimeDraft.thinkingEffort,
+      permissionMode: "default",
+      enableChrome: runtimeDraft.enableChrome,
+      skipPermissions: runtimeDraft.skipPermissions,
+    },
+    runtime_config: {
+      heartbeat: {
+        enabled: true,
+        intervalSec: 3600,
+        wakeOnDemand: true,
+        cooldownSec: 10,
+        maxConcurrentRuns: 1,
+      },
+    },
+  };
+}
+
+function parseIssueAdapterOverrides(value: unknown): IssueRuntimeDraft {
+  const record =
+    value && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : undefined;
+  const command = stringFromUnknown(record?.command, "claude");
+  const model = stringFromUnknown(record?.model, "default");
+  const provider = detectAgentCliProvider(command, model);
+
+  return {
+    command,
+    model,
+    thinkingEffort: stringFromUnknown(
+      record?.thinkingEffort ?? record?.reasoningEffort,
+      "auto"
+    ),
+    planMode:
+      stringFromUnknown(record?.permissionMode) === "plan" ||
+      booleanFromUnknown(record?.planMode),
+    enableChrome: booleanFromUnknown(record?.enableChrome),
+    skipPermissions: booleanFromUnknown(record?.skipPermissions),
+  };
+}
+
+function issueAdapterOverridesFromDraft(
+  draft: Pick<
+    IssueRuntimeDraft,
+    | "command"
+    | "enableChrome"
+    | "model"
+    | "planMode"
+    | "skipPermissions"
+    | "thinkingEffort"
+  >
+) {
+  const command = normalizeOptionalDraftString(draft.command) ?? "claude";
+  const model = normalizeOptionalDraftString(draft.model) ?? "default";
+  const thinkingEffort =
+    normalizeOptionalDraftString(draft.thinkingEffort) ?? "auto";
+  const provider = detectAgentCliProvider(command, model);
+
+  return {
+    command,
+    model,
+    thinkingEffort,
+    reasoningEffort: thinkingEffort,
+    enableChrome: draft.enableChrome,
+    skipPermissions: draft.skipPermissions,
+    permissionMode:
+      provider === "claude" && draft.planMode ? "plan" : "default",
   };
 }
 
@@ -515,7 +989,7 @@ function issueWorkspaceTargetHint({
   worktreeCount: number;
 }) {
   if (!hasProject) {
-    return "Link the issue to a project first.";
+    return "Link the conversation to a project first.";
   }
 
   if (!hasRepoPath) {
@@ -534,17 +1008,17 @@ function issueWorkspaceTargetHint({
     return `${worktreeCount} existing ${worktreeCount === 1 ? "worktree is" : "worktrees are"} available to reuse.`;
   }
 
-  return "Run in the repo root or create a fresh git worktree for this issue.";
+  return "Run in the repo root or create a fresh git worktree for this conversation.";
 }
 
 const primaryBoardSections: Array<{ title: string; screens: AppScreen[] }> = [
-  { title: "Work", screens: ["issues", "approvals", "workspaces"] },
+  { title: "Work", screens: ["issues", "workspaces"] },
   { title: "Planning", screens: ["goals"] },
 ];
 
 const companyBoardSection: { title: string; screens: AppScreen[] } = {
-  title: "Company",
-  screens: ["org", "stats", "activity", "costs", "companySettings"],
+  title: "Spaces",
+  screens: ["stats", "activity", "costs", "companySettings"],
 };
 
 const settingsSections: Array<{ id: SettingsSection; label: string }> = [
@@ -556,11 +1030,7 @@ const settingsSections: Array<{ id: SettingsSection; label: string }> = [
 
 const themeModes: ThemeMode[] = ["system", "light", "dark"];
 const fontSizePresets: FontSizePreset[] = ["small", "medium", "large"];
-const dashboardProjectGroupingOptions: DashboardProjectGrouping[] = [
-  "status",
-  "priority",
-  "assignee",
-];
+const dashboardProjectGroupingOptions: DashboardProjectGrouping[] = ["status"];
 const dashboardProjectGroupingSelectOptions: Array<
   SelectOption<DashboardProjectGrouping>
 > = dashboardProjectGroupingOptions.map((value) => ({
@@ -571,7 +1041,6 @@ const desktopPreferredViewOptions: Array<
   SelectOption<DesktopPreferredViewValue>
 > = [
   { label: "Dashboard", value: "dashboard" },
-  { label: "Org", value: "org" },
   { label: "Stats", value: "stats" },
   { label: "Activity", value: "activity" },
   { label: "Costs", value: "costs" },
@@ -597,8 +1066,7 @@ const companyContextMenuItems: Array<{
 }> = [
   { icon: "dashboard", label: "Dashboard", screen: "dashboard" },
   { icon: "workspaces", label: "Worktrees", screen: "workspaces" },
-  { icon: "org", label: "Org", screen: "org" },
-  { icon: "issues", label: "Issues", screen: "issues" },
+  { icon: "issues", label: "Conversations", screen: "issues" },
   { icon: "companySettings", label: "Settings", screen: "companySettings" },
 ];
 
@@ -606,15 +1074,17 @@ const defaultDashboardCanvasOffset: DashboardCanvasOffset = {
   x: 96,
   y: 88,
 };
+const dashboardCanvasZoomLevels = [0.7, 0.85, 1, 1.15, 1.3] as const;
+const defaultDashboardCanvasZoomIndex = 2;
 
 const dashboardProjectBoardMinWidth = 920;
-const dashboardProjectBoardHeight = 640;
+const dashboardProjectBoardHeight = 1280;
 const dashboardProjectBoardGapX = 88;
 const dashboardProjectBoardGapY = 80;
 const dashboardProjectBoardStackGap = dashboardProjectBoardGapY;
 const dashboardProjectBoardPadding = 18;
 const dashboardProjectBoardBorderWidth = 1;
-const dashboardProjectBoardColumnWidth = 170;
+const dashboardProjectBoardColumnWidth = 340;
 const dashboardProjectBoardColumnGap = 14;
 const dashboardProjectAddViewSlotHeight = 126;
 const dashboardDefaultProjectViewId = "default";
@@ -657,6 +1127,10 @@ export function App() {
     useState<AgentsRouteMode>("dashboard");
   const [companySnapshot, setCompanySnapshot] =
     useState<CompanySnapshot | null>(null);
+  const [dashboardOverview, setDashboardOverview] =
+    useState<DashboardOverviewRecord | null>(null);
+  const [isDashboardOverviewLoading, setIsDashboardOverviewLoading] =
+    useState(false);
   const [agentRuns, setAgentRuns] = useState<AgentRunRecord[]>([]);
   const [selectedAgentRunId, setSelectedAgentRunId] = useState<string | null>(
     null
@@ -687,7 +1161,6 @@ export function App() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
     null
   );
-  const [messages, setMessages] = useState<SessionMessage[]>([]);
   const [gitState, setGitState] = useState<GitStatusResult | null>(null);
   const [gitHistory, setGitHistory] = useState<GitLogResult | null>(null);
   const [branchState, setBranchState] = useState<GitBranchesResult | null>(
@@ -700,14 +1173,6 @@ export function App() {
   const [selectedDiff, setSelectedDiff] = useState<GitDiffResult | null>(null);
   const [dependencyCheck, setDependencyCheck] =
     useState<RuntimeCapabilities | null>(null);
-  const [claudeStatusState, setClaudeStatusState] = useState<Record<
-    string,
-    unknown
-  > | null>(null);
-  const [terminalStatusState, setTerminalStatusState] = useState<Record<
-    string,
-    unknown
-  > | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [workspaceCenterTab, setWorkspaceCenterTab] =
     useState<WorkspaceCenterTab>("conversation");
@@ -738,14 +1203,23 @@ export function App() {
   );
   const [isProjectDialogSaving, setIsProjectDialogSaving] = useState(false);
   const [isCreateIssueDialogOpen, setIsCreateIssueDialogOpen] = useState(false);
+  const [issueDialogMode, setIssueDialogMode] =
+    useState<IssueDialogMode>("conversation");
   const [issueDialogTitle, setIssueDialogTitle] = useState("");
   const [issueDialogDescription, setIssueDialogDescription] = useState("");
   const [issueDialogPriority, setIssueDialogPriority] = useState("medium");
-  const [issueDialogStatus, setIssueDialogStatus] = useState("todo");
+  const [issueDialogStatus, setIssueDialogStatus] = useState("backlog");
   const [issueDialogProjectId, setIssueDialogProjectId] = useState("");
-  const [issueDialogAssigneeAgentId, setIssueDialogAssigneeAgentId] =
-    useState("");
   const [issueDialogParentIssueId, setIssueDialogParentIssueId] = useState("");
+  const [issueDialogCommand, setIssueDialogCommand] = useState("claude");
+  const [issueDialogModel, setIssueDialogModel] = useState("default");
+  const [issueDialogThinkingEffort, setIssueDialogThinkingEffort] =
+    useState("auto");
+  const [issueDialogPlanMode, setIssueDialogPlanMode] = useState(false);
+  const [issueDialogEnableChrome, setIssueDialogEnableChrome] =
+    useState(false);
+  const [issueDialogSkipPermissions, setIssueDialogSkipPermissions] =
+    useState(false);
   const [issueDialogWorkspaceTargetMode, setIssueDialogWorkspaceTargetMode] =
     useState<IssueWorkspaceTargetMode>("main");
   const [
@@ -768,15 +1242,13 @@ export function App() {
   const [dashboardIssuePreviewId, setDashboardIssuePreviewId] = useState<
     string | null
   >(null);
+  const [dashboardPreviewIssueDetail, setDashboardPreviewIssueDetail] =
+    useState<IssueRecord | null>(null);
   const [isDashboardIssuePreviewLoading, setIsDashboardIssuePreviewLoading] =
     useState(false);
   const [dashboardIssuePreviewError, setDashboardIssuePreviewError] = useState<
     string | null
   >(null);
-  const [newIssueCommentBody, setNewIssueCommentBody] = useState("");
-  const [newIssueCommentTargetAgentId, setNewIssueCommentTargetAgentId] =
-    useState("");
-  const [isEditingIssue, setIsEditingIssue] = useState(false);
   const [issueDraft, setIssueDraft] = useState<IssueEditDraft>(
     createEmptyIssueDraft()
   );
@@ -800,12 +1272,19 @@ export function App() {
   const [agentConfigError, setAgentConfigError] = useState<string | null>(null);
   const [dashboardCanvasOffset, setDashboardCanvasOffset] =
     useState<DashboardCanvasOffset>(defaultDashboardCanvasOffset);
+  const [dashboardCanvasZoomIndex, setDashboardCanvasZoomIndex] = useState(
+    defaultDashboardCanvasZoomIndex
+  );
   const [isDashboardCanvasDragging, setIsDashboardCanvasDragging] =
     useState(false);
 
   const terminalContainerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const refreshTimeoutRef = useRef<number | null>(null);
+  const sessionStateManager = useMemo(
+    () => new DesktopSessionStateManager(),
+    []
+  );
   const dashboardCanvasViewportRef = useRef<HTMLDivElement | null>(null);
   const selectedAgentIdRef = useRef<string | null>(null);
   const selectedAgentRunIdRef = useRef<string | null>(null);
@@ -817,12 +1296,28 @@ export function App() {
     startX: number;
     startY: number;
   } | null>(null);
-
-  const deferredMessages = useDeferredValue(messages);
+  const dashboardCanvasWheelZoomRef = useRef<{
+    accumulatedDeltaY: number;
+    lastEventTime: number;
+  }>({
+    accumulatedDeltaY: 0,
+    lastEventTime: 0,
+  });
   const selectedRepository = repositories.find(
     (repository) => repository.id === selectedRepositoryId
   );
-  const selectedCompany = companySnapshot?.company ?? null;
+  const selectedCompany =
+    companySnapshot?.company ??
+    companies.find((company) => company.id === selectedCompanyId) ??
+    null;
+  const dashboardOverviewAgents =
+    dashboardOverview?.agents ?? emptyAgentRecords;
+  const dashboardOverviewProjects =
+    dashboardOverview?.projects ?? emptyProjectRecords;
+  const dashboardOverviewWorkspaces =
+    dashboardOverview?.workspaces ?? emptyWorkspaceRecords;
+  const dashboardOverviewChats =
+    dashboardOverview?.chats ?? emptyDashboardOverviewChats;
   const boardIssues = companySnapshot?.issues ?? emptyIssueRecords;
   const selectedIssue =
     boardIssues.find((issue) => issue.id === selectedIssueId) ?? null;
@@ -830,9 +1325,20 @@ export function App() {
     () => issuesVisible(boardIssues, selectedIssuesListTab),
     [boardIssues, selectedIssuesListTab]
   );
+  const dashboardPreviewChatSummary =
+    dashboardOverviewChats.find((chat) => chat.id === dashboardIssuePreviewId) ??
+    null;
   const activityVisibleIssues = useMemo(
     () => boardIssues.filter((issue) => !issue.hidden_at),
     [boardIssues]
+  );
+  const activityVisibleIssueIdsKey = useMemo(
+    () =>
+      activityVisibleIssues
+        .map((issue) => issue.id)
+        .sort()
+        .join("|"),
+    [activityVisibleIssues]
   );
   const activityMissingCommentIssueIds = useMemo(
     () =>
@@ -842,66 +1348,51 @@ export function App() {
     [activityVisibleIssues, issueCommentsByIssueId]
   );
   const issueSummaryText = useMemo(() => {
-    const suffix = visibleIssues.length === 1 ? "issue" : "issues";
+    const suffix =
+      visibleIssues.length === 1 ? "conversation" : "conversations";
     return `${issuesListTabTitle(selectedIssuesListTab)} · ${visibleIssues.length} ${suffix}`;
   }, [selectedIssuesListTab, visibleIssues.length]);
   const issueSubissues = useMemo(
     () =>
       selectedIssue
-        ? boardIssues.filter((issue) => issue.parent_id === selectedIssue.id)
+        ? boardIssues.filter(
+            (issue) =>
+              issue.parent_id === selectedIssue.id && issue.hidden_at == null
+          )
         : [],
     [boardIssues, selectedIssue]
   );
-  const linkedIssueApprovals = useMemo(
-    () =>
-      selectedIssue
-        ? (companySnapshot?.approvals ?? []).filter((approval) =>
-            approvalLinksIssue(approval, selectedIssue.id)
-          )
-        : [],
-    [companySnapshot?.approvals, selectedIssue]
-  );
-  const selectedIssueComments = selectedIssue
-    ? (issueCommentsByIssueId[selectedIssue.id] ?? [])
-    : [];
   const selectedIssueAttachments = selectedIssue
     ? (issueAttachmentsByIssueId[selectedIssue.id] ?? [])
     : [];
   const dashboardPreviewIssue =
-    boardIssues.find((issue) => issue.id === dashboardIssuePreviewId) ?? null;
+    dashboardPreviewIssueDetail ??
+    (dashboardPreviewChatSummary
+      ? dashboardOverviewChatToIssueRecord(
+          dashboardPreviewChatSummary,
+          selectedCompanyId
+        )
+      : null);
   const dashboardPreviewComments = dashboardPreviewIssue
     ? (issueCommentsByIssueId[dashboardPreviewIssue.id] ?? [])
     : [];
   const dashboardPreviewAttachments = dashboardPreviewIssue
     ? (issueAttachmentsByIssueId[dashboardPreviewIssue.id] ?? [])
     : [];
-  const dashboardPreviewSubissues = useMemo(
-    () =>
-      dashboardPreviewIssue
-        ? boardIssues.filter((issue) => issue.parent_id === dashboardPreviewIssue.id)
-        : [],
-    [boardIssues, dashboardPreviewIssue]
-  );
-  const dashboardPreviewLinkedApprovals = useMemo(
-    () =>
-      dashboardPreviewIssue
-        ? (companySnapshot?.approvals ?? []).filter((approval) =>
-            approvalLinksIssue(approval, dashboardPreviewIssue.id)
-          )
-        : [],
-    [companySnapshot?.approvals, dashboardPreviewIssue]
-  );
-  const dashboardPreviewRunCardUpdate = dashboardPreviewIssue
-    ? (issueRunCardUpdatesByIssueId[dashboardPreviewIssue.id] ?? null)
-    : null;
+  const dashboardPreviewRunCardUpdate =
+    dashboardPreviewChatSummary?.run_update ?? null;
   const boardGoals = companySnapshot?.goals ?? emptyGoalRecords;
   const selectedGoal =
     boardGoals.find((goal) => goal.id === selectedGoalId) ??
     boardGoals[0] ??
     null;
   const boardProjects = companySnapshot?.projects ?? emptyProjectRecords;
+  const currentProjectsForCreation =
+    boardProjects.length > 0 ? boardProjects : dashboardOverviewProjects;
   const issueDialogProjectRepoPath =
-    boardProjects.find((project) => project.id === issueDialogProjectId)
+    currentProjectsForCreation.find(
+      (project) => project.id === issueDialogProjectId
+    )
       ?.primary_workspace?.cwd ?? null;
   const issueDialogWorktreeState = useProjectWorktrees(
     issueDialogProjectRepoPath
@@ -913,33 +1404,27 @@ export function App() {
     issueDetailProjectRepoPath
   );
   const boardAgents = companySnapshot?.agents ?? emptyAgentRecords;
+  const currentCompanyAgents =
+    boardAgents.length > 0 ? boardAgents : dashboardOverviewAgents;
   const dashboardProjectViews = settings.dashboard_project_views ?? {};
   const dashboardProjectColumns = useMemo(
     () =>
       buildDashboardProjectColumns(
         boardProjects,
-        boardIssues,
+        boardIssues.filter(
+          (issue) => !issue.hidden_at && isRootConversationIssue(issue)
+        ),
         boardAgents,
         dashboardProjectViews
       ),
     [boardAgents, boardIssues, boardProjects, dashboardProjectViews]
   );
-  const dashboardProjectIssueIds = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          boardIssues
-            .filter((issue) => issue.project_id && !issue.hidden_at)
-            .map((issue) => issue.id)
-        )
-      ).sort(),
-    [boardIssues]
-  );
-  const dashboardProjectIssueIdsKey = dashboardProjectIssueIds.join("|");
   const dashboardCanvasBounds = useMemo(
     () => buildDashboardCanvasBounds(dashboardProjectColumns),
     [dashboardProjectColumns]
   );
+  const dashboardCanvasZoomScale =
+    dashboardCanvasZoomLevels[dashboardCanvasZoomIndex] ?? 1;
   const selectedProject =
     boardProjects.find((project) => project.id === selectedProjectId) ??
     boardProjects[0] ??
@@ -956,12 +1441,21 @@ export function App() {
     ) ??
     companyWorkspaces[0] ??
     null;
-  const selectedIssueWorkspace = selectedIssue?.workspace_session_id
-    ? companyWorkspaces.find(
-        (workspace) =>
+  const selectedIssueWorkspace = selectedIssue
+    ? companyWorkspaces.find((workspace) => {
+        if (workspace.issue_id === selectedIssue.id) {
+          return true;
+        }
+
+        if (!selectedIssue.workspace_session_id) {
+          return false;
+        }
+
+        return (
           workspace.id === selectedIssue.workspace_session_id ||
           workspace.session_id === selectedIssue.workspace_session_id
-      ) ?? null
+        );
+      }) ?? null
     : null;
   const selectedAgent =
     boardAgents.find((agent) => agent.id === selectedAgentId) ??
@@ -971,27 +1465,33 @@ export function App() {
     selectedAgentRun?.status === "queued" ||
     selectedAgentRun?.status === "running";
   const selectedCompanyCeo = findCompanyCeo(
-    boardAgents,
+    currentCompanyAgents,
     selectedCompany?.ceo_agent_id ?? null
   );
+  const hiddenExecutionAgentId =
+    selectedCompany?.ceo_agent_id?.trim() ||
+    selectedCompanyCeo?.id ||
+    currentCompanyAgents[0]?.id ||
+    null;
   const orderedSidebarAgents = useMemo(
     () =>
       orderSidebarAgents(
-        boardAgents,
+        currentCompanyAgents,
         typeof selectedCompany?.ceo_agent_id === "string"
           ? selectedCompany.ceo_agent_id
           : null
       ),
-    [boardAgents, selectedCompany?.ceo_agent_id]
+    [currentCompanyAgents, selectedCompany?.ceo_agent_id]
   );
   const orderedSidebarProjects = useMemo(
     () =>
-      [...boardProjects].sort((left, right) =>
+      [...(boardProjects.length > 0 ? boardProjects : dashboardOverviewProjects)].sort(
+        (left, right) =>
         (left.name ?? left.title ?? left.id).localeCompare(
           right.name ?? right.title ?? right.id
         )
       ),
-    [boardProjects]
+    [boardProjects, dashboardOverviewProjects]
   );
   const totalLiveAgentRuns = useMemo(
     () =>
@@ -1003,6 +1503,9 @@ export function App() {
   );
   const activeSession =
     sessions.find((session) => session.id === selectedSessionId) ?? null;
+  const selectedBoardWorkspaceIssue =
+    boardIssues.find((issue) => issue.id === selectedBoardWorkspace?.issue_id) ??
+    null;
   const activeWorkspaceAgent =
     boardAgents.find((agent) => agent.id === selectedBoardWorkspace?.agent_id) ??
     null;
@@ -1016,6 +1519,15 @@ export function App() {
       : activeWorkspaceProvider === "claude"
         ? "Claude"
         : "Agent";
+  const activeSessionLiveState = useDesktopSessionLiveState(
+    sessionStateManager,
+    activeSession?.id ?? null,
+    activeWorkspaceProvider
+  );
+  const deferredMessages = useDeferredValue(activeSessionLiveState.messages);
+  const activeSessionConversationRows = activeSessionLiveState.conversationRows;
+  const activeRuntimeStatusState = activeSessionLiveState.runtimeStatus;
+  const activeTerminalStatusState = activeSessionLiveState.terminalStatus;
   const previewTabLabel = selectedFilePath
     ? (selectedFilePath.split("/").filter(Boolean).at(-1) ?? "Preview")
     : "Preview";
@@ -1033,14 +1545,6 @@ export function App() {
     () => mergeIssueOptions(canonicalIssueStatuses, issueDraft.status),
     [issueDraft.status]
   );
-  const issuePriorityOptions = useMemo(
-    () =>
-      mergeIssueOptions(
-        ["low", "medium", "high", "urgent"],
-        issueDraft.priority
-      ),
-    [issueDraft.priority]
-  );
   const selectableParentIssues = useMemo(
     () => boardIssues.filter((issue) => issue.id !== selectedIssue?.id),
     [boardIssues, selectedIssue?.id]
@@ -1056,7 +1560,8 @@ export function App() {
       next,
       viewport.clientWidth,
       viewport.clientHeight,
-      dashboardCanvasBounds
+      dashboardCanvasBounds,
+      dashboardCanvasZoomScale
     );
   };
 
@@ -1311,7 +1816,11 @@ export function App() {
 
   useEffect(() => {
     setDashboardCanvasOffset((current) => clampDashboardOffset(current));
-  }, [dashboardCanvasBounds.height, dashboardCanvasBounds.width]);
+  }, [
+    dashboardCanvasBounds.height,
+    dashboardCanvasBounds.width,
+    dashboardCanvasZoomScale,
+  ]);
 
   useEffect(() => {
     if (!companyContextMenu) {
@@ -1439,7 +1948,11 @@ export function App() {
   ]);
 
   useEffect(() => {
-    if (!selectedCompanyId || bootstrap?.state !== "ready") {
+    if (
+      !selectedCompanyId ||
+      bootstrap?.state !== "ready" ||
+      selectedScreen === "dashboard"
+    ) {
       return;
     }
 
@@ -1464,7 +1977,48 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [bootstrap?.state, selectedCompanyId]);
+  }, [bootstrap?.state, selectedCompanyId, selectedScreen]);
+
+  useEffect(() => {
+    if (!selectedCompanyId || bootstrap?.state !== "ready") {
+      setDashboardOverview(null);
+      setIsDashboardOverviewLoading(false);
+      return;
+    }
+
+    if (selectedScreen !== "dashboard") {
+      setIsDashboardOverviewLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsDashboardOverviewLoading(true);
+
+    const loadOverview = async () => {
+      try {
+        const overview = await boardDashboardOverview(selectedCompanyId);
+        if (!cancelled) {
+          setDashboardOverview(overview);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setStatusMessage(
+            error instanceof Error ? error.message : String(error)
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsDashboardOverviewLoading(false);
+        }
+      }
+    };
+
+    void loadOverview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bootstrap?.state, selectedCompanyId, selectedScreen]);
 
   useEffect(() => {
     const nextWorkspaces = companySnapshot?.workspaces ?? [];
@@ -1608,18 +2162,14 @@ export function App() {
   }, [bootstrap?.state, selectedCompanyId]);
 
   useEffect(() => {
-    if (
-      selectedScreen !== "dashboard" ||
-      bootstrap?.state !== "ready" ||
-      !selectedCompanyId
-    ) {
+    if (bootstrap?.state !== "ready" || !selectedCompanyId) {
       setIssueRunCardUpdatesByIssueId((current) =>
         Object.keys(current).length === 0 ? current : {}
       );
       return;
     }
 
-    if (dashboardProjectIssueIds.length === 0) {
+    if (activityVisibleIssues.length === 0) {
       setIssueRunCardUpdatesByIssueId((current) =>
         Object.keys(current).length === 0 ? current : {}
       );
@@ -1641,7 +2191,6 @@ export function App() {
 
     const loadIssueRunCardUpdates = async () => {
       try {
-        const projectIssueIdSet = new Set(dashboardProjectIssueIds);
         const updates = (await boardListIssueRunCardUpdates(
           selectedCompanyId
         )) as IssueRunCardUpdateRecord[];
@@ -1650,9 +2199,7 @@ export function App() {
         }
 
         const nextUpdates = Object.fromEntries(
-          updates
-            .filter((update) => projectIssueIdSet.has(update.issue_id))
-            .map((update) => [update.issue_id, update])
+          updates.map((update) => [update.issue_id, update])
         );
         const hasLiveUpdates = Object.values(nextUpdates).some(
           (update) =>
@@ -1704,9 +2251,8 @@ export function App() {
     };
   }, [
     bootstrap?.state,
-    dashboardProjectIssueIdsKey,
+    activityVisibleIssueIdsKey,
     selectedCompanyId,
-    selectedScreen,
   ]);
 
   useEffect(() => {
@@ -1717,6 +2263,7 @@ export function App() {
 
   useEffect(() => {
     if (!dashboardIssuePreviewId) {
+      setDashboardPreviewIssueDetail(null);
       setIsDashboardIssuePreviewLoading(false);
       setDashboardIssuePreviewError(null);
       return;
@@ -1724,12 +2271,16 @@ export function App() {
 
     if (selectedScreen !== "dashboard" || !selectedCompanyId) {
       setDashboardIssuePreviewId(null);
+      setDashboardPreviewIssueDetail(null);
       setIsDashboardIssuePreviewLoading(false);
       setDashboardIssuePreviewError(null);
       return;
     }
 
     let cancelled = false;
+    setDashboardPreviewIssueDetail((current) =>
+      current?.id === dashboardIssuePreviewId ? current : null
+    );
     setIsDashboardIssuePreviewLoading(true);
     setDashboardIssuePreviewError(null);
 
@@ -1746,18 +2297,7 @@ export function App() {
         }
 
         const detailIssue = freshIssue as IssueRecord;
-        setCompanySnapshot((current) => {
-          if (!current) {
-            return current;
-          }
-
-          return {
-            ...current,
-            issues: current.issues.map((issue) =>
-              issue.id === detailIssue.id ? detailIssue : issue
-            ),
-          };
-        });
+        setDashboardPreviewIssueDetail(detailIssue);
         setIssueCommentsByIssueId((current) => ({
           ...current,
           [dashboardIssuePreviewId]: comments as IssueCommentRecord[],
@@ -1788,21 +2328,27 @@ export function App() {
   }, [dashboardIssuePreviewId, selectedCompanyId, selectedScreen]);
 
   useEffect(() => {
+    if (isDashboardOverviewLoading) {
+      return;
+    }
+
     if (
       dashboardIssuePreviewId &&
-      !boardIssues.some((issue) => issue.id === dashboardIssuePreviewId)
+      !dashboardOverviewChats.some((chat) => chat.id === dashboardIssuePreviewId)
     ) {
       setDashboardIssuePreviewId(null);
+      setDashboardPreviewIssueDetail(null);
       setDashboardIssuePreviewError(null);
       setIsDashboardIssuePreviewLoading(false);
     }
-  }, [boardIssues, dashboardIssuePreviewId]);
+  }, [
+    dashboardIssuePreviewId,
+    dashboardOverviewChats,
+    isDashboardOverviewLoading,
+  ]);
 
   useEffect(() => {
     if (!selectedIssue || issuesRouteMode !== "detail") {
-      setNewIssueCommentBody("");
-      setNewIssueCommentTargetAgentId("");
-      setIsEditingIssue(false);
       setIssueEditorError(null);
       return;
     }
@@ -1843,10 +2389,7 @@ export function App() {
           ...current,
           [selectedIssue.id]: attachments as IssueAttachmentRecord[],
         }));
-        setNewIssueCommentTargetAgentId(detailIssue.assignee_agent_id ?? "");
-        setIsEditingIssue(false);
         setIssueEditorError(null);
-        setNewIssueCommentBody("");
       } catch (error) {
         if (!cancelled) {
           setStatusMessage(
@@ -1876,6 +2419,12 @@ export function App() {
   useEffect(() => {
     selectedAgentIdRef.current = selectedAgent?.id ?? null;
   }, [selectedAgent?.id]);
+
+  useEffect(() => {
+    if (selectedScreen === "agents" || selectedScreen === "approvals") {
+      setSelectedScreen("issues");
+    }
+  }, [selectedScreen]);
 
   useEffect(() => {
     selectedAgentRunIdRef.current = selectedAgentRunId;
@@ -2152,7 +2701,6 @@ export function App() {
 
   useEffect(() => {
     if (!selectedSessionId || bootstrap?.state !== "ready") {
-      setMessages([]);
       setFileEntries([]);
       setSelectedFilePath(null);
       setSelectedFile(null);
@@ -2167,22 +2715,11 @@ export function App() {
 
     const loadWorkspace = async () => {
       try {
-        const [
-          nextMessages,
-          nextFiles,
-          nextGit,
-          nextHistory,
-          nextBranches,
-          nextClaudeStatus,
-          nextTerminalStatus,
-        ] = await Promise.all([
-          messageList(selectedSessionId),
+        const [nextFiles, nextGit, nextHistory, nextBranches] = await Promise.all([
           repositoryListFiles(selectedSessionId, ""),
           gitStatus(selectedSessionId),
           gitLog(selectedSessionId),
           gitBranches(selectedSessionId),
-          agentStatus(selectedSessionId),
-          terminalStatus(selectedSessionId),
         ]);
 
         if (cancelled) {
@@ -2190,15 +2727,12 @@ export function App() {
         }
 
         startTransition(() => {
-          setMessages(nextMessages as SessionMessage[]);
           setFileEntries(nextFiles as FileEntry[]);
           setCurrentDirectory("");
           setSelectedDiff(null);
           setGitState(nextGit as GitStatusResult);
           setGitHistory(nextHistory as GitLogResult);
           setBranchState(nextBranches as GitBranchesResult);
-          setClaudeStatusState(nextClaudeStatus);
-          setTerminalStatusState(nextTerminalStatus);
         });
       } catch (error) {
         if (!cancelled) {
@@ -2210,11 +2744,9 @@ export function App() {
     };
 
     void loadWorkspace();
-    void sessionSubscribe(selectedSessionId);
 
     return () => {
       cancelled = true;
-      void sessionUnsubscribe(selectedSessionId);
     };
   }, [bootstrap?.state, selectedSessionId]);
 
@@ -2229,6 +2761,7 @@ export function App() {
     });
 
     void listenToSessionStreamErrors((payload) => {
+      sessionStateManager.handleStreamError(payload);
       setStatusMessage(payload.message);
     }).then((cleanup) => {
       unlistenErrors = cleanup;
@@ -2238,7 +2771,7 @@ export function App() {
       unlistenEvents?.();
       unlistenErrors?.();
     };
-  }, [selectedSessionId]);
+  }, [selectedSessionId, sessionStateManager]);
 
   useEffect(() => {
     if (bootstrap?.state !== "ready" || dependencyCheck) {
@@ -2280,15 +2813,6 @@ export function App() {
     terminal.write(transcript.replaceAll("\n", "\r\n"));
   }, [deferredMessages]);
 
-  const activeSessionMessages = useMemo(() => {
-    return deferredMessages
-      .slice()
-      .sort(
-        (left, right) =>
-          Number(left.sequence_number ?? 0) - Number(right.sequence_number ?? 0)
-      );
-  }, [deferredMessages]);
-
   const retryBootstrap = async () => {
     setStatusMessage(null);
     setBootstrap(null);
@@ -2326,6 +2850,7 @@ export function App() {
   };
 
   const handleSessionEvent = (payload: SessionStreamPayload) => {
+    sessionStateManager.handleSessionEvent(payload);
     if (payload.session_id !== selectedSessionId) {
       return;
     }
@@ -2335,36 +2860,22 @@ export function App() {
     }
 
     refreshTimeoutRef.current = window.setTimeout(() => {
-      void refreshActiveSession(payload.session_id);
+      void refreshActiveWorkspaceArtifacts(payload.session_id);
     }, 120);
   };
 
-  const refreshActiveSession = async (sessionId: string) => {
+  const refreshActiveWorkspaceArtifacts = async (sessionId: string) => {
     try {
-      const [
-        nextMessages,
-        nextFiles,
-        nextGit,
-        nextHistory,
-        nextBranches,
-        nextTerminalStatus,
-        nextClaudeStatus,
-      ] = await Promise.all([
-        messageList(sessionId),
+      const [nextFiles, nextGit, nextHistory, nextBranches] = await Promise.all([
         repositoryListFiles(sessionId, currentDirectory),
         gitStatus(sessionId),
         gitLog(sessionId),
         gitBranches(sessionId),
-        terminalStatus(sessionId),
-        agentStatus(sessionId),
       ]);
-      setMessages(nextMessages as SessionMessage[]);
       setFileEntries(nextFiles as FileEntry[]);
       setGitState(nextGit as GitStatusResult);
       setGitHistory(nextHistory as GitLogResult);
       setBranchState(nextBranches as GitBranchesResult);
-      setClaudeStatusState(nextClaudeStatus);
-      setTerminalStatusState(nextTerminalStatus);
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : String(error));
     }
@@ -2376,12 +2887,18 @@ export function App() {
     }
 
     try {
-      const [loadedCompanies, snapshot] = await Promise.all([
+      const [loadedCompanies, boardData] = await Promise.all([
         boardListCompanies(),
-        boardCompanySnapshot(selectedCompanyId),
+        selectedScreen === "dashboard"
+          ? boardDashboardOverview(selectedCompanyId)
+          : boardCompanySnapshot(selectedCompanyId),
       ]);
       setCompanies(loadedCompanies as Company[]);
-      setCompanySnapshot(snapshot);
+      if (selectedScreen === "dashboard") {
+        setDashboardOverview(boardData as DashboardOverviewRecord);
+      } else {
+        setCompanySnapshot(boardData as CompanySnapshot);
+      }
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : String(error));
     }
@@ -2402,6 +2919,7 @@ export function App() {
     setCompanyContextMenu(null);
     if (companyId !== selectedCompanyId) {
       setCompanySnapshot(null);
+      setDashboardOverview(null);
     }
     startTransition(() => {
       setSelectedCompanyId(companyId);
@@ -2430,6 +2948,7 @@ export function App() {
     setCompanyContextMenu(null);
     if (companyId !== selectedCompanyId) {
       setCompanySnapshot(null);
+      setDashboardOverview(null);
     }
     startTransition(() => {
       setSelectedCompanyId(companyId);
@@ -2454,6 +2973,7 @@ export function App() {
     setCompanyContextMenu(null);
     if (companyId !== selectedCompanyId) {
       setCompanySnapshot(null);
+      setDashboardOverview(null);
     }
     startTransition(() => {
       setSelectedCompanyId(companyId);
@@ -2573,17 +3093,106 @@ export function App() {
     }
 
     const target = event.target as HTMLElement | null;
-    if (target?.closest(".project-kanban-columns")) {
+    if (target?.closest("input, textarea, select, .shadcn-select-content")) {
       return;
     }
 
     event.preventDefault();
-    setDashboardCanvasOffset((current) =>
-      clampDashboardOffset({
-        x: current.x - event.deltaX,
-        y: current.y - event.deltaY,
-      })
+    const wheelZoomState = dashboardCanvasWheelZoomRef.current;
+    const resetThresholdMs = 180;
+    if (event.timeStamp - wheelZoomState.lastEventTime > resetThresholdMs) {
+      wheelZoomState.accumulatedDeltaY = 0;
+    }
+
+    wheelZoomState.lastEventTime = event.timeStamp;
+    wheelZoomState.accumulatedDeltaY += event.deltaY;
+
+    const isTrackpadPinch = event.ctrlKey;
+    const threshold =
+      event.deltaMode === 1 ? 1 : isTrackpadPinch ? 6 : 16;
+    if (Math.abs(wheelZoomState.accumulatedDeltaY) < threshold) {
+      return;
+    }
+
+    const zoomDelta = wheelZoomState.accumulatedDeltaY < 0 ? 1 : -1;
+    wheelZoomState.accumulatedDeltaY = 0;
+    const viewportRect = event.currentTarget.getBoundingClientRect();
+
+    nudgeDashboardCanvasZoom(zoomDelta, {
+      x: event.clientX - viewportRect.left,
+      y: event.clientY - viewportRect.top,
+    });
+  };
+
+  const setDashboardCanvasZoom = (
+    nextZoomIndex:
+      | number
+      | ((currentZoomIndex: number) => number),
+    anchor?: DashboardCanvasOffset
+  ) => {
+    const viewport = dashboardCanvasViewportRef.current;
+    if (!viewport) {
+      setDashboardCanvasZoomIndex((currentZoomIndex) =>
+        clampNumber(
+          typeof nextZoomIndex === "function"
+            ? nextZoomIndex(currentZoomIndex)
+            : nextZoomIndex,
+          0,
+          dashboardCanvasZoomLevels.length - 1
+        )
+      );
+      return;
+    }
+
+    setDashboardCanvasZoomIndex((currentZoomIndex) => {
+      const safeZoomIndex = clampNumber(
+        typeof nextZoomIndex === "function"
+          ? nextZoomIndex(currentZoomIndex)
+          : nextZoomIndex,
+        0,
+        dashboardCanvasZoomLevels.length - 1
+      );
+      if (safeZoomIndex === currentZoomIndex) {
+        return currentZoomIndex;
+      }
+
+      const currentZoomScale = dashboardCanvasZoomLevels[currentZoomIndex] ?? 1;
+      const nextZoomScale = dashboardCanvasZoomLevels[safeZoomIndex] ?? 1;
+      const anchorX = anchor?.x ?? viewport.clientWidth / 2;
+      const anchorY = anchor?.y ?? viewport.clientHeight / 2;
+
+      setDashboardCanvasOffset((currentOffset) => {
+        const worldX = (anchorX - currentOffset.x) / currentZoomScale;
+        const worldY = (anchorY - currentOffset.y) / currentZoomScale;
+
+        return clampDashboardCanvasOffset(
+          {
+            x: anchorX - worldX * nextZoomScale,
+            y: anchorY - worldY * nextZoomScale,
+          },
+          viewport.clientWidth,
+          viewport.clientHeight,
+          dashboardCanvasBounds,
+          nextZoomScale
+        );
+      });
+
+      return safeZoomIndex;
+    });
+  };
+
+  const nudgeDashboardCanvasZoom = (
+    zoomDelta: number,
+    anchor?: DashboardCanvasOffset
+  ) => {
+    setDashboardCanvasZoom(
+      (currentZoomIndex) => currentZoomIndex + zoomDelta,
+      anchor
     );
+  };
+
+  const handleDashboardCanvasZoomChange = (nextZoomIndex: number) => {
+    setDashboardCanvasZoom(nextZoomIndex);
   };
 
   const handleSelectBoardWorkspace = (workspace: WorkspaceRecord) => {
@@ -2686,6 +3295,31 @@ export function App() {
     const snapshot = await boardCompanySnapshot(selectedCompanyId);
     setCompanySnapshot(snapshot);
     setStatusMessage(`Deleted project ${deletedProject.name}.`);
+  };
+
+  const handleUpdateProjectDefaultNewChatArea = async (
+    projectId: string,
+    defaultNewChatArea: ProjectDefaultNewChatArea
+  ) => {
+    if (!selectedCompanyId) {
+      return;
+    }
+
+    const currentProjectRecord =
+      boardProjects.find((project) => project.id === projectId) ?? null;
+    const updatedProject = await boardUpdateProject({
+      project_id: projectId,
+      execution_workspace_policy:
+        projectExecutionWorkspacePolicyWithDefaultNewChatArea(
+          currentProjectRecord,
+          defaultNewChatArea
+        ),
+    });
+    const snapshot = await boardCompanySnapshot(selectedCompanyId);
+    setCompanySnapshot(snapshot);
+    setStatusMessage(
+      `Updated ${updatedProject.name} default new chat area to ${projectDefaultNewChatAreaLabel(defaultNewChatArea)}.`
+    );
   };
 
   const handleRefreshAgentRuns = async () => {
@@ -2943,13 +3577,20 @@ export function App() {
   };
 
   const resetIssueDialog = () => {
+    const runtimeDraft = createDefaultIssueRuntimeDraft(dependencyCheck);
+    setIssueDialogMode("conversation");
     setIssueDialogTitle("");
     setIssueDialogDescription("");
     setIssueDialogPriority("medium");
-    setIssueDialogStatus("todo");
+    setIssueDialogStatus("backlog");
     setIssueDialogProjectId("");
-    setIssueDialogAssigneeAgentId("");
     setIssueDialogParentIssueId("");
+    setIssueDialogCommand(runtimeDraft.command);
+    setIssueDialogModel(runtimeDraft.model);
+    setIssueDialogThinkingEffort(runtimeDraft.thinkingEffort);
+    setIssueDialogPlanMode(runtimeDraft.planMode);
+    setIssueDialogEnableChrome(runtimeDraft.enableChrome);
+    setIssueDialogSkipPermissions(runtimeDraft.skipPermissions);
     setIssueDialogWorkspaceTargetMode("main");
     setIssueDialogWorkspaceWorktreePath("");
     setIssueDialogWorkspaceWorktreeBranch("");
@@ -2960,11 +3601,25 @@ export function App() {
   };
 
   const handleIssueDialogProjectChange = (projectId: string) => {
+    const nextProject =
+      currentProjectsForCreation.find((project) => project.id === projectId) ??
+      null;
+    const nextWorkspaceDefaults =
+      projectDefaultNewChatWorkspaceDefaults(nextProject);
     setIssueDialogProjectId(projectId);
-    setIssueDialogWorkspaceTargetMode("main");
-    setIssueDialogWorkspaceWorktreePath("");
-    setIssueDialogWorkspaceWorktreeBranch("");
-    setIssueDialogWorkspaceWorktreeName("");
+    setIssueDialogError(null);
+    setIssueDialogWorkspaceTargetMode(
+      nextWorkspaceDefaults.workspaceTargetMode ?? "main"
+    );
+    setIssueDialogWorkspaceWorktreePath(
+      nextWorkspaceDefaults.workspaceWorktreePath ?? ""
+    );
+    setIssueDialogWorkspaceWorktreeBranch(
+      nextWorkspaceDefaults.workspaceWorktreeBranch ?? ""
+    );
+    setIssueDialogWorkspaceWorktreeName(
+      nextWorkspaceDefaults.workspaceWorktreeName ?? ""
+    );
   };
 
   const handleIssueDialogWorkspaceTargetChange = (value: string) => {
@@ -2989,11 +3644,66 @@ export function App() {
   const handleOpenCreateIssueDialog = (
     defaults?: CreateIssueDialogDefaults
   ) => {
+    const runtimeDraft = createDefaultIssueRuntimeDraft(dependencyCheck);
     resetIssueDialog();
-    setIssueDialogAssigneeAgentId(defaults?.assigneeAgentId ?? "");
+    const nextProjectId =
+      defaults?.projectId ?? currentProjectsForCreation[0]?.id ?? "";
+    const nextProject =
+      currentProjectsForCreation.find((project) => project.id === nextProjectId) ??
+      null;
+    const nextWorkspaceDefaults: Pick<
+      IssueEditDraft,
+      | "workspaceTargetMode"
+      | "workspaceWorktreePath"
+      | "workspaceWorktreeBranch"
+      | "workspaceWorktreeName"
+    > =
+      defaults?.workspaceTargetMode != null
+        ? {
+            workspaceTargetMode: defaults.workspaceTargetMode ?? "main",
+            workspaceWorktreePath: defaults.workspaceWorktreePath ?? "",
+            workspaceWorktreeBranch: defaults.workspaceWorktreeBranch ?? "",
+            workspaceWorktreeName: defaults.workspaceWorktreeName ?? "",
+          }
+        : projectDefaultNewChatWorkspaceDefaults(nextProject);
+    setIssueDialogMode(defaults?.dialogMode ?? "conversation");
     setIssueDialogPriority(defaults?.priority ?? "medium");
-    setIssueDialogStatus(normalizeBoardIssueValue(defaults?.status ?? "todo"));
-    setIssueDialogProjectId(defaults?.projectId ?? "");
+    setIssueDialogStatus(
+      normalizeBoardIssueValue(defaults?.status ?? "backlog")
+    );
+    setIssueDialogProjectId(nextProjectId);
+    setIssueDialogParentIssueId(defaults?.parentId ?? "");
+    setIssueDialogCommand(defaults?.command ?? runtimeDraft.command);
+    setIssueDialogModel(defaults?.model ?? runtimeDraft.model);
+    setIssueDialogThinkingEffort(
+      defaults?.thinkingEffort ?? runtimeDraft.thinkingEffort
+    );
+    setIssueDialogPlanMode(defaults?.planMode ?? runtimeDraft.planMode);
+    setIssueDialogEnableChrome(
+      defaults?.enableChrome ?? runtimeDraft.enableChrome
+    );
+    setIssueDialogSkipPermissions(
+      defaults?.skipPermissions ?? runtimeDraft.skipPermissions
+    );
+    setIssueDialogWorkspaceTargetMode(
+      nextWorkspaceDefaults.workspaceTargetMode ?? "main"
+    );
+    setIssueDialogWorkspaceWorktreePath(
+      nextWorkspaceDefaults.workspaceWorktreePath ?? ""
+    );
+    setIssueDialogWorkspaceWorktreeBranch(
+      nextWorkspaceDefaults.workspaceWorktreeBranch ?? ""
+    );
+    setIssueDialogWorkspaceWorktreeName(
+      nextWorkspaceDefaults.workspaceWorktreeName ?? ""
+    );
+    if (!nextProjectId && currentProjectsForCreation.length === 0) {
+      setIssueDialogError(
+        defaults?.dialogMode === "queuedMessage"
+          ? "Create a project before queueing messages."
+          : "Create a project before creating a conversation."
+      );
+    }
     setIsCreateIssueDialogOpen(true);
   };
 
@@ -3030,95 +3740,145 @@ export function App() {
     );
   };
 
-  const handleCreateIssueFromDialog = async () => {
-    if (!selectedCompanyId || !issueDialogTitle.trim() || isIssueDialogSaving) {
-      return;
+  const createIssueWithDefaults = async ({
+    attachments = [],
+    description = "",
+    navigateToDetail = false,
+    title,
+    ...defaults
+  }: CreateIssueDialogDefaults & {
+    attachments?: IssueAttachmentDraft[];
+    description?: string;
+    navigateToDetail?: boolean;
+    title: string;
+  }) => {
+    if (!selectedCompanyId) {
+      throw new Error("Select a space before creating a conversation.");
     }
 
-    const validationMessage = issueStatusAssigneeValidationMessage(
-      issueDialogStatus,
-      issueDialogAssigneeAgentId,
-      boardAgents
+    const availableProjectsForCreation =
+      boardProjects.length > 0 ? boardProjects : dashboardOverviewProjects;
+
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
+      throw new Error("Conversation title is required.");
+    }
+
+    const trimmedProjectId = defaults.projectId?.trim() ?? "";
+    const selectedProjectForDefaults =
+      availableProjectsForCreation.find(
+        (project) => project.id === trimmedProjectId
+      ) ?? null;
+    if (!trimmedProjectId) {
+      throw new Error(
+        availableProjectsForCreation.length === 0
+          ? "Create a project before creating a conversation."
+          : "Project is required."
+      );
+    }
+
+    const runtimeDraft = createDefaultIssueRuntimeDraft(dependencyCheck);
+    const params: Record<string, unknown> = {
+      company_id: selectedCompanyId,
+      title: trimmedTitle,
+      status: normalizeBoardIssueValue(defaults.status ?? "backlog"),
+      priority: defaults.priority ?? "medium",
+      project_id: trimmedProjectId,
+    };
+
+    if (description.trim()) {
+      params.description = description.trim();
+    }
+
+    if (hiddenExecutionAgentId) {
+      params.assignee_agent_id = hiddenExecutionAgentId;
+    }
+
+    if (defaults.parentId?.trim()) {
+      params.parent_id = defaults.parentId.trim();
+    }
+
+    params.assignee_adapter_overrides = issueAdapterOverridesFromDraft({
+      command: defaults.command ?? runtimeDraft.command,
+      model: defaults.model ?? runtimeDraft.model,
+      thinkingEffort: defaults.thinkingEffort ?? runtimeDraft.thinkingEffort,
+      planMode: defaults.planMode ?? runtimeDraft.planMode,
+      enableChrome: defaults.enableChrome ?? runtimeDraft.enableChrome,
+      skipPermissions: defaults.skipPermissions ?? runtimeDraft.skipPermissions,
+    });
+
+    const workspaceDefaults: Pick<
+      IssueEditDraft,
+      | "workspaceTargetMode"
+      | "workspaceWorktreePath"
+      | "workspaceWorktreeBranch"
+      | "workspaceWorktreeName"
+    > =
+      defaults.workspaceTargetMode != null
+        ? {
+            workspaceTargetMode: defaults.workspaceTargetMode ?? "main",
+            workspaceWorktreePath: defaults.workspaceWorktreePath ?? "",
+            workspaceWorktreeBranch: defaults.workspaceWorktreeBranch ?? "",
+            workspaceWorktreeName: defaults.workspaceWorktreeName ?? "",
+          }
+        : projectDefaultNewChatWorkspaceDefaults(selectedProjectForDefaults);
+    const executionWorkspaceSettings = issueExecutionWorkspaceSettingsFromDraft(
+      workspaceDefaults,
+      trimmedProjectId
     );
-    if (validationMessage) {
-      return;
+    if (executionWorkspaceSettings) {
+      params.execution_workspace_settings = executionWorkspaceSettings;
     }
 
-    setIsIssueDialogSaving(true);
-    setIssueDialogError(null);
+    const createdIssue = await boardCreateIssue(params);
+    let uploadedAttachments: IssueAttachmentRecord[] = [];
+    let attachmentUploadMessage: string | null = null;
 
-    try {
-      const params: Record<string, unknown> = {
-        company_id: selectedCompanyId,
-        title: issueDialogTitle.trim(),
-        status: normalizeBoardIssueValue(issueDialogStatus),
-        priority: issueDialogPriority,
-      };
+    if (attachments.length > 0) {
+      const uploadResults = await Promise.allSettled(
+        attachments.map((attachment) =>
+          boardAddIssueAttachment({
+            company_id: createdIssue.company_id,
+            issue_id: createdIssue.id,
+            local_file_path: attachment.path,
+          })
+        )
+      );
 
-      if (issueDialogDescription.trim()) {
-        params.description = issueDialogDescription.trim();
+      uploadedAttachments = uploadResults.flatMap((result) =>
+        result.status === "fulfilled" ? [result.value] : []
+      );
+
+      const failedUploads = uploadResults.filter(
+        (result) => result.status === "rejected"
+      );
+      if (failedUploads.length > 0) {
+        const firstFailure = failedUploads[0];
+        attachmentUploadMessage =
+          firstFailure.status === "rejected"
+            ? firstFailure.reason instanceof Error
+              ? firstFailure.reason.message
+              : String(firstFailure.reason)
+            : null;
       }
-      if (issueDialogProjectId) {
-        params.project_id = issueDialogProjectId;
-      }
-      if (issueDialogAssigneeAgentId) {
-        params.assignee_agent_id = issueDialogAssigneeAgentId;
-      }
-      if (issueDialogParentIssueId) {
-        params.parent_id = issueDialogParentIssueId;
-      }
-      const executionWorkspaceSettings =
-        issueExecutionWorkspaceSettingsFromDraft({
-          workspaceTargetMode: issueDialogWorkspaceTargetMode,
-          workspaceWorktreePath: issueDialogWorkspaceWorktreePath,
-          workspaceWorktreeBranch: issueDialogWorkspaceWorktreeBranch,
-          workspaceWorktreeName: issueDialogWorkspaceWorktreeName,
-        }, issueDialogProjectId);
-      if (executionWorkspaceSettings) {
-        params.execution_workspace_settings = executionWorkspaceSettings;
-      }
+    }
 
-      const createdIssue = await boardCreateIssue(params);
-      let uploadedAttachments: IssueAttachmentRecord[] = [];
-      let attachmentUploadMessage: string | null = null;
-
-      if (issueDialogAttachments.length > 0) {
-        const uploadResults = await Promise.allSettled(
-          issueDialogAttachments.map((attachment) =>
-            boardAddIssueAttachment({
-              company_id: createdIssue.company_id,
-              issue_id: createdIssue.id,
-              local_file_path: attachment.path,
-            })
-          )
-        );
-
-        uploadedAttachments = uploadResults.flatMap((result) =>
-          result.status === "fulfilled" ? [result.value] : []
-        );
-
-        const failedUploads = uploadResults.filter(
-          (result) => result.status === "rejected"
-        );
-        if (failedUploads.length > 0) {
-          const firstFailure = failedUploads[0];
-          attachmentUploadMessage =
-            firstFailure.status === "rejected"
-              ? firstFailure.reason instanceof Error
-                ? firstFailure.reason.message
-                : String(firstFailure.reason)
-              : null;
-        }
-      }
-
+    if (navigateToDetail || selectedScreen !== "dashboard") {
       const snapshot = await boardCompanySnapshot(selectedCompanyId);
       setCompanySnapshot(snapshot);
-      if (uploadedAttachments.length > 0) {
-        setIssueAttachmentsByIssueId((current) => ({
-          ...current,
-          [createdIssue.id]: uploadedAttachments,
-        }));
-      }
+    } else {
+      const overview = await boardDashboardOverview(selectedCompanyId);
+      setDashboardOverview(overview);
+      setDashboardPreviewIssueDetail(createdIssue);
+    }
+    if (uploadedAttachments.length > 0) {
+      setIssueAttachmentsByIssueId((current) => ({
+        ...current,
+        [createdIssue.id]: uploadedAttachments,
+      }));
+    }
+
+    if (navigateToDetail) {
       setSelectedIssueId(createdIssue.id);
       setIssueDraft(createIssueDraft(createdIssue));
       setIssuesRouteMode("detail");
@@ -3127,12 +3887,75 @@ export function App() {
         ...settings,
         preferred_view: preferredViewForScreen("issues"),
       });
+    } else {
+      setDashboardIssuePreviewId(createdIssue.id);
+      setDashboardPreviewIssueDetail(createdIssue);
+      setDashboardIssuePreviewError(null);
+      setSelectedScreen("dashboard");
+    }
+
+    if (!hiddenExecutionAgentId) {
+      setStatusMessage(
+        `${createdIssue.identifier ?? createdIssue.title} created, but this space does not have a default local executor yet.`
+      );
+    } else if (attachmentUploadMessage) {
+      setStatusMessage(
+        `${createdIssue.identifier ?? createdIssue.title} saved, but one or more attachments failed to upload: ${attachmentUploadMessage}`
+      );
+    } else if (!navigateToDetail) {
+      setStatusMessage(
+        `${createdIssue.identifier ?? createdIssue.title} created in ${issueProjectLabel(
+          availableProjectsForCreation,
+          createdIssue.project_id
+        )}.`
+      );
+    }
+
+    return createdIssue;
+  };
+
+  const handleCreateIssueFromDialog = async () => {
+    if (!selectedCompanyId || !issueDialogTitle.trim() || isIssueDialogSaving) {
+      return;
+    }
+
+    const trimmedProjectId = issueDialogProjectId.trim();
+    if (!trimmedProjectId) {
+      setIssueDialogError(
+        currentProjectsForCreation.length === 0
+          ? issueDialogMode === "queuedMessage"
+            ? "Create a project before queueing messages."
+            : "Create a project before creating a conversation."
+          : "Project is required."
+      );
+      return;
+    }
+
+    setIsIssueDialogSaving(true);
+    setIssueDialogError(null);
+
+    try {
+      await createIssueWithDefaults({
+        attachments: issueDialogAttachments,
+        command: issueDialogCommand,
+        description: issueDialogDescription,
+        enableChrome: issueDialogEnableChrome,
+        model: issueDialogModel,
+        navigateToDetail: true,
+        parentId: issueDialogParentIssueId,
+        planMode: issueDialogPlanMode,
+        priority: issueDialogPriority,
+        projectId: trimmedProjectId,
+        skipPermissions: issueDialogSkipPermissions,
+        status: issueDialogStatus,
+        thinkingEffort: issueDialogThinkingEffort,
+        title: issueDialogTitle,
+        workspaceTargetMode: issueDialogWorkspaceTargetMode,
+        workspaceWorktreeBranch: issueDialogWorkspaceWorktreeBranch,
+        workspaceWorktreeName: issueDialogWorkspaceWorktreeName,
+        workspaceWorktreePath: issueDialogWorkspaceWorktreePath,
+      });
       handleCloseCreateIssueDialog();
-      if (attachmentUploadMessage) {
-        setStatusMessage(
-          `${createdIssue.identifier ?? createdIssue.title} created, but one or more attachments failed to upload: ${attachmentUploadMessage}`
-        );
-      }
     } catch (error) {
       setIssueDialogError(
         error instanceof Error ? error.message : String(error)
@@ -3154,15 +3977,29 @@ export function App() {
   };
 
   const handleOpenDashboardIssuePreview = (issueId: string) => {
+    setDashboardPreviewIssueDetail((current) =>
+      current?.id === issueId ? current : null
+    );
     setDashboardIssuePreviewId(issueId);
     setDashboardIssuePreviewError(null);
   };
 
   const handleCloseDashboardIssuePreview = () => {
     setDashboardIssuePreviewId(null);
+    setDashboardPreviewIssueDetail(null);
     setDashboardIssuePreviewError(null);
     setIsDashboardIssuePreviewLoading(false);
   };
+
+  const handleCreateBirdsEyeChat = async (
+    title: string,
+    defaults: CreateIssueDialogDefaults
+  ) =>
+    createIssueWithDefaults({
+      ...defaults,
+      navigateToDetail: false,
+      title,
+    });
 
   const handleSelectIssue = async (issueId: string) => {
     setStatusMessage(null);
@@ -3170,6 +4007,7 @@ export function App() {
       const issue = await boardGetIssue(issueId);
       setSelectedIssueId((issue as IssueRecord).id);
       setIssueDraft(createIssueDraft(issue as IssueRecord));
+      setWorkspaceCenterTab("conversation");
       setIssuesRouteMode("detail");
       setSelectedScreen("issues");
       void persistSettings({
@@ -3184,18 +4022,6 @@ export function App() {
   const handleOpenDashboardIssueDetail = async (issueId: string) => {
     handleCloseDashboardIssuePreview();
     await handleSelectIssue(issueId);
-  };
-
-  const beginEditingIssue = (issue: IssueRecord) => {
-    setIssueDraft(createIssueDraft(issue));
-    setIssueEditorError(null);
-    setIsEditingIssue(true);
-  };
-
-  const discardIssueEdits = (issue: IssueRecord) => {
-    setIssueDraft(createIssueDraft(issue));
-    setIssueEditorError(null);
-    setIsEditingIssue(false);
   };
 
   function enqueueIssueUpdate<T>(task: () => Promise<T>) {
@@ -3252,6 +4078,19 @@ export function App() {
     }
     if (Object.prototype.hasOwnProperty.call(patch, "assigneeAgentId")) {
       nextDraftPatch.assigneeAgentId = updatedIssue.assignee_agent_id ?? "";
+    }
+    if (
+      Object.prototype.hasOwnProperty.call(patch, "command") ||
+      Object.prototype.hasOwnProperty.call(patch, "model") ||
+      Object.prototype.hasOwnProperty.call(patch, "thinkingEffort") ||
+      Object.prototype.hasOwnProperty.call(patch, "planMode") ||
+      Object.prototype.hasOwnProperty.call(patch, "enableChrome") ||
+      Object.prototype.hasOwnProperty.call(patch, "skipPermissions")
+    ) {
+      Object.assign(
+        nextDraftPatch,
+        parseIssueAdapterOverrides(updatedIssue.assignee_adapter_overrides)
+      );
     }
     if (Object.prototype.hasOwnProperty.call(patch, "parentId")) {
       nextDraftPatch.parentId = updatedIssue.parent_id ?? "";
@@ -3311,7 +4150,7 @@ export function App() {
       if (Object.prototype.hasOwnProperty.call(patch, "title")) {
         const trimmedTitle = (patch.title ?? "").trim();
         if (!trimmedTitle) {
-          setIssueEditorError("Issue title is required.");
+          setIssueEditorError("Conversation title is required.");
           return null;
         }
         params.title = trimmedTitle;
@@ -3331,9 +4170,12 @@ export function App() {
       }
 
       if (Object.prototype.hasOwnProperty.call(patch, "projectId")) {
-        params.project_id = patch.projectId?.trim()
-          ? patch.projectId.trim()
-          : null;
+        const trimmedProjectId = patch.projectId?.trim() ?? "";
+        if (!trimmedProjectId) {
+          setIssueEditorError("Project is required.");
+          return null;
+        }
+        params.project_id = trimmedProjectId;
       }
 
       if (Object.prototype.hasOwnProperty.call(patch, "assigneeAgentId")) {
@@ -3346,6 +4188,30 @@ export function App() {
         params.parent_id = patch.parentId?.trim()
           ? patch.parentId.trim()
           : null;
+      }
+
+      const shouldPersistRuntimeSettings =
+        Object.prototype.hasOwnProperty.call(patch, "command") ||
+        Object.prototype.hasOwnProperty.call(patch, "model") ||
+        Object.prototype.hasOwnProperty.call(patch, "thinkingEffort") ||
+        Object.prototype.hasOwnProperty.call(patch, "planMode") ||
+        Object.prototype.hasOwnProperty.call(patch, "enableChrome") ||
+        Object.prototype.hasOwnProperty.call(patch, "skipPermissions");
+
+      if (shouldPersistRuntimeSettings) {
+        params.assignee_adapter_overrides = issueAdapterOverridesFromDraft({
+          command: patch.command ?? issueDraft.command,
+          model: patch.model ?? issueDraft.model,
+          thinkingEffort:
+            patch.thinkingEffort ?? issueDraft.thinkingEffort,
+          planMode: patch.planMode ?? issueDraft.planMode,
+          enableChrome: patch.enableChrome ?? issueDraft.enableChrome,
+          skipPermissions:
+            patch.skipPermissions ?? issueDraft.skipPermissions,
+        });
+        if (hiddenExecutionAgentId && !issue.assignee_agent_id?.trim()) {
+          params.assignee_agent_id = hiddenExecutionAgentId;
+        }
       }
 
       const shouldPersistWorkspaceSettings =
@@ -3390,7 +4256,6 @@ export function App() {
         });
         syncIssueDraftFromUpdate(updatedIssue, patch);
         setSelectedIssueId(isHidden ? null : updatedIssue.id);
-        setIsEditingIssue(false);
         setIssuesRouteMode(isHidden ? "list" : "detail");
 
         if (isHidden) {
@@ -3410,54 +4275,20 @@ export function App() {
       }
     });
 
-  const handleSaveIssueEdits = async (issue: IssueRecord) =>
-    handlePersistIssuePatch(issue, {
-      title: issueDraft.title,
-      description: issueDraft.description,
-      status: issueDraft.status,
-      priority: issueDraft.priority,
-      projectId: issueDraft.projectId,
-      assigneeAgentId: issueDraft.assigneeAgentId,
-      parentId: issueDraft.parentId,
-      workspaceTargetMode: issueDraft.workspaceTargetMode,
-      workspaceWorktreePath: issueDraft.workspaceWorktreePath,
-      workspaceWorktreeBranch: issueDraft.workspaceWorktreeBranch,
-      workspaceWorktreeName: issueDraft.workspaceWorktreeName,
-    });
-
   const handleHideIssue = async (issue: IssueRecord) =>
     handlePersistIssuePatch(issue, {}, { hiddenAt: new Date().toISOString() });
 
-  const handleAddIssueComment = async (issue: IssueRecord) => {
-    const body = newIssueCommentBody.trim();
-    if (!body) {
-      return;
-    }
-
-    setIsWorking(true);
-    setStatusMessage(null);
-    try {
-      await boardAddIssueComment({
-        company_id: issue.company_id,
-        issue_id: issue.id,
-        target_agent_id: newIssueCommentTargetAgentId || undefined,
-        body,
-      });
-      const [comments, snapshot] = await Promise.all([
-        boardListIssueComments(issue.id),
-        boardCompanySnapshot(issue.company_id),
-      ]);
-      setCompanySnapshot(snapshot);
-      setIssueCommentsByIssueId((current) => ({
-        ...current,
-        [issue.id]: comments as IssueCommentRecord[],
-      }));
-      setNewIssueCommentBody("");
-    } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setIsWorking(false);
-    }
+  const handleQueueMessage = (issue: IssueRecord) => {
+    handleOpenCreateIssueDialog({
+      dialogMode: "queuedMessage",
+      parentId: issue.id,
+      projectId: issue.project_id ?? issueDraft.projectId,
+      status: "backlog",
+      workspaceTargetMode: issueDraft.workspaceTargetMode,
+      workspaceWorktreeBranch: issueDraft.workspaceWorktreeBranch,
+      workspaceWorktreeName: issueDraft.workspaceWorktreeName,
+      workspaceWorktreePath: issueDraft.workspaceWorktreePath,
+    });
   };
 
   const handleAddIssueAttachment = async (issue: IssueRecord) => {
@@ -3578,9 +4409,9 @@ export function App() {
     }
   };
 
-  const handleRunAgent = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!selectedSessionId || !prompt.trim()) {
+  const sendSessionMessage = async (content: string) => {
+    const trimmedContent = content.trim();
+    if (!selectedSessionId || !trimmedContent) {
       return;
     }
 
@@ -3589,16 +4420,44 @@ export function App() {
     try {
       await agentSend(
         selectedSessionId,
-        prompt.trim(),
+        trimmedContent,
         activeWorkspaceProvider === "custom" ? undefined : activeWorkspaceProvider
       );
-      setPrompt("");
-      await refreshActiveSession(selectedSessionId);
+      sessionStateManager.handleSessionEvent({
+        event: {},
+        session_id: selectedSessionId,
+      });
+      await refreshActiveWorkspaceArtifacts(selectedSessionId);
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : String(error));
     } finally {
       setIsWorking(false);
     }
+  };
+
+  const handleRunAgent = async (event: FormEvent) => {
+    event.preventDefault();
+    const nextPrompt = prompt.trim();
+    if (!nextPrompt) {
+      return;
+    }
+
+    await sendSessionMessage(nextPrompt);
+    setPrompt("");
+  };
+
+  const handleSendConversationPrompt = async (content: string) => {
+    const trimmedContent = content.trim();
+    if (!trimmedContent) {
+      return;
+    }
+
+    await sendSessionMessage(trimmedContent);
+    setPrompt("");
+  };
+
+  const handleRespondToSessionQuestion = async (response: string) => {
+    await sendSessionMessage(response);
   };
 
   const handleRunTerminal = async (event: FormEvent) => {
@@ -3612,8 +4471,10 @@ export function App() {
     try {
       await terminalRun(selectedSessionId, terminalCommand.trim());
       setTerminalCommand("");
-      const nextTerminalStatus = await terminalStatus(selectedSessionId);
-      setTerminalStatusState(nextTerminalStatus);
+      sessionStateManager.handleSessionEvent({
+        event: {},
+        session_id: selectedSessionId,
+      });
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : String(error));
     } finally {
@@ -3636,7 +4497,21 @@ export function App() {
         name,
         description,
         brand_color: brandColor,
+        require_board_approval_for_new_agents: false,
       });
+      if (!createdCompany.ceo_agent_id?.trim()) {
+        try {
+          await boardCreateAgent(
+            createDefaultExecutorParams(createdCompany.id, dependencyCheck)
+          );
+        } catch (error) {
+          setStatusMessage(
+            `Space created, but the default executor could not be prepared: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          );
+        }
+      }
       const nextCompanies = (await boardListCompanies()) as Company[];
       setCompanies(nextCompanies);
       handleSelectCompany(createdCompany.id);
@@ -3739,7 +4614,7 @@ export function App() {
 
     try {
       await operation();
-      await refreshActiveSession(selectedSessionId);
+      await refreshActiveWorkspaceArtifacts(selectedSessionId);
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : String(error));
     } finally {
@@ -3925,10 +4800,10 @@ export function App() {
             );
           })}
           <button
-            aria-label="Create company"
+            aria-label="Create space"
             className="company-rail-button add"
             onClick={handleOpenCreateCompanyDialog}
-            title="Create company"
+            title="Create space"
             type="button"
           >
             <span>+</span>
@@ -3962,7 +4837,7 @@ export function App() {
             </div>
             <div className="company-context-menu-copy">
               <strong>{companyContextMenu.companyName}</strong>
-              <span>Shortcuts and agent pages</span>
+              <span>Shortcuts and conversation views</span>
             </div>
           </div>
           <div className="company-context-menu-actions">
@@ -3994,56 +4869,6 @@ export function App() {
               );
             })}
           </div>
-          <div className="company-context-menu-divider" />
-          <div className="company-context-menu-section">
-            <div className="company-context-menu-section-label">
-              <CompanyContextMenuIcon icon="agents" />
-              <span>Agents</span>
-            </div>
-            <div className="company-context-menu-agent-list">
-              {companyContextMenu.isLoadingAgents ? (
-                <div className="company-context-menu-empty">
-                  Loading agents...
-                </div>
-              ) : companyContextMenu.agents.length ? (
-                companyContextMenu.agents.map((agent) => {
-                  const isActive =
-                    companyContextMenu.companyId === selectedCompanyId &&
-                    selectedScreen === "agents" &&
-                    selectedAgentId === agent.id;
-
-                  return (
-                    <button
-                      className={
-                        isActive
-                          ? "company-context-menu-item company-context-menu-item-agent active"
-                          : "company-context-menu-item company-context-menu-item-agent"
-                      }
-                      key={agent.id}
-                      onClick={() =>
-                        handleSelectCompanyAgent(
-                          companyContextMenu.companyId,
-                          agent.id
-                        )
-                      }
-                      role="menuitem"
-                      type="button"
-                    >
-                      <CompanyContextMenuIcon icon="agents" />
-                      <span className="company-context-menu-agent-copy">
-                        <strong>
-                          {agent.name || agent.title || agent.role || "Agent"}
-                        </strong>
-                        <small>{agent.title ?? agent.role ?? "Agent"}</small>
-                      </span>
-                    </button>
-                  );
-                })
-              ) : (
-                <div className="company-context-menu-empty">No agents yet</div>
-              )}
-            </div>
-          </div>
         </div>
       ) : null}
 
@@ -4059,8 +4884,8 @@ export function App() {
             <aside className="board-sidebar">
               <div className="board-sidebar-header">
                 <div>
-                  <strong>{selectedCompany?.name ?? "Company"}</strong>
-                  <span>Local board</span>
+                  <strong>{selectedCompany?.name ?? "Space"}</strong>
+                  <span>Local model workspace</span>
                 </div>
                 <button
                   className="icon-button"
@@ -4074,7 +4899,7 @@ export function App() {
               <div className="board-sidebar-scroll">
                 <div className="board-sidebar-section">
                   <SidebarLinkButton
-                    label="New Issue"
+                    label="New Conversation"
                     onClick={handleOpenCreateIssueDialog}
                   />
                   <BoardSidebarButton
@@ -4112,46 +4937,6 @@ export function App() {
                     ))}
                   </div>
                 ))}
-
-                <div className="board-sidebar-section">
-                  <div className="sidebar-section-row">
-                    <span className="sidebar-section-title">Agents</span>
-                  </div>
-                  {orderedSidebarAgents.length ? (
-                    orderedSidebarAgents.map((agent) => (
-                      <button
-                        className={
-                          selectedScreen === "agents" &&
-                          selectedAgentId === agent.id
-                            ? "agent-sidebar-button active"
-                            : "agent-sidebar-button"
-                        }
-                        key={agent.id}
-                        onClick={() => handleSelectAgent(agent.id)}
-                        type="button"
-                      >
-                        <span
-                          aria-hidden="true"
-                          className="agent-sidebar-avatar"
-                        >
-                          {sidebarAgentAvatarLabel(agent)}
-                        </span>
-                        <span className="agent-sidebar-button-label">
-                          {agent.name || agent.title || agent.role || agent.id}
-                        </span>
-                        {liveAgentRunCountsByAgentId[agent.id] ? (
-                          <span className="sidebar-live-count">
-                            {formatLiveRunCountLabel(
-                              liveAgentRunCountsByAgentId[agent.id]
-                            )}
-                          </span>
-                        ) : null}
-                      </button>
-                    ))
-                  ) : (
-                    <div className="agent-sidebar-empty">No agents yet</div>
-                  )}
-                </div>
 
                 <div className="board-sidebar-section">
                   <div className="sidebar-section-row">
@@ -4212,25 +4997,31 @@ export function App() {
             ) : null}
 
             {selectedScreen === "dashboard" ? (
-              <DashboardCanvasRouteView
-                agents={boardAgents}
-                canvasBounds={dashboardCanvasBounds}
-                canvasOffset={dashboardCanvasOffset}
-                isDragging={isDashboardCanvasDragging}
+              <DashboardBirdsEyeRouteView
+                agents={dashboardOverviewAgents}
+                chats={dashboardOverviewChats}
+                dependencyCheck={dependencyCheck}
+                isLoadingOverview={isDashboardOverviewLoading}
+                previewAttachments={dashboardPreviewAttachments}
+                previewComments={dashboardPreviewComments}
+                previewErrorMessage={dashboardIssuePreviewError}
+                previewIssue={dashboardPreviewIssue}
+                previewIsLoading={isDashboardIssuePreviewLoading}
+                previewRunCardUpdate={dashboardPreviewRunCardUpdate}
+                previewSubissueCount={
+                  dashboardPreviewChatSummary?.child_issue_count ?? 0
+                }
+                projects={dashboardOverviewProjects}
                 onCreateProject={handleOpenCreateProjectDialog}
-                onOpenIssue={handleOpenDashboardIssuePreview}
-                onPointerCancel={handleDashboardCanvasPointerEnd}
-                onPointerDown={handleDashboardCanvasPointerDown}
-                onPointerMove={handleDashboardCanvasPointerMove}
-                onPointerUp={handleDashboardCanvasPointerEnd}
-                onCreateIssueForColumn={handleOpenCreateIssueDialog}
-                onCreateProjectView={handleCreateProjectBoardView}
-                onProjectGroupingChange={handleProjectBoardGroupingChange}
-                issueRunCardUpdatesByIssueId={issueRunCardUpdatesByIssueId}
-                projectColumns={dashboardProjectColumns}
-                selectedProjectId={selectedProjectId}
-                viewportRef={dashboardCanvasViewportRef}
-                onWheel={handleDashboardCanvasWheel}
+                onCreateQuickChat={(title, defaults) =>
+                  handleCreateBirdsEyeChat(title, defaults)
+                }
+                onClosePreview={handleCloseDashboardIssuePreview}
+                onOpenIssueDetail={(issueId) =>
+                  void handleOpenDashboardIssueDetail(issueId)
+                }
+                onOpenIssuePreview={handleOpenDashboardIssuePreview}
+                workspaces={dashboardOverviewWorkspaces}
               />
             ) : null}
 
@@ -4239,6 +5030,7 @@ export function App() {
                 bootstrap={bootstrap}
                 company={selectedCompany}
                 dependencyCheck={dependencyCheck}
+                issueRunCardUpdatesByIssueId={issueRunCardUpdatesByIssueId}
                 onCheckDependencies={() => void loadDependencies()}
                 onOpenWorkspace={handleSelectBoardWorkspace}
                 repositoriesCount={repositories.length}
@@ -4248,170 +5040,157 @@ export function App() {
 
             {selectedScreen === "inbox" ? (
               <RoutePlaceholder
-                body="Inbox routing exists in the shell now. Use Approvals and Issues while the daemon inbox surface catches up."
+                body="Inbox routing exists in the shell now. Use Conversations while the daemon inbox surface catches up."
                 title="Inbox"
               />
             ) : null}
 
-            {selectedScreen === "org" ? (
-              <OrgRouteView
-                agents={boardAgents}
-                company={selectedCompany}
-                projects={boardProjects}
-                selectedAgentId={selectedAgentId}
-                onSelectAgent={handleSelectAgent}
-              />
-            ) : null}
-
             {selectedScreen === "agents" ? (
-              <AgentsRouteView
-                agentRunError={agentRunError}
-                agentRunEvents={agentRunEvents}
-                agentRunLogContent={agentRunLogContent}
-                agentRuns={agentRuns}
-                companyName={selectedCompany?.name ?? "Unbound"}
-                dependencyCheck={dependencyCheck}
-                isLoadingAgentRunDetail={isLoadingAgentRunDetail}
-                isLoadingAgentRuns={isLoadingAgentRuns}
-                isPerformingAgentRunAction={isPerformingAgentRunAction}
-                isSavingConfiguration={isSavingAgentConfig}
-                configurationDraft={agentConfigDraft}
-                configurationError={agentConfigError}
-                mode={agentsRouteMode}
-                onAddEnvVar={handleAddAgentConfigEnvVar}
-                onCancelSelectedRun={() => void handleCancelSelectedAgentRun()}
-                onChooseInstructionsFile={() =>
-                  void handleChooseAgentInstructionsFile()
-                }
-                onChooseWorkingDirectory={() =>
-                  void handleChooseAgentWorkingDirectory()
-                }
-                onConfigurationDraftChange={(patch) =>
-                  setAgentConfigDraft((current) => ({
-                    ...current,
-                    ...patch,
-                  }))
-                }
-                onConfigurationEnvVarChange={handleAgentConfigEnvVarChange}
-                onRemoveEnvVar={handleRemoveAgentConfigEnvVar}
-                onRefreshRuns={() => void handleRefreshAgentRuns()}
-                onResumeSelectedRun={() => void handleResumeSelectedAgentRun()}
-                onRetrySelectedRun={() => void handleRetrySelectedAgentRun()}
-                onSaveConfiguration={() => void handleSaveAgentConfiguration()}
-                onSelectRun={handleSelectAgentRun}
-                onSelectTab={handleSelectAgentTab}
-                selectedAgent={selectedAgent}
-                selectedRun={selectedAgentRun}
+              <RoutePlaceholder
+                body="Conversations now run models directly. Configure Claude or Codex on each conversation instead of managing agent pages."
+                title="Models"
               />
             ) : null}
 
             {selectedScreen === "issues" ? (
               issuesRouteMode === "detail" && selectedIssue ? (
-                <IssueDetailView
-                  assigneeLabel={(assigneeAgentId) =>
-                    issueAssigneeLabel(
-                      companySnapshot?.agents ?? [],
-                      assigneeAgentId
-                    )
-                  }
-                  attachments={selectedIssueAttachments}
-                  availablePriorityOptions={issuePriorityOptions}
+                <IssueWorkspaceDetailView
+                  agents={companySnapshot?.agents ?? []}
                   availableStatusOptions={issueStatusOptions}
-                  comments={selectedIssueComments}
+                  currentDirectory={currentDirectory}
                   isSavingIssue={isSavingIssue}
                   isWorking={isWorking}
                   issue={selectedIssue}
                   issueDraft={issueDraft}
                   issueEditorError={issueEditorError}
                   issueWorkspaceSidebar={
-                    selectedIssueWorkspace ? (
-                      <WorkspaceInspectorSidebar
-                        currentBranch={currentBranch}
-                        currentBranchName={currentBranchName}
-                        currentDirectory={currentDirectory}
-                        fileEntries={fileEntries}
-                        gitCommitMessage={gitCommitMessage}
-                        gitHistory={gitHistory}
-                        gitState={gitState}
-                        hasUncommittedChanges={hasUncommittedChanges}
-                        hasUnpushedCommits={hasUnpushedCommits}
-                        isWorking={isWorking}
-                        selectedDiff={selectedDiff}
-                        selectedFilePath={selectedFilePath}
-                        workspace={selectedIssueWorkspace}
-                        workspaceSidebarTab={workspaceSidebarTab}
-                        onDiscardFile={(file) => void handleDiscardFile(file)}
-                        onGitCommit={(push) => void handleGitCommit(push)}
-                        onGitCommitMessageChange={setGitCommitMessage}
-                        onGitPush={() => void handleGitPush()}
-                        onOpenDiff={(path) => void handleOpenDiff(path)}
-                        onOpenDirectory={(path) => void handleOpenDirectory(path)}
-                        onOpenFile={(path) => void handleOpenFile(path)}
-                        onSelectSidebarTab={setWorkspaceSidebarTab}
-                        onStageFile={(file) => void handleStageFile(file)}
-                        onUnstageFile={(file) => void handleUnstageFile(file)}
-                      />
-                    ) : null
-                  }
-                  isEditingIssue={isEditingIssue}
-                  linkedApprovals={linkedIssueApprovals}
-                  newCommentBody={newIssueCommentBody}
-                  newCommentTargetAgentId={newIssueCommentTargetAgentId}
-                  onAddComment={() => void handleAddIssueComment(selectedIssue)}
-                  onAddAttachment={() =>
-                    void handleAddIssueAttachment(selectedIssue)
+                    <WorkspaceInspectorSidebar
+                      currentBranch={currentBranch}
+                      currentBranchName={currentBranchName}
+                      currentDirectory={currentDirectory}
+                      fileEntries={fileEntries}
+                      gitCommitMessage={gitCommitMessage}
+                      gitHistory={gitHistory}
+                      gitState={gitState}
+                      hasUncommittedChanges={hasUncommittedChanges}
+                      hasUnpushedCommits={hasUnpushedCommits}
+                      issueMeta={
+                        <IssueWorkspaceInspectorMeta
+                          agents={companySnapshot?.agents ?? []}
+                          availableStatusOptions={issueStatusOptions}
+                          issue={selectedIssue}
+                          issueDraft={issueDraft}
+                          issueEditorError={issueEditorError}
+                          isSavingIssue={isSavingIssue}
+                          onCommitIssuePatch={(patch) =>
+                            void handlePersistIssuePatch(selectedIssue, patch)
+                          }
+                          onIssueDraftChange={(patch) =>
+                            setIssueDraft((current) => ({
+                              ...current,
+                              ...patch,
+                            }))
+                          }
+                          projects={companySnapshot?.projects ?? []}
+                          selectableParentIssues={selectableParentIssues}
+                          statusLabel={issueStatusLabel}
+                          workspaceTargetErrorMessage={
+                            issueDetailWorktreeState.errorMessage
+                          }
+                          workspaceTargetLoading={
+                            issueDetailWorktreeState.isLoading
+                          }
+                          workspaceTargetWorktrees={
+                            issueDetailWorktreeState.worktrees
+                          }
+                        />
+                      }
+                      isWorking={isWorking}
+                      selectedDiff={selectedDiff}
+                      selectedFilePath={selectedFilePath}
+                      workspace={selectedIssueWorkspace}
+                      workspaceSidebarTab={workspaceSidebarTab}
+                      onDiscardFile={(file) => void handleDiscardFile(file)}
+                      onGitCommit={(push) => void handleGitCommit(push)}
+                      onGitCommitMessageChange={setGitCommitMessage}
+                      onGitPush={() => void handleGitPush()}
+                      onOpenDiff={(path) => void handleOpenDiff(path)}
+                      onOpenDirectory={(path) => void handleOpenDirectory(path)}
+                      onOpenFile={(path) => void handleOpenFile(path)}
+                      onSelectSidebarTab={setWorkspaceSidebarTab}
+                      onStageFile={(file) => void handleStageFile(file)}
+                      onUnstageFile={(file) => void handleUnstageFile(file)}
+                    />
                   }
                   onBack={() => handleShowIssuesList()}
-                  onBeginEditing={() => beginEditingIssue(selectedIssue)}
-                  onCancelEditing={() => discardIssueEdits(selectedIssue)}
                   onCommitIssuePatch={(patch) =>
                     void handlePersistIssuePatch(selectedIssue, patch)
                   }
-                  onHideIssue={() => void handleHideIssue(selectedIssue)}
                   onIssueDraftChange={(patch) =>
                     setIssueDraft((current) => ({
                       ...current,
                       ...patch,
                     }))
                   }
-                  onLinkedApprovalSelect={(approvalId) => {
-                    setSelectedApprovalId(approvalId);
-                    handleSelectScreen("approvals");
+                  onOpenRunDetail={(run) => handleOpenIssueLinkedRun(run)}
+                  onPromptChange={setPrompt}
+                  onRespondToQuestion={(response) =>
+                    void handleRespondToSessionQuestion(response)
+                  }
+                  onRevealRepo={() => {
+                    if (selectedIssueWorkspace?.workspace_repo_path) {
+                      void desktopRevealInFinder(
+                        selectedIssueWorkspace.workspace_repo_path
+                      );
+                    }
                   }}
-                  onOpenRunDetail={handleOpenIssueLinkedRun}
-                  onNewCommentBodyChange={setNewIssueCommentBody}
-                  onCommentTargetAgentChange={setNewIssueCommentTargetAgentId}
-                  onRevealAttachment={(attachment) =>
-                    void handleRevealIssueAttachment(attachment)
+                  onRunTerminal={handleRunTerminal}
+                  onSelectWorkspaceCenterTab={setWorkspaceCenterTab}
+                  onSendPrompt={(content) =>
+                    void handleSendConversationPrompt(content)
                   }
-                  onParentIssueSelect={(parentIssueId) =>
-                    setIssueDraft((current) => ({
-                      ...current,
-                      parentId: parentIssueId,
-                    }))
-                  }
-                  onProjectSelect={(projectId) =>
-                    setIssueDraft((current) => ({
-                      ...current,
-                      projectId,
-                    }))
-                  }
-                  onSave={() => void handleSaveIssueEdits(selectedIssue)}
-                  parentIssueLabel={(parentIssueId) =>
-                    issueParentLabel(boardIssues, parentIssueId)
-                  }
-                  statusLabel={issueStatusLabel}
-                  priorityLabel={humanizeIssueValue}
-                  projects={companySnapshot?.projects ?? []}
+                  onStopSession={() => {
+                    if (selectedIssueWorkspace?.session_id) {
+                      void agentStop(selectedIssueWorkspace.session_id);
+                    }
+                  }}
+                  onStopTerminal={() => {
+                    if (selectedIssueWorkspace?.session_id) {
+                      void terminalStop(selectedIssueWorkspace.session_id);
+                    }
+                  }}
+                  onTerminalCommandChange={setTerminalCommand}
+                  previewTabLabel={previewTabLabel}
                   projectLabel={(projectId) =>
                     issueProjectLabel(
                       companySnapshot?.projects ?? [],
                       projectId
                     )
                   }
-                  agents={companySnapshot?.agents ?? []}
+                  projects={companySnapshot?.projects ?? []}
+                  prompt={prompt}
                   selectableParentIssues={selectableParentIssues}
-                  subissues={issueSubissues}
+                  selectedDiff={selectedDiff}
+                  selectedFile={selectedFile}
+                  selectedFilePath={selectedFilePath}
+                  session={
+                    selectedIssueWorkspace?.session_id === activeSession?.id
+                      ? activeSession
+                      : null
+                  }
+                  sessionErrorMessage={activeSessionLiveState.errorMessage}
+                  sessionLoading={activeSessionLiveState.isLoadingMessages}
+                  sessionRows={
+                    selectedIssueWorkspace?.session_id === activeSession?.id
+                      ? activeSessionConversationRows
+                      : []
+                  }
+                  statusLabel={issueStatusLabel}
+                  terminalCommand={terminalCommand}
+                  terminalContainerRef={terminalContainerRef}
+                  terminalStatusValue={stringifyStatus(activeTerminalStatusState)}
+                  workspace={selectedIssueWorkspace}
+                  workspaceCenterTab={workspaceCenterTab}
                   workspaceTargetErrorMessage={
                     issueDetailWorktreeState.errorMessage
                   }
@@ -4421,7 +5200,7 @@ export function App() {
               ) : (
                 <IssuesListView
                   activeTab={selectedIssuesListTab}
-                  emptyTitle={`No issues in ${issuesListTabTitle(selectedIssuesListTab).toLowerCase()}`}
+                  emptyTitle={`No conversations in ${issuesListTabTitle(selectedIssuesListTab).toLowerCase()}`}
                   issues={visibleIssues}
                   onSelectIssue={(issueId) => void handleSelectIssue(issueId)}
                   onTabChange={setSelectedIssuesListTab}
@@ -4432,14 +5211,9 @@ export function App() {
             ) : null}
 
             {selectedScreen === "approvals" ? (
-              <ApprovalsRouteView
-                approvals={boardApprovals}
-                currentApproval={selectedApproval}
-                isWorking={isWorking}
-                onApprove={(approvalId) =>
-                  void handleApproveApproval(approvalId)
-                }
-                onSelectApproval={setSelectedApprovalId}
+              <RoutePlaceholder
+                body="Board approvals are no longer part of the core project and conversation workflow."
+                title="Approvals Removed"
               />
             ) : null}
 
@@ -4449,7 +5223,9 @@ export function App() {
                 currentProjectIssueCount={
                   selectedProject
                     ? boardIssues.filter(
-                        (issue) => issue.project_id === selectedProject.id
+                        (issue) =>
+                          issue.project_id === selectedProject.id &&
+                          isRootConversationIssue(issue)
                       ).length
                     : 0
                 }
@@ -4465,6 +5241,9 @@ export function App() {
                 onDeleteProject={handleDeleteProject}
                 onOpenCreateProject={handleOpenCreateProjectDialog}
                 onSelectProject={setSelectedProjectId}
+                onUpdateProjectDefaultNewChatArea={
+                  handleUpdateProjectDefaultNewChatArea
+                }
                 projects={boardProjects}
               />
             ) : null}
@@ -4483,26 +5262,26 @@ export function App() {
               <section className="route-scroll">
                 <div className="route-header compact">
                   <DashboardBreadcrumbs
-                    items={[{ label: "Company settings" }]}
+                    items={[{ label: "Space settings" }]}
                   />
-                  <span className="route-kicker">Company settings</span>
-                  <h1>{selectedCompany?.name ?? "Company settings"}</h1>
+                  <span className="route-kicker">Space settings</span>
+                  <h1>{selectedCompany?.name ?? "Space settings"}</h1>
                   <p>
-                    Board-specific company details and policies live here.
-                    Device and app settings stay behind the rail gear.
+                    Space identity and runtime defaults live here. Device and
+                    app settings stay behind the rail gear.
                   </p>
                 </div>
 
                 <div className="surface-grid single">
                   <section className="surface-panel wide">
-                    <h3>Company profile</h3>
+                    <h3>Space profile</h3>
                     <p>
-                      This route follows the board/company admin surface rather
+                      This route follows the board/space admin surface rather
                       than the desktop preferences shell.
                     </p>
                     <div className="surface-list">
                       <DetailRow
-                        label="Company Name"
+                        label="Space Name"
                         value={selectedCompany?.name ?? "n/a"}
                       />
                       <DetailRow
@@ -4519,17 +5298,17 @@ export function App() {
                         value={companyBrandColorDraft}
                       />
                       <DetailRow
-                        label="Issue Prefix"
+                        label="Conversation Prefix"
                         value={selectedCompany?.issue_prefix ?? "n/a"}
                       />
                     </div>
                   </section>
 
                   <section className="surface-panel wide">
-                    <h3>Board policy</h3>
+                    <h3>Runtime summary</h3>
                     <div className="summary-grid">
                       <SummaryPill
-                        label="Issue Prefix"
+                        label="Conversation Prefix"
                         value={selectedCompany?.issue_prefix ?? "n/a"}
                       />
                       <SummaryPill
@@ -4548,27 +5327,19 @@ export function App() {
 
                     <div className="surface-list">
                       <DetailRow
-                        label="Require Agent Approval"
-                        value={
-                          selectedCompany?.require_board_approval_for_new_agents
-                            ? "Enabled"
-                            : "Disabled"
-                        }
-                      />
-                      <DetailRow
                         label="Status"
                         value={String(selectedCompany?.status ?? "active")}
                       />
                       <DetailRow
-                        label="CEO"
+                        label="Default Executor"
                         value={
                           selectedCompanyCeo?.name ??
                           selectedCompany?.ceo_agent_id ??
-                          "Unassigned"
+                          "Missing"
                         }
                       />
                       <DetailRow
-                        label="Issue Counter"
+                        label="Conversation Counter"
                         value={String(selectedCompany?.issue_counter ?? 0)}
                       />
                       <DetailRow
@@ -4587,13 +5358,10 @@ export function App() {
 
             {selectedScreen === "activity" ? (
               <ActivityRouteView
-                approvals={boardApprovals}
+                agents={boardAgents}
                 issueCommentsByIssueId={issueCommentsByIssueId}
+                issueRunCardUpdatesByIssueId={issueRunCardUpdatesByIssueId}
                 issues={activityVisibleIssues}
-                onOpenApproval={(approvalId) => {
-                  setSelectedApprovalId(approvalId);
-                  handleSelectScreen("approvals");
-                }}
                 onOpenIssue={(issueId) => void handleSelectIssue(issueId)}
               />
             ) : null}
@@ -4614,7 +5382,7 @@ export function App() {
             <div className="workspace-sidebar-header">
               <div>
                 <h2>Worktrees</h2>
-                <span>{selectedCompany?.name ?? "Company"} board</span>
+                <span>{selectedCompany?.name ?? "Space"} board</span>
               </div>
               <button
                 className="icon-button"
@@ -4640,8 +5408,8 @@ export function App() {
               <div className="workspace-empty-state">
                 <h3>No active worktrees</h3>
                 <p>
-                  Worktrees appear automatically when an assigned agent starts
-                  an issue.
+                  Worktrees appear automatically when a conversation starts a
+                  model run.
                 </p>
               </div>
             )}
@@ -4662,11 +5430,22 @@ export function App() {
                     <p>
                       {[
                         selectedBoardWorkspace.project_name,
-                        selectedBoardWorkspace.agent_name,
+                        selectedBoardWorkspace.issue_id
+                          ? issueModelLabel(
+                              boardIssues.find(
+                                (issue) =>
+                                  issue.id === selectedBoardWorkspace.issue_id
+                              ) ?? null,
+                              boardAgents
+                            )
+                          : agentModelLabelById(
+                              boardAgents,
+                              selectedBoardWorkspace.agent_id
+                            ),
                         selectedBoardWorkspace.workspace_branch,
                       ]
                         .filter(Boolean)
-                        .join(" · ") || "Issue-owned coding session"}
+                        .join(" · ") || "Conversation run"}
                     </p>
                   </div>
                   <SummaryPill
@@ -4698,11 +5477,11 @@ export function App() {
                   <div className="workspace-header-actions">
                     <SummaryPill
                       label={activeWorkspaceProviderLabel}
-                      value={stringifyStatus(claudeStatusState)}
+                      value={stringifyStatus(activeRuntimeStatusState)}
                     />
                     <SummaryPill
                       label="Terminal"
-                      value={stringifyStatus(terminalStatusState)}
+                      value={stringifyStatus(activeTerminalStatusState)}
                     />
                   </div>
                 </div>
@@ -4744,22 +5523,28 @@ export function App() {
                       </div>
                     </div>
 
-                    <div className="message-timeline">
-                      {activeSessionMessages.map((message) => (
-                        <article className="message-card" key={message.id}>
-                          <header>
-                            <strong>#{message.sequence_number}</strong>
-                            <span>{describeMessageKind(message.content)}</span>
-                          </header>
-                          <pre>
-                            {renderMessageContent(
-                              message.content,
-                              settings.show_raw_message_json
-                            )}
-                          </pre>
-                        </article>
-                      ))}
-                    </div>
+                    {activeSessionLiveState.isLoadingMessages ? (
+                      <div className="conversation-empty-state">
+                        <h3>Loading conversation…</h3>
+                        <p>The daemon session is hydrating its transcript.</p>
+                      </div>
+                    ) : activeSessionConversationRows.length ? (
+                      <div className="conversation-timeline-scroll">
+                        <SessionConversationTimeline
+                          onRespondToQuestion={(response) =>
+                            void handleRespondToSessionQuestion(response)
+                          }
+                          rows={activeSessionConversationRows}
+                        />
+                      </div>
+                    ) : (
+                      <div className="conversation-empty-state">
+                        <h3>No daemon messages yet</h3>
+                        <p>
+                          Send the first prompt to start the workspace transcript.
+                        </p>
+                      </div>
+                    )}
 
                     <form className="composer" onSubmit={handleRunAgent}>
                       <textarea
@@ -4862,7 +5647,7 @@ export function App() {
               <section className="workspace-empty-state workspace-center-empty">
                 <h3>Select a worktree</h3>
                 <p>
-                  Issue-owned coding sessions appear here. Repo-root targets run
+                  Conversation runs appear here. Repo-root targets run
                   directly in the project checkout.
                 </p>
               </section>
@@ -4878,6 +5663,16 @@ export function App() {
             gitHistory={gitHistory}
             gitState={gitState}
             hasUncommittedChanges={hasUncommittedChanges}
+            issueMeta={
+              selectedBoardWorkspaceIssue ? (
+                <IssueWorkspaceSummaryMeta
+                  agents={boardAgents}
+                  issue={selectedBoardWorkspaceIssue}
+                  projects={boardProjects}
+                  statusLabel={issueStatusLabel}
+                />
+              ) : null
+            }
             hasUnpushedCommits={hasUnpushedCommits}
             isWorking={isWorking}
             selectedDiff={selectedDiff}
@@ -5114,70 +5909,51 @@ export function App() {
 
       {isCreateIssueDialogOpen ? (
         <CreateIssueDialogView
-          agents={companySnapshot?.agents ?? []}
+          attachments={issueDialogAttachments}
+          command={issueDialogCommand}
           companyPrefix={selectedCompany?.issue_prefix ?? "ISS"}
+          dependencyCheck={dependencyCheck}
+          description={issueDialogDescription}
+          enableChrome={issueDialogEnableChrome}
           errorMessage={issueDialogError}
           isSaving={isIssueDialogSaving}
-          onAssigneeChange={setIssueDialogAssigneeAgentId}
           onAddAttachment={() => void handleAddIssueDialogAttachment()}
           onClose={handleCloseCreateIssueDialog}
+          onCommandChange={setIssueDialogCommand}
           onCreate={() => void handleCreateIssueFromDialog()}
           onDescriptionChange={setIssueDialogDescription}
-          onPriorityChange={setIssueDialogPriority}
+          onEnableChromeChange={setIssueDialogEnableChrome}
+          onModelChange={setIssueDialogModel}
+          onPlanModeChange={setIssueDialogPlanMode}
+          mode={issueDialogMode}
           onProjectChange={handleIssueDialogProjectChange}
           onRemoveAttachment={handleRemoveIssueDialogAttachment}
-          onStatusChange={setIssueDialogStatus}
+          onSkipPermissionsChange={setIssueDialogSkipPermissions}
+          onThinkingEffortChange={setIssueDialogThinkingEffort}
           onTitleChange={setIssueDialogTitle}
           onWorkspaceTargetChange={handleIssueDialogWorkspaceTargetChange}
-          attachments={issueDialogAttachments}
-          priorities={mergeIssueOptions(
-            ["low", "medium", "high", "urgent"],
-            issueDialogPriority
-          )}
+          model={issueDialogModel}
+          parentConversationTitle={
+            issueDialogParentIssueId
+              ? issueParentLabel(boardIssues, issueDialogParentIssueId)
+              : null
+          }
+          planMode={issueDialogPlanMode}
           projects={boardProjects}
-          selectedAssigneeAgentId={issueDialogAssigneeAgentId}
-          selectedPriority={issueDialogPriority}
           selectedProjectId={issueDialogProjectId}
-          selectedStatus={issueDialogStatus}
-          statuses={mergeIssueOptions(canonicalIssueStatuses, issueDialogStatus)}
+          skipPermissions={issueDialogSkipPermissions}
           selectedWorkspaceTargetValue={issueWorkspaceTargetSelectValue(
             issueDialogWorkspaceTargetMode,
             issueDialogWorkspaceWorktreePath
           )}
+          thinkingEffort={issueDialogThinkingEffort}
           title={issueDialogTitle}
-          description={issueDialogDescription}
           workspaceTargetErrorMessage={issueDialogWorktreeState.errorMessage}
           workspaceTargetLoading={issueDialogWorktreeState.isLoading}
           workspaceTargetWorktrees={issueDialogWorktreeState.worktrees}
         />
       ) : null}
 
-      {dashboardIssuePreviewId && dashboardPreviewIssue ? (
-        <DashboardIssuePreviewDialogView
-          agents={boardAgents}
-          assigneeLabel={(assigneeAgentId) =>
-            issueAssigneeLabel(boardAgents, assigneeAgentId)
-          }
-          attachments={dashboardPreviewAttachments}
-          comments={dashboardPreviewComments}
-          errorMessage={dashboardIssuePreviewError}
-          isLoading={isDashboardIssuePreviewLoading}
-          issue={dashboardPreviewIssue}
-          linkedApprovalCount={dashboardPreviewLinkedApprovals.length}
-          onClose={handleCloseDashboardIssuePreview}
-          onOpenIssue={() =>
-            void handleOpenDashboardIssueDetail(dashboardPreviewIssue.id)
-          }
-          parentIssueLabel={(parentIssueId) =>
-            issueParentLabel(boardIssues, parentIssueId)
-          }
-          priorityLabel={humanizeIssueValue}
-          projectLabel={(projectId) => issueProjectLabel(boardProjects, projectId)}
-          runCardUpdate={dashboardPreviewRunCardUpdate}
-          statusLabel={issueStatusLabel}
-          subissueCount={dashboardPreviewSubissues.length}
-        />
-      ) : null}
     </div>
   );
 }
@@ -5257,7 +6033,7 @@ function OrgRouteView({
         <span className="route-kicker">Agent org</span>
         <h1>{company?.name ? `${company.name} agent org` : "Agent org"}</h1>
         <p>
-          See the reporting hierarchy for agents across the company and jump
+          See the reporting hierarchy for agents across the space and jump
           into any agent to inspect its configuration and runs.
         </p>
       </div>
@@ -5274,7 +6050,7 @@ function OrgRouteView({
             <div>
               <h3>Agent hierarchy</h3>
               <p>
-                This chart shows how agents report across the company. Select
+                This chart shows how agents report across the space. Select
                 any node to jump into that agent&apos;s configuration and runs.
               </p>
             </div>
@@ -5724,7 +6500,7 @@ function AgentsRouteView({
           </div>
         ) : (
           <p className="agent-detail-empty-state">
-            No agents are available for this company yet.
+            No agents are available for this space yet.
           </p>
         )}
       </div>
@@ -5750,7 +6526,7 @@ function AgentDashboardTab({
           label="Status"
           value={humanizeIssueValue(String(agent.status ?? "active"))}
         />
-        <SummaryPill label="Company" value={companyName} />
+        <SummaryPill label="Space" value={companyName} />
       </div>
 
       <div className="surface-list">
@@ -7091,10 +7867,1620 @@ function ShadcnSelect<T extends string>({
   );
 }
 
+function DashboardBirdsEyeRouteView({
+  agents,
+  chats,
+  dependencyCheck,
+  isLoadingOverview,
+  onClosePreview,
+  onCreateProject,
+  onCreateQuickChat,
+  onOpenIssueDetail,
+  onOpenIssuePreview,
+  previewAttachments,
+  previewComments,
+  previewErrorMessage,
+  previewIsLoading,
+  previewIssue,
+  previewRunCardUpdate,
+  previewSubissueCount,
+  projects,
+  workspaces,
+}: {
+  agents: AgentRecord[];
+  chats: DashboardOverviewChatRecord[];
+  dependencyCheck: RuntimeCapabilities | null;
+  isLoadingOverview: boolean;
+  onClosePreview: () => void;
+  onCreateProject: () => void;
+  onCreateQuickChat: (
+    title: string,
+    defaults: CreateIssueDialogDefaults
+  ) => Promise<IssueRecord>;
+  onOpenIssueDetail: (issueId: string) => void;
+  onOpenIssuePreview: (issueId: string) => void;
+  previewAttachments: IssueAttachmentRecord[];
+  previewComments: IssueCommentRecord[];
+  previewErrorMessage: string | null;
+  previewIsLoading: boolean;
+  previewIssue: IssueRecord | null;
+  previewRunCardUpdate: IssueRunCardUpdateRecord | null;
+  previewSubissueCount: number;
+  projects: ProjectRecord[];
+  workspaces: WorkspaceRecord[];
+}) {
+  const [expandedRowIds, setExpandedRowIds] = useState<Record<string, boolean>>(
+    {}
+  );
+  const expandedProjectIds = useMemo(
+    () =>
+      projects
+        .filter((project) => expandedRowIds[`project:${project.id}`] ?? false)
+        .map((project) => project.id),
+    [expandedRowIds, projects]
+  );
+  const projectWorktreesByProjectId = useDashboardProjectWorktrees(
+    projects,
+    expandedProjectIds
+  );
+  const treeModel = useMemo(
+    () =>
+      buildBirdsEyeTree({
+        agents,
+        chats,
+        dependencyCheck,
+        projectWorktreesByProjectId,
+        projects,
+        workspaces,
+      }),
+    [
+      agents,
+      chats,
+      dependencyCheck,
+      projectWorktreesByProjectId,
+      projects,
+      workspaces,
+    ]
+  );
+  const defaultQuickCreateState = useMemo(
+    () => createBirdsEyeQuickCreateState(dependencyCheck),
+    [dependencyCheck]
+  );
+  const [focusedRowId, setFocusedRowId] = useState<string | null>(null);
+  const [pendingFocusRowId, setPendingFocusRowId] = useState<string | null>(
+    null
+  );
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [commandPaletteQuery, setCommandPaletteQuery] = useState("");
+  const [commandPaletteIndex, setCommandPaletteIndex] = useState(0);
+  const [quickCreateState, setQuickCreateState] = useState<BirdsEyeQuickCreateState>(
+    defaultQuickCreateState
+  );
+  const rowRefs = useRef(new Map<string, HTMLButtonElement | null>());
+  const quickCreateInputRef = useRef<HTMLInputElement | null>(null);
+  const commandPaletteInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setExpandedRowIds((current) => {
+      let hasChanges = false;
+      const next = { ...current };
+
+      treeModel.projects.forEach((project, index) => {
+        if (next[project.rowId] === undefined) {
+          next[project.rowId] = index === 0 || project.liveRunCount > 0;
+          hasChanges = true;
+        }
+
+        for (const folder of project.folders) {
+          if (next[folder.rowId] === undefined) {
+            next[folder.rowId] =
+              folder.chatCount > 0 &&
+              (folder.folderType === "repo_root" ||
+                folder.liveRunCount > 0 ||
+                folder.chatCount <= 4);
+            hasChanges = true;
+          }
+        }
+      });
+
+      for (const rowId of Object.keys(next)) {
+        if (!treeModel.rowIds.has(rowId)) {
+          delete next[rowId];
+          hasChanges = true;
+        }
+      }
+
+      return hasChanges ? next : current;
+    });
+  }, [treeModel.projects, treeModel.rowIds]);
+
+  const visibleRows = useMemo(
+    () => flattenBirdsEyeTree(treeModel.projects, expandedRowIds),
+    [expandedRowIds, treeModel.projects]
+  );
+  const visibleRowLookup = useMemo(
+    () => new Map(visibleRows.map((row) => [row.rowId, row])),
+    [visibleRows]
+  );
+  const focusedRowIndex = Math.max(
+    visibleRows.findIndex((row) => row.rowId === focusedRowId),
+    0
+  );
+  const focusedRow = visibleRows[focusedRowIndex] ?? null;
+  const previewChat = previewIssue?.id
+    ? treeModel.chatByIssueId.get(previewIssue.id) ?? null
+    : null;
+  const recentChatRowId = useMemo(() => {
+    return visibleRows
+      .filter(
+        (row): row is BirdsEyeVisibleRow & { node: BirdsEyeChatNode } =>
+          row.node.kind === "chat"
+      )
+      .slice()
+      .sort((left, right) => {
+        const leftTime =
+          parseIssueDate(left.node.lastActivityAt)?.getTime() ?? 0;
+        const rightTime =
+          parseIssueDate(right.node.lastActivityAt)?.getTime() ?? 0;
+        return rightTime - leftTime;
+      })[0]?.rowId;
+  }, [visibleRows]);
+  const impactSessionIds = useMemo(() => {
+    const ids = new Set<string>();
+
+    for (const row of visibleRows) {
+      if (row.node.kind === "chat" && row.node.sessionId) {
+        ids.add(row.node.sessionId);
+      }
+    }
+
+    if (previewChat?.sessionId) {
+      ids.add(previewChat.sessionId);
+    }
+
+    return [...ids];
+  }, [previewChat?.sessionId, visibleRows]);
+  const codeImpactBySessionId = useBirdsEyeCodeImpact(impactSessionIds);
+  const shortcutSummary = useMemo(
+    () => [
+      `${projects.length} ${projects.length === 1 ? "project" : "projects"}`,
+      `${chats.length} ${chats.length === 1 ? "chat" : "chats"}`,
+      `${workspaces.length} ${
+        workspaces.length === 1 ? "workspace" : "workspaces"
+      }`,
+    ].join(" · "),
+    [chats.length, projects.length, workspaces.length]
+  );
+
+  useEffect(() => {
+    if (visibleRows.length === 0) {
+      setFocusedRowId(null);
+      return;
+    }
+
+    if (
+      pendingFocusRowId &&
+      visibleRows.some((row) => row.rowId === pendingFocusRowId)
+    ) {
+      setFocusedRowId(pendingFocusRowId);
+      setPendingFocusRowId(null);
+      return;
+    }
+
+    if (!focusedRowId || !visibleRows.some((row) => row.rowId === focusedRowId)) {
+      setFocusedRowId(visibleRows[0]?.rowId ?? null);
+    }
+  }, [focusedRowId, pendingFocusRowId, visibleRows]);
+
+  useEffect(() => {
+    if (!focusedRowId || quickCreateState.isOpen || isCommandPaletteOpen) {
+      return;
+    }
+
+    rowRefs.current.get(focusedRowId)?.focus({ preventScroll: true });
+  }, [focusedRowId, isCommandPaletteOpen, quickCreateState.isOpen]);
+
+  useEffect(() => {
+    if (!quickCreateState.isOpen) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      quickCreateInputRef.current?.focus();
+      quickCreateInputRef.current?.select();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [quickCreateState.folderRowId, quickCreateState.isOpen]);
+
+  useEffect(() => {
+    if (!isCommandPaletteOpen) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      commandPaletteInputRef.current?.focus();
+      commandPaletteInputRef.current?.select();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [isCommandPaletteOpen]);
+
+  const toggleRowExpansion = (rowId: string, nextValue?: boolean) => {
+    setExpandedRowIds((current) => ({
+      ...current,
+      [rowId]: nextValue ?? !current[rowId],
+    }));
+  };
+
+  const ensureRowAncestorsExpanded = (row: BirdsEyeVisibleRow | null) => {
+    if (!row) {
+      return;
+    }
+
+    const parents: string[] = [];
+    let currentParentId = row.parentRowId;
+
+    while (currentParentId) {
+      parents.push(currentParentId);
+      currentParentId = visibleRowLookup.get(currentParentId)?.parentRowId ?? null;
+    }
+
+    if (parents.length === 0) {
+      return;
+    }
+
+    setExpandedRowIds((current) => {
+      const next = { ...current };
+      for (const parentId of parents) {
+        next[parentId] = true;
+      }
+      return next;
+    });
+  };
+
+  const focusRowByIndex = (index: number) => {
+    if (visibleRows.length === 0) {
+      return;
+    }
+
+    const nextRow =
+      visibleRows[clampNumber(index, 0, visibleRows.length - 1)] ?? null;
+    if (!nextRow) {
+      return;
+    }
+
+    ensureRowAncestorsExpanded(nextRow);
+    setFocusedRowId(nextRow.rowId);
+  };
+
+  const siblingRowsForRow = (row: BirdsEyeVisibleRow | null) => {
+    if (!row) {
+      return [];
+    }
+
+    return visibleRows.filter(
+      (entry) => entry.parentRowId === row.parentRowId
+    );
+  };
+
+  const focusSiblingRow = (
+    row: BirdsEyeVisibleRow | null,
+    direction: "previous" | "next"
+  ) => {
+    if (!row) {
+      return;
+    }
+
+    const siblingRows = siblingRowsForRow(row);
+    if (siblingRows.length <= 1) {
+      return;
+    }
+
+    const currentIndex = siblingRows.findIndex(
+      (entry) => entry.rowId === row.rowId
+    );
+    if (currentIndex < 0) {
+      return;
+    }
+
+    const nextIndex =
+      direction === "next"
+        ? (currentIndex + 1) % siblingRows.length
+        : (currentIndex - 1 + siblingRows.length) % siblingRows.length;
+    const nextRow = siblingRows[nextIndex] ?? null;
+
+    if (!nextRow) {
+      return;
+    }
+
+    setFocusedRowId(nextRow.rowId);
+  };
+
+  const firstChildRowIdForRow = (row: BirdsEyeVisibleRow | null) => {
+    if (!row || !row.hasChildren) {
+      return null;
+    }
+
+    if (row.node.kind === "project") {
+      return row.node.folders[0]?.rowId ?? null;
+    }
+
+    if (row.node.kind === "folder") {
+      return row.node.chats[0]?.rowId ?? null;
+    }
+
+    return null;
+  };
+
+  const openRow = (row: BirdsEyeVisibleRow | null) => {
+    if (!row) {
+      return;
+    }
+
+    if (row.node.kind === "chat") {
+      if (previewIssue?.id === row.node.chat.id) {
+        onOpenIssueDetail(row.node.chat.id);
+        return;
+      }
+      onOpenIssuePreview(row.node.chat.id);
+      return;
+    }
+
+    if (!row.hasChildren) {
+      return;
+    }
+
+    if (!(expandedRowIds[row.rowId] ?? false)) {
+      toggleRowExpansion(row.rowId, true);
+    }
+
+    const firstChildRowId = firstChildRowIdForRow(row);
+    if (firstChildRowId) {
+      setFocusedRowId(firstChildRowId);
+    }
+  };
+
+  const closeRow = (row: BirdsEyeVisibleRow | null) => {
+    if (!row) {
+      return;
+    }
+
+    if (row.node.kind === "chat") {
+      onClosePreview();
+      if (row.parentRowId) {
+        setFocusedRowId(row.parentRowId);
+      }
+      return;
+    }
+
+    if (row.parentRowId) {
+      setFocusedRowId(row.parentRowId);
+      return;
+    }
+
+    if (row.hasChildren && (expandedRowIds[row.rowId] ?? false)) {
+      toggleRowExpansion(row.rowId, false);
+    }
+  };
+
+  const folderNodeForQuickCreateRow = (row: BirdsEyeVisibleRow | null) => {
+    if (!row) {
+      return null;
+    }
+
+    if (row.node.kind === "folder") {
+      return row.node;
+    }
+
+    if (row.node.kind === "chat") {
+      const folderNode = treeModel.rowById.get(row.node.folderRowId);
+      return folderNode?.kind === "folder" ? folderNode : null;
+    }
+
+    return (
+      row.node.folders.find((folder) => folder.folderType === "repo_root") ??
+      row.node.folders[0] ??
+      null
+    );
+  };
+
+  const ensureQuickCreateFolderExpanded = (folder: BirdsEyeFolderNode | null) => {
+    if (!folder) {
+      return;
+    }
+
+    setExpandedRowIds((current) => ({
+      ...current,
+      [`project:${folder.projectId}`]: true,
+      [folder.rowId]: true,
+    }));
+  };
+
+  const quickCreateContextForRow = (row: BirdsEyeVisibleRow | null) => {
+    const folder = folderNodeForQuickCreateRow(row);
+    if (!folder) {
+      return null;
+    }
+
+    const sourceDefaults =
+      row?.node.kind === "chat"
+        ? row.node.createDefaults
+        : row?.node.kind === "folder"
+          ? row.node.createDefaults
+          : row?.node.kind === "project"
+            ? folder.createDefaults
+            : null;
+
+    return {
+      draft: {
+        ...defaultQuickCreateState.draft,
+        ...folder.createDefaults,
+        ...sourceDefaults,
+        command:
+          sourceDefaults?.command ??
+          folder.createDefaults.command ??
+          defaultQuickCreateState.draft.command,
+        model:
+          sourceDefaults?.model ??
+          folder.createDefaults.model ??
+          defaultQuickCreateState.draft.model,
+        thinkingEffort:
+          sourceDefaults?.thinkingEffort ??
+          folder.createDefaults.thinkingEffort ??
+          defaultQuickCreateState.draft.thinkingEffort,
+        planMode:
+          sourceDefaults?.planMode ??
+          folder.createDefaults.planMode ??
+          defaultQuickCreateState.draft.planMode,
+        enableChrome:
+          sourceDefaults?.enableChrome ??
+          folder.createDefaults.enableChrome ??
+          defaultQuickCreateState.draft.enableChrome,
+        skipPermissions:
+          sourceDefaults?.skipPermissions ??
+          folder.createDefaults.skipPermissions ??
+          defaultQuickCreateState.draft.skipPermissions,
+        priority:
+          sourceDefaults?.priority ??
+          folder.createDefaults.priority ??
+          defaultQuickCreateState.draft.priority,
+        projectId:
+          sourceDefaults?.projectId ??
+          folder.projectId ??
+          defaultQuickCreateState.draft.projectId,
+        status:
+          sourceDefaults?.status ??
+          folder.createDefaults.status ??
+          defaultQuickCreateState.draft.status,
+        workspaceTargetMode:
+          sourceDefaults?.workspaceTargetMode ??
+          folder.createDefaults.workspaceTargetMode ??
+          defaultQuickCreateState.draft.workspaceTargetMode,
+        workspaceWorktreeBranch:
+          sourceDefaults?.workspaceWorktreeBranch ??
+          folder.createDefaults.workspaceWorktreeBranch ??
+          defaultQuickCreateState.draft.workspaceWorktreeBranch,
+        workspaceWorktreeName:
+          sourceDefaults?.workspaceWorktreeName ??
+          folder.createDefaults.workspaceWorktreeName ??
+          defaultQuickCreateState.draft.workspaceWorktreeName,
+        workspaceWorktreePath:
+          sourceDefaults?.workspaceWorktreePath ??
+          folder.createDefaults.workspaceWorktreePath ??
+          defaultQuickCreateState.draft.workspaceWorktreePath,
+      },
+      folder,
+      row,
+    };
+  };
+
+  const openQuickCreate = (rowId?: string | null) => {
+    const fallbackRow =
+      (rowId ? visibleRowLookup.get(rowId) : null) ??
+      focusedRow ??
+      visibleRows[0] ??
+      null;
+
+    if (!fallbackRow) {
+      onCreateProject();
+      return;
+    }
+
+    const quickCreateContext = quickCreateContextForRow(fallbackRow);
+    if (!quickCreateContext) {
+      onCreateProject();
+      return;
+    }
+
+    ensureQuickCreateFolderExpanded(quickCreateContext.folder);
+    setQuickCreateState({
+      draft: quickCreateContext.draft,
+      errorMessage: null,
+      folderRowId: quickCreateContext.folder.rowId,
+      isOpen: true,
+      isSaving: false,
+      sourceRowId: fallbackRow.rowId,
+      title: birdsEyeSuggestedTitle(fallbackRow.node),
+    });
+  };
+
+  const closeQuickCreate = () => {
+    setQuickCreateState(defaultQuickCreateState);
+    setFocusedRowId(
+      quickCreateState.sourceRowId ?? quickCreateState.folderRowId ?? focusedRow?.rowId ?? null
+    );
+  };
+
+  const commandActions = useMemo(() => {
+    const actions: Array<{
+      description: string;
+      id: string;
+      keywords: string;
+      label: string;
+      run: () => void;
+    }> = [];
+    const contextDescription = focusedRow
+      ? describeBirdsEyeNodeContext(focusedRow.node)
+      : "current context";
+
+    actions.push({
+      description: `Create a chat in ${contextDescription}.`,
+      id: "new-chat",
+      keywords: `new create chat ${contextDescription}`,
+      label: "New chat",
+      run: () => openQuickCreate(focusedRow?.rowId),
+    });
+
+    if (focusedRow?.hasChildren) {
+      const isExpanded = expandedRowIds[focusedRow.rowId] ?? false;
+      actions.push({
+        description: isExpanded
+          ? "Collapse the focused branch."
+          : "Expand the focused branch.",
+        id: "toggle-branch",
+        keywords: `${isExpanded ? "collapse" : "expand"} folder project branch`,
+        label: isExpanded ? "Collapse branch" : "Expand branch",
+        run: () => toggleRowExpansion(focusedRow.rowId),
+      });
+    }
+
+    if (focusedRow?.node.kind === "chat") {
+      actions.push({
+        description:
+          previewIssue?.id === focusedRow.node.chat.id
+            ? "Open the full conversation detail."
+            : "Preview the focused chat.",
+        id: "preview-chat",
+        keywords: "preview inspect chat",
+        label:
+          previewIssue?.id === focusedRow.node.chat.id
+            ? "Open chat detail"
+            : "Preview chat",
+        run: () => openRow(focusedRow),
+      });
+    }
+
+    if (previewIssue) {
+      actions.push({
+        description: "Close the lightweight preview.",
+        id: "close-preview",
+        keywords: "close preview escape",
+        label: "Close preview",
+        run: onClosePreview,
+      });
+    }
+
+    actions.push(
+      {
+        description: "Jump to the top of the list.",
+        id: "jump-top",
+        keywords: "top start first",
+        label: "Jump to top",
+        run: () => focusRowByIndex(0),
+      },
+      {
+        description: "Jump to the latest visible chat.",
+        id: "jump-recent",
+        keywords: "recent latest bottom",
+        label: "Jump to recent",
+        run: () => {
+          if (!recentChatRowId) {
+            focusRowByIndex(visibleRows.length - 1);
+            return;
+          }
+
+          if (recentChatRowId === focusedRow?.rowId) {
+            focusRowByIndex(visibleRows.length - 1);
+            return;
+          }
+
+          setFocusedRowId(recentChatRowId);
+        },
+      },
+      {
+        description: "Create a new project.",
+        id: "new-project",
+        keywords: "new project create",
+        label: "New project",
+        run: onCreateProject,
+      }
+    );
+
+    return actions;
+  }, [
+    expandedRowIds,
+    focusedRow,
+    onClosePreview,
+    onCreateProject,
+    previewIssue,
+    recentChatRowId,
+    visibleRows.length,
+  ]);
+  const filteredCommandActions = useMemo(() => {
+    const query = commandPaletteQuery.trim().toLowerCase();
+    if (!query) {
+      return commandActions;
+    }
+
+    return commandActions.filter((action) =>
+      `${action.label} ${action.description} ${action.keywords}`
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [commandActions, commandPaletteQuery]);
+
+  useEffect(() => {
+    setCommandPaletteIndex(0);
+  }, [commandPaletteQuery, isCommandPaletteOpen]);
+
+  useEffect(() => {
+    if (!quickCreateState.isOpen) {
+      return;
+    }
+
+    if (
+      !quickCreateState.folderRowId ||
+      treeModel.rowById.get(quickCreateState.folderRowId)?.kind !== "folder"
+    ) {
+      setQuickCreateState(defaultQuickCreateState);
+    }
+  }, [
+    defaultQuickCreateState,
+    quickCreateState.folderRowId,
+    quickCreateState.isOpen,
+    treeModel.rowById,
+  ]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const isPrimaryModifier = event.metaKey || event.ctrlKey;
+
+      if (isPrimaryModifier && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setIsCommandPaletteOpen(true);
+        setCommandPaletteQuery("");
+        return;
+      }
+
+      if (isCommandPaletteOpen) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          setIsCommandPaletteOpen(false);
+          return;
+        }
+
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          setCommandPaletteIndex((current) =>
+            clampNumber(
+              current + 1,
+              0,
+              Math.max(filteredCommandActions.length - 1, 0)
+            )
+          );
+          return;
+        }
+
+        if (event.key === "ArrowUp") {
+          event.preventDefault();
+          setCommandPaletteIndex((current) =>
+            clampNumber(
+              current - 1,
+              0,
+              Math.max(filteredCommandActions.length - 1, 0)
+            )
+          );
+          return;
+        }
+
+        if (event.key === "Enter") {
+          const action = filteredCommandActions[commandPaletteIndex] ?? null;
+          if (!action) {
+            return;
+          }
+          event.preventDefault();
+          setIsCommandPaletteOpen(false);
+          action.run();
+        }
+        return;
+      }
+
+      if (quickCreateState.isOpen) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeQuickCreate();
+        }
+        return;
+      }
+
+      if (isEditableEventTarget(event.target)) {
+        return;
+      }
+
+      if (isPrimaryModifier && event.key === "ArrowUp") {
+        event.preventDefault();
+        focusRowByIndex(0);
+        return;
+      }
+
+      if (isPrimaryModifier && event.key === "ArrowDown") {
+        event.preventDefault();
+        if (recentChatRowId && recentChatRowId !== focusedRow?.rowId) {
+          setFocusedRowId(recentChatRowId);
+          return;
+        }
+        focusRowByIndex(visibleRows.length - 1);
+        return;
+      }
+
+      if (event.key.toLowerCase() === "n" && !event.altKey && !isPrimaryModifier) {
+        event.preventDefault();
+        openQuickCreate();
+        return;
+      }
+
+      switch (event.key) {
+        case "ArrowDown":
+          event.preventDefault();
+          focusSiblingRow(focusedRow, "next");
+          return;
+        case "ArrowUp":
+          event.preventDefault();
+          focusSiblingRow(focusedRow, "previous");
+          return;
+        case "ArrowRight":
+          event.preventDefault();
+          openRow(focusedRow);
+          return;
+        case "ArrowLeft":
+          event.preventDefault();
+          closeRow(focusedRow);
+          return;
+        case "Enter":
+          event.preventDefault();
+          openRow(focusedRow);
+          return;
+        case "Escape":
+          if (previewIssue) {
+            event.preventDefault();
+            onClosePreview();
+          }
+          return;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [
+    commandPaletteIndex,
+    filteredCommandActions,
+    focusedRow,
+    focusedRowIndex,
+    isCommandPaletteOpen,
+    onClosePreview,
+    previewIssue,
+    quickCreateState.isOpen,
+    recentChatRowId,
+    visibleRows,
+  ]);
+
+  const handleQuickCreateSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    const folderNode =
+      quickCreateState.folderRowId &&
+      treeModel.rowById.get(quickCreateState.folderRowId)?.kind === "folder"
+        ? (treeModel.rowById.get(quickCreateState.folderRowId) as BirdsEyeFolderNode)
+        : null;
+
+    if (!folderNode) {
+      return;
+    }
+
+    setQuickCreateState((current) => ({
+      ...current,
+      errorMessage: null,
+      isSaving: true,
+    }));
+
+    try {
+      ensureQuickCreateFolderExpanded(folderNode);
+      const createdIssue = await onCreateQuickChat(
+        quickCreateState.title,
+        quickCreateState.draft
+      );
+      setPendingFocusRowId(`chat:${createdIssue.id}`);
+      closeQuickCreate();
+    } catch (error) {
+      setQuickCreateState((current) => ({
+        ...current,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        isSaving: false,
+      }));
+    }
+  };
+
+  const renderBirdsEyeRowButton = (row: BirdsEyeVisibleRow) => (
+    <BirdsEyeRow
+      buttonRef={(element) => {
+        rowRefs.current.set(row.rowId, element);
+      }}
+      codeImpact={
+        row.node.kind === "chat" && row.node.sessionId
+          ? codeImpactBySessionId[row.node.sessionId] ?? null
+          : null
+      }
+      isFocused={row.rowId === focusedRow?.rowId}
+      isPreviewing={
+        row.node.kind === "chat" && previewIssue?.id === row.node.chat.id
+      }
+      onClick={() => {
+        setFocusedRowId(row.rowId);
+        if (row.node.kind === "chat") {
+          onOpenIssuePreview(row.node.chat.id);
+        }
+      }}
+      onDoubleClick={() => {
+        if (row.node.kind === "chat") {
+          onOpenIssueDetail(row.node.chat.id);
+        }
+      }}
+      onToggleExpand={() => toggleRowExpansion(row.rowId)}
+      row={row}
+    />
+  );
+
+  const renderBirdsEyeFolderGroup = (folder: BirdsEyeFolderNode) => {
+    const folderRow = visibleRowLookup.get(folder.rowId);
+    if (!folderRow) {
+      return null;
+    }
+
+    const isFolderExpanded = expandedRowIds[folder.rowId] ?? false;
+    const isInlineDraftOpen =
+      quickCreateState.isOpen && quickCreateState.folderRowId === folder.rowId;
+
+    return (
+      <section className="birds-eye-group birds-eye-folder-group" key={folder.rowId}>
+        {renderBirdsEyeRowButton(folderRow)}
+        {isFolderExpanded ? (
+          <div className="birds-eye-group-body birds-eye-folder-group-body" role="group">
+            {isInlineDraftOpen ? (
+              <BirdsEyeQuickCreateRow
+                dependencyCheck={dependencyCheck}
+                draft={quickCreateState.draft}
+                errorMessage={quickCreateState.errorMessage}
+                folder={folder}
+                inputRef={(element) => {
+                  quickCreateInputRef.current = element;
+                }}
+                isSaving={quickCreateState.isSaving}
+                onCancel={closeQuickCreate}
+                onDraftChange={(patch) =>
+                  setQuickCreateState((current) => ({
+                    ...current,
+                    draft: {
+                      ...current.draft,
+                      ...patch,
+                    },
+                    errorMessage: null,
+                  }))
+                }
+                onSubmit={handleQuickCreateSubmit}
+                onTitleChange={(title) =>
+                  setQuickCreateState((current) => ({
+                    ...current,
+                    errorMessage: null,
+                    title,
+                  }))
+                }
+                sourceNode={
+                  quickCreateState.sourceRowId
+                    ? visibleRowLookup.get(quickCreateState.sourceRowId)?.node ??
+                      treeModel.rowById.get(quickCreateState.sourceRowId) ??
+                      null
+                    : null
+                }
+                title={quickCreateState.title}
+              />
+            ) : null}
+            {folder.chats.map((chat) => {
+              const chatRow = visibleRowLookup.get(chat.rowId);
+              if (!chatRow) {
+                return null;
+              }
+
+              return (
+                <div className="birds-eye-chat-shell" key={chat.rowId}>
+                  {renderBirdsEyeRowButton(chatRow)}
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+      </section>
+    );
+  };
+
+  const renderBirdsEyeProjectGroup = (project: BirdsEyeProjectNode) => {
+    const projectRow = visibleRowLookup.get(project.rowId);
+    if (!projectRow) {
+      return null;
+    }
+
+    const isProjectExpanded = expandedRowIds[project.rowId] ?? false;
+
+    return (
+      <section
+        className="birds-eye-group birds-eye-project-group"
+        key={project.rowId}
+      >
+        {renderBirdsEyeRowButton(projectRow)}
+        {isProjectExpanded ? (
+          <div className="birds-eye-group-body birds-eye-project-group-body" role="group">
+            {project.folders.map((folder) => renderBirdsEyeFolderGroup(folder))}
+          </div>
+        ) : null}
+      </section>
+    );
+  };
+
+  return (
+    <section className="birds-eye-route">
+      <div className="birds-eye-route-header">
+        <div className="birds-eye-route-header-main">
+          <DashboardBreadcrumbs items={[{ label: "Dashboard" }]} />
+          <span className="route-kicker">Birds Eye</span>
+          <h1>Projects, folders, and chats in one pass</h1>
+          <p>
+            Dense keyboard-first scanning across repo root conversations,
+            worktrees, and the latest model activity.
+          </p>
+        </div>
+        <div className="birds-eye-route-header-meta">
+          <SummaryPill label="Overview" value={shortcutSummary} />
+          <SummaryPill label="Shortcuts" value="N · Cmd+K · Arrows" />
+        </div>
+      </div>
+
+      {projects.length ? (
+        <div className="birds-eye-layout">
+          <div className="birds-eye-tree-panel">
+            <div className="birds-eye-toolbar">
+              <button
+                className="primary-button compact-button"
+                onClick={() => openQuickCreate()}
+                type="button"
+              >
+                New chat
+              </button>
+              <button
+                className="secondary-button compact-button"
+                onClick={() => setIsCommandPaletteOpen(true)}
+                type="button"
+              >
+                Command palette
+              </button>
+            </div>
+
+            <div className="birds-eye-tree" role="tree">
+              {treeModel.projects.map((project) => renderBirdsEyeProjectGroup(project))}
+            </div>
+          </div>
+
+          <BirdsEyePreviewPanel
+            agents={agents}
+            attachments={previewAttachments}
+            codeImpact={
+              previewChat?.sessionId
+                ? codeImpactBySessionId[previewChat.sessionId] ?? null
+                : null
+            }
+            comments={previewComments}
+            errorMessage={previewErrorMessage}
+            isLoading={previewIsLoading}
+            issue={previewIssue}
+            onClose={onClosePreview}
+            onOpenIssue={onOpenIssueDetail}
+            runCardUpdate={previewRunCardUpdate}
+            subissueCount={previewSubissueCount}
+          />
+        </div>
+      ) : isLoadingOverview ? (
+        <div className="dashboard-canvas-empty-wrap birds-eye-empty-wrap">
+          <div className="dashboard-canvas-empty-card birds-eye-empty-card">
+            <div className="dashboard-canvas-empty-copy">
+              <span className="dashboard-canvas-empty-badge">
+                Loading overview
+              </span>
+              <h2>Fetching projects, folders, and chats</h2>
+              <p>
+                The Birds Eye dashboard loads a compact overview first, then
+                fills in worktrees and previews only when you open them.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="dashboard-canvas-empty-wrap birds-eye-empty-wrap">
+          <div className="dashboard-canvas-empty-card birds-eye-empty-card">
+            <div className="dashboard-canvas-empty-copy">
+              <span className="dashboard-canvas-empty-badge">
+                Projects required
+              </span>
+              <h2>Create a project first</h2>
+              <p>
+                This Birds Eye view groups chat activity by project and working
+                folder. Add a project with a repository anchor to start routing
+                chats into repo root and worktree contexts.
+              </p>
+            </div>
+            <button
+              className="primary-button"
+              onClick={onCreateProject}
+              type="button"
+            >
+              Create project
+            </button>
+          </div>
+        </div>
+      )}
+
+      <BirdsEyeCommandPalette
+        actions={filteredCommandActions}
+        activeIndex={commandPaletteIndex}
+        inputRef={commandPaletteInputRef}
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onQueryChange={setCommandPaletteQuery}
+        query={commandPaletteQuery}
+      />
+    </section>
+  );
+}
+
+function BirdsEyeCommandPalette({
+  actions,
+  activeIndex,
+  inputRef,
+  isOpen,
+  onClose,
+  onQueryChange,
+  query,
+}: {
+  actions: Array<{
+    description: string;
+    id: string;
+    label: string;
+    run: () => void;
+  }>;
+  activeIndex: number;
+  inputRef: RefObject<HTMLInputElement | null>;
+  isOpen: boolean;
+  onClose: () => void;
+  onQueryChange: (value: string) => void;
+  query: string;
+}) {
+  if (!isOpen) {
+    return null;
+  }
+
+  return (
+    <div className="birds-eye-command-backdrop" onClick={onClose} role="presentation">
+      <div
+        className="birds-eye-command-palette"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <input
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder="Search commands"
+          ref={inputRef}
+          value={query}
+        />
+        <div className="birds-eye-command-list">
+          {actions.length ? (
+            actions.map((action, index) => (
+              <button
+                className={
+                  index === activeIndex
+                    ? "birds-eye-command-row is-active"
+                    : "birds-eye-command-row"
+                }
+                key={action.id}
+                onClick={() => {
+                  onClose();
+                  action.run();
+                }}
+                type="button"
+              >
+                <strong>{action.label}</strong>
+                <span>{action.description}</span>
+              </button>
+            ))
+          ) : (
+            <p className="surface-empty-copy">No matching commands.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BirdsEyeRow({
+  buttonRef,
+  codeImpact,
+  isFocused,
+  isPreviewing,
+  onClick,
+  onDoubleClick,
+  onToggleExpand,
+  row,
+}: {
+  buttonRef: (element: HTMLButtonElement | null) => void;
+  codeImpact: BirdsEyeCodeImpactSummary | null;
+  isFocused: boolean;
+  isPreviewing: boolean;
+  onClick: () => void;
+  onDoubleClick: () => void;
+  onToggleExpand: () => void;
+  row: BirdsEyeVisibleRow;
+}) {
+  const node = row.node;
+  const isChat = node.kind === "chat";
+
+  return (
+    <button
+      aria-expanded={row.hasChildren ? row.isExpanded : undefined}
+      aria-selected={isFocused}
+      className={[
+        "birds-eye-row",
+        `depth-${row.depth}`,
+        node.kind === "project" ? "is-project" : "",
+        node.kind === "folder" ? "is-folder" : "",
+        isFocused ? "is-focused" : "",
+        isPreviewing ? "is-previewing" : "",
+        isChat ? "is-chat" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      onClick={onClick}
+      onDoubleClick={onDoubleClick}
+      ref={buttonRef}
+      tabIndex={isFocused ? 0 : -1}
+      type="button"
+    >
+      <div className="birds-eye-row-indent" style={{ width: 0 }} />
+      <div className="birds-eye-row-chevron">
+        {row.hasChildren ? (
+          <span
+            className={
+              row.isExpanded
+                ? "birds-eye-chevron is-expanded"
+                : "birds-eye-chevron"
+            }
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleExpand();
+            }}
+            role="presentation"
+          >
+            ▸
+          </span>
+        ) : null}
+      </div>
+
+      <div className="birds-eye-row-main">
+        {node.kind === "project" ? (
+          <>
+            <strong>{node.label}</strong>
+            <span>
+              {[
+                node.repoPath ?? "No repository folder",
+                `${node.folderCount} ${
+                  node.folderCount === 1 ? "folder" : "folders"
+                }`,
+              ].join(" · ")}
+            </span>
+          </>
+        ) : null}
+
+        {node.kind === "folder" ? (
+          <>
+            <strong>{node.label}</strong>
+            <span>
+              {[
+                node.secondaryLabel,
+                `${node.chatCount} ${
+                  node.chatCount === 1 ? "chat" : "chats"
+                }`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          </>
+        ) : null}
+
+        {node.kind === "chat" ? (
+          <>
+            <div className="birds-eye-chat-title-row">
+              <strong>{node.title}</strong>
+              <span className="issues-linked-run-role-pill">
+                {issueStatusLabel(node.chat.status)}
+              </span>
+            </div>
+            <span>
+              {[
+                node.agentLabel,
+                node.runStatus
+                  ? agentRunStatusLabel(node.runStatus)
+                  : null,
+                node.runSummary,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          </>
+        ) : null}
+      </div>
+
+      <div className="birds-eye-row-meta">
+        {node.kind === "project" || node.kind === "folder" ? (
+          <>
+            {node.liveRunCount > 0 ? (
+              <span className="birds-eye-row-metric">
+                {node.liveRunCount} live
+              </span>
+            ) : null}
+            <span className="birds-eye-row-metric">
+              {formatCompactIssueTimestamp(node.lastActivityAt)}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="birds-eye-row-metric">
+              {formatCompactIssueTimestamp(node.lastActivityAt)}
+            </span>
+            <span className="birds-eye-impact-pill">
+              {birdsEyeImpactLabel(codeImpact)}
+            </span>
+          </>
+        )}
+      </div>
+    </button>
+  );
+}
+
+function BirdsEyeQuickCreateRow({
+  dependencyCheck,
+  draft,
+  errorMessage,
+  folder,
+  inputRef,
+  isSaving,
+  onCancel,
+  onDraftChange,
+  onSubmit,
+  onTitleChange,
+  sourceNode,
+  title,
+}: {
+  dependencyCheck: RuntimeCapabilities | null;
+  draft: BirdsEyeQuickCreateDraft;
+  errorMessage: string | null;
+  folder: BirdsEyeFolderNode;
+  inputRef: (element: HTMLInputElement | null) => void;
+  isSaving: boolean;
+  onCancel: () => void;
+  onDraftChange: (patch: Partial<BirdsEyeQuickCreateDraft>) => void;
+  onSubmit: (event: FormEvent) => void;
+  onTitleChange: (title: string) => void;
+  sourceNode: BirdsEyeTreeNode | null;
+  title: string;
+}) {
+  const runtimeProvider = detectAgentCliProvider(draft.command, draft.model);
+  const runtimeModelOptions = buildAgentModelOptions(
+    { command: draft.command, model: draft.model },
+    dependencyCheck
+  );
+  const runtimeThinkingEffortOptions = mergeIssueOptions(
+    ["auto", "low", "medium", "high"],
+    draft.thinkingEffort
+  );
+  const sourceLabel =
+    sourceNode?.kind === "chat"
+      ? `Prefilled from ${sourceNode.title}`
+      : `New chat in ${folder.label}`;
+
+  return (
+    <div className="birds-eye-chat-shell birds-eye-draft-shell">
+      <form
+        className="birds-eye-row birds-eye-row-draft is-chat"
+        onSubmit={onSubmit}
+      >
+        <div className="birds-eye-row-indent" style={{ width: 0 }} />
+        <div className="birds-eye-row-chevron birds-eye-draft-marker">+</div>
+
+        <div className="birds-eye-row-main birds-eye-draft-main">
+          <div className="birds-eye-draft-header">
+            <input
+              className="birds-eye-draft-title-input"
+              onChange={(event) => onTitleChange(event.target.value)}
+              placeholder="New conversation"
+              ref={inputRef}
+              value={title}
+            />
+            <span className="birds-eye-draft-context">{sourceLabel}</span>
+          </div>
+
+          <div className="birds-eye-draft-controls">
+            <label className="birds-eye-draft-field">
+              <span>Model</span>
+              <IssueDialogInlineSelect
+                ariaLabel="New chat model"
+                className="birds-eye-draft-select"
+                onChange={(value) => onDraftChange({ model: value })}
+                value={draft.model}
+              >
+                {runtimeModelOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option === "default" ? "Default" : option}
+                  </option>
+                ))}
+              </IssueDialogInlineSelect>
+            </label>
+
+            <label className="birds-eye-draft-field">
+              <span>Thinking</span>
+              <IssueDialogInlineSelect
+                ariaLabel="New chat thinking effort"
+                className="birds-eye-draft-select"
+                onChange={(value) => onDraftChange({ thinkingEffort: value })}
+                value={draft.thinkingEffort}
+              >
+                {runtimeThinkingEffortOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {capitalize(option)}
+                  </option>
+                ))}
+              </IssueDialogInlineSelect>
+            </label>
+
+            <div className="birds-eye-draft-field birds-eye-draft-toggle-field">
+              <span>Plan mode</span>
+              <button
+                aria-label="Toggle plan mode"
+                aria-pressed={draft.planMode}
+                className={
+                  draft.planMode ? "agent-config-toggle active" : "agent-config-toggle"
+                }
+                disabled={runtimeProvider !== "claude"}
+                onClick={() => onDraftChange({ planMode: !draft.planMode })}
+                type="button"
+              >
+                <span />
+              </button>
+            </div>
+          </div>
+
+          {errorMessage ? (
+            <span className="project-kanban-add-card-error">{errorMessage}</span>
+          ) : null}
+        </div>
+
+        <div className="birds-eye-row-meta birds-eye-draft-actions">
+          <button
+            className="secondary-button compact-button"
+            onClick={onCancel}
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            className="primary-button compact-button"
+            disabled={isSaving}
+            type="submit"
+          >
+            {isSaving ? "Creating..." : "Create"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function BirdsEyePreviewPanel({
+  agents,
+  attachments,
+  codeImpact,
+  comments,
+  errorMessage,
+  isLoading,
+  issue,
+  onClose,
+  onOpenIssue,
+  runCardUpdate,
+  subissueCount,
+}: {
+  agents: AgentRecord[];
+  attachments: IssueAttachmentRecord[];
+  codeImpact: BirdsEyeCodeImpactSummary | null;
+  comments: IssueCommentRecord[];
+  errorMessage: string | null;
+  isLoading: boolean;
+  issue: IssueRecord | null;
+  onClose: () => void;
+  onOpenIssue: (issueId: string) => void;
+  runCardUpdate: IssueRunCardUpdateRecord | null;
+  subissueCount: number;
+}) {
+  const latestComments = [...comments].slice(-3).reverse();
+
+  return (
+    <aside className="birds-eye-preview-panel">
+      {issue ? (
+        <>
+          <div className="birds-eye-preview-header">
+            <div>
+              <span className="route-kicker">
+                {issue.identifier ?? "Conversation"}
+              </span>
+              <h2>{issue.title}</h2>
+              <p>
+                {issue.description?.trim() ||
+                  "Use the lightweight preview for the latest messages, attachments, and code impact without leaving the dashboard."}
+              </p>
+            </div>
+            <button
+              aria-label="Close preview"
+              className="project-dialog-close issue-dialog-close"
+              onClick={onClose}
+              type="button"
+            >
+              x
+            </button>
+          </div>
+
+          <div className="birds-eye-preview-summary">
+            <SummaryPill label="Status" value={issueStatusLabel(issue.status)} />
+            <SummaryPill label="Agent" value={issueModelLabel(issue, agents)} />
+            <SummaryPill
+              label="Last activity"
+              value={formatRelativeIssueDate(issue.updated_at)}
+            />
+            <SummaryPill label="Code impact" value={birdsEyeImpactLabel(codeImpact)} />
+            <SummaryPill label="Queued" value={subissueCount} />
+          </div>
+
+          {runCardUpdate ? (
+            <section className="birds-eye-preview-update">
+              <div className="birds-eye-preview-update-header">
+                <strong>Latest model run</strong>
+                <RunStatusBadge status={runCardUpdate.run_status} />
+              </div>
+              <p>{issueRunCardUpdateSummary(runCardUpdate)}</p>
+              <span>{formatRelativeIssueDate(runCardUpdate.last_activity_at)}</span>
+            </section>
+          ) : null}
+
+          {errorMessage ? <div className="issue-dialog-alert">{errorMessage}</div> : null}
+          {isLoading ? (
+            <p className="issues-detail-copy muted">
+              Loading the latest conversation state...
+            </p>
+          ) : null}
+
+          <section className="birds-eye-preview-section">
+            <div className="issues-detail-subsection-copy">
+              <h3>Recent messages</h3>
+              <p className="issues-detail-copy muted">
+                Latest context without opening the full thread.
+              </p>
+            </div>
+            {latestComments.length ? (
+              <div className="issues-comment-list">
+                {latestComments.map((comment) => (
+                  <article className="issues-comment-card" key={comment.id}>
+                    <div className="issues-comment-card-target">
+                      {issueCommentAuthorLabel(agents, comment)}
+                    </div>
+                    <p>{comment.body}</p>
+                    <span>{formatIssueDate(comment.created_at)}</span>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="issues-detail-copy muted">No messages yet.</p>
+            )}
+          </section>
+
+          <section className="birds-eye-preview-section">
+            <div className="issues-detail-subsection-copy">
+              <h3>Attachments</h3>
+              <p className="issues-detail-copy muted">
+                Files linked to this conversation.
+              </p>
+            </div>
+            {attachments.length ? (
+              <div className="issue-attachment-list">
+                {attachments.slice(0, 4).map((attachment) => (
+                  <div className="issue-attachment-row" key={attachment.id}>
+                    <div className="issue-attachment-meta">
+                      <strong>
+                        {attachment.original_filename ??
+                          fileName(attachment.local_path)}
+                      </strong>
+                      <span>
+                        {formatFileSize(attachment.byte_size)} ·{" "}
+                        {formatIssueDate(attachment.created_at)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="issues-detail-copy muted">No attachments yet.</p>
+            )}
+          </section>
+
+          <div className="birds-eye-preview-footer">
+            <button
+              className="primary-button compact-button"
+              onClick={() => onOpenIssue(issue.id)}
+              type="button"
+            >
+              Open conversation
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="birds-eye-preview-empty">
+          <span className="route-kicker">Preview</span>
+          <h2>Focus a chat to inspect it lightly</h2>
+          <p>
+            Right or Enter previews the focused chat. Escape closes the preview,
+            and Enter again opens the full conversation detail only when you
+            actually need it.
+          </p>
+        </div>
+      )}
+    </aside>
+  );
+}
+
 function DashboardCanvasRouteView({
   agents,
   canvasBounds,
   canvasOffset,
+  canvasZoomIndex,
+  canvasZoomLevels,
+  canvasZoomScale,
   isDragging,
   onCreateProject,
   onOpenIssue,
@@ -7105,6 +9491,7 @@ function DashboardCanvasRouteView({
   onCreateIssueForColumn,
   onCreateProjectView,
   onProjectGroupingChange,
+  onZoomIndexChange,
   issueRunCardUpdatesByIssueId,
   onWheel,
   projectColumns,
@@ -7114,6 +9501,9 @@ function DashboardCanvasRouteView({
   agents: AgentRecord[];
   canvasBounds: { height: number; width: number };
   canvasOffset: DashboardCanvasOffset;
+  canvasZoomIndex: number;
+  canvasZoomLevels: readonly number[];
+  canvasZoomScale: number;
   isDragging: boolean;
   onCreateProject: () => void;
   onOpenIssue: (issueId: string) => void;
@@ -7131,6 +9521,7 @@ function DashboardCanvasRouteView({
     viewId: string,
     grouping: DashboardProjectGrouping
   ) => void;
+  onZoomIndexChange: (nextZoomIndex: number) => void;
   issueRunCardUpdatesByIssueId: Record<string, IssueRunCardUpdateRecord>;
   onWheel: (event: WheelEvent<HTMLDivElement>) => void;
   projectColumns: DashboardProjectColumnLayout[];
@@ -7222,295 +9613,303 @@ function DashboardCanvasRouteView({
           <div
             className="dashboard-canvas-stage"
             style={{
-              height: canvasBounds.height,
+              height: canvasBounds.height * canvasZoomScale,
               transform: `translate(${canvasOffset.x}px, ${canvasOffset.y}px)`,
-              width: canvasBounds.width,
+              width: canvasBounds.width * canvasZoomScale,
             }}
           >
-            {projectColumns.map((projectColumn) => {
-              const isSelected = selectedProjectId === projectColumn.project.id;
-              const isCreatingProjectView =
-                creatingProjectId === projectColumn.project.id;
-              const isSavingProjectView =
-                savingProjectId === projectColumn.project.id;
+            <div
+              className="dashboard-canvas-stage-scaler"
+              style={{
+                height: canvasBounds.height,
+                transform: `scale(${canvasZoomScale})`,
+                width: canvasBounds.width,
+              }}
+            >
+              {projectColumns.map((projectColumn) => {
+                const isSelected = selectedProjectId === projectColumn.project.id;
+                const isCreatingProjectView =
+                  creatingProjectId === projectColumn.project.id;
+                const isSavingProjectView =
+                  savingProjectId === projectColumn.project.id;
 
-              return (
-                <div
-                  className={
-                    isSelected
-                      ? "dashboard-project-column is-selected"
-                      : "dashboard-project-column"
-                  }
-                  key={projectColumn.project.id}
-                  style={{
-                    left: projectColumn.left,
-                    top: projectColumn.top,
-                    width: projectColumn.width,
-                  }}
-                >
-                  {projectColumn.boards.map((projectBoard) => (
-                    <article
-                      className={
-                        isSelected
-                          ? "project-kanban-board is-selected"
-                          : "project-kanban-board"
-                      }
-                      key={projectBoard.boardId}
-                      style={{
-                        width: projectBoard.width,
-                      }}
-                    >
-                      <div className="project-kanban-board-header">
-                        <div>
-                          <span className="project-kanban-view-label">
-                            {projectBoard.viewName}
-                          </span>
-                          <h2>
-                            {projectBoard.project.name ??
-                              projectBoard.project.title ??
-                              "Untitled project"}
-                          </h2>
-                          <p>
-                            {projectBoard.project.primary_workspace?.cwd ??
-                              "Choose a repository to anchor this project."}
-                          </p>
-                        </div>
-                        <div className="project-kanban-board-side">
-                          <label className="project-kanban-board-grouping">
-                            <span>Group by</span>
-                            <ShadcnSelect
-                              ariaLabel={`Group ${projectBoard.project.name ?? projectBoard.project.title ?? "project"} ${projectBoard.viewName} by`}
-                              onChange={(nextValue) =>
-                                onProjectGroupingChange(
-                                  projectColumn.project.id,
-                                  projectBoard.viewId,
-                                  nextValue
-                                )
-                              }
-                              options={dashboardProjectGroupingSelectOptions}
-                              value={projectBoard.grouping}
-                            />
-                          </label>
-
-                          <div className="project-kanban-board-meta">
-                            <span>{projectBoard.issueCount} issues</span>
-                            <span>
-                              {projectBoard.project.target_date
-                                ? `Target ${formatShortDate(projectBoard.project.target_date)}`
-                                : "No target date"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div
-                        className="project-kanban-columns"
+                return (
+                  <div
+                    className={
+                      isSelected
+                        ? "dashboard-project-column is-selected"
+                        : "dashboard-project-column"
+                    }
+                    key={projectColumn.project.id}
+                    style={{
+                      left: projectColumn.left,
+                      top: projectColumn.top,
+                      width: projectColumn.width,
+                    }}
+                  >
+                    {projectColumn.boards.map((projectBoard) => (
+                      <article
+                        className={
+                          isSelected
+                            ? "project-kanban-board is-selected"
+                            : "project-kanban-board"
+                        }
+                        key={projectBoard.boardId}
                         style={{
-                          gap: dashboardProjectBoardColumnGap,
-                          gridAutoColumns: `${dashboardProjectBoardColumnWidth}px`,
+                          width: projectBoard.width,
                         }}
                       >
-                        {projectBoard.columns.map((column) => {
-                          const createIssueCard = (
-                            <button
-                              className="project-kanban-column-create"
-                              onClick={() =>
-                                onCreateIssueForColumn({
-                                  projectId: projectBoard.project.id,
-                                  ...column.createDefaults,
-                                })
-                              }
-                              type="button"
-                            >
-                              <span
-                                className="project-kanban-column-create-icon"
-                                aria-hidden="true"
+                        <div className="project-kanban-board-header">
+                          <div className="project-kanban-board-copy">
+                            <span className="project-kanban-view-label">
+                              {projectBoard.viewName}
+                            </span>
+                            <h2>
+                              {projectBoard.project.name ??
+                                projectBoard.project.title ??
+                                "Untitled project"}
+                            </h2>
+                            <p className="project-kanban-board-path">
+                              {projectBoard.project.primary_workspace?.cwd ??
+                                "Choose a repository to anchor this project."}
+                            </p>
+                          </div>
+                          <div className="project-kanban-board-side">
+                            <label className="project-kanban-board-grouping">
+                              <span>Group by</span>
+                              <ShadcnSelect
+                                ariaLabel={`Group ${projectBoard.project.name ?? projectBoard.project.title ?? "project"} ${projectBoard.viewName} by`}
+                                onChange={(nextValue) =>
+                                  onProjectGroupingChange(
+                                    projectColumn.project.id,
+                                    projectBoard.viewId,
+                                    nextValue
+                                  )
+                                }
+                                options={dashboardProjectGroupingSelectOptions}
+                                value={projectBoard.grouping}
+                              />
+                            </label>
+
+                            <div className="project-kanban-board-meta">
+                              <span>{projectBoard.issueCount} conversations</span>
+                              <span>
+                                {projectBoard.project.target_date
+                                  ? `Target ${formatShortDate(projectBoard.project.target_date)}`
+                                  : "No target date"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div
+                          className="project-kanban-columns"
+                          style={{
+                            gap: dashboardProjectBoardColumnGap,
+                            gridAutoColumns: `${dashboardProjectBoardColumnWidth}px`,
+                          }}
+                        >
+                          {projectBoard.columns.map((column) => {
+                            const createIssueCard = (
+                              <button
+                                className="project-kanban-column-create"
+                                onClick={() =>
+                                  onCreateIssueForColumn({
+                                    projectId: projectBoard.project.id,
+                                    ...column.createDefaults,
+                                  })
+                                }
+                                type="button"
                               >
-                                +
-                              </span>
-                              <span className="project-kanban-column-create-copy">
-                                <strong>New issue</strong>
-                              </span>
-                            </button>
-                          );
+                                <span
+                                  className="project-kanban-column-create-icon"
+                                  aria-hidden="true"
+                                >
+                                  +
+                                </span>
+                                <span className="project-kanban-column-create-copy">
+                                  <strong>New conversation</strong>
+                                </span>
+                              </button>
+                            );
 
-                          return (
-                            <section
-                              className="project-kanban-column"
-                              key={column.id}
-                            >
-                              <div className="project-kanban-column-header">
-                                <div className="project-kanban-column-header-copy">
-                                  <span>{column.label}</span>
-                                  <strong>{column.issues.length}</strong>
+                            return (
+                              <section
+                                className="project-kanban-column"
+                                key={column.id}
+                              >
+                                <div className="project-kanban-column-header">
+                                  <div className="project-kanban-column-header-copy">
+                                    <span>{column.label}</span>
+                                    <strong>{column.issues.length}</strong>
+                                  </div>
                                 </div>
-                              </div>
 
-                              <div className="project-kanban-cards">
-                                {column.issues.length ? (
-                                  <>
-                                    {column.issues.map((issue) => {
-                                      const cardUpdate =
-                                        issueRunCardUpdatesByIssueId[
-                                          issue.id
-                                        ] ?? null;
-                                      const cardUpdateSummary = cardUpdate
-                                        ? issueRunCardUpdateSummary(cardUpdate)
-                                        : null;
+                                <div className="project-kanban-cards">
+                                  {column.issues.length ? (
+                                    <>
+                                      {column.issues.map((issue) => {
+                                        const cardUpdate =
+                                          issueRunCardUpdatesByIssueId[
+                                            issue.id
+                                          ] ?? null;
+                                        const cardUpdateSummary = cardUpdate
+                                          ? issueRunCardUpdateSummary(cardUpdate)
+                                          : null;
+                                        const issueAgentLabel =
+                                          issueModelLabel(issue, agents);
+                                        const hasAssignedAgent =
+                                          Boolean(issue.assignee_agent_id) ||
+                                          Object.keys(
+                                            objectFromUnknown(
+                                              issue.assignee_adapter_overrides
+                                            )
+                                          ).length > 0;
 
-                                      const cardAssigneeLabel =
-                                        issueAssigneeLabel(
-                                          agents,
-                                          issue.assignee_agent_id
-                                        );
-                                      const hasCardAssignee = Boolean(
-                                        issue.assignee_agent_id
-                                      );
-
-                                      return (
-                                        <button
-                                          className="project-kanban-card"
-                                          data-priority={normalizeBoardIssueValue(
-                                            issue.priority
-                                          )}
-                                          key={issue.id}
-                                          onClick={() => onOpenIssue(issue.id)}
-                                          type="button"
-                                        >
-                                          <div className="project-kanban-card-header">
-                                            <span className="project-kanban-card-identifier">
-                                              {issue.identifier ?? ""}
-                                            </span>
-                                            <span
-                                              aria-hidden="true"
-                                              className={
-                                                hasCardAssignee
-                                                  ? "project-kanban-card-assignee-avatar"
-                                                  : "project-kanban-card-assignee-avatar is-unassigned"
-                                              }
-                                              title={cardAssigneeLabel}
-                                            >
-                                              {hasCardAssignee
-                                                ? agentInitials(cardAssigneeLabel)
-                                                : "?"}
-                                            </span>
-                                          </div>
-                                          <strong>{issue.title}</strong>
-                                          {cardUpdate ? (
-                                            <div className="project-kanban-card-update">
-                                              <span
-                                                className={`agent-run-status-badge ${agentRunStatusTone(cardUpdate.run_status)} project-kanban-card-update-status`}
-                                              >
-                                                {agentRunStatusLabel(
-                                                  cardUpdate.run_status
-                                                )}
+                                        return (
+                                          <button
+                                            className="project-kanban-card"
+                                            key={issue.id}
+                                            onClick={() => onOpenIssue(issue.id)}
+                                            type="button"
+                                          >
+                                            <div className="project-kanban-card-header">
+                                              <span className="project-kanban-card-identifier">
+                                                {issue.identifier ?? ""}
                                               </span>
                                               <span
-                                                className="project-kanban-card-update-copy"
-                                                title={cardUpdateSummary ?? undefined}
+                                                aria-label={
+                                                  hasAssignedAgent
+                                                    ? `Assigned agent ${issueAgentLabel}`
+                                                    : "No assigned agent"
+                                                }
+                                                className={
+                                                  hasAssignedAgent
+                                                    ? "project-kanban-card-assignee-avatar"
+                                                    : "project-kanban-card-assignee-avatar is-unassigned"
+                                                }
+                                                title={issueAgentLabel}
                                               >
-                                                {cardUpdateSummary}
+                                                {agentInitials(issueAgentLabel)}
                                               </span>
                                             </div>
-                                          ) : null}
-                                        </button>
-                                      );
-                                    })}
-                                    {createIssueCard}
-                                  </>
-                                ) : (
-                                  <div className="project-kanban-column-empty">
-                                    <span>No issues yet</span>
-                                    {createIssueCard}
-                                  </div>
-                                )}
-                              </div>
-                            </section>
-                          );
-                        })}
-                      </div>
-                    </article>
-                  ))}
+                                            <strong>{issue.title}</strong>
+                                            {cardUpdate ? (
+                                              <div className="project-kanban-card-update">
+                                                <span
+                                                  className={`agent-run-status-badge ${agentRunStatusTone(cardUpdate.run_status)} project-kanban-card-update-status`}
+                                                >
+                                                  {agentRunStatusLabel(
+                                                    cardUpdate.run_status
+                                                  )}
+                                                </span>
+                                                <span
+                                                  className="project-kanban-card-update-copy"
+                                                  title={cardUpdateSummary ?? undefined}
+                                                >
+                                                  {cardUpdateSummary}
+                                                </span>
+                                              </div>
+                                            ) : null}
+                                          </button>
+                                        );
+                                      })}
+                                      {createIssueCard}
+                                    </>
+                                  ) : (
+                                    <div className="project-kanban-column-empty">
+                                      <span>No conversations yet</span>
+                                      {createIssueCard}
+                                    </div>
+                                  )}
+                                </div>
+                              </section>
+                            );
+                          })}
+                        </div>
+                      </article>
+                    ))}
 
-                  <div className="project-kanban-add-slot">
-                    {isCreatingProjectView ? (
-                      <div className="project-kanban-add-card">
-                        <div className="project-kanban-add-card-copy">
-                          <strong>Save another view</strong>
-                          <p>
-                            Keep alternate groupings for this project in the
-                            same dashboard column.
-                          </p>
-                          {projectViewError ? (
-                            <span className="project-kanban-add-card-error">
-                              {projectViewError}
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="project-kanban-add-card-controls">
-                          <input
-                            className="project-kanban-add-input"
-                            onChange={(event) =>
-                              setNewProjectViewName(event.target.value)
-                            }
-                            placeholder="View name"
-                            value={newProjectViewName}
-                          />
-                          <div className="project-kanban-add-grouping">
-                            <ShadcnSelect
-                              ariaLabel="Choose grouping for saved project view"
-                              onChange={setNewProjectViewGrouping}
-                              options={dashboardProjectGroupingSelectOptions}
-                              value={newProjectViewGrouping}
-                            />
+                    <div className="project-kanban-add-slot">
+                      {isCreatingProjectView ? (
+                        <div className="project-kanban-add-card">
+                          <div className="project-kanban-add-card-copy">
+                            <strong>Save another view</strong>
+                            <p>
+                              Keep alternate groupings for this project in the
+                              same dashboard column.
+                            </p>
+                            {projectViewError ? (
+                              <span className="project-kanban-add-card-error">
+                                {projectViewError}
+                              </span>
+                            ) : null}
                           </div>
-                          <div className="project-kanban-add-actions">
-                            <button
-                              className="secondary-button compact-button"
-                              disabled={isSavingProjectView}
-                              onClick={handleCloseProjectViewComposer}
-                              type="button"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              className="primary-button compact-button"
-                              disabled={isSavingProjectView}
-                              onClick={() =>
-                                void handleSaveProjectView(projectColumn.project.id)
+                          <div className="project-kanban-add-card-controls">
+                            <input
+                              className="project-kanban-add-input"
+                              onChange={(event) =>
+                                setNewProjectViewName(event.target.value)
                               }
-                              type="button"
-                            >
-                              {isSavingProjectView ? "Saving..." : "Save view"}
-                            </button>
+                              placeholder="View name"
+                              value={newProjectViewName}
+                            />
+                            <div className="project-kanban-add-grouping">
+                              <ShadcnSelect
+                                ariaLabel="Choose grouping for saved project view"
+                                onChange={setNewProjectViewGrouping}
+                                options={dashboardProjectGroupingSelectOptions}
+                                value={newProjectViewGrouping}
+                              />
+                            </div>
+                            <div className="project-kanban-add-actions">
+                              <button
+                                className="secondary-button compact-button"
+                                disabled={isSavingProjectView}
+                                onClick={handleCloseProjectViewComposer}
+                                type="button"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                className="primary-button compact-button"
+                                disabled={isSavingProjectView}
+                                onClick={() =>
+                                  void handleSaveProjectView(projectColumn.project.id)
+                                }
+                                type="button"
+                              >
+                                {isSavingProjectView ? "Saving..." : "Save view"}
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ) : (
-                      <button
-                        className="project-kanban-add-button"
-                        onClick={() => handleOpenProjectViewComposer(projectColumn)}
-                        type="button"
-                      >
-                        <span
-                          aria-hidden="true"
-                          className="project-kanban-add-button-icon"
+                      ) : (
+                        <button
+                          className="project-kanban-add-button"
+                          onClick={() => handleOpenProjectViewComposer(projectColumn)}
+                          type="button"
                         >
-                          +
-                        </span>
-                        <span className="project-kanban-add-button-copy">
-                          <strong>Save another view</strong>
-                          <small>
-                            Add a dimmed secondary kanban variant for this
-                            project column.
-                          </small>
-                        </span>
-                      </button>
-                    )}
+                          <span
+                            aria-hidden="true"
+                            className="project-kanban-add-button-icon"
+                          >
+                            +
+                          </span>
+                          <span className="project-kanban-add-button-copy">
+                            <strong>Save another view</strong>
+                            <small>
+                              Add a dimmed secondary kanban variant for this
+                              project column.
+                            </small>
+                          </span>
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       ) : (
@@ -7551,6 +9950,34 @@ function DashboardCanvasRouteView({
           </div>
         </div>
       )}
+      <div className="dashboard-canvas-route-footer">
+        <div className="dashboard-canvas-route-footer-inner">
+          <div
+            aria-label="Dashboard zoom"
+            className="dashboard-canvas-zoom-control"
+            role="group"
+          >
+            <span className="dashboard-canvas-zoom-label">Zoom</span>
+            <div className="dashboard-canvas-zoom-steps">
+              {canvasZoomLevels.map((zoomLevel, index) => (
+                <button
+                  aria-pressed={index === canvasZoomIndex}
+                  className={
+                    index === canvasZoomIndex
+                      ? "dashboard-canvas-zoom-step is-active"
+                      : "dashboard-canvas-zoom-step"
+                  }
+                  key={zoomLevel}
+                  onClick={() => onZoomIndexChange(index)}
+                  type="button"
+                >
+                  {dashboardCanvasZoomLabel(zoomLevel)}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
@@ -7559,6 +9986,7 @@ function StatsRouteView({
   bootstrap,
   company,
   dependencyCheck,
+  issueRunCardUpdatesByIssueId,
   onCheckDependencies,
   onOpenWorkspace,
   repositoriesCount,
@@ -7567,11 +9995,132 @@ function StatsRouteView({
   bootstrap: DesktopBootstrapStatus;
   company: Company | null;
   dependencyCheck: RuntimeCapabilities | null;
+  issueRunCardUpdatesByIssueId: Record<string, IssueRunCardUpdateRecord>;
   onCheckDependencies: () => void;
   onOpenWorkspace: (workspace: WorkspaceRecord) => void;
   repositoriesCount: number;
   snapshot: CompanySnapshot | null;
 }) {
+  const agents = snapshot?.agents ?? [];
+  const issues = snapshot?.issues ?? [];
+  const workspaces = snapshot?.workspaces ?? [];
+  const issueById = useMemo(
+    () => new Map(issues.map((issue) => [issue.id, issue])),
+    [issues]
+  );
+  const visibleConversations = useMemo(
+    () => issues.filter((issue) => !issue.hidden_at && isRootConversationIssue(issue)),
+    [issues]
+  );
+  const queuedMessages = useMemo(
+    () =>
+      issues.filter(
+        (issue) => !issue.hidden_at && !isRootConversationIssue(issue)
+      ),
+    [issues]
+  );
+  const modelSummaries = useMemo(() => {
+    const summaries = new Map<
+      string,
+      {
+        activeRunCount: number;
+        conversationIds: Set<string>;
+        latestActivityAt: Date | null;
+        workspaceCount: number;
+      }
+    >();
+
+    const ensureSummary = (label: string) => {
+      const existing = summaries.get(label);
+      if (existing) {
+        return existing;
+      }
+
+      const next = {
+        activeRunCount: 0,
+        conversationIds: new Set<string>(),
+        latestActivityAt: null as Date | null,
+        workspaceCount: 0,
+      };
+      summaries.set(label, next);
+      return next;
+    };
+
+    for (const issue of visibleConversations) {
+      ensureSummary(issueModelLabel(issue, agents)).conversationIds.add(issue.id);
+    }
+
+    for (const workspace of workspaces) {
+      const issue = workspace.issue_id ? issueById.get(workspace.issue_id) : null;
+      ensureSummary(
+        issue ? issueModelLabel(issue, agents) : agentModelLabelById(agents, workspace.agent_id)
+      ).workspaceCount += 1;
+    }
+
+    for (const update of Object.values(issueRunCardUpdatesByIssueId)) {
+      const issue = issueById.get(update.issue_id);
+      const summary = ensureSummary(
+        issue ? issueModelLabel(issue, agents) : agentModelLabelById(agents, update.agent_id)
+      );
+      summary.conversationIds.add(update.issue_id);
+      if (update.run_status === "queued" || update.run_status === "running") {
+        summary.activeRunCount += 1;
+      }
+      const activityAt = parseIssueDate(update.last_activity_at);
+      if (
+        activityAt &&
+        (!summary.latestActivityAt ||
+          activityAt.getTime() > summary.latestActivityAt.getTime())
+      ) {
+        summary.latestActivityAt = activityAt;
+      }
+    }
+
+    return Array.from(summaries.entries())
+      .map(([label, summary]) => ({
+        label,
+        activeRunCount: summary.activeRunCount,
+        conversationCount: summary.conversationIds.size,
+        latestActivityAt: summary.latestActivityAt,
+        workspaceCount: summary.workspaceCount,
+      }))
+      .sort((left, right) => {
+        if (right.activeRunCount !== left.activeRunCount) {
+          return right.activeRunCount - left.activeRunCount;
+        }
+        if (right.conversationCount !== left.conversationCount) {
+          return right.conversationCount - left.conversationCount;
+        }
+        if (right.workspaceCount !== left.workspaceCount) {
+          return right.workspaceCount - left.workspaceCount;
+        }
+        return left.label.localeCompare(right.label);
+      });
+  }, [agents, issueById, issueRunCardUpdatesByIssueId, visibleConversations, workspaces]);
+  const recentModelUpdates = useMemo(() => {
+    return Object.values(issueRunCardUpdatesByIssueId)
+      .map((update) => ({
+        issue: issueById.get(update.issue_id) ?? null,
+        update,
+      }))
+      .filter(
+        (
+          entry
+        ): entry is { issue: IssueRecord; update: IssueRunCardUpdateRecord } =>
+          entry.issue !== null && entry.issue.hidden_at == null
+      )
+      .sort((left, right) => {
+        const leftDate = parseIssueDate(left.update.last_activity_at)?.getTime() ?? 0;
+        const rightDate =
+          parseIssueDate(right.update.last_activity_at)?.getTime() ?? 0;
+        return rightDate - leftDate;
+      })
+      .slice(0, 6);
+  }, [issueById, issueRunCardUpdatesByIssueId]);
+  const activeModelCount = modelSummaries.filter(
+    (summary) => summary.activeRunCount > 0
+  ).length;
+
   return (
     <section className="route-scroll">
       <div className="route-header">
@@ -7580,15 +10129,16 @@ function StatsRouteView({
         <h1>{company?.name ?? "Unbound"}</h1>
         <p>
           {company?.description ??
-            "A quick board snapshot across issues, agents, approvals, projects, and active work."}
+            "A quick view of conversation volume, queued follow-ups, active worktrees, and which models are doing the work."}
         </p>
       </div>
 
       <div className="metric-grid">
-        <MetricCard label="Issues" value={snapshot?.issues.length ?? 0} />
+        <MetricCard label="Conversations" value={visibleConversations.length} />
+        <MetricCard label="Queued Messages" value={queuedMessages.length} />
+        <MetricCard label="Models" value={modelSummaries.length} />
+        <MetricCard label="Active Models" value={activeModelCount} />
         <MetricCard label="Projects" value={snapshot?.projects.length ?? 0} />
-        <MetricCard label="Agents" value={snapshot?.agents.length ?? 0} />
-        <MetricCard label="Approvals" value={snapshot?.approvals.length ?? 0} />
         <MetricCard
           label="Worktrees"
           value={snapshot?.workspaces.length ?? 0}
@@ -7675,42 +10225,100 @@ function StatsRouteView({
         </section>
 
         <section className="surface-panel">
-          <h3>Agents</h3>
-          <div className="surface-list">
-            {(snapshot?.agents ?? []).map((agent) => (
-              <div className="surface-list-row" key={agent.id}>
-                <strong>{agent.name}</strong>
-                <span>{agent.title ?? agent.role ?? "Agent"}</span>
-              </div>
-            ))}
-          </div>
+          <h3>Models</h3>
+          {modelSummaries.length ? (
+            <div className="surface-list">
+              {modelSummaries.map((summary) => (
+                <div className="surface-list-row" key={summary.label}>
+                  <div>
+                    <strong>{summary.label}</strong>
+                    <span>
+                      {summary.conversationCount}{" "}
+                      {summary.conversationCount === 1
+                        ? "conversation"
+                        : "conversations"}{" "}
+                      touched · {summary.workspaceCount} worktrees
+                    </span>
+                  </div>
+                  <span>
+                    {summary.activeRunCount > 0
+                      ? `${summary.activeRunCount} live`
+                      : summary.latestActivityAt
+                        ? formatRelativeIssueDate(
+                            summary.latestActivityAt.toISOString()
+                          )
+                        : "Idle"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="surface-empty-copy">
+              Models will appear here after the first configured run.
+            </p>
+          )}
+        </section>
+
+        <section className="surface-panel">
+          <h3>Recent Model Work</h3>
+          {recentModelUpdates.length ? (
+            <div className="surface-list">
+              {recentModelUpdates.map(({ issue, update }) => (
+                <div className="surface-list-row" key={update.run_id}>
+                  <div>
+                    <strong>{issueModelLabel(issue, agents)}</strong>
+                    <span>
+                      {issue.identifier ?? issue.title} ·{" "}
+                      {issueRunCardUpdateSummary(update)}
+                    </span>
+                  </div>
+                  <span>{formatCompactIssueTimestamp(update.last_activity_at)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="surface-empty-copy">
+              Model activity will appear here once runs start landing.
+            </p>
+          )}
         </section>
 
         <section className="surface-panel">
           <h3>Active Worktrees</h3>
-          <div className="surface-list">
-            {(snapshot?.workspaces ?? []).map((workspace) => (
-              <button
-                className="file-list-button"
-                key={workspace.id}
-                onClick={() => onOpenWorkspace(workspace)}
-                type="button"
-              >
-                <strong>{workspace.issue_identifier ?? workspace.title}</strong>
-                <span>
-                  {[
-                    workspace.issue_title,
-                    workspace.project_name,
-                    workspace.agent_name,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ") ||
-                    workspace.workspace_status ||
-                    "worktree"}
-                </span>
-              </button>
-            ))}
-          </div>
+          {workspaces.length ? (
+            <div className="surface-list">
+              {workspaces.map((workspace) => (
+                <button
+                  className="file-list-button"
+                  key={workspace.id}
+                  onClick={() => onOpenWorkspace(workspace)}
+                  type="button"
+                >
+                  <strong>{workspace.issue_identifier ?? workspace.title}</strong>
+                  <span>
+                    {[
+                      workspace.issue_title,
+                      workspace.project_name,
+                      workspace.issue_id
+                        ? issueModelLabel(
+                            issueById.get(workspace.issue_id) ?? null,
+                            agents
+                          )
+                        : agentModelLabelById(agents, workspace.agent_id),
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") ||
+                      workspace.workspace_status ||
+                      "worktree"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="surface-empty-copy">
+              Worktrees appear here once a conversation launches a run.
+            </p>
+          )}
         </section>
       </div>
     </section>
@@ -7766,7 +10374,7 @@ function IssuesListView({
     <section className="issues-route">
       <div className="issues-route-header">
         <div className="issues-route-header-inner">
-          <DashboardBreadcrumbs items={[{ label: "Issues" }]} />
+          <DashboardBreadcrumbs items={[{ label: "Conversations" }]} />
         </div>
       </div>
 
@@ -7843,8 +10451,8 @@ function IssuesListView({
           <div className="issues-empty-state">
             <h2>{emptyTitle}</h2>
             <p>
-              Issues own worktrees. Create one from the sidebar to start agent
-              work.
+              Conversations hold the context, and model worktrees spin up when
+              a run starts.
             </p>
           </div>
         )}
@@ -7860,76 +10468,62 @@ function IssueDetailView({
   isWorking,
   attachments,
   availableStatusOptions,
-  availablePriorityOptions,
+  dependencyCheck,
   projects,
   agents,
   selectableParentIssues,
-  linkedApprovals,
   subissues,
   comments,
   issueEditorError,
   issueWorkspaceSidebar,
   newCommentBody,
-  newCommentTargetAgentId,
   onBack,
   onCommitIssuePatch,
   onHideIssue,
   onIssueDraftChange,
-  onLinkedApprovalSelect,
   onOpenRunDetail,
+  onOpenQueuedConversation,
   onNewCommentBodyChange,
-  onCommentTargetAgentChange,
   onAddComment,
   onAddAttachment,
+  onQueueMessage,
   onRevealAttachment,
   projectLabel,
-  assigneeLabel,
   parentIssueLabel,
   statusLabel,
-  priorityLabel,
   workspaceTargetErrorMessage,
   workspaceTargetLoading,
   workspaceTargetWorktrees,
 }: {
   issue: IssueRecord;
   issueDraft: IssueEditDraft;
-  isEditingIssue: boolean;
   isSavingIssue: boolean;
   isWorking: boolean;
   attachments: IssueAttachmentRecord[];
   availableStatusOptions: string[];
-  availablePriorityOptions: string[];
+  dependencyCheck: RuntimeCapabilities | null;
   projects: ProjectRecord[];
   agents: AgentRecord[];
   selectableParentIssues: IssueRecord[];
-  linkedApprovals: ApprovalRecord[];
   subissues: IssueRecord[];
   comments: IssueCommentRecord[];
   issueEditorError: string | null;
   issueWorkspaceSidebar?: ReactNode;
   newCommentBody: string;
-  newCommentTargetAgentId: string;
   onBack: () => void;
-  onBeginEditing: () => void;
-  onCancelEditing: () => void;
   onCommitIssuePatch: (patch: Partial<IssueEditDraft>) => void;
   onHideIssue: () => void;
-  onSave: () => void;
   onIssueDraftChange: (patch: Partial<IssueEditDraft>) => void;
-  onProjectSelect: (projectId: string) => void;
-  onParentIssueSelect: (parentIssueId: string) => void;
-  onLinkedApprovalSelect: (approvalId: string) => void;
   onOpenRunDetail: (run: AgentRunRecord) => void;
+  onOpenQueuedConversation: (issueId: string) => void;
   onNewCommentBodyChange: (value: string) => void;
-  onCommentTargetAgentChange: (value: string) => void;
   onAddComment: () => void;
   onAddAttachment: () => void;
+  onQueueMessage: () => void;
   onRevealAttachment: (attachment: IssueAttachmentRecord) => void;
   projectLabel: (projectId?: string | null) => string;
-  assigneeLabel: (assigneeAgentId?: string | null) => string;
   parentIssueLabel: (parentIssueId?: string | null) => string;
   statusLabel: (value: string) => string;
-  priorityLabel: (value: string) => string;
   workspaceTargetErrorMessage: string | null;
   workspaceTargetLoading: boolean;
   workspaceTargetWorktrees: GitWorktreeRecord[];
@@ -7983,6 +10577,29 @@ function IssueDetailView({
           path: issueDraft.workspaceWorktreePath,
         }
       : null;
+  const runtimeProvider = detectAgentCliProvider(
+    issueDraft.command,
+    issueDraft.model
+  );
+  const runtimeModelOptions = buildAgentModelOptions(
+    issueDraft,
+    dependencyCheck
+  );
+  const runtimeThinkingEffortOptions = mergeIssueOptions(
+    ["auto", "low", "medium", "high"],
+    issueDraft.thinkingEffort
+  );
+  const runtimeProviderOptions = buildIssueRuntimeProviderOptions(
+    dependencyCheck,
+    issueDraft.command,
+    issueDraft.model
+  );
+  const runtimeBrowserToggleLabel =
+    runtimeProvider === "codex" ? "Enable web search" : "Enable Chrome";
+  const runtimeBrowserToggleDescription =
+    runtimeProvider === "codex"
+      ? "Expose Codex web search during runs."
+      : "Allow browser automation inside Claude runs.";
 
   const syncDescriptionInputHeight = () => {
     const textarea = descriptionInputRef.current;
@@ -8154,7 +10771,7 @@ function IssueDetailView({
     <section className="route-scroll issues-detail-route">
       <DashboardBreadcrumbs
         items={[
-          { label: "Issues", onClick: onBack },
+          { label: "Conversations", onClick: onBack },
           { label: issueBreadcrumbTitle },
         ]}
       />
@@ -8191,7 +10808,7 @@ function IssueDetailView({
                 <button
                   aria-expanded={isIssueActionsOpen}
                   aria-haspopup="menu"
-                  aria-label="Issue actions"
+                  aria-label="Conversation actions"
                   className={
                     isIssueActionsOpen
                       ? "icon-button issues-detail-toolbar-button active"
@@ -8217,7 +10834,7 @@ function IssueDetailView({
                       role="menuitem"
                       type="button"
                     >
-                      Hide this issue
+                      Hide this conversation
                     </button>
                   </div>
                 ) : null}
@@ -8235,7 +10852,7 @@ function IssueDetailView({
                     title: event.target.value,
                   })
                 }
-                placeholder="Issue title"
+                placeholder="Conversation title"
                 value={issueDraft.title}
               />
               <textarea
@@ -8247,7 +10864,7 @@ function IssueDetailView({
                   })
                 }
                 onInput={syncDescriptionInputHeight}
-                placeholder="Add context, scope, acceptance criteria, or a short brief for the assignee."
+                placeholder="Add context, decisions, or the next thing a model should pick up."
                 ref={descriptionInputRef}
                 rows={1}
                 value={issueDraft.description}
@@ -8271,7 +10888,7 @@ function IssueDetailView({
             <div
               className="issues-detail-tabs"
               role="tablist"
-              aria-label="Issue details sections"
+              aria-label="Conversation details sections"
             >
               <button
                 aria-selected={activeTab === "conversation"}
@@ -8300,17 +10917,17 @@ function IssueDetailView({
                 Runs
               </button>
               <button
-                aria-selected={activeTab === "subissues"}
+                aria-selected={activeTab === "queued"}
                 className={
-                  activeTab === "subissues"
+                  activeTab === "queued"
                     ? "issues-detail-tab-button active"
                     : "issues-detail-tab-button"
                 }
-                onClick={() => setActiveTab("subissues")}
+                onClick={() => setActiveTab("queued")}
                 role="tab"
                 type="button"
               >
-                Sub-issues
+                Queued
               </button>
             </div>
 
@@ -8323,7 +10940,7 @@ function IssueDetailView({
                         <h3>Attachments</h3>
                         <p className="issues-detail-copy muted">
                           Files live with the local board data and are included
-                          in new agent runs for this issue.
+                          in future model runs for this conversation.
                         </p>
                       </div>
                       <button
@@ -8376,7 +10993,7 @@ function IssueDetailView({
                   <div className="issues-detail-subsection">
                     <div className="issues-detail-subsection-header">
                       <div className="issues-detail-subsection-copy">
-                        <h3>Comments</h3>
+                        <h3>Messages</h3>
                       </div>
                     </div>
 
@@ -8387,15 +11004,9 @@ function IssueDetailView({
                             className="issues-comment-card"
                             key={comment.id}
                           >
-                            {comment.target_agent_id ? (
-                              <div className="issues-comment-card-target">
-                                Tagged{" "}
-                                {issueAssigneeLabel(
-                                  agents,
-                                  comment.target_agent_id
-                                )}
-                              </div>
-                            ) : null}
+                            <div className="issues-comment-card-target">
+                              {issueCommentAuthorLabel(agents, comment)}
+                            </div>
                             <p>{comment.body}</p>
                             <span>{formatIssueDate(comment.created_at)}</span>
                           </article>
@@ -8403,7 +11014,7 @@ function IssueDetailView({
                       </div>
                     ) : (
                       <p className="issues-detail-copy muted">
-                        No comments yet.
+                        No messages yet.
                       </p>
                     )}
 
@@ -8412,7 +11023,7 @@ function IssueDetailView({
                         onChange={(event) =>
                           onNewCommentBodyChange(event.target.value)
                         }
-                        placeholder="Leave a comment..."
+                        placeholder="Send a message..."
                         value={newCommentBody}
                       />
                       <div className="issues-comment-composer-footer">
@@ -8429,33 +11040,16 @@ function IssueDetailView({
                           {commentWillReopenIssue ? (
                             <label className="issues-comment-reopen-indicator">
                               <input checked readOnly type="checkbox" />
-                              <span>Re-open</span>
+                              <span>Re-open conversation</span>
                             </label>
                           ) : null}
-                          <div className="issue-dialog-select-shell issues-comment-target-select-shell">
-                            <select
-                              className="issue-dialog-select issues-comment-target-select"
-                              onChange={(event) =>
-                                onCommentTargetAgentChange(event.target.value)
-                              }
-                              value={newCommentTargetAgentId}
-                            >
-                              <option value="">No tagged agent</option>
-                              {agents.map((agent) => (
-                                <option key={agent.id} value={agent.id}>
-                                  {agent.name}
-                                </option>
-                              ))}
-                            </select>
-                            <span className="issue-dialog-select-arrow">▼</span>
-                          </div>
                           <button
                             className="secondary-button issues-comment-submit-button"
                             disabled={isWorking || !newCommentBody.trim()}
                             onClick={onAddComment}
                             type="button"
                           >
-                            Comment
+                            Send message
                           </button>
                         </div>
                       </div>
@@ -8490,13 +11084,9 @@ function IssueDetailView({
                                 aria-hidden="true"
                                 className="issues-linked-run-agent-avatar"
                               >
-                                {agentInitials(
-                                  issueAssigneeLabel(agents, run.agent_id)
-                                )}
+                                {agentInitials(issueModelLabel(issue, agents))}
                               </span>
-                              <strong>
-                                {issueAssigneeLabel(agents, run.agent_id)}
-                              </strong>
+                              <strong>{issueModelLabel(issue, agents)}</strong>
                             </div>
                             <span className="issues-linked-run-created-at">
                               {formatIssueDate(run.created_at)}
@@ -8521,30 +11111,54 @@ function IssueDetailView({
                     </div>
                   ) : !isLoadingLinkedRuns && !linkedRunsError ? (
                     <p className="issues-detail-copy muted">
-                      No runs linked to this issue yet.
+                      No model runs linked to this conversation yet.
                     </p>
                   ) : null}
                 </>
               ) : null}
 
-              {activeTab === "subissues" ? (
-                subissues.length ? (
-                  <div className="surface-list dense">
-                    {subissues.map((child) => (
-                      <div
-                        className="surface-list-row issues-supporting-row"
-                        key={child.id}
-                      >
-                        <strong>{child.identifier ?? child.title}</strong>
-                        <span className="workspace-status-pill">
-                          {statusLabel(child.status)}
-                        </span>
-                      </div>
-                    ))}
+              {activeTab === "queued" ? (
+                <div className="issues-detail-subsection">
+                  <div className="issues-detail-subsection-header">
+                    <div className="issues-detail-subsection-copy">
+                      <h3>Queued messages</h3>
+                      <p className="issues-detail-copy muted">
+                        Keep follow-ups attached here until you are ready to
+                        open them as full conversations.
+                      </p>
+                    </div>
+                    <button
+                      className="secondary-button compact-button"
+                      onClick={onQueueMessage}
+                      type="button"
+                    >
+                      Queue message
+                    </button>
                   </div>
-                ) : (
-                  <p className="issues-detail-copy muted">No sub-issues yet.</p>
-                )
+
+                  {subissues.length ? (
+                    <div className="surface-list dense">
+                      {subissues.map((child) => (
+                        <button
+                          className="file-list-button"
+                          key={child.id}
+                          onClick={() => onOpenQueuedConversation(child.id)}
+                          type="button"
+                        >
+                          <strong>{child.title}</strong>
+                          <span>
+                            {statusLabel(child.status)} ·{" "}
+                            {formatCompactIssueTimestamp(child.updated_at)}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="issues-detail-copy muted">
+                      No queued messages yet.
+                    </p>
+                  )}
+                </div>
               ) : null}
             </div>
           </section>
@@ -8561,7 +11175,7 @@ function IssueDetailView({
               type="button"
             />
             <aside
-              aria-label="Issue properties"
+              aria-label="Conversation properties"
               className="issues-properties-drawer"
               onPointerDown={(event) => event.stopPropagation()}
               role="dialog"
@@ -8605,49 +11219,6 @@ function IssueDetailView({
 
                   <IssuePropertySelectRow
                     disabled={isSavingIssue}
-                    label="Priority"
-                    tone={normalizeBoardIssueValue(issueDraft.priority)}
-                    onChange={(value) =>
-                      commitPropertyPatch({
-                        priority: value,
-                      })
-                    }
-                    value={issueDraft.priority}
-                  >
-                    {availablePriorityOptions.map((priority) => (
-                      <option key={priority} value={priority}>
-                        {priorityLabel(priority)}
-                      </option>
-                    ))}
-                  </IssuePropertySelectRow>
-
-                  <IssuePropertyStaticRow
-                    label="Labels"
-                    tone="neutral"
-                    value="No labels"
-                  />
-
-                  <IssuePropertySelectRow
-                    disabled={isSavingIssue}
-                    label="Assignee"
-                    tone="agent"
-                    onChange={(value) =>
-                      commitPropertyPatch({
-                        assigneeAgentId: value,
-                      })
-                    }
-                    value={issueDraft.assigneeAgentId}
-                  >
-                    <option value="">Unassigned</option>
-                    {agents.map((agent) => (
-                      <option key={agent.id} value={agent.id}>
-                        {agent.name || agent.title || agent.role || agent.id}
-                      </option>
-                    ))}
-                  </IssuePropertySelectRow>
-
-                  <IssuePropertySelectRow
-                    disabled={isSavingIssue}
                     label="Project"
                     tone="project"
                     onChange={(value) =>
@@ -8661,7 +11232,9 @@ function IssueDetailView({
                     }
                     value={issueDraft.projectId}
                   >
-                    <option value="">No project</option>
+                    <option disabled value="">
+                      {projects.length ? "Select project" : "Create project"}
+                    </option>
                     {projects.map((project) => (
                       <option key={project.id} value={project.id}>
                         {project.name ?? project.title ?? project.id}
@@ -8710,7 +11283,7 @@ function IssueDetailView({
 
                   <IssuePropertySelectRow
                     disabled={isSavingIssue}
-                    label="Parent"
+                    label="Parent Conversation"
                     tone="neutral"
                     onChange={(value) =>
                       commitPropertyPatch({
@@ -8719,13 +11292,128 @@ function IssueDetailView({
                     }
                     value={issueDraft.parentId}
                   >
-                    <option value="">No parent issue</option>
+                    <option value="">No parent conversation</option>
                     {selectableParentIssues.map((parentIssue) => (
                       <option key={parentIssue.id} value={parentIssue.id}>
                         {parentIssue.identifier ?? parentIssue.title}
                       </option>
                     ))}
                   </IssuePropertySelectRow>
+                </section>
+
+                <div className="issues-properties-divider" />
+
+                <section className="issues-properties-section">
+                  <h3>Model configuration</h3>
+                  <div className="agent-config-grid">
+                    <AgentConfigField
+                      htmlFor="issue-detail-command"
+                      label="Provider"
+                    >
+                      <AgentConfigSelect
+                        ariaLabel="Conversation provider"
+                        id="issue-detail-command"
+                        onChange={(value) =>
+                          commitPropertyPatch({
+                            command: value,
+                            planMode:
+                              detectAgentCliProvider(value, issueDraft.model) ===
+                              "claude"
+                                ? issueDraft.planMode
+                                : false,
+                          })
+                        }
+                        value={issueDraft.command}
+                      >
+                        {runtimeProviderOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </AgentConfigSelect>
+                    </AgentConfigField>
+
+                    <AgentConfigField
+                      htmlFor="issue-detail-model"
+                      label="Model"
+                    >
+                      <AgentConfigSelect
+                        ariaLabel="Conversation model"
+                        id="issue-detail-model"
+                        onChange={(value) =>
+                          commitPropertyPatch({ model: value })
+                        }
+                        value={issueDraft.model}
+                      >
+                        {runtimeModelOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option === "default" ? "Default" : option}
+                          </option>
+                        ))}
+                      </AgentConfigSelect>
+                    </AgentConfigField>
+
+                    <AgentConfigField
+                      htmlFor="issue-detail-thinking"
+                      label="Thinking effort"
+                    >
+                      <AgentConfigSelect
+                        ariaLabel="Conversation thinking effort"
+                        id="issue-detail-thinking"
+                        onChange={(value) =>
+                          commitPropertyPatch({ thinkingEffort: value })
+                        }
+                        value={issueDraft.thinkingEffort}
+                      >
+                        {runtimeThinkingEffortOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {capitalize(option)}
+                          </option>
+                        ))}
+                      </AgentConfigSelect>
+                    </AgentConfigField>
+
+                    <AgentConfigField
+                      htmlFor="issue-detail-plan-mode"
+                      label="Plan mode"
+                    >
+                      <AgentConfigSelect
+                        ariaLabel="Conversation plan mode"
+                        id="issue-detail-plan-mode"
+                        onChange={(value) =>
+                          commitPropertyPatch({ planMode: value === "plan" })
+                        }
+                        value={issueDraft.planMode ? "plan" : "default"}
+                      >
+                        <option value="default">Off</option>
+                        <option
+                          disabled={runtimeProvider !== "claude"}
+                          value="plan"
+                        >
+                          Claude plan mode
+                        </option>
+                      </AgentConfigSelect>
+                    </AgentConfigField>
+                  </div>
+
+                  <div className="agent-config-toggle-grid">
+                    <AgentConfigToggleField
+                      checked={issueDraft.enableChrome}
+                      description={runtimeBrowserToggleDescription}
+                      label={runtimeBrowserToggleLabel}
+                      onChange={(checked) =>
+                        commitPropertyPatch({ enableChrome: checked })
+                      }
+                    />
+                    <AgentConfigToggleField
+                      checked={issueDraft.skipPermissions}
+                      description="Let the model run without daemon approval prompts."
+                      label="Skip permissions"
+                      onChange={(checked) =>
+                        commitPropertyPatch({ skipPermissions: checked })
+                      }
+                    />
+                  </div>
                 </section>
 
                 <div className="issues-properties-divider" />
@@ -8760,37 +11448,6 @@ function IssueDetailView({
                     value={formatRelativeIssueDate(issue.updated_at)}
                   />
                 </section>
-
-                {linkedApprovals.length ? (
-                  <>
-                    <div className="issues-properties-divider" />
-                    <section className="issues-properties-section">
-                      <h3>Linked approvals</h3>
-                      <div className="surface-list dense">
-                        {linkedApprovals.map((approval) => (
-                          <button
-                            className="file-list-button"
-                            key={approval.id}
-                            onClick={() => onLinkedApprovalSelect(approval.id)}
-                            type="button"
-                          >
-                            <strong>
-                              {priorityLabel(
-                                approval.approval_type ?? "approval"
-                              )}
-                            </strong>
-                            <span>
-                              {priorityLabel(approval.status ?? "pending")}
-                              {approval.updated_at
-                                ? ` · ${formatIssueDate(approval.updated_at)}`
-                                : ""}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </section>
-                  </>
-                ) : null}
               </div>
             </aside>
           </>
@@ -8798,6 +11455,2058 @@ function IssueDetailView({
       </div>
     </section>
   );
+}
+
+function ConversationIssueDetailView({
+  attachments,
+  availableStatusOptions,
+  dependencyCheck,
+  issue,
+  issueDraft,
+  issueEditorError,
+  issueWorkspaceSidebar,
+  isSavingIssue,
+  isWorking,
+  onAddAttachment,
+  onBack,
+  onCommitIssuePatch,
+  onHideIssue,
+  onIssueDraftChange,
+  onOpenQueuedConversation,
+  onPromptChange,
+  onQueueMessage,
+  onRespondToQuestion,
+  onRevealAttachment,
+  onRevealRepo,
+  onSendPrompt,
+  onStopSession,
+  parentIssueLabel,
+  projectLabel,
+  prompt,
+  providerLabel,
+  runtimeStatusLabel,
+  session,
+  sessionMessages,
+  statusLabel,
+  agents,
+  projects,
+  selectableParentIssues,
+  subissues,
+  workspace,
+  workspaceTargetErrorMessage,
+  workspaceTargetLoading,
+  workspaceTargetWorktrees,
+}: {
+  attachments: IssueAttachmentRecord[];
+  availableStatusOptions: string[];
+  dependencyCheck: RuntimeCapabilities | null;
+  issue: IssueRecord;
+  issueDraft: IssueEditDraft;
+  issueEditorError: string | null;
+  issueWorkspaceSidebar?: ReactNode;
+  isSavingIssue: boolean;
+  isWorking: boolean;
+  onAddAttachment: () => void;
+  onBack: () => void;
+  onCommitIssuePatch: (patch: Partial<IssueEditDraft>) => void;
+  onHideIssue: () => void;
+  onIssueDraftChange: (patch: Partial<IssueEditDraft>) => void;
+  onOpenQueuedConversation: (issueId: string) => void;
+  onPromptChange: (value: string) => void;
+  onQueueMessage: () => void;
+  onRespondToQuestion: (response: string) => void;
+  onRevealAttachment: (attachment: IssueAttachmentRecord) => void;
+  onRevealRepo: () => void;
+  onSendPrompt: (content: string) => void;
+  onStopSession: () => void;
+  parentIssueLabel: (parentIssueId?: string | null) => string;
+  projectLabel: (projectId?: string | null) => string;
+  prompt: string;
+  providerLabel: string;
+  runtimeStatusLabel: string;
+  session: SessionRecord | null;
+  sessionMessages: SessionMessage[];
+  statusLabel: (value: string) => string;
+  agents: AgentRecord[];
+  projects: ProjectRecord[];
+  selectableParentIssues: IssueRecord[];
+  subissues: IssueRecord[];
+  workspace: WorkspaceRecord | null;
+  workspaceTargetErrorMessage: string | null;
+  workspaceTargetLoading: boolean;
+  workspaceTargetWorktrees: GitWorktreeRecord[];
+}) {
+  const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
+  const [isIssueActionsOpen, setIsIssueActionsOpen] = useState(false);
+  const descriptionInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const issueActionsMenuRef = useRef<HTMLDivElement | null>(null);
+  const issueActionsButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  const conversationRows = useMemo(
+    () => buildConversationTimeline(sessionMessages),
+    [sessionMessages]
+  );
+  const issueProjectName = projectLabel(issueDraft.projectId || null);
+  const issueValidationMessage = issueStatusAssigneeValidationMessage(
+    issueDraft.status,
+    issueDraft.assigneeAgentId,
+    agents
+  );
+  const visibleIssueEditorError = issueValidationMessage ?? issueEditorError;
+  const selectedProject =
+    projects.find((project) => project.id === issueDraft.projectId) ?? null;
+  const selectedProjectRepoPath =
+    selectedProject?.primary_workspace?.cwd ?? null;
+  const selectedWorkspaceTargetValue = issueWorkspaceTargetSelectValue(
+    issueDraft.workspaceTargetMode,
+    issueDraft.workspaceWorktreePath
+  );
+  const workspaceTargetHint = issueWorkspaceTargetHint({
+    errorMessage: workspaceTargetErrorMessage,
+    hasProject: Boolean(selectedProject),
+    hasRepoPath: Boolean(selectedProjectRepoPath),
+    isLoading: workspaceTargetLoading,
+    worktreeCount: workspaceTargetWorktrees.length,
+  });
+  const fallbackSelectedWorktree =
+    selectedWorkspaceTargetValue.startsWith("existing:") &&
+    !workspaceTargetWorktrees.some(
+      (worktree) =>
+        existingWorktreeTargetValue(worktree.path) ===
+        selectedWorkspaceTargetValue
+    )
+      ? {
+          name:
+            issueDraft.workspaceWorktreeName ||
+            fileName(issueDraft.workspaceWorktreePath),
+          path: issueDraft.workspaceWorktreePath,
+        }
+      : null;
+  const runtimeProvider = detectAgentCliProvider(
+    issueDraft.command,
+    issueDraft.model
+  );
+  const runtimeModelOptions = buildAgentModelOptions(
+    issueDraft,
+    dependencyCheck
+  );
+  const runtimeThinkingEffortOptions = mergeIssueOptions(
+    ["auto", "low", "medium", "high"],
+    issueDraft.thinkingEffort
+  );
+  const runtimeProviderOptions = buildIssueRuntimeProviderOptions(
+    dependencyCheck,
+    issueDraft.command,
+    issueDraft.model
+  );
+  const runtimeBrowserToggleLabel =
+    runtimeProvider === "codex" ? "Enable web search" : "Enable Chrome";
+  const runtimeBrowserToggleDescription =
+    runtimeProvider === "codex"
+      ? "Expose Codex web search during runs."
+      : "Allow browser automation inside Claude runs.";
+  const queuedPreview = subissues.slice(0, 4);
+  const hasWorkspaceSession = Boolean(workspace?.session_id);
+  const isConversationLoading =
+    hasWorkspaceSession && session == null && sessionMessages.length === 0;
+  const issueBreadcrumbTitle = issueDraft.title.trim() || issue.title;
+  const composerDisabled = isWorking || !session;
+
+  const syncDescriptionInputHeight = () => {
+    const textarea = descriptionInputRef.current;
+    if (!textarea) {
+      return;
+    }
+
+    textarea.style.height = "0px";
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  };
+
+  useLayoutEffect(() => {
+    syncDescriptionInputHeight();
+  }, [issue.id, issueDraft.description]);
+
+  useEffect(() => {
+    setIsPropertiesOpen(false);
+    setIsIssueActionsOpen(false);
+  }, [issue.id]);
+
+  useEffect(() => {
+    if (!isIssueActionsOpen) {
+      return;
+    }
+
+    const closeMenu = (event: Event) => {
+      const target = event.target as Node | null;
+      if (
+        (issueActionsMenuRef.current &&
+          target &&
+          issueActionsMenuRef.current.contains(target)) ||
+        (issueActionsButtonRef.current &&
+          target &&
+          issueActionsButtonRef.current.contains(target))
+      ) {
+        return;
+      }
+
+      setIsIssueActionsOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsIssueActionsOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", closeMenu);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isIssueActionsOpen]);
+
+  useEffect(() => {
+    if (!isPropertiesOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsPropertiesOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isPropertiesOpen]);
+
+  const commitTitleOnBlur = () => {
+    const trimmedTitle = issueDraft.title.trim();
+    const currentTitle = issue.title.trim();
+
+    if (!trimmedTitle) {
+      onIssueDraftChange({ title: issue.title });
+      return;
+    }
+
+    if (trimmedTitle !== issueDraft.title) {
+      onIssueDraftChange({ title: trimmedTitle });
+    }
+
+    if (trimmedTitle !== currentTitle) {
+      onCommitIssuePatch({ title: trimmedTitle });
+    }
+  };
+
+  const commitDescriptionOnBlur = () => {
+    const trimmedDescription = issueDraft.description.trim();
+    const currentDescription = (issue.description ?? "").trim();
+
+    if (trimmedDescription !== issueDraft.description) {
+      onIssueDraftChange({ description: trimmedDescription });
+    }
+
+    if (trimmedDescription !== currentDescription) {
+      onCommitIssuePatch({ description: trimmedDescription });
+    }
+  };
+
+  const commitPropertyPatch = (patch: Partial<IssueEditDraft>) => {
+    onIssueDraftChange(patch);
+    onCommitIssuePatch(patch);
+  };
+
+  const handleToggleProperties = () => {
+    setIsIssueActionsOpen(false);
+    setIsPropertiesOpen((current) => !current);
+  };
+
+  const handleToggleIssueActions = () => {
+    setIsPropertiesOpen(false);
+    setIsIssueActionsOpen((current) => !current);
+  };
+
+  const handleHideIssue = () => {
+    setIsIssueActionsOpen(false);
+    setIsPropertiesOpen(false);
+    onHideIssue();
+  };
+
+  const handleSubmitPrompt = (event: FormEvent) => {
+    event.preventDefault();
+    if (!prompt.trim()) {
+      return;
+    }
+    onSendPrompt(prompt);
+  };
+
+  return (
+    <section className="route-scroll issues-detail-route conversation-detail-route">
+      <DashboardBreadcrumbs
+        items={[
+          { label: "Conversations", onClick: onBack },
+          { label: issueBreadcrumbTitle },
+        ]}
+      />
+
+      <div className="conversation-detail-shell">
+        <section className="conversation-detail-main">
+          <div className="issues-detail-identity-row">
+            <div className="issues-detail-identity-copy">
+              <span className="issues-detail-identifier">
+                {issue.identifier ?? issue.id}
+              </span>
+              <span className="issues-detail-project-name">
+                {issueProjectName}
+              </span>
+            </div>
+            <div className="conversation-detail-toolbar-actions">
+              <button
+                className="secondary-button compact-button"
+                disabled={isWorking}
+                onClick={onAddAttachment}
+                type="button"
+              >
+                Add attachment
+              </button>
+              {workspace?.workspace_repo_path ? (
+                <button
+                  className="secondary-button compact-button"
+                  onClick={onRevealRepo}
+                  type="button"
+                >
+                  Reveal repo
+                </button>
+              ) : null}
+              {session ? (
+                <button
+                  className="secondary-button compact-button"
+                  onClick={onStopSession}
+                  type="button"
+                >
+                  Stop {providerLabel}
+                </button>
+              ) : null}
+              <button
+                aria-label={
+                  isPropertiesOpen
+                    ? "Close properties sidebar"
+                    : "Open properties sidebar"
+                }
+                className={
+                  isPropertiesOpen
+                    ? "icon-button issues-detail-toolbar-button active"
+                    : "icon-button issues-detail-toolbar-button"
+                }
+                onClick={handleToggleProperties}
+                type="button"
+              >
+                <SlidersHorizontalIcon />
+              </button>
+              <div className="issues-detail-toolbar-menu-shell">
+                <button
+                  aria-expanded={isIssueActionsOpen}
+                  aria-haspopup="menu"
+                  aria-label="Conversation actions"
+                  className={
+                    isIssueActionsOpen
+                      ? "icon-button issues-detail-toolbar-button active"
+                      : "icon-button issues-detail-toolbar-button"
+                  }
+                  onClick={handleToggleIssueActions}
+                  ref={issueActionsButtonRef}
+                  type="button"
+                >
+                  <EllipsisHorizontalIcon />
+                </button>
+                {isIssueActionsOpen ? (
+                  <div
+                    className="issues-detail-toolbar-menu"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    ref={issueActionsMenuRef}
+                    role="menu"
+                  >
+                    <button
+                      className="issues-detail-toolbar-menu-item"
+                      disabled={isSavingIssue}
+                      onClick={handleHideIssue}
+                      role="menuitem"
+                      type="button"
+                    >
+                      Hide this conversation
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="conversation-detail-header-card">
+            <div className="conversation-detail-title-stack">
+              <input
+                className="issues-inline-title-input conversation-detail-title-input"
+                onBlur={commitTitleOnBlur}
+                onChange={(event) =>
+                  onIssueDraftChange({
+                    title: event.target.value,
+                  })
+                }
+                placeholder="Conversation title"
+                value={issueDraft.title}
+              />
+              <textarea
+                className="issues-inline-description-input conversation-detail-description-input"
+                onBlur={commitDescriptionOnBlur}
+                onChange={(event) =>
+                  onIssueDraftChange({
+                    description: event.target.value,
+                  })
+                }
+                onInput={syncDescriptionInputHeight}
+                placeholder="Add context, decisions, or the next thing a model should pick up."
+                ref={descriptionInputRef}
+                rows={1}
+                value={issueDraft.description}
+              />
+              <div className="conversation-detail-meta-row">
+                <span className="issues-detail-copy muted">
+                  Parent {parentIssueLabel(issue.parent_id)} · Created by{" "}
+                  {issueCreatorLabel(issue, agents)} · Updated{" "}
+                  {formatRelativeIssueDate(issue.updated_at)}
+                </span>
+                {isSavingIssue ? (
+                  <span className="issues-detail-inline-saving">Saving…</span>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="conversation-detail-summary-grid">
+              <SummaryPill label="Status" value={statusLabel(issue.status)} />
+              <SummaryPill label="Project" value={projectLabel(issue.project_id)} />
+              <SummaryPill label="Agent" value={providerLabel} />
+              <SummaryPill label="Runtime" value={runtimeStatusLabel} />
+              <SummaryPill label="Attachments" value={attachments.length} />
+              <SummaryPill label="Queued" value={subissues.length} />
+            </div>
+          </div>
+
+          {visibleIssueEditorError ? (
+            <div className="issue-dialog-alert">{visibleIssueEditorError}</div>
+          ) : null}
+
+          <div className="conversation-detail-utility-grid">
+            <section className="conversation-support-card">
+              <div className="conversation-support-card-header">
+                <div>
+                  <h3>Attached context</h3>
+                  <p className="issues-detail-copy muted">
+                    Files stored with the board issue and available to future runs.
+                  </p>
+                </div>
+                <button
+                  className="secondary-button compact-button"
+                  disabled={isWorking}
+                  onClick={onAddAttachment}
+                  type="button"
+                >
+                  Add
+                </button>
+              </div>
+
+              {attachments.length ? (
+                <div className="conversation-attachment-list">
+                  {attachments.map((attachment) => (
+                    <button
+                      className="conversation-attachment-chip"
+                      key={attachment.id}
+                      onClick={() => onRevealAttachment(attachment)}
+                      type="button"
+                    >
+                      <strong>
+                        {attachment.original_filename ??
+                          fileName(attachment.local_path)}
+                      </strong>
+                      <span>
+                        {formatFileSize(attachment.byte_size)} ·{" "}
+                        {formatIssueDate(attachment.created_at)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="issues-detail-copy muted">
+                  No attachments yet.
+                </p>
+              )}
+            </section>
+
+            <section className="conversation-support-card">
+              <div className="conversation-support-card-header">
+                <div>
+                  <h3>Queued follow-ups</h3>
+                  <p className="issues-detail-copy muted">
+                    Lightweight child conversations that are still attached here.
+                  </p>
+                </div>
+                <button
+                  className="secondary-button compact-button"
+                  onClick={onQueueMessage}
+                  type="button"
+                >
+                  Queue
+                </button>
+              </div>
+
+              {queuedPreview.length ? (
+                <div className="conversation-queued-list">
+                  {queuedPreview.map((child) => (
+                    <button
+                      className="conversation-queued-row"
+                      key={child.id}
+                      onClick={() => onOpenQueuedConversation(child.id)}
+                      type="button"
+                    >
+                      <strong>{child.title}</strong>
+                      <span>
+                        {statusLabel(child.status)} ·{" "}
+                        {formatCompactIssueTimestamp(child.updated_at)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="issues-detail-copy muted">
+                  No queued follow-ups.
+                </p>
+              )}
+            </section>
+          </div>
+
+          <section className="conversation-timeline-panel">
+            <div className="conversation-timeline-panel-header">
+              <div>
+                <span className="route-kicker">Daemon Conversation</span>
+                <h2>
+                  {session?.title ??
+                    (issueDraft.title.trim() || "Conversation")}
+                </h2>
+                <p className="issues-detail-copy muted">
+                  {session
+                    ? `${conversationRows.length} rendered rows · session ${session.id.slice(0, 8)}`
+                    : hasWorkspaceSession
+                      ? "Waiting for the workspace session to attach."
+                      : "This conversation does not have an active daemon workspace yet."}
+                </p>
+              </div>
+            </div>
+
+            {isConversationLoading ? (
+              <div className="conversation-empty-state">
+                <h3>Loading daemon conversation…</h3>
+                <p>The issue already has a workspace session. The transcript will appear once the session state finishes hydrating.</p>
+              </div>
+            ) : !hasWorkspaceSession ? (
+              <div className="conversation-empty-state">
+                <h3>No workspace session</h3>
+                <p>
+                  This issue does not have a checked-out daemon workspace, so there is no live transcript, file tree, or git history to show yet.
+                </p>
+              </div>
+            ) : conversationRows.length ? (
+              <div className="conversation-timeline-scroll">
+                <ConversationTimeline
+                  onRespondToQuestion={onRespondToQuestion}
+                  rows={conversationRows}
+                />
+              </div>
+            ) : (
+              <div className="conversation-empty-state">
+                <h3>No daemon messages yet</h3>
+                <p>
+                  Send the first prompt below to start the workspace transcript for this conversation.
+                </p>
+              </div>
+            )}
+
+            {hasWorkspaceSession ? (
+              <form
+                className="conversation-composer"
+                onSubmit={handleSubmitPrompt}
+              >
+                <textarea
+                  className="conversation-composer-input"
+                  disabled={composerDisabled}
+                  onChange={(event) => onPromptChange(event.target.value)}
+                  placeholder={`Send a prompt to ${providerLabel}`}
+                  rows={3}
+                  value={prompt}
+                />
+                <div className="conversation-composer-footer">
+                  <span className="issues-detail-copy muted">
+                    Replies, tool calls, sub-agents, and code changes stream from the daemon session.
+                  </span>
+                  <button
+                    className="primary-button"
+                    disabled={composerDisabled || !prompt.trim()}
+                    type="submit"
+                  >
+                    Send prompt
+                  </button>
+                </div>
+              </form>
+            ) : null}
+          </section>
+        </section>
+
+        {issueWorkspaceSidebar ? (
+          issueWorkspaceSidebar
+        ) : (
+          <aside className="conversation-detail-empty-sidebar">
+            <section className="inspector-panel workspace-details-panel">
+              <h3>Workspace Inspector</h3>
+              <p className="issues-detail-copy muted">
+                Changes, files, and commits appear here once this conversation has an attached daemon workspace.
+              </p>
+              <div className="workspace-detail-grid">
+                <DetailRow
+                  label="Status"
+                  value={statusLabel(issue.status)}
+                />
+                <DetailRow
+                  label="Project"
+                  value={projectLabel(issue.project_id)}
+                />
+                <DetailRow
+                  label="Parent"
+                  value={parentIssueLabel(issue.parent_id)}
+                />
+                <DetailRow
+                  label="Updated"
+                  value={formatRelativeIssueDate(issue.updated_at)}
+                />
+              </div>
+            </section>
+          </aside>
+        )}
+
+        {isPropertiesOpen ? (
+          <>
+            <button
+              aria-label="Close properties sidebar"
+              className="issues-properties-overlay"
+              onClick={() => setIsPropertiesOpen(false)}
+              type="button"
+            />
+            <aside
+              aria-label="Conversation properties"
+              className="issues-properties-drawer"
+              onPointerDown={(event) => event.stopPropagation()}
+              role="dialog"
+            >
+              <div className="issues-properties-drawer-header">
+                <strong>Properties</strong>
+                <button
+                  aria-label="Close properties sidebar"
+                  className="icon-button issues-detail-toolbar-button"
+                  onClick={() => setIsPropertiesOpen(false)}
+                  type="button"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+              <div className="issues-properties-drawer-body">
+                {visibleIssueEditorError ? (
+                  <div className="issue-dialog-alert">
+                    {visibleIssueEditorError}
+                  </div>
+                ) : null}
+
+                <section className="issues-properties-section">
+                  <IssuePropertySelectRow
+                    disabled={isSavingIssue}
+                    label="Status"
+                    tone={normalizeBoardIssueValue(issueDraft.status)}
+                    onChange={(value) =>
+                      commitPropertyPatch({
+                        status: value,
+                      })
+                    }
+                    value={issueDraft.status}
+                  >
+                    {availableStatusOptions.map((status) => (
+                      <option key={status} value={status}>
+                        {statusLabel(status)}
+                      </option>
+                    ))}
+                  </IssuePropertySelectRow>
+
+                  <IssuePropertySelectRow
+                    disabled={isSavingIssue}
+                    label="Project"
+                    tone="project"
+                    onChange={(value) =>
+                      commitPropertyPatch({
+                        projectId: value,
+                        workspaceTargetMode: "main",
+                        workspaceWorktreePath: "",
+                        workspaceWorktreeBranch: "",
+                        workspaceWorktreeName: "",
+                      })
+                    }
+                    value={issueDraft.projectId}
+                  >
+                    <option disabled value="">
+                      {projects.length ? "Select project" : "Create project"}
+                    </option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name ?? project.title ?? project.id}
+                      </option>
+                    ))}
+                  </IssuePropertySelectRow>
+
+                  <IssuePropertySelectRow
+                    disabled={isSavingIssue || !selectedProjectRepoPath}
+                    hint={workspaceTargetHint}
+                    label="Worktree target"
+                    tone="neutral"
+                    onChange={(value) =>
+                      commitPropertyPatch(
+                        issueWorkspaceDraftPatchFromSelection(
+                          value,
+                          workspaceTargetWorktrees,
+                          issueDraft
+                        )
+                      )
+                    }
+                    value={selectedWorkspaceTargetValue}
+                  >
+                    <option value="main">Repo root</option>
+                    <option value="new_worktree">New git worktree</option>
+                    {workspaceTargetWorktrees.map((worktree) => (
+                      <option
+                        key={worktree.path}
+                        value={existingWorktreeTargetValue(worktree.path)}
+                      >
+                        {worktree.branch
+                          ? `${worktree.name} · ${worktree.branch}`
+                          : worktree.name}
+                      </option>
+                    ))}
+                    {fallbackSelectedWorktree ? (
+                      <option
+                        value={existingWorktreeTargetValue(
+                          fallbackSelectedWorktree.path
+                        )}
+                      >
+                        {fallbackSelectedWorktree.name}
+                      </option>
+                    ) : null}
+                  </IssuePropertySelectRow>
+
+                  <IssuePropertySelectRow
+                    disabled={isSavingIssue}
+                    label="Parent Conversation"
+                    tone="neutral"
+                    onChange={(value) =>
+                      commitPropertyPatch({
+                        parentId: value,
+                      })
+                    }
+                    value={issueDraft.parentId}
+                  >
+                    <option value="">No parent conversation</option>
+                    {selectableParentIssues.map((parentIssue) => (
+                      <option key={parentIssue.id} value={parentIssue.id}>
+                        {parentIssue.identifier ?? parentIssue.title}
+                      </option>
+                    ))}
+                  </IssuePropertySelectRow>
+                </section>
+
+                <div className="issues-properties-divider" />
+
+                <section className="issues-properties-section">
+                  <h3>Model configuration</h3>
+                  <div className="agent-config-grid">
+                    <AgentConfigField
+                      htmlFor="issue-detail-command"
+                      label="Provider"
+                    >
+                      <AgentConfigSelect
+                        ariaLabel="Conversation provider"
+                        id="issue-detail-command"
+                        onChange={(value) =>
+                          commitPropertyPatch({
+                            command: value,
+                            planMode:
+                              detectAgentCliProvider(value, issueDraft.model) ===
+                              "claude"
+                                ? issueDraft.planMode
+                                : false,
+                          })
+                        }
+                        value={issueDraft.command}
+                      >
+                        {runtimeProviderOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </AgentConfigSelect>
+                    </AgentConfigField>
+
+                    <AgentConfigField
+                      htmlFor="issue-detail-model"
+                      label="Model"
+                    >
+                      <AgentConfigSelect
+                        ariaLabel="Conversation model"
+                        id="issue-detail-model"
+                        onChange={(value) =>
+                          commitPropertyPatch({ model: value })
+                        }
+                        value={issueDraft.model}
+                      >
+                        {runtimeModelOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option === "default" ? "Default" : option}
+                          </option>
+                        ))}
+                      </AgentConfigSelect>
+                    </AgentConfigField>
+
+                    <AgentConfigField
+                      htmlFor="issue-detail-thinking"
+                      label="Thinking effort"
+                    >
+                      <AgentConfigSelect
+                        ariaLabel="Conversation thinking effort"
+                        id="issue-detail-thinking"
+                        onChange={(value) =>
+                          commitPropertyPatch({ thinkingEffort: value })
+                        }
+                        value={issueDraft.thinkingEffort}
+                      >
+                        {runtimeThinkingEffortOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {capitalize(option)}
+                          </option>
+                        ))}
+                      </AgentConfigSelect>
+                    </AgentConfigField>
+
+                    <AgentConfigField
+                      htmlFor="issue-detail-plan-mode"
+                      label="Plan mode"
+                    >
+                      <AgentConfigSelect
+                        ariaLabel="Conversation plan mode"
+                        id="issue-detail-plan-mode"
+                        onChange={(value) =>
+                          commitPropertyPatch({ planMode: value === "plan" })
+                        }
+                        value={issueDraft.planMode ? "plan" : "default"}
+                      >
+                        <option value="default">Off</option>
+                        <option
+                          disabled={runtimeProvider !== "claude"}
+                          value="plan"
+                        >
+                          Claude plan mode
+                        </option>
+                      </AgentConfigSelect>
+                    </AgentConfigField>
+                  </div>
+
+                  <div className="agent-config-toggle-grid">
+                    <AgentConfigToggleField
+                      checked={issueDraft.enableChrome}
+                      description={runtimeBrowserToggleDescription}
+                      label={runtimeBrowserToggleLabel}
+                      onChange={(checked) =>
+                        commitPropertyPatch({ enableChrome: checked })
+                      }
+                    />
+                    <AgentConfigToggleField
+                      checked={issueDraft.skipPermissions}
+                      description="Let the model run without daemon approval prompts."
+                      label="Skip permissions"
+                      onChange={(checked) =>
+                        commitPropertyPatch({ skipPermissions: checked })
+                      }
+                    />
+                  </div>
+                </section>
+
+                <div className="issues-properties-divider" />
+
+                <section className="issues-properties-section">
+                  <IssuePropertyStaticRow
+                    label="Created by"
+                    value={issueCreatorLabel(issue, agents)}
+                  />
+                  <IssuePropertyStaticRow
+                    label="Started"
+                    value={
+                      issue.started_at
+                        ? formatBoardDate(issue.started_at)
+                        : "Not started"
+                    }
+                  />
+                  <IssuePropertyStaticRow
+                    label="Completed"
+                    value={
+                      issue.completed_at
+                        ? formatBoardDate(issue.completed_at)
+                        : "Not completed"
+                    }
+                  />
+                  <IssuePropertyStaticRow
+                    label="Created"
+                    value={formatBoardDate(issue.created_at)}
+                  />
+                  <IssuePropertyStaticRow
+                    label="Updated"
+                    value={formatRelativeIssueDate(issue.updated_at)}
+                  />
+                </section>
+              </div>
+            </aside>
+          </>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function IssueWorkspaceDetailView({
+  agents,
+  availableStatusOptions,
+  currentDirectory,
+  issue,
+  issueDraft,
+  issueEditorError,
+  issueWorkspaceSidebar,
+  isSavingIssue,
+  isWorking,
+  onBack,
+  onCommitIssuePatch,
+  onIssueDraftChange,
+  onOpenRunDetail,
+  onPromptChange,
+  onRespondToQuestion,
+  onRevealRepo,
+  onRunTerminal,
+  onTerminalCommandChange,
+  onSelectWorkspaceCenterTab,
+  onSendPrompt,
+  onStopSession,
+  onStopTerminal,
+  previewTabLabel,
+  projectLabel,
+  projects,
+  prompt,
+  selectableParentIssues,
+  selectedDiff,
+  selectedFile,
+  selectedFilePath,
+  session,
+  sessionErrorMessage,
+  sessionLoading,
+  sessionRows,
+  statusLabel,
+  terminalCommand,
+  terminalContainerRef,
+  terminalStatusValue,
+  workspace,
+  workspaceCenterTab,
+  workspaceTargetErrorMessage,
+  workspaceTargetLoading,
+  workspaceTargetWorktrees,
+}: {
+  agents: AgentRecord[];
+  availableStatusOptions: string[];
+  currentDirectory: string | null;
+  issue: IssueRecord;
+  issueDraft: IssueEditDraft;
+  issueEditorError: string | null;
+  issueWorkspaceSidebar?: ReactNode;
+  isSavingIssue: boolean;
+  isWorking: boolean;
+  onBack: () => void;
+  onCommitIssuePatch: (patch: Partial<IssueEditDraft>) => void;
+  onIssueDraftChange: (patch: Partial<IssueEditDraft>) => void;
+  onOpenRunDetail: (run: AgentRunRecord) => void;
+  onPromptChange: (value: string) => void;
+  onRespondToQuestion: (response: string) => void;
+  onRevealRepo: () => void;
+  onRunTerminal: (event: FormEvent) => void;
+  onTerminalCommandChange: (value: string) => void;
+  onSelectWorkspaceCenterTab: (tab: WorkspaceCenterTab) => void;
+  onSendPrompt: (content: string) => void;
+  onStopSession: () => void;
+  onStopTerminal: () => void;
+  previewTabLabel: string;
+  projectLabel: (projectId?: string | null) => string;
+  projects: ProjectRecord[];
+  prompt: string;
+  selectableParentIssues: IssueRecord[];
+  selectedDiff: GitDiffResult | null;
+  selectedFile: FileReadResult | null;
+  selectedFilePath: string | null;
+  session: SessionRecord | null;
+  sessionErrorMessage: string | null;
+  sessionLoading: boolean;
+  sessionRows: SessionConversationRow[];
+  statusLabel: (value: string) => string;
+  terminalCommand: string;
+  terminalContainerRef: RefObject<HTMLDivElement | null>;
+  terminalStatusValue: string;
+  workspace: WorkspaceRecord | null;
+  workspaceCenterTab: WorkspaceCenterTab;
+  workspaceTargetErrorMessage: string | null;
+  workspaceTargetLoading: boolean;
+  workspaceTargetWorktrees: GitWorktreeRecord[];
+}) {
+  const [linkedRuns, setLinkedRuns] = useState<IssueLinkedRun[]>([]);
+  const [linkedRunsError, setLinkedRunsError] = useState<string | null>(null);
+  const [isLoadingLinkedRuns, setIsLoadingLinkedRuns] = useState(false);
+  const issueProjectName = projectLabel(issueDraft.projectId || issue.project_id);
+  const issueBreadcrumbTitle = issueDraft.title.trim() || issue.title;
+  const hasWorkspaceSession = Boolean(workspace?.session_id);
+  const isConversationLoading =
+    sessionLoading || (hasWorkspaceSession && session == null && sessionRows.length === 0);
+  const composerDisabled = isWorking || !session;
+  const runtimeStatusValue =
+    sessionErrorMessage != null && sessionErrorMessage.trim().length > 0
+      ? sessionErrorMessage
+      : session == null
+        ? "Waiting"
+        : "Connected";
+
+  useEffect(() => {
+    let cancelled = false;
+    setIsLoadingLinkedRuns(true);
+
+    void boardListIssueRuns(issue.id, 100)
+      .then((runs) => {
+        if (cancelled) {
+          return;
+        }
+
+        setLinkedRuns(
+          (runs as AgentRunRecord[]).map((run) => ({
+            label: issueLinkedRunLabel(issue, run),
+            run,
+          }))
+        );
+        setLinkedRunsError(null);
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+
+        setLinkedRuns([]);
+        setLinkedRunsError(
+          error instanceof Error ? error.message : "Could not load linked runs."
+        );
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingLinkedRuns(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [issue.id, issue.checkout_run_id, issue.execution_run_id]);
+
+  const handleSubmitPrompt = (event: FormEvent) => {
+    event.preventDefault();
+    if (!prompt.trim()) {
+      return;
+    }
+    onSendPrompt(prompt);
+  };
+
+  return (
+    <section className="route-scroll issues-detail-route conversation-detail-route">
+      <DashboardBreadcrumbs
+        items={[
+          { label: "Conversations", onClick: onBack },
+          { label: issueBreadcrumbTitle },
+        ]}
+      />
+
+      <div className="conversation-detail-shell workspace-issue-detail-shell">
+        <main className="workspace-center">
+          {workspace ? (
+            <>
+              <section className="workspace-summary-banner">
+                <div>
+                  <span className="route-kicker">
+                    {issue.identifier ?? workspace.issue_identifier ?? issue.id}
+                  </span>
+                  <h1>{issueDraft.title.trim() || workspace.issue_title || issue.title}</h1>
+                  <p>
+                    {[
+                      issueProjectName,
+                      issueAssigneeLabel(agents, issueDraft.assigneeAgentId || issue.assignee_agent_id),
+                      workspace.workspace_branch,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "Issue workspace"}
+                  </p>
+                </div>
+                <SummaryPill
+                  label="Status"
+                  value={statusLabel(issueDraft.status || issue.status)}
+                />
+              </section>
+
+              <div className="workspace-center-header">
+                <div className="workspace-tab-strip">
+                  <WorkspaceCenterTabButton
+                    active={workspaceCenterTab === "conversation"}
+                    label={session?.title ?? (issueDraft.title.trim() || issue.title)}
+                    onClick={() => onSelectWorkspaceCenterTab("conversation")}
+                  />
+                  <WorkspaceCenterTabButton
+                    active={workspaceCenterTab === "runs"}
+                    label="Runs"
+                    onClick={() => onSelectWorkspaceCenterTab("runs")}
+                  />
+                  <WorkspaceCenterTabButton
+                    active={workspaceCenterTab === "terminal"}
+                    label="Terminal"
+                    onClick={() => onSelectWorkspaceCenterTab("terminal")}
+                  />
+                  {selectedFilePath ? (
+                    <WorkspaceCenterTabButton
+                      active={workspaceCenterTab === "preview"}
+                      label={previewTabLabel}
+                      onClick={() => onSelectWorkspaceCenterTab("preview")}
+                    />
+                  ) : null}
+                </div>
+                <div className="workspace-header-actions">
+                  <SummaryPill label="Runtime" value={runtimeStatusValue} />
+                  <SummaryPill label="Terminal" value={terminalStatusValue} />
+                </div>
+              </div>
+
+              {workspaceCenterTab === "conversation" ? (
+                <section className="workspace-panel workspace-chat-panel">
+                  <div className="workspace-panel-header">
+                    <div>
+                      <span className="route-kicker">Conversation</span>
+                      <h1>{issue.title}</h1>
+                    </div>
+                    <div className="workspace-header-actions">
+                      {session ? (
+                        <button
+                          className="secondary-button"
+                          onClick={onStopSession}
+                          type="button"
+                        >
+                          Stop
+                        </button>
+                      ) : null}
+                      {workspace.workspace_repo_path ? (
+                        <button
+                          className="secondary-button"
+                          onClick={onRevealRepo}
+                          type="button"
+                        >
+                          Reveal repo
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {isConversationLoading ? (
+                    <div className="conversation-empty-state">
+                      <h3>Loading conversation…</h3>
+                      <p>The daemon session is hydrating its transcript.</p>
+                    </div>
+                  ) : sessionRows.length ? (
+                    <div className="conversation-timeline-scroll">
+                      <SessionConversationTimeline
+                        onRespondToQuestion={onRespondToQuestion}
+                        rows={sessionRows}
+                      />
+                    </div>
+                  ) : (
+                    <div className="conversation-empty-state">
+                      <h3>No daemon messages yet</h3>
+                      <p>Send the first prompt below to start the workspace transcript.</p>
+                    </div>
+                  )}
+
+                  <form className="conversation-composer" onSubmit={handleSubmitPrompt}>
+                    <textarea
+                      className="conversation-composer-input"
+                      disabled={composerDisabled}
+                      onChange={(event) => onPromptChange(event.target.value)}
+                      placeholder="Leave a comment…"
+                      rows={3}
+                      value={prompt}
+                    />
+                    <div className="conversation-composer-footer">
+                      <span className="issues-detail-copy muted">
+                        {currentDirectory
+                          ? `Working in ${currentDirectory}`
+                          : "Replies, tools, and git changes stream from the daemon session."}
+                      </span>
+                      <button
+                        className="primary-button"
+                        disabled={composerDisabled || !prompt.trim()}
+                        type="submit"
+                      >
+                        Comment
+                      </button>
+                    </div>
+                  </form>
+                </section>
+              ) : null}
+
+              {workspaceCenterTab === "runs" ? (
+                <section className="workspace-panel workspace-chat-panel">
+                  <div className="workspace-panel-header">
+                    <div>
+                      <span className="route-kicker">Runs</span>
+                      <h1>Issue activity</h1>
+                    </div>
+                  </div>
+
+                  {isLoadingLinkedRuns ? (
+                    <div className="conversation-empty-state">
+                      <h3>Loading runs…</h3>
+                      <p>The issue-linked daemon runs are being fetched.</p>
+                    </div>
+                  ) : linkedRunsError ? (
+                    <div className="issue-dialog-alert">{linkedRunsError}</div>
+                  ) : linkedRuns.length ? (
+                    <div className="surface-list dense workspace-run-list">
+                      {linkedRuns.map(({ label, run }) => (
+                        <button
+                          className="workspace-run-row"
+                          key={run.id}
+                          onClick={() => onOpenRunDetail(run)}
+                          type="button"
+                        >
+                          <div>
+                            <strong>{label ?? run.id}</strong>
+                            <span>
+                              {humanizeIssueValue(run.status)} ·{" "}
+                              {formatRelativeIssueDate(run.updated_at)}
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="conversation-empty-state">
+                      <h3>No runs yet</h3>
+                      <p>This issue has not recorded any linked runs.</p>
+                    </div>
+                  )}
+                </section>
+              ) : null}
+
+              {workspaceCenterTab === "terminal" ? (
+                <section className="workspace-panel workspace-chat-panel">
+                  <div className="workspace-panel-header">
+                    <h3>Terminal</h3>
+                    <button
+                      className="secondary-button"
+                      onClick={onStopTerminal}
+                      type="button"
+                    >
+                      Stop
+                    </button>
+                  </div>
+                  <div className="terminal-frame" ref={terminalContainerRef} />
+                  <form className="workspace-terminal-form" onSubmit={onRunTerminal}>
+                    <input
+                      onChange={(event) =>
+                        onTerminalCommandChange(event.target.value)
+                      }
+                      placeholder="Run a shell command in the selected session"
+                      value={terminalCommand}
+                    />
+                    <button
+                      className="primary-button"
+                      disabled={isWorking}
+                      type="submit"
+                    >
+                      Run
+                    </button>
+                  </form>
+                </section>
+              ) : null}
+
+              {workspaceCenterTab === "preview" ? (
+                <section className="workspace-panel workspace-chat-panel">
+                  <div className="workspace-panel-header">
+                    <div>
+                      <span className="route-kicker">
+                        {selectedDiff ? "Diff preview" : "File preview"}
+                      </span>
+                      <h1>{selectedFilePath ?? "Preview"}</h1>
+                    </div>
+                  </div>
+                  {selectedDiff ? (
+                    <div className="workspace-preview">
+                      <div className="summary-grid">
+                        <SummaryPill label="Added" value={selectedDiff.additions} />
+                        <SummaryPill label="Deleted" value={selectedDiff.deletions} />
+                        <SummaryPill
+                          label="Binary"
+                          value={selectedDiff.is_binary ? "yes" : "no"}
+                        />
+                      </div>
+                      <pre>{selectedDiff.diff}</pre>
+                    </div>
+                  ) : selectedFile ? (
+                    <div className="workspace-preview">
+                      <pre>{selectedFile.content}</pre>
+                    </div>
+                  ) : (
+                    <p>Select a file or change to preview it here.</p>
+                  )}
+                </section>
+              ) : null}
+            </>
+          ) : (
+            <section className="workspace-empty-state workspace-center-empty">
+              <h3>Creating workspace…</h3>
+              <p>
+                This issue always runs from a workspace. The daemon is still attaching
+                the repo root or git worktree for this issue.
+              </p>
+            </section>
+          )}
+        </main>
+
+        {issueWorkspaceSidebar ? (
+          issueWorkspaceSidebar
+        ) : (
+          <aside className="conversation-detail-empty-sidebar">
+            <section className="inspector-panel workspace-details-panel">
+              <h3>Workspace Inspector</h3>
+              <p className="issues-detail-copy muted">
+                The issue workspace sidebar appears once the daemon attaches the
+                worktree.
+              </p>
+            </section>
+          </aside>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function SessionConversationTimeline({
+  onRespondToQuestion,
+  rows,
+}: {
+  onRespondToQuestion: (response: string) => void;
+  rows: SessionConversationRow[];
+}) {
+  return (
+    <div className="conversation-timeline">
+      {rows.map((row) => (
+        <SessionConversationRowView
+          key={row.id}
+          onRespondToQuestion={onRespondToQuestion}
+          row={row}
+        />
+      ))}
+    </div>
+  );
+}
+
+function SessionConversationRowView({
+  onRespondToQuestion,
+  row,
+}: {
+  onRespondToQuestion: (response: string) => void;
+  row: SessionConversationRow;
+}) {
+  const isUser = row.role === "user";
+
+  return (
+    <article
+      className={
+        isUser
+          ? "conversation-row conversation-row-user"
+          : row.role === "system" || row.role === "result"
+            ? "conversation-row conversation-row-system"
+            : "conversation-row"
+      }
+    >
+      <div className="conversation-row-meta">
+        <span className="conversation-row-role">
+          {conversationRoleLabel(row.role)}
+        </span>
+        <span className="conversation-row-sequence">#{row.sequenceNumber}</span>
+      </div>
+      <div className="conversation-row-content">
+        {row.blocks.map((block) => {
+          if (block.kind === "text") {
+            return <ConversationTextBlockView key={block.id} text={block.text} />;
+          }
+          if (block.kind === "error") {
+            return (
+              <div className="conversation-error-card" key={block.id}>
+                {block.message}
+              </div>
+            );
+          }
+          if (block.kind === "todo") {
+            return (
+              <ConversationTodoListCard
+                items={block.todoList.items}
+                key={block.id}
+              />
+            );
+          }
+          if (block.kind === "tool") {
+            return <ConversationToolCard key={block.id} tool={block.tool} />;
+          }
+          if (block.kind === "subagent") {
+            return (
+              <ConversationSubAgentCard
+                activity={block.activity}
+                key={block.id}
+              />
+            );
+          }
+          if (block.kind === "question") {
+            return (
+              <ConversationQuestionCard
+                key={block.id}
+                onSubmit={onRespondToQuestion}
+                question={block.question}
+              />
+            );
+          }
+          if (block.kind === "command") {
+            return (
+              <SessionConversationCommandCard
+                block={block}
+                key={block.id}
+              />
+            );
+          }
+          if (block.kind === "note") {
+            return <SessionConversationNoteCard block={block} key={block.id} />;
+          }
+          if (block.kind === "compactBoundary") {
+            return (
+              <SessionConversationNoteCard
+                block={{
+                  id: block.id,
+                  kicker: "Boundary",
+                  kind: "note",
+                  meta: [],
+                  text: block.text,
+                  tone: "neutral",
+                }}
+                key={block.id}
+              />
+            );
+          }
+          if (block.kind === "result") {
+            return (
+              <SessionConversationNoteCard
+                block={{
+                  id: block.id,
+                  kicker: "Result",
+                  kind: "note",
+                  meta: block.meta,
+                  text: block.text,
+                  tone: block.tone,
+                }}
+                key={block.id}
+              />
+            );
+          }
+          return null;
+        })}
+      </div>
+    </article>
+  );
+}
+
+function SessionConversationCommandCard({
+  block,
+}: {
+  block: SessionConversationCommandBlock;
+}) {
+  return (
+    <div className="conversation-command-card">
+      <div className="conversation-command-header">
+        <span className="conversation-command-kicker">Command</span>
+        <span
+          className={`conversation-command-badge ${agentRunEventStateTone(block.status)}`}
+        >
+          {agentRunEventStateLabel(block.status)}
+        </span>
+      </div>
+      {block.command ? <pre>{block.command}</pre> : null}
+      {block.output ? (
+        <pre className="conversation-command-output">{block.output}</pre>
+      ) : null}
+      {typeof block.exitCode === "number" ? (
+        <div className="conversation-command-meta">Exit code {block.exitCode}</div>
+      ) : null}
+    </div>
+  );
+}
+
+function SessionConversationNoteCard({
+  block,
+}: {
+  block: SessionConversationNoteBlock;
+}) {
+  return (
+    <div className={`conversation-note-card ${block.tone}`}>
+      <div className="conversation-note-header">
+        <span className="conversation-note-kicker">{block.kicker}</span>
+        {block.meta.length ? (
+          <span className="conversation-note-meta">{block.meta.join(" · ")}</span>
+        ) : null}
+      </div>
+      <div className="conversation-note-copy">{block.text}</div>
+    </div>
+  );
+}
+
+function ConversationTimeline({
+  onRespondToQuestion,
+  rows,
+}: {
+  onRespondToQuestion: (response: string) => void;
+  rows: ConversationRow[];
+}) {
+  return (
+    <div className="conversation-timeline">
+      {rows.map((row) => (
+        <ConversationTimelineRowView
+          key={row.id}
+          onRespondToQuestion={onRespondToQuestion}
+          row={row}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ConversationTimelineRowView({
+  onRespondToQuestion,
+  row,
+}: {
+  onRespondToQuestion: (response: string) => void;
+  row: ConversationRow;
+}) {
+  const isUser = row.role === "user";
+
+  return (
+    <article
+      className={
+        isUser
+          ? "conversation-row conversation-row-user"
+          : row.role === "system"
+            ? "conversation-row conversation-row-system"
+            : "conversation-row"
+      }
+    >
+      <div className="conversation-row-meta">
+        <span className="conversation-row-role">
+          {conversationRoleLabel(row.role)}
+        </span>
+        <span className="conversation-row-sequence">#{row.sequenceNumber}</span>
+      </div>
+      <div className="conversation-row-content">
+        {row.blocks.map((block) => {
+          if (block.kind === "text") {
+            return <ConversationTextBlockView key={block.id} text={block.text} />;
+          }
+          if (block.kind === "error") {
+            return (
+              <div className="conversation-error-card" key={block.id}>
+                {block.message}
+              </div>
+            );
+          }
+          if (block.kind === "todo") {
+            return (
+              <ConversationTodoListCard
+                items={block.todoList.items}
+                key={block.id}
+              />
+            );
+          }
+          if (block.kind === "tool") {
+            return <ConversationToolCard key={block.id} tool={block.tool} />;
+          }
+          if (block.kind === "subagent") {
+            return (
+              <ConversationSubAgentCard
+                activity={block.activity}
+                key={block.id}
+              />
+            );
+          }
+          if (block.kind === "question") {
+            return (
+              <ConversationQuestionCard
+                key={block.id}
+                onSubmit={onRespondToQuestion}
+                question={block.question}
+              />
+            );
+          }
+          return null;
+        })}
+      </div>
+    </article>
+  );
+}
+
+function ConversationTextBlockView({ text }: { text: string }) {
+  const segments = useMemo(() => splitConversationTextSegments(text), [text]);
+
+  return (
+    <div className="conversation-text-card">
+      {segments.map((segment) =>
+        segment.kind === "code" ? (
+          <div className="conversation-code-block" key={segment.id}>
+            {segment.language ? (
+              <span className="conversation-code-language">
+                {segment.language}
+              </span>
+            ) : null}
+            <pre>{segment.content}</pre>
+          </div>
+        ) : (
+          <div className="conversation-text-block" key={segment.id}>
+            {segment.content}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
+function ConversationTodoListCard({ items }: { items: ConversationTodoItem[] }) {
+  return (
+    <div className="conversation-todo-card">
+      {items.map((item) => (
+        <div className="conversation-todo-row" key={item.id}>
+          <span
+            aria-hidden="true"
+            className="conversation-todo-status"
+            data-status={item.status}
+          />
+          <span
+            className={
+              item.status === "completed"
+                ? "conversation-todo-text conversation-todo-text-complete"
+                : "conversation-todo-text"
+            }
+          >
+            {item.content}
+          </span>
+          <span className="conversation-todo-badge">
+            {conversationTodoStatusLabel(item.status)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ConversationQuestionCard({
+  onSubmit,
+  question,
+}: {
+  onSubmit: (response: string) => void;
+  question: ConversationQuestion;
+}) {
+  const [selectedValues, setSelectedValues] = useState<string[]>([]);
+  const [textResponse, setTextResponse] = useState("");
+
+  useEffect(() => {
+    setSelectedValues([]);
+    setTextResponse("");
+  }, [question.id]);
+
+  const toggleValue = (value: string) => {
+    setSelectedValues((current) => {
+      if (question.allowsMultiSelect) {
+        return current.includes(value)
+          ? current.filter((entry) => entry !== value)
+          : [...current, value];
+      }
+      return current.includes(value) ? [] : [value];
+    });
+  };
+
+  const handleSubmit = () => {
+    const response = [...selectedValues, textResponse.trim()]
+      .filter((value) => value.length > 0)
+      .join(", ");
+    if (!response) {
+      return;
+    }
+    onSubmit(response);
+    setSelectedValues([]);
+    setTextResponse("");
+  };
+
+  return (
+    <div className="conversation-question-card">
+      <div className="conversation-question-header">
+        {question.header ? (
+          <span className="conversation-question-chip">{question.header}</span>
+        ) : null}
+        <strong>{question.question}</strong>
+      </div>
+      {question.options.length ? (
+        <div className="conversation-question-options">
+          {question.options.map((option) => {
+            const isSelected = selectedValues.includes(option.value);
+            return (
+              <button
+                className={
+                  isSelected
+                    ? "conversation-question-option active"
+                    : "conversation-question-option"
+                }
+                key={`${question.id}-${option.value}`}
+                onClick={() => toggleValue(option.value)}
+                type="button"
+              >
+                <span>{option.label}</span>
+                {option.description ? <small>{option.description}</small> : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+      {question.allowsTextInput ? (
+        <textarea
+          className="conversation-question-textarea"
+          onChange={(event) => setTextResponse(event.target.value)}
+          placeholder="Type your response…"
+          rows={3}
+          value={textResponse}
+        />
+      ) : null}
+      <div className="conversation-question-footer">
+        <span className="issues-detail-copy muted">
+          Sending this answer continues the current daemon session.
+        </span>
+        <button
+          className="primary-button compact-button"
+          disabled={selectedValues.length === 0 && !textResponse.trim()}
+          onClick={handleSubmit}
+          type="button"
+        >
+          Submit answer
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ConversationToolCard({
+  compact = false,
+  tool,
+}: {
+  compact?: boolean;
+  tool: ConversationTool;
+}) {
+  const [isExpanded, setIsExpanded] = useState(tool.status === "failed");
+  const detail = tool.output ?? tool.detail;
+  const hasDetail = Boolean(detail);
+
+  useEffect(() => {
+    if (tool.status === "failed") {
+      setIsExpanded(true);
+    }
+  }, [tool.id, tool.status]);
+
+  return (
+    <div
+      className={
+        compact
+          ? "conversation-tool-card conversation-tool-card-compact"
+          : "conversation-tool-card"
+      }
+    >
+      <button
+        className="conversation-tool-header"
+        onClick={() => {
+          if (hasDetail) {
+            setIsExpanded((current) => !current);
+          }
+        }}
+        type="button"
+      >
+        <div className="conversation-tool-copy">
+          <span className="conversation-tool-icon">
+            {conversationToolGlyph(tool.toolName)}
+          </span>
+          <div>
+            <strong>{tool.toolName}</strong>
+            {tool.preview ? <small>{tool.preview}</small> : null}
+          </div>
+        </div>
+        <div className="conversation-tool-status-shell">
+          <span
+            className="conversation-tool-status"
+            data-status={tool.status}
+          >
+            {capitalize(tool.status.replace("_", " "))}
+          </span>
+          {hasDetail ? (
+            <span className="conversation-tool-chevron">
+              {isExpanded ? "v" : ">"}
+            </span>
+          ) : null}
+        </div>
+      </button>
+      {hasDetail && isExpanded ? (
+        <div className="conversation-tool-detail">
+          <pre>{detail}</pre>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ConversationSubAgentCard({
+  activity,
+}: {
+  activity: ConversationSubAgent;
+}) {
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  useEffect(() => {
+    if (activity.status === "running") {
+      setIsExpanded(true);
+    }
+  }, [activity.id, activity.status]);
+
+  return (
+    <div className="conversation-subagent-card">
+      <button
+        className="conversation-subagent-header"
+        onClick={() => setIsExpanded((current) => !current)}
+        type="button"
+      >
+        <div className="conversation-subagent-copy">
+          <span className="conversation-subagent-icon">
+            {conversationSubAgentGlyph(activity.subagentType)}
+          </span>
+          <div>
+            <strong>{conversationSubAgentLabel(activity.subagentType)}</strong>
+            {activity.description ? <small>{activity.description}</small> : null}
+          </div>
+        </div>
+        <div className="conversation-tool-status-shell">
+          <span
+            className="conversation-tool-status"
+            data-status={activity.status}
+          >
+            {capitalize(activity.status.replace("_", " "))}
+          </span>
+          <span className="conversation-tool-chevron">
+            {isExpanded ? "v" : ">"}
+          </span>
+        </div>
+      </button>
+      {isExpanded ? (
+        <div className="conversation-subagent-body">
+          {activity.tools.length ? (
+            <div className="conversation-subagent-tools">
+              {activity.tools.map((tool) => (
+                <ConversationToolCard compact key={tool.id} tool={tool} />
+              ))}
+            </div>
+          ) : (
+            <p className="issues-detail-copy muted">
+              Waiting for child tool activity…
+            </p>
+          )}
+          {activity.result ? (
+            <div className="conversation-subagent-result">
+              <pre>{activity.result}</pre>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+type ConversationTextSegment = {
+  content: string;
+  id: string;
+  kind: "code" | "text";
+  language: string | null;
+};
+
+function splitConversationTextSegments(text: string): ConversationTextSegment[] {
+  const source = text.trim();
+  if (!source.includes("```")) {
+    return [
+      {
+        content: source,
+        id: "text-0",
+        kind: "text",
+        language: null,
+      },
+    ];
+  }
+
+  const segments: ConversationTextSegment[] = [];
+  const pattern = /```([^\n`]*)\n?([\s\S]*?)```/g;
+  let match: RegExpExecArray | null;
+  let index = 0;
+  let lastIndex = 0;
+
+  while ((match = pattern.exec(source)) !== null) {
+    const preceding = source.slice(lastIndex, match.index).trim();
+    if (preceding) {
+      segments.push({
+        content: preceding,
+        id: `text-${index}`,
+        kind: "text",
+        language: null,
+      });
+      index += 1;
+    }
+
+    segments.push({
+      content: match[2]?.trim() ?? "",
+      id: `code-${index}`,
+      kind: "code",
+      language: match[1]?.trim() || null,
+    });
+    index += 1;
+    lastIndex = match.index + match[0].length;
+  }
+
+  const trailing = source.slice(lastIndex).trim();
+  if (trailing) {
+    segments.push({
+      content: trailing,
+      id: `text-${index}`,
+      kind: "text",
+      language: null,
+    });
+  }
+
+  return segments.length
+    ? segments
+    : [
+        {
+          content: source,
+          id: "text-fallback",
+          kind: "text",
+          language: null,
+        },
+      ];
+}
+
+function conversationRoleLabel(role: ConversationRow["role"] | "result") {
+  switch (role) {
+    case "assistant":
+      return "Assistant";
+    case "result":
+      return "Result";
+    case "system":
+      return "System";
+    case "user":
+      return "You";
+  }
+}
+
+function conversationTodoStatusLabel(status: ConversationTodoItem["status"]) {
+  switch (status) {
+    case "completed":
+      return "Done";
+    case "in_progress":
+      return "In Progress";
+    case "pending":
+      return "Pending";
+  }
+}
+
+function conversationToolGlyph(toolName: string) {
+  switch (toolName.toLowerCase()) {
+    case "bash":
+      return ">";
+    case "read":
+      return "R";
+    case "write":
+      return "W";
+    case "edit":
+      return "E";
+    case "glob":
+      return "G";
+    case "grep":
+      return "F";
+    case "webfetch":
+      return "U";
+    case "websearch":
+      return "S";
+    case "todowrite":
+      return "T";
+    default:
+      return toolName.slice(0, 1).toUpperCase();
+  }
+}
+
+function conversationSubAgentLabel(subagentType: string) {
+  switch (subagentType.toLowerCase()) {
+    case "explore":
+      return "Explore Agent";
+    case "plan":
+      return "Plan Agent";
+    case "bash":
+      return "Bash Agent";
+    case "general-purpose":
+    case "general purpose":
+      return "General Agent";
+    default:
+      return `${subagentType} Agent`;
+  }
+}
+
+function conversationSubAgentGlyph(subagentType: string) {
+  switch (subagentType.toLowerCase()) {
+    case "explore":
+      return "E";
+    case "plan":
+      return "P";
+    case "bash":
+      return ">";
+    default:
+      return "A";
+  }
 }
 
 function IssuePropertySelectRow({
@@ -8873,34 +13582,28 @@ function IssuePropertyToneMarker({ tone }: { tone?: string }) {
 
 function DashboardIssuePreviewDialogView({
   agents,
-  assigneeLabel,
   attachments,
   comments,
   errorMessage,
   isLoading,
   issue,
-  linkedApprovalCount,
   onClose,
   onOpenIssue,
   parentIssueLabel,
-  priorityLabel,
   projectLabel,
   runCardUpdate,
   statusLabel,
   subissueCount,
 }: {
   agents: AgentRecord[];
-  assigneeLabel: (assigneeAgentId?: string | null) => string;
   attachments: IssueAttachmentRecord[];
   comments: IssueCommentRecord[];
   errorMessage: string | null;
   isLoading: boolean;
   issue: IssueRecord;
-  linkedApprovalCount: number;
   onClose: () => void;
   onOpenIssue: () => void;
   parentIssueLabel: (parentIssueId?: string | null) => string;
-  priorityLabel: (value: string) => string;
   projectLabel: (projectId?: string | null) => string;
   runCardUpdate: IssueRunCardUpdateRecord | null;
   statusLabel: (value: string) => string;
@@ -8924,7 +13627,11 @@ function DashboardIssuePreviewDialogView({
   }, [onClose]);
 
   return (
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div
+      className="modal-backdrop modal-backdrop-sheet"
+      onClick={onClose}
+      role="presentation"
+    >
       <div
         aria-labelledby="dashboard-issue-preview-title"
         aria-modal="true"
@@ -8943,7 +13650,7 @@ function DashboardIssuePreviewDialogView({
             <span>{projectLabel(issue.project_id)}</span>
           </div>
           <button
-            aria-label="Close issue preview"
+            aria-label="Close conversation preview"
             className="project-dialog-close issue-dialog-close"
             onClick={onClose}
             type="button"
@@ -8958,33 +13665,28 @@ function DashboardIssuePreviewDialogView({
               <h2 id="dashboard-issue-preview-title">{issue.title}</h2>
               <p>
                 {issueDescription ||
-                  "No description yet. Open the issue detail page to add context, scope, or notes."}
+                  "No description yet. Open the conversation detail view to add context, decisions, or notes."}
               </p>
             </div>
 
             <div className="dashboard-issue-preview-summary">
               <SummaryPill label="Status" value={statusLabel(issue.status)} />
-              <SummaryPill
-                label="Priority"
-                value={priorityLabel(issue.priority)}
-              />
-              <SummaryPill
-                label="Assignee"
-                value={assigneeLabel(issue.assignee_agent_id)}
-              />
-              <SummaryPill label="Comments" value={comments.length} />
+              <SummaryPill label="Project" value={projectLabel(issue.project_id)} />
+              <SummaryPill label="Messages" value={comments.length} />
               <SummaryPill label="Attachments" value={attachments.length} />
-              <SummaryPill label="Sub-issues" value={subissueCount} />
-              <SummaryPill label="Approvals" value={linkedApprovalCount} />
+              <SummaryPill label="Queued" value={subissueCount} />
             </div>
 
             {runCardUpdate ? (
               <section className="dashboard-issue-preview-update">
                 <div className="dashboard-issue-preview-update-header">
-                  <strong>Latest run</strong>
+                  <strong>Latest model run</strong>
                   <RunStatusBadge status={runCardUpdate.run_status} />
                 </div>
-                <p>{issueRunCardUpdateSummary(runCardUpdate)}</p>
+                <p>
+                  {issueModelLabel(issue, agents)} ·{" "}
+                  {issueRunCardUpdateSummary(runCardUpdate)}
+                </p>
                 <span>
                   Last activity {formatRelativeIssueDate(runCardUpdate.last_activity_at)}
                 </span>
@@ -8997,7 +13699,7 @@ function DashboardIssuePreviewDialogView({
 
             {isLoading ? (
               <p className="issues-detail-copy muted">
-                Loading the latest issue details...
+                Loading the latest conversation details...
               </p>
             ) : null}
 
@@ -9005,9 +13707,9 @@ function DashboardIssuePreviewDialogView({
               <section className="dashboard-issue-preview-section">
                 <div className="issues-detail-subsection-header">
                   <div className="issues-detail-subsection-copy">
-                    <h3>Recent comments</h3>
+                    <h3>Recent messages</h3>
                     <p className="issues-detail-copy muted">
-                      A quick snapshot from the issue conversation.
+                      A quick snapshot from the conversation.
                     </p>
                   </div>
                 </div>
@@ -9016,11 +13718,9 @@ function DashboardIssuePreviewDialogView({
                   <div className="issues-comment-list">
                     {latestComments.map((comment) => (
                       <article className="issues-comment-card" key={comment.id}>
-                        {comment.target_agent_id ? (
-                          <div className="issues-comment-card-target">
-                            Tagged {assigneeLabel(comment.target_agent_id)}
-                          </div>
-                        ) : null}
+                        <div className="issues-comment-card-target">
+                          {issueCommentAuthorLabel(agents, comment)}
+                        </div>
                         <p>{comment.body}</p>
                         <span>{formatIssueDate(comment.created_at)}</span>
                       </article>
@@ -9028,7 +13728,7 @@ function DashboardIssuePreviewDialogView({
                   </div>
                 ) : (
                   <p className="issues-detail-copy muted">
-                    No comments yet.
+                    No messages yet.
                   </p>
                 )}
               </section>
@@ -9038,7 +13738,7 @@ function DashboardIssuePreviewDialogView({
                   <div className="issues-detail-subsection-copy">
                     <h3>Attachments</h3>
                     <p className="issues-detail-copy muted">
-                      Recent files linked to this issue.
+                      Recent files linked to this conversation.
                     </p>
                   </div>
                 </div>
@@ -9077,22 +13777,12 @@ function DashboardIssuePreviewDialogView({
                 value={statusLabel(issue.status)}
               />
               <IssuePropertyStaticRow
-                label="Priority"
-                tone={normalizeBoardIssueValue(issue.priority)}
-                value={priorityLabel(issue.priority)}
-              />
-              <IssuePropertyStaticRow
-                label="Assignee"
-                tone="agent"
-                value={assigneeLabel(issue.assignee_agent_id)}
-              />
-              <IssuePropertyStaticRow
                 label="Project"
                 tone="project"
                 value={projectLabel(issue.project_id)}
               />
               <IssuePropertyStaticRow
-                label="Parent"
+                label="Parent Conversation"
                 value={parentIssueLabel(issue.parent_id)}
               />
               <IssuePropertyStaticRow
@@ -9114,7 +13804,7 @@ function DashboardIssuePreviewDialogView({
         <div className="issue-dialog-footer dashboard-issue-preview-footer">
           <div className="issue-dialog-footer-tools">
             <span className="issues-detail-copy muted">
-              Previewing the issue from the dashboard kanban board.
+              Previewing the conversation from the dashboard board.
             </span>
           </div>
           <div className="issue-dialog-footer-actions">
@@ -9130,7 +13820,7 @@ function DashboardIssuePreviewDialogView({
               onClick={onOpenIssue}
               type="button"
             >
-              Open issue detail
+              Open conversation
             </button>
           </div>
         </div>
@@ -9840,21 +14530,27 @@ function validateApprovalDecision(
 }
 
 function ActivityRouteView({
-  approvals,
+  agents,
   issues,
   issueCommentsByIssueId,
-  onOpenApproval,
+  issueRunCardUpdatesByIssueId,
   onOpenIssue,
 }: {
-  approvals: ApprovalRecord[];
+  agents: AgentRecord[];
   issues: IssueRecord[];
   issueCommentsByIssueId: Record<string, IssueCommentRecord[]>;
-  onOpenApproval: (approvalId: string) => void;
+  issueRunCardUpdatesByIssueId: Record<string, IssueRunCardUpdateRecord>;
   onOpenIssue: (issueId: string) => void;
 }) {
   const feedItems = useMemo(
-    () => buildActivityFeedItems(approvals, issues, issueCommentsByIssueId),
-    [approvals, issues, issueCommentsByIssueId]
+    () =>
+      buildActivityFeedItems(
+        issues,
+        issueCommentsByIssueId,
+        issueRunCardUpdatesByIssueId,
+        agents
+      ),
+    [agents, issueCommentsByIssueId, issueRunCardUpdatesByIssueId, issues]
   );
 
   return (
@@ -9862,7 +14558,7 @@ function ActivityRouteView({
       <div className="route-header compact">
         <DashboardBreadcrumbs items={[{ label: "Activity" }]} />
         <span className="route-kicker">Activity</span>
-        <h1>Approvals and recent issue activity</h1>
+        <h1>Model activity and conversation messages</h1>
       </div>
 
       <div className="surface-grid single">
@@ -9877,20 +14573,13 @@ function ActivityRouteView({
                 <ActivityFeedRow
                   item={item}
                   key={item.id}
-                  onClick={() => {
-                    if (item.target.kind === "approval") {
-                      onOpenApproval(item.target.approvalId);
-                      return;
-                    }
-
-                    onOpenIssue(item.target.issueId);
-                  }}
+                  onClick={() => onOpenIssue(item.target.issueId)}
                 />
               ))}
             </div>
           ) : (
             <p className="activity-empty-text">
-              Pending approvals and recent issue activity will appear here.
+              Model runs and conversation messages will appear here.
             </p>
           )}
         </section>
@@ -9973,7 +14662,7 @@ function CostsRouteView({
         <span className="route-kicker">Costs</span>
         <h1>Budget and spend</h1>
         <p>
-          Company and agent spend from the daemon-backed board models, matching
+          Space and agent spend from the daemon-backed board models, matching
           the cost data the Swift surfaces already exposed.
         </p>
       </div>
@@ -9993,7 +14682,7 @@ function CostsRouteView({
       <div className="surface-grid">
         <section className="surface-panel wide costs-overview-panel">
           <div className="surface-header">
-            <h3>Company Budget</h3>
+            <h3>Space Budget</h3>
           </div>
 
           <div className="summary-grid">
@@ -10012,7 +14701,7 @@ function CostsRouteView({
               <span>
                 {companyBudget > 0
                   ? `${formatCents(companySpent)} spent of ${formatCents(companyBudget)} this month`
-                  : `${formatCents(companySpent)} spent this month with no company budget cap`}
+                  : `${formatCents(companySpent)} spent this month with no space budget cap`}
               </span>
             </div>
 
@@ -10066,9 +14755,9 @@ function CostsRouteView({
               <strong>{sortedAgents.length}</strong>
             </div>
             <div className="surface-list-row">
-              <span>Company Policy</span>
+              <span>Space Policy</span>
               <strong>
-                {companyBudget > 0 ? "Budget capped" : "No company cap"}
+                {companyBudget > 0 ? "Budget capped" : "No space cap"}
               </strong>
             </div>
           </div>
@@ -10090,7 +14779,7 @@ function CostsRouteView({
           <div className="workspace-empty-state">
             <h3>No agents yet</h3>
             <p>
-              Agent spend will appear here once the company has active agents.
+              Agent spend will appear here once the space has active agents.
             </p>
           </div>
         )}
@@ -10142,6 +14831,7 @@ function ProjectsRouteView({
   onDeleteProject,
   onSelectProject,
   onOpenCreateProject,
+  onUpdateProjectDefaultNewChatArea,
 }: {
   projects: ProjectRecord[];
   goals: GoalRecord[];
@@ -10151,16 +14841,29 @@ function ProjectsRouteView({
   onDeleteProject: (projectId: string) => Promise<void>;
   onSelectProject: (projectId: string) => void;
   onOpenCreateProject: () => void;
+  onUpdateProjectDefaultNewChatArea: (
+    projectId: string,
+    defaultNewChatArea: ProjectDefaultNewChatArea
+  ) => Promise<void>;
 }) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeletingProject, setIsDeletingProject] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isSavingProjectSettings, setIsSavingProjectSettings] = useState(false);
+  const [projectSettingsError, setProjectSettingsError] = useState<string | null>(
+    null
+  );
+  const [projectDefaultNewChatAreaDraft, setProjectDefaultNewChatAreaDraft] =
+    useState<ProjectDefaultNewChatArea>("repo_root");
 
   useEffect(() => {
     setIsDeleteDialogOpen(false);
     setIsDeletingProject(false);
     setDeleteError(null);
-  }, [currentProject?.id]);
+    setIsSavingProjectSettings(false);
+    setProjectSettingsError(null);
+    setProjectDefaultNewChatAreaDraft(projectDefaultNewChatArea(currentProject));
+  }, [currentProject?.execution_workspace_policy, currentProject?.id, currentProject?.updated_at]);
 
   const handleConfirmProjectDelete = async () => {
     if (!currentProject || isDeletingProject) {
@@ -10176,6 +14879,33 @@ function ProjectsRouteView({
     } catch (error) {
       setDeleteError(error instanceof Error ? error.message : String(error));
       setIsDeletingProject(false);
+    }
+  };
+
+  const handleProjectDefaultNewChatAreaChange = async (value: string) => {
+    if (!currentProject || isSavingProjectSettings) {
+      return;
+    }
+
+    const nextValue = normalizeProjectDefaultNewChatArea(value);
+    const previousValue = projectDefaultNewChatArea(currentProject);
+    setProjectDefaultNewChatAreaDraft(nextValue);
+    setProjectSettingsError(null);
+
+    if (nextValue === previousValue) {
+      return;
+    }
+
+    setIsSavingProjectSettings(true);
+    try {
+      await onUpdateProjectDefaultNewChatArea(currentProject.id, nextValue);
+    } catch (error) {
+      setProjectDefaultNewChatAreaDraft(previousValue);
+      setProjectSettingsError(
+        error instanceof Error ? error.message : String(error)
+      );
+    } finally {
+      setIsSavingProjectSettings(false);
     }
   };
 
@@ -10248,7 +14978,7 @@ function ProjectsRouteView({
                   value={goalTitleForProject(goals, currentProject.goal_id)}
                 />
                 <DetailRow
-                  label="Issues"
+                  label="Conversations"
                   value={String(currentProjectIssueCount)}
                 />
                 <DetailRow
@@ -10270,6 +15000,53 @@ function ProjectsRouteView({
                   value={currentProject.primary_workspace?.repo_ref ?? "main"}
                 />
               </div>
+
+              <section className="projects-detail-section">
+                <h3>Project Settings</h3>
+                {projectSettingsError ? (
+                  <div className="issue-dialog-alert">{projectSettingsError}</div>
+                ) : null}
+                <div className="settings-shadcn-form">
+                  <div className="settings-shadcn-field settings-shadcn-field-select">
+                    <div className="settings-shadcn-field-copy">
+                      <strong>Default new chat area</strong>
+                      <p>
+                        Choose whether new chats for this project start in the repo
+                        root or spin up a fresh worktree by default.
+                      </p>
+                    </div>
+                    <div className="settings-shadcn-field-control">
+                      <div className="issue-dialog-select-shell">
+                        <select
+                          className="issue-dialog-select"
+                          disabled={isSavingProjectSettings}
+                          onChange={(event) =>
+                            void handleProjectDefaultNewChatAreaChange(
+                              event.target.value
+                            )
+                          }
+                          value={projectDefaultNewChatAreaDraft}
+                        >
+                          {projectDefaultNewChatAreaOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        <span
+                          aria-hidden="true"
+                          className="issue-dialog-select-arrow"
+                        >
+                          v
+                        </span>
+                      </div>
+                      {isSavingProjectSettings ? (
+                        <p className="projects-settings-saving">Saving…</p>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </section>
             </div>
           ) : (
             <div className="workspace-empty-state projects-empty-state-panel">
@@ -10296,7 +15073,7 @@ function ProjectsRouteView({
             </div>
           ) : (
             <p className="projects-empty-text">
-              Projects define the main repo anchor that issue worktrees run
+              Projects define the main repo anchor that conversation worktrees run
               inside.
             </p>
           )}
@@ -10356,7 +15133,7 @@ function GoalsRouteView({
         <h1>Board objectives and hierarchy</h1>
         <p>
           Goals are already loaded from the daemon and used during project
-          planning. This route surfaces them directly in the company shell.
+          planning. This route surfaces them directly in the space shell.
         </p>
       </div>
 
@@ -10587,7 +15364,7 @@ function DeleteProjectDialogView({
               Delete {project.name ?? project.title ?? "project"}?
             </h2>
             <p id="delete-project-dialog-description">
-              This will permanently delete this project, all related issues, and
+              This will permanently delete this project, all related conversations, and
               all related worktrees. This action cannot be undone.
             </p>
           </div>
@@ -10612,7 +15389,7 @@ function DeleteProjectDialogView({
           <div className="project-delete-impact-grid">
             <div className="project-delete-impact-card">
               <strong>{issueCount}</strong>
-              <span>Issues will be deleted</span>
+              <span>Conversations will be deleted</span>
             </div>
             <div className="project-delete-impact-card">
               <strong>{workspaceCount}</strong>
@@ -10621,7 +15398,7 @@ function DeleteProjectDialogView({
           </div>
 
           <p className="project-delete-warning">
-            Repository records stay intact, but every board issue and worktree
+            Repository records stay intact, but every board conversation and worktree
             anchored to this project will be removed.
           </p>
         </div>
@@ -10866,15 +15643,15 @@ function CreateCompanyDialogView({
       >
         <div className="project-dialog-header">
           <div className="project-dialog-title-block">
-            <h2 id="create-company-dialog-title">New company</h2>
+            <h2 id="create-company-dialog-title">New space</h2>
             <p>
-              Add a company shell to the board so you can start routing agents,
-              issues, and projects into it.
+              Create a space for projects and conversations. A default local
+              executor will be prepared automatically.
             </p>
           </div>
 
           <button
-            aria-label="Close create company dialog"
+            aria-label="Close create space dialog"
             className="project-dialog-close"
             onClick={onClose}
             type="button"
@@ -10892,7 +15669,7 @@ function CreateCompanyDialogView({
 
           <div className="project-dialog-stack">
             <label className="project-dialog-field project-dialog-field-full">
-              <span className="issue-dialog-label">Company name</span>
+              <span className="issue-dialog-label">Space name</span>
               <input
                 autoFocus
                 className="issue-dialog-input"
@@ -10902,7 +15679,7 @@ function CreateCompanyDialogView({
                 value={name}
               />
               <small className="issue-dialog-hint">
-                Shown in the companies rail, dashboard, and board context menus.
+                Shown in the spaces rail, dashboard, and space menus.
               </small>
             </label>
 
@@ -10911,11 +15688,11 @@ function CreateCompanyDialogView({
               <textarea
                 className="issue-dialog-input issue-dialog-textarea"
                 onChange={(event) => onDescriptionChange(event.target.value)}
-                placeholder="Optional context for what this company owns or how it should operate inside the board..."
+                placeholder="Optional context for what this space owns or how it should operate..."
                 value={description}
               />
               <small className="issue-dialog-hint">
-                Optional setup context you can refine later from company
+                Optional setup context you can refine later from space
                 settings.
               </small>
             </label>
@@ -10930,7 +15707,7 @@ function CreateCompanyDialogView({
                 value={brandColor}
               />
               <small className="issue-dialog-hint">
-                Optional hex color used for the company badge in the rail.
+                Optional hex color used for the space badge in the rail.
               </small>
             </label>
           </div>
@@ -10951,7 +15728,7 @@ function CreateCompanyDialogView({
             onClick={onCreate}
             type="button"
           >
-            {isSaving ? "Creating company..." : "Create company"}
+            {isSaving ? "Creating space..." : "Create space"}
           </button>
         </div>
       </div>
@@ -10994,61 +15771,73 @@ function ProjectDialogSelectField({
 
 function CreateIssueDialogView({
   companyPrefix,
+  command,
+  dependencyCheck,
   title,
   description,
   attachments,
-  selectedPriority,
+  enableChrome,
+  model,
   selectedProjectId,
-  selectedStatus,
-  selectedAssigneeAgentId,
-  priorities,
-  statuses,
   projects,
-  agents,
   isSaving,
   errorMessage,
+  mode,
+  planMode,
+  parentConversationTitle,
   onAddAttachment,
+  onCommandChange,
   onTitleChange,
   onDescriptionChange,
-  onPriorityChange,
-  onStatusChange,
+  onEnableChromeChange,
+  onModelChange,
+  onPlanModeChange,
   onProjectChange,
   onRemoveAttachment,
+  onSkipPermissionsChange,
+  onThinkingEffortChange,
   onWorkspaceTargetChange,
-  onAssigneeChange,
   onCreate,
   onClose,
   selectedWorkspaceTargetValue,
+  skipPermissions,
+  thinkingEffort,
   workspaceTargetErrorMessage,
   workspaceTargetLoading,
   workspaceTargetWorktrees,
 }: {
   companyPrefix: string;
+  command: string;
+  dependencyCheck: RuntimeCapabilities | null;
   title: string;
   description: string;
   attachments: IssueAttachmentDraft[];
-  selectedPriority: string;
+  enableChrome: boolean;
+  model: string;
   selectedProjectId: string;
-  selectedStatus: string;
-  selectedAssigneeAgentId: string;
-  priorities: string[];
-  statuses: string[];
   projects: ProjectRecord[];
-  agents: AgentRecord[];
   isSaving: boolean;
   errorMessage: string | null;
+  mode: IssueDialogMode;
+  planMode: boolean;
+  parentConversationTitle?: string | null;
   onAddAttachment: () => void;
+  onCommandChange: (value: string) => void;
   onTitleChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
-  onPriorityChange: (value: string) => void;
-  onStatusChange: (value: string) => void;
+  onEnableChromeChange: (checked: boolean) => void;
+  onModelChange: (value: string) => void;
+  onPlanModeChange: (checked: boolean) => void;
   onProjectChange: (value: string) => void;
   onRemoveAttachment: (path: string) => void;
+  onSkipPermissionsChange: (checked: boolean) => void;
+  onThinkingEffortChange: (value: string) => void;
   onWorkspaceTargetChange: (value: string) => void;
-  onAssigneeChange: (value: string) => void;
   onCreate: () => void;
   onClose: () => void;
   selectedWorkspaceTargetValue: string;
+  skipPermissions: boolean;
+  thinkingEffort: string;
   workspaceTargetErrorMessage: string | null;
   workspaceTargetLoading: boolean;
   workspaceTargetWorktrees: GitWorktreeRecord[];
@@ -11056,10 +15845,10 @@ function CreateIssueDialogView({
   const issueCompanyPrefix = stringFromUnknown(companyPrefix, "ISS");
   const issueTitle = stringFromUnknown(title);
   const issueDescription = stringFromUnknown(description);
-  const issuePriority = stringFromUnknown(selectedPriority);
-  const issueStatus = stringFromUnknown(selectedStatus);
+  const issueCommand = stringFromUnknown(command, "claude");
+  const issueModel = stringFromUnknown(model, "default");
   const issueProjectId = stringFromUnknown(selectedProjectId);
-  const issueAssigneeAgentId = stringFromUnknown(selectedAssigneeAgentId);
+  const issueThinkingEffort = stringFromUnknown(thinkingEffort, "auto");
   const issueWorkspaceTargetValue = stringFromUnknown(
     selectedWorkspaceTargetValue,
     "main"
@@ -11071,6 +15860,9 @@ function CreateIssueDialogView({
     ? stringFromUnknown(workspaceTargetErrorMessage)
     : null;
   const isSavingIssue = booleanFromUnknown(isSaving);
+  const isPlanMode = booleanFromUnknown(planMode);
+  const isEnableChrome = booleanFromUnknown(enableChrome);
+  const isSkipPermissions = booleanFromUnknown(skipPermissions);
   const attachmentDrafts = arrayFromUnknown(attachments).filter(
     (attachment): attachment is IssueAttachmentDraft =>
       Boolean(attachment) &&
@@ -11078,37 +15870,29 @@ function CreateIssueDialogView({
       typeof (attachment as IssueAttachmentDraft).path === "string" &&
       typeof (attachment as IssueAttachmentDraft).name === "string"
   );
-  const priorityOptions = arrayFromUnknown(priorities).filter(
-    (priority): priority is string => typeof priority === "string"
-  );
-  const statusOptions = arrayFromUnknown(statuses).filter(
-    (status): status is string => typeof status === "string"
-  );
   const projectOptions = arrayFromUnknown(projects).filter(
     (project): project is ProjectRecord =>
       Boolean(project) &&
       typeof project === "object" &&
       typeof (project as ProjectRecord).id === "string"
   );
-  const agentOptions = arrayFromUnknown(agents).filter(
-    (agent): agent is AgentRecord =>
-      Boolean(agent) &&
-      typeof agent === "object" &&
-      typeof (agent as AgentRecord).id === "string"
-  );
   const worktreeOptions = normalizeGitWorktreeRecords(
     workspaceTargetWorktrees
   );
-  const issueValidationMessage = issueStatusAssigneeValidationMessage(
-    issueStatus,
-    issueAssigneeAgentId,
-    agentOptions
-  );
-  const visibleIssueErrorMessage = issueValidationMessage ?? issueErrorMessage;
+  const dialogTitle =
+    mode === "queuedMessage" ? "Queue message" : "New conversation";
+  const issueProjectValidationMessage =
+    projectOptions.length === 0
+      ? mode === "queuedMessage"
+        ? "Create a project before queueing messages."
+        : "Create a project before creating a conversation."
+      : null;
+  const visibleIssueErrorMessage = issueErrorMessage ?? issueProjectValidationMessage;
   const canCreate =
     !isSavingIssue &&
     issueTitle.trim().length > 0 &&
-    issueValidationMessage === null;
+    issueProjectId.trim().length > 0 &&
+    issueProjectValidationMessage === null;
   const selectedProject =
     projectOptions.find((project) => project.id === issueProjectId) ?? null;
   const selectedProjectRepoPath =
@@ -11133,6 +15917,26 @@ function CreateIssueDialogView({
     isLoading: workspaceTargetLoading,
     worktreeCount: worktreeOptions.length,
   });
+  const runtimeProvider = detectAgentCliProvider(issueCommand, issueModel);
+  const runtimeModelOptions = buildAgentModelOptions(
+    { command: issueCommand, model: issueModel },
+    dependencyCheck
+  );
+  const runtimeThinkingEffortOptions = mergeIssueOptions(
+    ["auto", "low", "medium", "high"],
+    issueThinkingEffort
+  );
+  const runtimeProviderOptions = buildIssueRuntimeProviderOptions(
+    dependencyCheck,
+    issueCommand,
+    issueModel
+  );
+  const browserToggleLabel =
+    runtimeProvider === "codex" ? "Enable web search" : "Enable Chrome";
+  const browserToggleDescription =
+    runtimeProvider === "codex"
+      ? "Expose Codex web search during runs."
+      : "Allow browser automation inside Claude runs.";
 
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
@@ -11151,10 +15955,14 @@ function CreateIssueDialogView({
             <span aria-hidden="true" className="issue-dialog-breadcrumb-sep">
               &gt;
             </span>
-            <span id="create-issue-dialog-title">New issue</span>
+            <span id="create-issue-dialog-title">{dialogTitle}</span>
           </div>
           <button
-            aria-label="Close create issue dialog"
+            aria-label={
+              mode === "queuedMessage"
+                ? "Close queue message dialog"
+                : "Close create conversation dialog"
+            }
             className="project-dialog-close issue-dialog-close"
             onClick={onClose}
             type="button"
@@ -11175,32 +15983,31 @@ function CreateIssueDialogView({
               autoFocus
               className="issue-dialog-title-input"
               onChange={(event) => onTitleChange(event.target.value)}
-              placeholder="Issue title"
+              placeholder={
+                mode === "queuedMessage"
+                  ? "Queued message title"
+                  : "Conversation title"
+              }
               value={issueTitle}
             />
 
+            <p className="issue-dialog-inline-hint">
+              {mode === "queuedMessage"
+                ? `This follow-up will stay attached to ${parentConversationTitle ?? "the parent conversation"} until you open it.`
+                : "Keep it lightweight: capture the context, attach files, and point the conversation at a project."}
+            </p>
+
             <div className="issue-dialog-inline-row">
-              <span className="issue-dialog-inline-copy">For</span>
-              <IssueDialogInlineSelect
-                ariaLabel="Select assignee"
-                onChange={onAssigneeChange}
-                value={issueAssigneeAgentId}
-              >
-                <option value="">Assignee</option>
-                {agentOptions.map((agent) => (
-                  <option key={agent.id} value={agent.id}>
-                    {agent.name || agent.title || agent.role || agent.id}
-                  </option>
-                ))}
-              </IssueDialogInlineSelect>
-              <span className="issue-dialog-inline-copy">in</span>
+              <span className="issue-dialog-inline-copy">Project</span>
               <IssueDialogInlineSelect
                 ariaLabel="Select project"
                 className="issue-dialog-inline-select-project"
                 onChange={onProjectChange}
                 value={issueProjectId}
               >
-                <option value="">Project</option>
+                <option disabled value="">
+                  {projectOptions.length ? "Select project" : "Create project"}
+                </option>
                 {projectOptions.map((project) => (
                   <option key={project.id} value={project.id}>
                     {project.name ?? project.title ?? project.id}
@@ -11253,6 +16060,110 @@ function CreateIssueDialogView({
                 </p>
               </div>
             ) : null}
+
+            <div className="agent-config-section issue-dialog-runtime-section">
+              <div className="surface-header">
+                <div>
+                  <h3>Model configuration</h3>
+                  <p className="issue-dialog-inline-hint">
+                    Choose which local model runs this conversation and how
+                    much autonomy it gets.
+                  </p>
+                </div>
+              </div>
+              <div className="agent-config-grid">
+                <AgentConfigField
+                  htmlFor="issue-dialog-command"
+                  label="Provider"
+                >
+                  <AgentConfigSelect
+                    ariaLabel="Conversation provider"
+                    id="issue-dialog-command"
+                    onChange={(value) => {
+                      onCommandChange(value);
+                      if (detectAgentCliProvider(value, issueModel) !== "claude") {
+                        onPlanModeChange(false);
+                      }
+                    }}
+                    value={issueCommand}
+                  >
+                    {runtimeProviderOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </AgentConfigSelect>
+                </AgentConfigField>
+
+                <AgentConfigField
+                  htmlFor="issue-dialog-model"
+                  label="Model"
+                >
+                  <AgentConfigSelect
+                    ariaLabel="Conversation model"
+                    id="issue-dialog-model"
+                    onChange={onModelChange}
+                    value={issueModel}
+                  >
+                    {runtimeModelOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option === "default" ? "Default" : option}
+                      </option>
+                    ))}
+                  </AgentConfigSelect>
+                </AgentConfigField>
+
+                <AgentConfigField
+                  htmlFor="issue-dialog-thinking"
+                  label="Thinking effort"
+                >
+                  <AgentConfigSelect
+                    ariaLabel="Conversation thinking effort"
+                    id="issue-dialog-thinking"
+                    onChange={onThinkingEffortChange}
+                    value={issueThinkingEffort}
+                  >
+                    {runtimeThinkingEffortOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {capitalize(option)}
+                      </option>
+                    ))}
+                  </AgentConfigSelect>
+                </AgentConfigField>
+
+                <AgentConfigField
+                  htmlFor="issue-dialog-plan-mode"
+                  label="Plan mode"
+                >
+                  <AgentConfigSelect
+                    ariaLabel="Conversation plan mode"
+                    id="issue-dialog-plan-mode"
+                    onChange={(value) => onPlanModeChange(value === "plan")}
+                    value={isPlanMode ? "plan" : "default"}
+                  >
+                    <option value="default">Off</option>
+                    <option disabled={runtimeProvider !== "claude"} value="plan">
+                      Claude plan mode
+                    </option>
+                  </AgentConfigSelect>
+                </AgentConfigField>
+              </div>
+
+              <div className="agent-config-toggle-grid">
+                <AgentConfigToggleField
+                  checked={isEnableChrome}
+                  description={browserToggleDescription}
+                  label={browserToggleLabel}
+                  onChange={onEnableChromeChange}
+                />
+                <AgentConfigToggleField
+                  checked={isSkipPermissions}
+                  description="Let the model run without daemon approval prompts."
+                  label="Skip permissions"
+                  onChange={onSkipPermissionsChange}
+                />
+              </div>
+            </div>
           </div>
 
           <div className="issue-dialog-divider" />
@@ -11261,7 +16172,11 @@ function CreateIssueDialogView({
             <textarea
               className="issue-dialog-description-input"
               onChange={(event) => onDescriptionChange(event.target.value)}
-              placeholder="Add description..."
+              placeholder={
+                mode === "queuedMessage"
+                  ? "Add the message or follow-up you want to queue for later..."
+                  : "Add context, goals, or the next thing a model should pick up..."
+              }
               value={issueDescription}
             />
 
@@ -11272,7 +16187,7 @@ function CreateIssueDialogView({
                     <h3>Attachments</h3>
                     <p className="issues-detail-copy muted">
                       These files will be copied into the board storage and
-                      linked to the issue when it is created.
+                      linked to the conversation when it is created.
                     </p>
                   </div>
                 </div>
@@ -11304,30 +16219,6 @@ function CreateIssueDialogView({
 
         <div className="issue-dialog-footer">
           <div className="issue-dialog-footer-tools">
-            <IssueDialogFooterSelect
-              ariaLabel="Select issue status"
-              onChange={onStatusChange}
-              value={issueStatus}
-            >
-              {statusOptions.map((status) => (
-                <option key={status} value={status}>
-                  {humanizeIssueValue(status)}
-                </option>
-              ))}
-            </IssueDialogFooterSelect>
-
-            <IssueDialogFooterSelect
-              ariaLabel="Select issue priority"
-              onChange={onPriorityChange}
-              value={issuePriority}
-            >
-              {priorityOptions.map((priority) => (
-                <option key={priority} value={priority}>
-                  {humanizeIssueValue(priority)}
-                </option>
-              ))}
-            </IssueDialogFooterSelect>
-
             <button
               className="issue-dialog-footer-chip issue-dialog-footer-chip-button"
               disabled={isSavingIssue}
@@ -11354,7 +16245,13 @@ function CreateIssueDialogView({
               onClick={onCreate}
               type="button"
             >
-              {isSavingIssue ? "Creating..." : "Create Issue"}
+              {isSavingIssue
+                ? mode === "queuedMessage"
+                  ? "Queueing..."
+                  : "Creating..."
+                : mode === "queuedMessage"
+                  ? "Queue Message"
+                  : "Create Conversation"}
             </button>
           </div>
         </div>
@@ -11398,34 +16295,6 @@ function IssueDialogInlineSelect({
         {children}
       </select>
       <span aria-hidden="true" className="issue-dialog-inline-select-arrow">
-        ▼
-      </span>
-    </div>
-  );
-}
-
-function IssueDialogFooterSelect({
-  ariaLabel,
-  children,
-  onChange,
-  value,
-}: {
-  ariaLabel: string;
-  children: ReactNode;
-  onChange: (value: string) => void;
-  value: string;
-}) {
-  return (
-    <div className="issue-dialog-footer-chip">
-      <select
-        aria-label={ariaLabel}
-        className="issue-dialog-footer-chip-control"
-        onChange={(event) => onChange(event.target.value)}
-        value={value}
-      >
-        {children}
-      </select>
-      <span aria-hidden="true" className="issue-dialog-footer-chip-arrow">
         ▼
       </span>
     </div>
@@ -11966,6 +16835,275 @@ function WorkspaceCenterTabButton({
   );
 }
 
+function IssueWorkspaceInspectorMeta({
+  agents,
+  availableStatusOptions,
+  issue,
+  issueDraft,
+  issueEditorError,
+  isSavingIssue,
+  onCommitIssuePatch,
+  onIssueDraftChange,
+  projects,
+  selectableParentIssues,
+  statusLabel,
+  workspaceTargetErrorMessage,
+  workspaceTargetLoading,
+  workspaceTargetWorktrees,
+}: {
+  agents: AgentRecord[];
+  availableStatusOptions: string[];
+  issue: IssueRecord;
+  issueDraft: IssueEditDraft;
+  issueEditorError: string | null;
+  isSavingIssue: boolean;
+  onCommitIssuePatch: (patch: Partial<IssueEditDraft>) => void;
+  onIssueDraftChange: (patch: Partial<IssueEditDraft>) => void;
+  projects: ProjectRecord[];
+  selectableParentIssues: IssueRecord[];
+  statusLabel: (value: string) => string;
+  workspaceTargetErrorMessage: string | null;
+  workspaceTargetLoading: boolean;
+  workspaceTargetWorktrees: GitWorktreeRecord[];
+}) {
+  const issueValidationMessage = issueStatusAssigneeValidationMessage(
+    issueDraft.status,
+    issueDraft.assigneeAgentId,
+    agents
+  );
+  const visibleIssueEditorError = issueValidationMessage ?? issueEditorError;
+  const selectedProject =
+    projects.find((project) => project.id === issueDraft.projectId) ?? null;
+  const selectedProjectRepoPath =
+    selectedProject?.primary_workspace?.cwd ?? null;
+  const selectedWorkspaceTargetValue = issueWorkspaceTargetSelectValue(
+    issueDraft.workspaceTargetMode,
+    issueDraft.workspaceWorktreePath
+  );
+  const workspaceTargetHint = issueWorkspaceTargetHint({
+    errorMessage: workspaceTargetErrorMessage,
+    hasProject: Boolean(selectedProject),
+    hasRepoPath: Boolean(selectedProjectRepoPath),
+    isLoading: workspaceTargetLoading,
+    worktreeCount: workspaceTargetWorktrees.length,
+  });
+  const fallbackSelectedWorktree =
+    selectedWorkspaceTargetValue.startsWith("existing:") &&
+    !workspaceTargetWorktrees.some(
+      (worktree) =>
+        existingWorktreeTargetValue(worktree.path) ===
+        selectedWorkspaceTargetValue
+    )
+      ? {
+          name:
+            issueDraft.workspaceWorktreeName ||
+            fileName(issueDraft.workspaceWorktreePath),
+          path: issueDraft.workspaceWorktreePath,
+        }
+      : null;
+
+  const commitPropertyPatch = (patch: Partial<IssueEditDraft>) => {
+    onIssueDraftChange(patch);
+    onCommitIssuePatch(patch);
+  };
+
+  return (
+    <div className="workspace-issue-sidebar">
+      {visibleIssueEditorError ? (
+        <div className="issue-dialog-alert">{visibleIssueEditorError}</div>
+      ) : null}
+
+      <section className="workspace-issue-sidebar-section">
+        <div className="workspace-issue-sidebar-header">
+          <span className="route-kicker">Issue</span>
+          <h3>{issue.identifier ?? issue.id}</h3>
+          <p>{issueDraft.title.trim() || issue.title}</p>
+        </div>
+
+        <IssuePropertySelectRow
+          disabled={isSavingIssue}
+          label="Status"
+          tone={normalizeBoardIssueValue(issueDraft.status)}
+          onChange={(value) => commitPropertyPatch({ status: value })}
+          value={issueDraft.status}
+        >
+          {availableStatusOptions.map((status) => (
+            <option key={status} value={status}>
+              {statusLabel(status)}
+            </option>
+          ))}
+        </IssuePropertySelectRow>
+
+        <IssuePropertySelectRow
+          disabled={isSavingIssue}
+          label="Assignee"
+          tone="neutral"
+          onChange={(value) =>
+            commitPropertyPatch({
+              assigneeAgentId: value,
+            })
+          }
+          value={issueDraft.assigneeAgentId}
+        >
+          <option value="">Unassigned</option>
+          {agents.map((agent) => (
+            <option key={agent.id} value={agent.id}>
+              {agent.name || agent.title || agent.role || agent.id}
+            </option>
+          ))}
+        </IssuePropertySelectRow>
+
+        <IssuePropertySelectRow
+          disabled={isSavingIssue}
+          label="Project"
+          tone="project"
+          onChange={(value) =>
+            commitPropertyPatch({
+              projectId: value,
+              workspaceTargetMode: "main",
+              workspaceWorktreePath: "",
+              workspaceWorktreeBranch: "",
+              workspaceWorktreeName: "",
+            })
+          }
+          value={issueDraft.projectId}
+        >
+          <option disabled value="">
+            {projects.length ? "Select project" : "Create project"}
+          </option>
+          {projects.map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.name ?? project.title ?? project.id}
+            </option>
+          ))}
+        </IssuePropertySelectRow>
+
+        <IssuePropertySelectRow
+          disabled={isSavingIssue || !selectedProjectRepoPath}
+          hint={workspaceTargetHint}
+          label="Worktree target"
+          tone="neutral"
+          onChange={(value) =>
+            commitPropertyPatch(
+              issueWorkspaceDraftPatchFromSelection(
+                value,
+                workspaceTargetWorktrees,
+                issueDraft
+              )
+            )
+          }
+          value={selectedWorkspaceTargetValue}
+        >
+          <option value="main">Repo root</option>
+          <option value="new_worktree">New git worktree</option>
+          {workspaceTargetWorktrees.map((worktree) => (
+            <option
+              key={worktree.path}
+              value={existingWorktreeTargetValue(worktree.path)}
+            >
+              {worktree.branch
+                ? `${worktree.name} · ${worktree.branch}`
+                : worktree.name}
+            </option>
+          ))}
+          {fallbackSelectedWorktree ? (
+            <option
+              value={existingWorktreeTargetValue(fallbackSelectedWorktree.path)}
+            >
+              {fallbackSelectedWorktree.name}
+            </option>
+          ) : null}
+        </IssuePropertySelectRow>
+
+        <IssuePropertySelectRow
+          disabled={isSavingIssue}
+          label="Parent"
+          tone="neutral"
+          onChange={(value) => commitPropertyPatch({ parentId: value })}
+          value={issueDraft.parentId}
+        >
+          <option value="">No parent conversation</option>
+          {selectableParentIssues.map((parentIssue) => (
+            <option key={parentIssue.id} value={parentIssue.id}>
+              {parentIssue.identifier ?? parentIssue.title}
+            </option>
+          ))}
+        </IssuePropertySelectRow>
+      </section>
+
+      <section className="workspace-issue-sidebar-section">
+        <IssuePropertyStaticRow
+          label="Provider"
+          value={providerLabelForRuntimeConfig(issueDraft.command, issueDraft.model)}
+        />
+        <IssuePropertyStaticRow
+          label="Model"
+          value={issueDraft.model === "default" ? "Default" : issueDraft.model}
+        />
+        <IssuePropertyStaticRow
+          label="Started"
+          value={
+            issue.started_at ? formatBoardDate(issue.started_at) : "Not started"
+          }
+        />
+        <IssuePropertyStaticRow
+          label="Completed"
+          value={
+            issue.completed_at
+              ? formatBoardDate(issue.completed_at)
+              : "Not completed"
+          }
+        />
+        <IssuePropertyStaticRow
+          label="Created"
+          value={formatBoardDate(issue.created_at)}
+        />
+        <IssuePropertyStaticRow
+          label="Updated"
+          value={formatRelativeIssueDate(issue.updated_at)}
+        />
+      </section>
+    </div>
+  );
+}
+
+function IssueWorkspaceSummaryMeta({
+  agents,
+  issue,
+  projects,
+  statusLabel,
+}: {
+  agents: AgentRecord[];
+  issue: IssueRecord;
+  projects: ProjectRecord[];
+  statusLabel: (value: string) => string;
+}) {
+  return (
+    <div className="workspace-issue-sidebar">
+      <section className="workspace-issue-sidebar-section">
+        <div className="workspace-issue-sidebar-header">
+          <span className="route-kicker">Issue</span>
+          <h3>{issue.identifier ?? issue.id}</h3>
+          <p>{issue.title}</p>
+        </div>
+        <IssuePropertyStaticRow label="Status" value={statusLabel(issue.status)} />
+        <IssuePropertyStaticRow
+          label="Assignee"
+          value={issueAssigneeLabel(agents, issue.assignee_agent_id)}
+        />
+        <IssuePropertyStaticRow
+          label="Project"
+          value={issueProjectLabel(projects, issue.project_id)}
+        />
+        <IssuePropertyStaticRow
+          label="Updated"
+          value={formatRelativeIssueDate(issue.updated_at)}
+        />
+      </section>
+    </div>
+  );
+}
+
 function WorkspaceSidebarTabButton({
   active,
   count,
@@ -12000,6 +17138,7 @@ function WorkspaceInspectorSidebar({
   gitHistory,
   gitState,
   hasUncommittedChanges,
+  issueMeta,
   hasUnpushedCommits,
   isWorking,
   selectedDiff,
@@ -12025,6 +17164,7 @@ function WorkspaceInspectorSidebar({
   gitHistory: GitLogResult | null;
   gitState: GitStatusResult | null;
   hasUncommittedChanges: boolean;
+  issueMeta?: ReactNode;
   hasUnpushedCommits: boolean;
   isWorking: boolean;
   selectedDiff: GitDiffResult | null;
@@ -12049,7 +17189,7 @@ function WorkspaceInspectorSidebar({
           <h3>Worktree Details</h3>
           <div className="workspace-detail-grid">
             <DetailRow
-              label="Issue"
+              label="Conversation"
               value={
                 workspace.issue_identifier ?? workspace.issue_id ?? "Missing"
               }
@@ -12139,6 +17279,13 @@ function WorkspaceInspectorSidebar({
             label="Commits"
             onClick={() => onSelectSidebarTab("commits")}
           />
+          {issueMeta ? (
+            <WorkspaceSidebarTabButton
+              active={workspaceSidebarTab === "issue"}
+              label="Issue"
+              onClick={() => onSelectSidebarTab("issue")}
+            />
+          ) : null}
         </div>
 
         {workspaceSidebarTab === "changes" ? (
@@ -12236,6 +17383,12 @@ function WorkspaceInspectorSidebar({
             </div>
           </div>
         ) : null}
+
+        {workspaceSidebarTab === "issue" && issueMeta ? (
+          <div className="workspace-sidebar-content workspace-sidebar-issue-content">
+            {issueMeta}
+          </div>
+        ) : null}
       </section>
     </aside>
   );
@@ -12274,27 +17427,6 @@ function CompanyContextMenuIcon({
             stroke="currentColor"
             strokeLinecap="round"
             strokeWidth="1.4"
-          />
-        </svg>
-      );
-    case "org":
-      return (
-        <svg
-          aria-hidden="true"
-          className={className}
-          fill="none"
-          viewBox="0 0 16 16"
-        >
-          <path
-            d="M8 2.5a1.75 1.75 0 1 1 0 3.5a1.75 1.75 0 0 1 0-3.5ZM3.75 10.25a1.5 1.5 0 1 1 0 3a1.5 1.5 0 0 1 0-3ZM12.25 10.25a1.5 1.5 0 1 1 0 3a1.5 1.5 0 0 1 0-3Z"
-            stroke="currentColor"
-            strokeWidth="1.3"
-          />
-          <path
-            d="M8 6v2.25M4 10.25V9h8v1.25"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeWidth="1.3"
           />
         </svg>
       );
@@ -12616,8 +17748,6 @@ function screenLabel(screen: AppScreen) {
   switch (screen) {
     case "dashboard":
       return "Dashboard";
-    case "org":
-      return "Org";
     case "stats":
       return "Stats";
     case "inbox":
@@ -12627,7 +17757,7 @@ function screenLabel(screen: AppScreen) {
     case "agents":
       return "Agents";
     case "issues":
-      return "Issues";
+      return "Conversations";
     case "approvals":
       return "Approvals";
     case "projects":
@@ -12660,8 +17790,6 @@ function sidebarScreenIcon(
       return "approvals";
     case "goals":
       return "goals";
-    case "org":
-      return "org";
     case "stats":
       return "stats";
     case "activity":
@@ -12701,10 +17829,6 @@ function boardRootLayout(screen: AppScreen): BoardRootLayout {
 }
 
 function preferredViewForScreen(screen: AppScreen) {
-  if (screen === "org") {
-    return "org";
-  }
-
   if (screen === "workspaces") {
     return "workspaces";
   }
@@ -12738,7 +17862,7 @@ function normalizeScreen(view: string | null | undefined): AppScreen {
   }
 
   if (view === "org") {
-    return "org";
+    return "dashboard";
   }
 
   if (view === "activity") {
@@ -12772,7 +17896,7 @@ function preferredViewSelectValue(
   }
 
   if (view === "org") {
-    return "org";
+    return "dashboard";
   }
 
   if (view === "activity") {
@@ -12872,7 +17996,9 @@ function capitalize(value: string) {
 }
 
 function createEmptyIssueDraft(): IssueEditDraft {
+  const runtimeDraft = createDefaultIssueRuntimeDraft(null);
   return {
+    ...runtimeDraft,
     title: "",
     description: "",
     status: "todo",
@@ -12891,8 +18017,10 @@ function createIssueDraft(issue: IssueRecord): IssueEditDraft {
   const workspaceDraft = parseIssueExecutionWorkspaceSettings(
     issue.execution_workspace_settings
   );
+  const runtimeDraft = parseIssueAdapterOverrides(issue.assignee_adapter_overrides);
 
   return {
+    ...runtimeDraft,
     title: issue.title,
     description: issue.description ?? "",
     status: normalizeBoardIssueValue(issue.status),
@@ -13125,6 +18253,59 @@ function numberFromUnknown(value: unknown) {
     : undefined;
 }
 
+function normalizeProjectDefaultNewChatArea(
+  value: unknown
+): ProjectDefaultNewChatArea {
+  return value === "new_worktree" ? "new_worktree" : "repo_root";
+}
+
+function projectExecutionWorkspacePolicy(
+  project: ProjectRecord | null | undefined
+) {
+  return objectFromUnknown(project?.execution_workspace_policy);
+}
+
+function projectDefaultNewChatArea(
+  project: ProjectRecord | null | undefined
+): ProjectDefaultNewChatArea {
+  return normalizeProjectDefaultNewChatArea(
+    projectExecutionWorkspacePolicy(project).default_new_chat_area
+  );
+}
+
+function projectDefaultNewChatAreaLabel(value: ProjectDefaultNewChatArea) {
+  return value === "new_worktree" ? "New worktree" : "Repo root";
+}
+
+function projectDefaultNewChatWorkspaceDefaults(
+  project: ProjectRecord | null | undefined
+): Pick<
+  IssueEditDraft,
+  | "workspaceTargetMode"
+  | "workspaceWorktreePath"
+  | "workspaceWorktreeBranch"
+  | "workspaceWorktreeName"
+> {
+  const defaultArea = projectDefaultNewChatArea(project);
+  return {
+    workspaceTargetMode:
+      defaultArea === "new_worktree" ? "new_worktree" : "main",
+    workspaceWorktreePath: "",
+    workspaceWorktreeBranch: "",
+    workspaceWorktreeName: "",
+  };
+}
+
+function projectExecutionWorkspacePolicyWithDefaultNewChatArea(
+  project: ProjectRecord | null | undefined,
+  defaultNewChatArea: ProjectDefaultNewChatArea
+) {
+  return {
+    ...projectExecutionWorkspacePolicy(project),
+    default_new_chat_area: defaultNewChatArea,
+  };
+}
+
 function numericInputValue(value: unknown) {
   return typeof value === "number" && Number.isFinite(value)
     ? String(value)
@@ -13239,8 +18420,41 @@ function buildAgentCommandOptions(
   return options;
 }
 
+function buildIssueRuntimeProviderOptions(
+  dependencyCheck: RuntimeCapabilities | null,
+  command: string,
+  model: string
+) {
+  const options: Array<{ label: string; value: string }> = [];
+  const seen = new Set<string>();
+
+  const pushOption = (provider: AgentCliProvider) => {
+    if (provider !== "claude" && provider !== "codex") {
+      return;
+    }
+    const value = defaultIssueRuntimeCommandForProvider(
+      provider,
+      dependencyCheck
+    );
+    if (seen.has(value)) {
+      return;
+    }
+    seen.add(value);
+    options.push({
+      label: provider === "codex" ? "Codex" : "Claude",
+      value,
+    });
+  };
+
+  pushOption(detectAgentCliProvider(command, model));
+  pushOption("claude");
+  pushOption("codex");
+
+  return options;
+}
+
 function buildAgentModelOptions(
-  draft: Pick<AgentConfigDraft, "command" | "model">,
+  draft: Pick<IssueRuntimeDraft, "command" | "model">,
   dependencyCheck: RuntimeCapabilities | null
 ) {
   const provider = detectAgentCliProvider(draft.command, draft.model);
@@ -13286,33 +18500,14 @@ const canonicalIssueStatuses = [
   "cancelled",
 ];
 
-function hasAssignedAgent(
-  assigneeAgentId: string | null | undefined,
-  agents: AgentRecord[]
-) {
-  const trimmedAssigneeAgentId = assigneeAgentId?.trim() ?? "";
-  return (
-    trimmedAssigneeAgentId.length > 0 &&
-    agents.some((agent) => agent.id === trimmedAssigneeAgentId)
-  );
-}
-
 function issueStatusAssigneeValidationMessage(
   status: string | null | undefined,
   assigneeAgentId: string | null | undefined,
   agents: AgentRecord[]
 ) {
-  const hasAgentAssignee = hasAssignedAgent(assigneeAgentId, agents);
-  const normalizedStatus = normalizeBoardIssueValue(status);
-
-  if (normalizedStatus === "todo" && !hasAgentAssignee) {
-    return "To Do issues must be assigned to an agent.";
-  }
-
-  if (normalizedStatus === "in_progress" && hasAgentAssignee) {
-    return "In Progress issues cannot have an assigned agent.";
-  }
-
+  void status;
+  void assigneeAgentId;
+  void agents;
   return null;
 }
 
@@ -13356,14 +18551,679 @@ function normalizeBoardIssueValue(value: string | null | undefined) {
 function normalizeDashboardProjectGrouping(
   value: string | null | undefined
 ): DashboardProjectGrouping {
-  switch (value?.trim().toLowerCase()) {
-    case "priority":
-      return "priority";
-    case "assignee":
-      return "assignee";
-    default:
-      return "status";
+  void value;
+  return "status";
+}
+
+function useBirdsEyeCodeImpact(sessionIds: string[]) {
+  const [summaries, setSummaries] = useState<
+    Record<string, BirdsEyeCodeImpactSummary>
+  >({});
+  const sortedSessionIds = useMemo(
+    () => [...new Set(sessionIds)].sort((left, right) => left.localeCompare(right)),
+    [sessionIds]
+  );
+  const missingSessionIds = useMemo(
+    () => sortedSessionIds.filter((sessionId) => summaries[sessionId] === undefined),
+    [sortedSessionIds, summaries]
+  );
+  const missingSessionKey = missingSessionIds.join("|");
+
+  useEffect(() => {
+    if (missingSessionIds.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+    setSummaries((current) => {
+      const next = { ...current };
+      for (const sessionId of missingSessionIds) {
+        next[sessionId] = {
+          additions: 0,
+          deletions: 0,
+          filesChanged: 0,
+          state: "loading",
+        };
+      }
+      return next;
+    });
+
+    void Promise.all(
+      missingSessionIds.map(async (sessionId) => {
+        try {
+          return {
+            impact: aggregateBirdsEyeCodeImpact(await gitStatus(sessionId)),
+            sessionId,
+            state: "ready" as const,
+          };
+        } catch {
+          return {
+            impact: {
+              additions: 0,
+              deletions: 0,
+              filesChanged: 0,
+            },
+            sessionId,
+            state: "error" as const,
+          };
+        }
+      })
+    ).then((results) => {
+      if (cancelled) {
+        return;
+      }
+
+      setSummaries((current) => {
+        const next = { ...current };
+
+        for (const result of results) {
+          next[result.sessionId] = {
+            ...result.impact,
+            state: result.state,
+          };
+        }
+
+        return next;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [missingSessionIds, missingSessionKey]);
+
+  return summaries;
+}
+
+function aggregateBirdsEyeCodeImpact(status: GitStatusResult) {
+  return (status.files ?? []).reduce(
+    (summary, file) => ({
+      additions: summary.additions + (file.additions ?? 0),
+      deletions: summary.deletions + (file.deletions ?? 0),
+      filesChanged: summary.filesChanged + 1,
+    }),
+    {
+      additions: 0,
+      deletions: 0,
+      filesChanged: 0,
+    }
+  );
+}
+
+function buildBirdsEyeTree({
+  agents,
+  chats,
+  dependencyCheck,
+  projectWorktreesByProjectId,
+  projects,
+  workspaces,
+}: {
+  agents: AgentRecord[];
+  chats: DashboardOverviewChatRecord[];
+  dependencyCheck: RuntimeCapabilities | null;
+  projectWorktreesByProjectId: Record<string, ProjectWorktreeState>;
+  projects: ProjectRecord[];
+  workspaces: WorkspaceRecord[];
+}): BirdsEyeTreeModel {
+  const defaultRuntimeDraft = createDefaultIssueRuntimeDraft(dependencyCheck);
+  const workspaceByIssueId = new Map<string, WorkspaceRecord>();
+  for (const workspace of workspaces) {
+    if (workspace.issue_id && !workspaceByIssueId.has(workspace.issue_id)) {
+      workspaceByIssueId.set(workspace.issue_id, workspace);
+    }
   }
+
+  const projectNodes = projects
+    .map((project) => {
+      const repoPath = project.primary_workspace?.cwd?.trim() ?? null;
+      const projectChats = chats.filter(
+        (chat) => chat.project_id === project.id
+      );
+      const folderMap = new Map<
+        string,
+        BirdsEyeFolderNode & {
+          secondaryLabel: string | null;
+        }
+      >();
+
+      const ensureFolder = (folder: BirdsEyeFolderNode) => {
+        const existing = folderMap.get(folder.rowId);
+        if (existing) {
+          return existing;
+        }
+        const next = {
+          ...folder,
+          chats: [],
+          chatCount: 0,
+          lastActivityAt: null,
+          liveRunCount: 0,
+        };
+        folderMap.set(folder.rowId, next);
+        return next;
+      };
+
+      ensureFolder(
+        birdsEyeFolderNode({
+          folderType: "repo_root",
+          label: "Repo root",
+          path: repoPath,
+          projectId: project.id,
+          runtimeDraft: defaultRuntimeDraft,
+          secondaryLabel: repoPath ?? "No repository folder",
+        })
+      );
+
+      for (const worktree of projectWorktreesByProjectId[project.id]?.worktrees ??
+        []) {
+        ensureFolder(
+          birdsEyeFolderNode({
+            branch: worktree.branch ?? null,
+            label: worktree.name || fileName(worktree.path),
+            path: worktree.path,
+            projectId: project.id,
+            runtimeDraft: defaultRuntimeDraft,
+            secondaryLabel: birdsEyeFolderSecondaryLabel(
+              worktree.path,
+              worktree.branch
+            ),
+          })
+        );
+      }
+
+      for (const workspace of workspaces) {
+        if (
+          workspace.project_id !== project.id ||
+          !workspace.workspace_repo_path?.trim() ||
+          workspace.workspace_repo_path.trim() === repoPath
+        ) {
+          continue;
+        }
+
+        ensureFolder(
+          birdsEyeFolderNode({
+            branch: workspace.workspace_branch ?? null,
+            label:
+              workspace.workspace_branch?.trim() ||
+              fileName(workspace.workspace_repo_path),
+            path: workspace.workspace_repo_path,
+            projectId: project.id,
+            runtimeDraft: defaultRuntimeDraft,
+            secondaryLabel: birdsEyeFolderSecondaryLabel(
+              workspace.workspace_repo_path,
+              workspace.workspace_branch ?? null
+            ),
+          })
+        );
+      }
+
+      for (const chat of projectChats) {
+        const runUpdate = chat.run_update ?? null;
+        const workspace = workspaceByIssueId.get(chat.id) ?? null;
+        const folder = ensureFolder(
+          birdsEyeFolderForIssue(chat, project, workspace, defaultRuntimeDraft)
+        );
+        const chatNode: BirdsEyeChatNode = {
+          agentLabel: issueModelLabel(chat, agents),
+          chat,
+          createDefaults: birdsEyeCreateDefaultsFromIssue(chat),
+          folderRowId: folder.rowId,
+          kind: "chat",
+          lastActivityAt: birdsEyeActivityTimestamp(chat, runUpdate, workspace),
+          projectId: project.id,
+          rowId: `chat:${chat.id}`,
+          runStatus: runUpdate?.run_status ?? null,
+          runSummary: runUpdate ? issueRunCardUpdateSummary(runUpdate) : null,
+          sessionId: workspace?.session_id ?? null,
+          title: chat.title,
+        };
+        folder.chats.push(chatNode);
+      }
+
+      const folders = Array.from(folderMap.values())
+        .map((folder) => {
+          const chats = folder.chats.slice().sort((left, right) => {
+            const leftTime =
+              parseIssueDate(left.lastActivityAt)?.getTime() ?? 0;
+            const rightTime =
+              parseIssueDate(right.lastActivityAt)?.getTime() ?? 0;
+            return rightTime - leftTime;
+          });
+          const latestChat = chats[0] ?? null;
+
+          return {
+            ...folder,
+            chats,
+            chatCount: chats.length,
+            createDefaults: latestChat
+              ? latestChat.createDefaults
+              : folder.createDefaults,
+            lastActivityAt: latestChat?.lastActivityAt ?? null,
+            liveRunCount: chats.filter(
+              (chat) =>
+                chat.runStatus === "queued" || chat.runStatus === "running"
+            ).length,
+          };
+        })
+        .sort((left, right) => {
+          if (left.folderType !== right.folderType) {
+            return left.folderType === "repo_root" ? -1 : 1;
+          }
+          if (right.liveRunCount !== left.liveRunCount) {
+            return right.liveRunCount - left.liveRunCount;
+          }
+
+          const leftTime =
+            parseIssueDate(left.lastActivityAt)?.getTime() ?? 0;
+          const rightTime =
+            parseIssueDate(right.lastActivityAt)?.getTime() ?? 0;
+          if (rightTime !== leftTime) {
+            return rightTime - leftTime;
+          }
+
+          return left.label.localeCompare(right.label);
+        });
+      const allChats = folders.flatMap((folder) => folder.chats);
+      const latestChat = allChats
+        .slice()
+        .sort((left, right) => {
+          const leftTime =
+            parseIssueDate(left.lastActivityAt)?.getTime() ?? 0;
+          const rightTime =
+            parseIssueDate(right.lastActivityAt)?.getTime() ?? 0;
+          return rightTime - leftTime;
+        })[0];
+
+      return {
+        chatCount: allChats.length,
+        createDefaults: {
+          ...issueDialogDefaultsFromRuntimeDraft(defaultRuntimeDraft),
+          ...projectDefaultNewChatWorkspaceDefaults(project),
+          priority: "medium",
+          projectId: project.id,
+          status: "backlog",
+        },
+        folderCount: folders.length,
+        folders,
+        kind: "project" as const,
+        label: project.name ?? project.title ?? "Untitled project",
+        lastActivityAt: latestChat?.lastActivityAt ?? null,
+        liveRunCount: folders.reduce(
+          (count, folder) => count + folder.liveRunCount,
+          0
+        ),
+        project,
+        repoPath,
+        rowId: `project:${project.id}`,
+      };
+    })
+    .sort((left, right) => {
+      if (right.liveRunCount !== left.liveRunCount) {
+        return right.liveRunCount - left.liveRunCount;
+      }
+
+      const leftTime = parseIssueDate(left.lastActivityAt)?.getTime() ?? 0;
+      const rightTime = parseIssueDate(right.lastActivityAt)?.getTime() ?? 0;
+      if (rightTime !== leftTime) {
+        return rightTime - leftTime;
+      }
+
+      return left.label.localeCompare(right.label);
+    });
+
+  const rowById = new Map<string, BirdsEyeTreeNode>();
+  const chatByIssueId = new Map<string, BirdsEyeChatNode>();
+  const rowIds = new Set<string>();
+
+  for (const project of projectNodes) {
+    rowById.set(project.rowId, project);
+    rowIds.add(project.rowId);
+    for (const folder of project.folders) {
+      rowById.set(folder.rowId, folder);
+      rowIds.add(folder.rowId);
+      for (const chat of folder.chats) {
+        rowById.set(chat.rowId, chat);
+        chatByIssueId.set(chat.chat.id, chat);
+        rowIds.add(chat.rowId);
+      }
+    }
+  }
+
+  return {
+    chatByIssueId,
+    projects: projectNodes,
+    rowById,
+    rowIds,
+  };
+}
+
+function birdsEyeFolderNode({
+  branch,
+  folderType = "worktree",
+  label,
+  path,
+  projectId,
+  runtimeDraft,
+  secondaryLabel,
+}: {
+  branch?: string | null;
+  folderType?: BirdsEyeFolderNode["folderType"];
+  label: string;
+  path: string | null;
+  projectId: string;
+  runtimeDraft: IssueRuntimeDraft;
+  secondaryLabel: string | null;
+}): BirdsEyeFolderNode {
+  const folderKey =
+    folderType === "repo_root"
+      ? `repo_root:${projectId}`
+      : folderType === "pending_worktree"
+        ? `pending:${projectId}`
+        : path
+          ? `worktree:${path}`
+          : `folder:${projectId}:${label}`;
+
+  return {
+    chatCount: 0,
+    chats: [],
+    createDefaults:
+      folderType === "repo_root"
+        ? {
+            ...issueDialogDefaultsFromRuntimeDraft(runtimeDraft),
+            priority: "medium",
+            projectId,
+            status: "backlog",
+            workspaceTargetMode: "main",
+          }
+        : folderType === "pending_worktree"
+          ? {
+              ...issueDialogDefaultsFromRuntimeDraft(runtimeDraft),
+              priority: "medium",
+              projectId,
+              status: "backlog",
+              workspaceTargetMode: "new_worktree",
+            }
+          : {
+              ...issueDialogDefaultsFromRuntimeDraft(runtimeDraft),
+              priority: "medium",
+              projectId,
+              status: "backlog",
+              workspaceTargetMode: "existing_worktree",
+              workspaceWorktreeBranch: branch ?? "",
+              workspaceWorktreeName: label,
+              workspaceWorktreePath: path ?? "",
+            },
+    folderKey,
+    folderType,
+    kind: "folder",
+    label,
+    lastActivityAt: null,
+    liveRunCount: 0,
+    path,
+    projectId,
+    rowId: `folder:${projectId}:${folderKey}`,
+    secondaryLabel,
+  };
+}
+
+function birdsEyeFolderForIssue(
+  issue: BirdsEyeIssueLike,
+  project: ProjectRecord,
+  workspace: WorkspaceRecord | null,
+  defaultRuntimeDraft: IssueRuntimeDraft
+) {
+  const repoPath = project.primary_workspace?.cwd?.trim() ?? null;
+  if (workspace?.workspace_repo_path?.trim()) {
+    const workspacePath = workspace.workspace_repo_path.trim();
+    if (repoPath && workspacePath === repoPath) {
+      return birdsEyeFolderNode({
+        folderType: "repo_root",
+        label: "Repo root",
+        path: repoPath,
+        projectId: project.id,
+        runtimeDraft: defaultRuntimeDraft,
+        secondaryLabel: repoPath,
+      });
+    }
+
+    return birdsEyeFolderNode({
+      branch: workspace.workspace_branch ?? null,
+      label:
+        workspace.workspace_branch?.trim() || fileName(workspace.workspace_repo_path),
+      path: workspace.workspace_repo_path,
+      projectId: project.id,
+      runtimeDraft: defaultRuntimeDraft,
+      secondaryLabel: birdsEyeFolderSecondaryLabel(
+        workspace.workspace_repo_path,
+        workspace.workspace_branch ?? null
+      ),
+    });
+  }
+
+  const workspaceSettings = parseIssueExecutionWorkspaceSettings(
+    issue.execution_workspace_settings
+  );
+  if (
+    workspaceSettings.workspaceTargetMode === "existing_worktree" &&
+    workspaceSettings.workspaceWorktreePath
+  ) {
+    return birdsEyeFolderNode({
+      branch: workspaceSettings.workspaceWorktreeBranch || null,
+      label:
+        workspaceSettings.workspaceWorktreeName ||
+        fileName(workspaceSettings.workspaceWorktreePath),
+      path: workspaceSettings.workspaceWorktreePath,
+      projectId: project.id,
+      runtimeDraft: defaultRuntimeDraft,
+      secondaryLabel: birdsEyeFolderSecondaryLabel(
+        workspaceSettings.workspaceWorktreePath,
+        workspaceSettings.workspaceWorktreeBranch || null
+      ),
+    });
+  }
+
+  if (workspaceSettings.workspaceTargetMode === "new_worktree") {
+    return birdsEyeFolderNode({
+      folderType: "pending_worktree",
+      label: "New worktree",
+      path: null,
+      projectId: project.id,
+      runtimeDraft: defaultRuntimeDraft,
+      secondaryLabel: "Created on first run",
+    });
+  }
+
+  return birdsEyeFolderNode({
+    folderType: "repo_root",
+    label: "Repo root",
+    path: repoPath,
+    projectId: project.id,
+    runtimeDraft: defaultRuntimeDraft,
+    secondaryLabel: repoPath ?? "No repository folder",
+  });
+}
+
+function birdsEyeCreateDefaultsFromIssue(
+  issue: BirdsEyeIssueLike
+): CreateIssueDialogDefaults {
+  const runtime = parseIssueAdapterOverrides(issue.assignee_adapter_overrides);
+  const workspace = parseIssueExecutionWorkspaceSettings(
+    issue.execution_workspace_settings
+  );
+
+  return {
+    ...issueDialogDefaultsFromRuntimeDraft(runtime),
+    priority: issue.priority || "medium",
+    projectId: issue.project_id ?? "",
+    status: "backlog",
+    workspaceTargetMode: workspace.workspaceTargetMode,
+    workspaceWorktreeBranch: workspace.workspaceWorktreeBranch,
+    workspaceWorktreeName: workspace.workspaceWorktreeName,
+    workspaceWorktreePath: workspace.workspaceWorktreePath,
+  };
+}
+
+function birdsEyeActivityTimestamp(
+  issue: BirdsEyeIssueLike,
+  update: IssueRunCardUpdateRecord | null,
+  workspace: WorkspaceRecord | null
+) {
+  return [update?.last_activity_at, workspace?.last_accessed_at, workspace?.updated_at, issue.updated_at, issue.created_at]
+    .filter((value): value is string => Boolean(value))
+    .sort((left, right) => {
+      const leftTime = parseIssueDate(left)?.getTime() ?? 0;
+      const rightTime = parseIssueDate(right)?.getTime() ?? 0;
+      return rightTime - leftTime;
+    })[0] ?? null;
+}
+
+function dashboardOverviewChatToIssueRecord(
+  chat: DashboardOverviewChatRecord,
+  companyId: string | null
+): IssueRecord {
+  return {
+    id: chat.id,
+    company_id: companyId ?? "",
+    project_id: chat.project_id,
+    title: chat.title,
+    status: chat.status,
+    priority: chat.priority,
+    assignee_agent_id: chat.assignee_agent_id ?? null,
+    assignee_adapter_overrides: chat.assignee_adapter_overrides ?? null,
+    execution_workspace_settings: chat.execution_workspace_settings ?? null,
+    identifier: chat.identifier ?? null,
+    request_depth: 0,
+    created_at: chat.created_at,
+    updated_at: chat.updated_at,
+  };
+}
+
+function birdsEyeFolderSecondaryLabel(
+  path: string | null | undefined,
+  branch: string | null | undefined
+) {
+  return [branch?.trim() || null, path?.trim() || null]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function flattenBirdsEyeTree(
+  projects: BirdsEyeProjectNode[],
+  expandedRowIds: Record<string, boolean>
+) {
+  const rows: BirdsEyeVisibleRow[] = [];
+
+  for (const project of projects) {
+    const isProjectExpanded = expandedRowIds[project.rowId] ?? false;
+    rows.push({
+      depth: 0,
+      hasChildren: project.folders.length > 0,
+      isExpanded: isProjectExpanded,
+      node: project,
+      parentRowId: null,
+      rowId: project.rowId,
+    });
+
+    if (!isProjectExpanded) {
+      continue;
+    }
+
+    for (const folder of project.folders) {
+      const isFolderExpanded = expandedRowIds[folder.rowId] ?? false;
+      rows.push({
+        depth: 1,
+        hasChildren: folder.chats.length > 0,
+        isExpanded: isFolderExpanded,
+        node: folder,
+        parentRowId: project.rowId,
+        rowId: folder.rowId,
+      });
+
+      if (!isFolderExpanded) {
+        continue;
+      }
+
+      for (const chat of folder.chats) {
+        rows.push({
+          depth: 2,
+          hasChildren: false,
+          isExpanded: false,
+          node: chat,
+          parentRowId: folder.rowId,
+          rowId: chat.rowId,
+        });
+      }
+    }
+  }
+
+  return rows;
+}
+
+function birdsEyeSuggestedTitle(node: BirdsEyeTreeNode | null) {
+  if (!node) {
+    return "New conversation";
+  }
+
+  if (node.kind === "chat") {
+    return `Follow up: ${node.title.slice(0, 56)}`;
+  }
+
+  if (node.kind === "folder") {
+    return `New chat in ${node.label}`;
+  }
+
+  return `New chat in ${node.label}`;
+}
+
+function describeBirdsEyeNodeContext(node: BirdsEyeTreeNode | null) {
+  if (!node) {
+    return "current context";
+  }
+
+  if (node.kind === "chat") {
+    return `same folder as ${node.title}`;
+  }
+
+  if (node.kind === "folder") {
+    return node.label;
+  }
+
+  return node.label;
+}
+
+function birdsEyeImpactLabel(summary: BirdsEyeCodeImpactSummary | null) {
+  if (!summary) {
+    return "No code";
+  }
+
+  if (summary.state === "loading") {
+    return "Scanning";
+  }
+
+  if (summary.state === "error") {
+    return "Code n/a";
+  }
+
+  if (
+    summary.filesChanged === 0 &&
+    summary.additions === 0 &&
+    summary.deletions === 0
+  ) {
+    return "No code";
+  }
+
+  return `${summary.filesChanged} files · +${summary.additions} -${summary.deletions}`;
+}
+
+function isEditableEventTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  return Boolean(
+    target.closest(
+      "input, textarea, select, [contenteditable='true'], [contenteditable='']"
+    )
+  );
 }
 
 function projectBoardColumnStatuses(issues: IssueRecord[]) {
@@ -13377,22 +19237,17 @@ function projectBoardColumnStatuses(issues: IssueRecord[]) {
   return statuses;
 }
 
-function projectBoardColumnPriorities(issues: IssueRecord[]) {
-  const priorities = ["urgent", "high", "medium", "low"];
-  for (const issue of issues) {
-    const normalizedPriority = normalizeBoardIssueValue(issue.priority);
-    if (!priorities.includes(normalizedPriority)) {
-      priorities.push(normalizedPriority);
-    }
-  }
-  return priorities;
-}
-
 function projectBoardColumnsByStatus(
+  project: ProjectRecord,
   issues: IssueRecord[]
 ): DashboardProjectColumn[] {
+  const projectWorkspaceDefaults =
+    projectDefaultNewChatWorkspaceDefaults(project);
   return projectBoardColumnStatuses(issues).map((status) => ({
-    createDefaults: { status },
+    createDefaults: {
+      ...projectWorkspaceDefaults,
+      status,
+    },
     id: `status:${status}`,
     issues: issues.filter(
       (issue) => normalizeBoardIssueValue(issue.status) === status
@@ -13401,60 +19256,15 @@ function projectBoardColumnsByStatus(
   }));
 }
 
-function projectBoardColumnsByPriority(
-  issues: IssueRecord[]
-): DashboardProjectColumn[] {
-  return projectBoardColumnPriorities(issues).map((priority) => ({
-    createDefaults: { priority },
-    id: `priority:${priority}`,
-    issues: issues.filter(
-      (issue) => normalizeBoardIssueValue(issue.priority) === priority
-    ),
-    label: humanizeIssueValue(priority),
-  }));
-}
-
-function projectBoardColumnsByAssignee(
-  issues: IssueRecord[],
-  agents: AgentRecord[]
-): DashboardProjectColumn[] {
-  const assigneeIds = Array.from(
-    new Set(
-      issues
-        .map((issue) => issue.assignee_agent_id?.trim() ?? "")
-        .filter((assigneeAgentId) => assigneeAgentId.length > 0)
-    )
-  ).sort((left, right) =>
-    issueAssigneeLabel(agents, left).localeCompare(
-      issueAssigneeLabel(agents, right)
-    )
-  );
-
-  return ["", ...assigneeIds].map((assigneeAgentId) => ({
-    createDefaults: assigneeAgentId ? { assigneeAgentId } : {},
-    id: assigneeAgentId ? `assignee:${assigneeAgentId}` : "assignee:unassigned",
-    issues: issues.filter(
-      (issue) => (issue.assignee_agent_id?.trim() ?? "") === assigneeAgentId
-    ),
-    label: assigneeAgentId
-      ? issueAssigneeLabel(agents, assigneeAgentId)
-      : "Unassigned",
-  }));
-}
-
 function projectBoardColumns(
+  project: ProjectRecord,
   issues: IssueRecord[],
   agents: AgentRecord[],
   grouping: DashboardProjectGrouping
 ): DashboardProjectColumn[] {
-  switch (grouping) {
-    case "priority":
-      return projectBoardColumnsByPriority(issues);
-    case "assignee":
-      return projectBoardColumnsByAssignee(issues, agents);
-    default:
-      return projectBoardColumnsByStatus(issues);
-  }
+  void agents;
+  void grouping;
+  return projectBoardColumnsByStatus(project, issues);
 }
 
 function buildDashboardProjectColumns(
@@ -13570,16 +19380,19 @@ function clampDashboardCanvasOffset(
   next: DashboardCanvasOffset,
   viewportWidth: number,
   viewportHeight: number,
-  canvasBounds: { height: number; width: number }
+  canvasBounds: { height: number; width: number },
+  canvasZoomScale: number
 ) {
   const edgePadding = 120;
+  const scaledCanvasWidth = canvasBounds.width * canvasZoomScale;
+  const scaledCanvasHeight = canvasBounds.height * canvasZoomScale;
   const minX = Math.min(
     edgePadding,
-    viewportWidth - canvasBounds.width + edgePadding
+    viewportWidth - scaledCanvasWidth + edgePadding
   );
   const minY = Math.min(
     edgePadding,
-    viewportHeight - canvasBounds.height + edgePadding
+    viewportHeight - scaledCanvasHeight + edgePadding
   );
 
   return {
@@ -13597,6 +19410,10 @@ function dashboardProjectBoardWidth(columnCount: number) {
     dashboardProjectBoardPadding * 2 + dashboardProjectBoardBorderWidth * 2;
 
   return Math.max(dashboardProjectBoardMinWidth, columnsWidth + chromeWidth);
+}
+
+function dashboardCanvasZoomLabel(zoomLevel: number) {
+  return `${Math.round(zoomLevel * 100)}%`;
 }
 
 function buildDashboardProjectColumnBoards(
@@ -13648,7 +19465,7 @@ function createDashboardProjectBoardLayout({
   viewId: string;
   viewName: string;
 }): DashboardProjectBoardLayout {
-  const columns = projectBoardColumns(issues, agents, grouping);
+  const columns = projectBoardColumns(project, issues, agents, grouping);
 
   return {
     boardId: `${project.id}:${viewId}`,
@@ -13720,9 +19537,25 @@ function clampNumber(value: number, min: number, max: number) {
 }
 
 function humanizeIssueValue(value: string) {
-  return value
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (match) => match.toUpperCase());
+  const normalized = value.replaceAll("_", " ");
+  switch (normalized.toLowerCase()) {
+    case "issue":
+      return "Conversation";
+    case "issues":
+      return "Conversations";
+    case "sub issue":
+      return "Queued Message";
+    case "sub issues":
+      return "Queued Messages";
+    case "company":
+      return "Space";
+    case "companies":
+      return "Spaces";
+    case "company settings":
+      return "Space Settings";
+    default:
+      return normalized.replace(/\b\w/g, (match) => match.toUpperCase());
+  }
 }
 
 function issueStatusLabel(value: string) {
@@ -13781,6 +19614,70 @@ function issueAssigneeLabel(
   return agent?.name || agent?.title || agent?.role || assigneeAgentId;
 }
 
+function providerLabelForRuntimeConfig(
+  command: string | null | undefined,
+  model: string | null | undefined
+) {
+  const provider = detectAgentCliProvider(command, model);
+  if (provider === "codex") {
+    return "Codex";
+  }
+  if (provider === "claude") {
+    return "Claude";
+  }
+  return "Default model";
+}
+
+function runtimeModelLabel(
+  runtimeConfig: Record<string, unknown> | null | undefined
+) {
+  const configuredModel = stringFromUnknown(runtimeConfig?.model).trim();
+  if (configuredModel && configuredModel.toLowerCase() !== "default") {
+    return configuredModel;
+  }
+
+  return providerLabelForRuntimeConfig(
+    stringFromUnknown(runtimeConfig?.command),
+    configuredModel
+  );
+}
+
+function agentModelLabel(agent: AgentRecord) {
+  const mergedRuntimeConfig = {
+    ...objectFromUnknown(agent.adapter_config),
+    ...objectFromUnknown(agent.runtime_config),
+  };
+  return runtimeModelLabel(mergedRuntimeConfig);
+}
+
+function agentModelLabelById(
+  agents: AgentRecord[],
+  agentId?: string | null
+) {
+  if (!agentId) {
+    return "Unknown model";
+  }
+
+  const agent = agents.find((entry) => entry.id === agentId);
+  return agent ? agentModelLabel(agent) : agentId;
+}
+
+function issueModelLabel(
+  issue: BirdsEyeIssueLike | null | undefined,
+  agents: AgentRecord[]
+) {
+  const runtimeOverrides = objectFromUnknown(issue?.assignee_adapter_overrides);
+  if (Object.keys(runtimeOverrides).length > 0) {
+    return runtimeModelLabel(runtimeOverrides);
+  }
+
+  if (!issue) {
+    return "Claude";
+  }
+
+  return agentModelLabelById(agents, issue.assignee_agent_id);
+}
+
 function agentInitials(value: string) {
   const parts = value.trim().split(/\s+/).filter(Boolean);
   if (!parts.length) {
@@ -13814,7 +19711,7 @@ function issueParentLabel(
   parentIssueId?: string | null
 ) {
   if (!parentIssueId) {
-    return "No parent issue";
+    return "No parent conversation";
   }
 
   const issue = issues.find((entry) => entry.id === parentIssueId);
@@ -14007,7 +19904,7 @@ function issueRunCardUpdateSummary(update: IssueRunCardUpdateRecord) {
     case "queued":
       return "Waiting to start";
     case "running":
-      return "Working on the issue";
+      return "Working on the conversation";
     case "succeeded":
       return "Run finished";
     case "failed":
@@ -14096,17 +19993,17 @@ function agentRunWakeReasonLabel(wakeReason: string | null | undefined) {
     case "heartbeat_timer":
       return "Scheduled";
     case "issue_assigned":
-      return "Issue Assigned";
+      return "Conversation Routed";
     case "issue_status_changed":
-      return "Issue Status Changed";
+      return "Conversation Status Changed";
     case "issue_checked_out":
-      return "Issue Checked Out";
+      return "Conversation Checked Out";
     case "issue_commented":
-      return "Issue Commented";
+      return "Conversation Messaged";
     case "issue_comment_mentioned":
-      return "Issue Comment Mentioned";
+      return "Message Mentioned";
     case "issue_reopened_via_comment":
-      return "Issue Reopened";
+      return "Conversation Reopened";
     case "approval_approved":
       return "Approval Approved";
     case "issue_execution_promoted":
@@ -14120,7 +20017,7 @@ function agentRunWakeReasonLabel(wakeReason: string | null | undefined) {
 
 function issueCreatorLabel(issue: IssueRecord, agents: AgentRecord[]) {
   if (issue.created_by_agent_id) {
-    return issueAssigneeLabel(agents, issue.created_by_agent_id);
+    return agentModelLabelById(agents, issue.created_by_agent_id);
   }
 
   if (issue.created_by_user_id) {
@@ -14130,6 +20027,25 @@ function issueCreatorLabel(issue: IssueRecord, agents: AgentRecord[]) {
   }
 
   return "Board";
+}
+
+function issueCommentAuthorLabel(
+  agents: AgentRecord[],
+  comment: IssueCommentRecord
+) {
+  if (comment.author_agent_id) {
+    return agentModelLabelById(agents, comment.author_agent_id);
+  }
+
+  if (comment.author_user_id) {
+    return comment.author_user_id === "local-board" ? "Board" : "You";
+  }
+
+  return "Board";
+}
+
+function isRootConversationIssue(issue: IssueRecord) {
+  return (issue.parent_id?.trim() ?? "").length === 0;
 }
 
 function agentRunEventLabel(eventType: string) {
@@ -14293,7 +20209,7 @@ function budgetProgressPercent(spentCents: number, budgetCents: number) {
 
 function companyBudgetStatusLabel(spentCents: number, budgetCents: number) {
   if (budgetCents <= 0) {
-    return "No company cap";
+    return "No space cap";
   }
 
   if (spentCents > budgetCents) {
@@ -14769,7 +20685,9 @@ function issuesVisible(
   tab: IssuesListTab,
   now = new Date()
 ) {
-  const visibleIssues = issues.filter((issue) => !issue.hidden_at);
+  const visibleIssues = issues.filter(
+    (issue) => !issue.hidden_at && isRootConversationIssue(issue)
+  );
   if (tab === "all") {
     return visibleIssues;
   }
@@ -14839,86 +20757,51 @@ function parseIssueDate(value: string | null | undefined) {
   return date;
 }
 
-function approvalLinksIssue(approval: ApprovalRecord, issueId: string) {
-  const payload = approval.payload;
-  if (!payload || typeof payload !== "object") {
-    return false;
-  }
-
-  if (payload.source_issue_id === issueId) {
-    return true;
-  }
-
-  const sourceIssueIds = payload.source_issue_ids;
-  return Array.isArray(sourceIssueIds)
-    ? sourceIssueIds.some((value) => value === issueId)
-    : false;
-}
-
 function buildActivityFeedItems(
-  approvals: ApprovalRecord[],
   issues: IssueRecord[],
-  issueCommentsByIssueId: Record<string, IssueCommentRecord[]>
+  issueCommentsByIssueId: Record<string, IssueCommentRecord[]>,
+  issueRunCardUpdatesByIssueId: Record<string, IssueRunCardUpdateRecord>,
+  agents: AgentRecord[]
 ) {
-  const approvalFeedItems: ActivityFeedItem[] = approvals
-    .filter((approval) => approval.status === "pending")
-    .map((approval) => ({
-      id: `approval-${approval.id}`,
-      timestamp: parseIssueDate(approval.updated_at) ?? new Date(0),
-      title: humanizeIssueValue(approval.approval_type ?? "approval"),
-      subtitle: `Pending approval · ${formatBoardDate(approval.updated_at)}`,
-      trailingLabel: approval.status ?? "pending",
-      target: { kind: "approval", approvalId: approval.id },
-    }));
+  const visibleIssues = issues.filter((issue) => !issue.hidden_at);
+  const issueById = new Map(visibleIssues.map((issue) => [issue.id, issue]));
 
-  const issueActivityFeedItems: ActivityFeedItem[] = issues.flatMap((issue) => {
+  const messageItems: ActivityFeedItem[] = visibleIssues.flatMap((issue) => {
     const issueTitle = issue.identifier ?? issue.title;
     const comments = issueCommentsByIssueId[issue.id] ?? [];
-    const commentItems: ActivityFeedItem[] = comments.map((comment) => ({
+    return comments.map((comment) => ({
       id: `comment-${comment.id}`,
       timestamp: parseIssueDate(comment.created_at) ?? new Date(0),
-      title: issueTitle,
-      subtitle: `${formatBoardDate(comment.created_at)} · ${comment.body.trim() || "Comment added"}`,
-      trailingLabel: "comment",
+      title: issueCommentAuthorLabel(agents, comment),
+      subtitle: `${issueTitle} · ${comment.body.trim() || "Message sent"}`,
+      trailingLabel: "message",
       target: { kind: "issue", issueId: issue.id },
     }));
+  });
+
+  const runItems: ActivityFeedItem[] = Object.values(
+    issueRunCardUpdatesByIssueId
+  ).flatMap((update) => {
+    const issue = issueById.get(update.issue_id);
+    if (!issue) {
+      return [];
+    }
 
     return [
-      ...commentItems,
       {
-        id: `issue-update-${issue.id}`,
-        timestamp: parseIssueDate(issue.updated_at) ?? new Date(0),
-        title: issueTitle,
-        subtitle: `${formatBoardDate(issue.updated_at)} · ${issueActivitySummary(issue)}`,
-        trailingLabel: issue.status,
+        id: `run-${update.run_id}`,
+        timestamp: parseIssueDate(update.last_activity_at) ?? new Date(0),
+        title: issueModelLabel(issue, agents),
+        subtitle: `${issue.identifier ?? issue.title} · ${issueRunCardUpdateSummary(update)}`,
+        trailingLabel: update.run_status,
         target: { kind: "issue", issueId: issue.id },
       },
     ];
   });
 
-  return [...approvalFeedItems, ...issueActivityFeedItems]
+  return [...runItems, ...messageItems]
     .sort((left, right) => right.timestamp.getTime() - left.timestamp.getTime())
     .slice(0, 50);
-}
-
-function issueActivitySummary(issue: IssueRecord) {
-  if (issue.completed_at) {
-    return "Issue completed";
-  }
-
-  if (issue.cancelled_at) {
-    return "Issue cancelled";
-  }
-
-  if (issue.started_at) {
-    return "Work started";
-  }
-
-  if (issue.workspace_session_id) {
-    return "Worktree attached";
-  }
-
-  return "Issue updated";
 }
 
 function buildTerminalTranscript(messages: SessionMessage[]) {

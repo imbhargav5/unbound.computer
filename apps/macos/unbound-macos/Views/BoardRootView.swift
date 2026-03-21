@@ -2,7 +2,7 @@
 //  BoardRootView.swift
 //  unbound-macos
 //
-//  Native macOS shell for the Unbound local board.
+//  Native macOS shell for the Unbound local workspace experience.
 //
 
 import AppKit
@@ -15,6 +15,20 @@ enum BoardRootLayout: Equatable {
     case workspace
     case settings
     case companyDashboard
+}
+
+private enum ConversationComposerMode {
+    case conversation
+    case queuedMessage
+
+    var title: String {
+        switch self {
+        case .conversation:
+            return "Create Conversation"
+        case .queuedMessage:
+            return "Queue Message"
+        }
+    }
 }
 
 func boardRootLayout(
@@ -39,7 +53,9 @@ struct BoardRootView: View {
     @State private var showingCreateCompanySheet = false
     @State private var showingCreateIssueSheet = false
     @State private var showingCreateProjectDialog = false
-    @State private var showingCreateAgentSheet = false
+    @State private var conversationComposerMode: ConversationComposerMode = .conversation
+    @State private var conversationComposerProjectId = ""
+    @State private var conversationComposerParentIssueId = ""
 
     private var colors: ThemeColors {
         ThemeColors(colorScheme)
@@ -81,9 +97,7 @@ struct BoardRootView: View {
             case .companyDashboard:
                 CompanyDashboardSidebar(
                     selectedCompany: appState.selectedCompany,
-                    agents: sidebarOrderedAgents(appState.agents, ceoAgentId: appState.selectedCompany?.ceoAgentId),
                     selectedScreen: appState.selectedScreen,
-                    selectedAgentId: appState.selectedAgentId,
                     isLoading: appState.isLoadingBoardData,
                     boardError: appState.boardError,
                     onRefresh: {
@@ -99,12 +113,9 @@ struct BoardRootView: View {
                             appState.selectedScreen = screen
                         }
                     },
-                    onSelectAgent: { agentId in
-                        appState.selectedAgentId = agentId
-                        appState.selectedScreen = .agents
-                    },
-                    onShowCreateIssue: { showingCreateIssueSheet = true },
-                    onShowCreateAgent: { showingCreateAgentSheet = true }
+                    onShowCreateIssue: {
+                        presentConversationComposer()
+                    }
                 )
 
                 companyDashboardContent
@@ -114,13 +125,12 @@ struct BoardRootView: View {
         .background(colors.background)
         .sheet(isPresented: $showingCreateCompanySheet) {
             CreateCompanySheet(
-                onCreate: { name, description, budget, color, requireApproval in
+                onCreate: { name, description, budget, color in
                     _ = try await appState.createCompany(
                         name: name,
                         description: description,
                         budgetMonthlyCents: budget,
-                        brandColor: color,
-                        requireBoardApprovalForNewAgents: requireApproval
+                        brandColor: color
                     )
                 }
             )
@@ -129,26 +139,17 @@ struct BoardRootView: View {
         .sheet(isPresented: $showingCreateIssueSheet) {
             CreateIssueSheet(
                 companyId: appState.selectedCompanyId,
-                agents: appState.agents,
+                defaultExecutorId: appState.selectedCompany?.ceoAgentId ?? appState.agents.first?.id,
                 projects: appState.projects,
                 issues: appState.issues,
+                mode: conversationComposerMode,
+                defaultProjectId: conversationComposerProjectId.nonEmpty,
+                defaultParentIssueId: conversationComposerParentIssueId.nonEmpty,
                 onCreate: { params in
                     _ = try await appState.createIssue(params: params)
                 }
             )
-            .frame(width: 620, height: 520)
-        }
-        .sheet(isPresented: $showingCreateAgentSheet) {
-            CreateAgentSheet(
-                companyId: appState.selectedCompanyId,
-                defaultReportsTo: appState.selectedCompany?.ceoAgentId,
-                requiresBoardApproval: appState.selectedCompany?.requireBoardApprovalForNewAgents ?? true,
-                onCreate: { params in
-                    _ = try await appState.createAgentHire(params: params)
-                    appState.selectedScreen = .agents
-                }
-            )
-            .frame(width: 540, height: 500)
+            .frame(width: 620, height: 700)
         }
         .overlay {
             if showingCreateProjectDialog {
@@ -181,6 +182,17 @@ struct BoardRootView: View {
         }
     }
 
+    private func presentConversationComposer(
+        mode: ConversationComposerMode = .conversation,
+        projectId: String? = nil,
+        parentIssueId: String? = nil
+    ) {
+        conversationComposerMode = mode
+        conversationComposerProjectId = projectId ?? ""
+        conversationComposerParentIssueId = parentIssueId ?? ""
+        showingCreateIssueSheet = true
+    }
+
     @ViewBuilder
     private var companyDashboardContent: some View {
         switch appState.selectedScreen {
@@ -190,12 +202,14 @@ struct BoardRootView: View {
             InboxRoute()
         case .workspaces:
             EmptyView()
-        case .agents:
-            AgentsRoute()
-        case .issues:
-            IssuesRoute()
-        case .approvals:
-            ApprovalsRoute()
+        case .agents, .issues, .approvals:
+            IssuesRoute(onQueueMessage: { issue in
+                presentConversationComposer(
+                    mode: .queuedMessage,
+                    projectId: issue.projectId,
+                    parentIssueId: issue.id
+                )
+            })
         case .projects:
             ProjectsRoute(onShowCreateProject: { showingCreateProjectDialog = true })
         case .goals:
@@ -204,10 +218,7 @@ struct BoardRootView: View {
                 message: "The schema is in place. Goal service and UI parity are the next daemon port."
             )
         case .activity:
-            BoardPlaceholderRoute(
-                title: "Activity",
-                message: "Activity logging is being persisted in SQLite. The native activity feed route is not wired yet."
-            )
+            ActivityRoute()
         case .costs:
             BoardPlaceholderRoute(
                 title: "Costs",
@@ -280,7 +291,7 @@ private struct CompanyRail: View {
                         )
                     }
                     .buttonStyle(.plain)
-                    .help("Create company")
+                    .help("Create space")
                 }
                 .padding(.top, Spacing.md)
                 .padding(.horizontal, Spacing.sm)
@@ -347,34 +358,29 @@ private struct CompanyRailButton: View {
 
 private struct CompanyDashboardSidebar: View {
     let selectedCompany: DaemonCompany?
-    let agents: [DaemonAgent]
     let selectedScreen: AppScreen
-    let selectedAgentId: String?
     let isLoading: Bool
     let boardError: String?
     let onRefresh: () -> Void
     let onSelectScreen: (AppScreen) -> Void
-    let onSelectAgent: (String) -> Void
     let onShowCreateIssue: () -> Void
-    let onShowCreateAgent: () -> Void
 
     private let primarySections: [(String, [AppScreen])] = [
-        ("Work", [.issues, .approvals, .workspaces]),
-        ("Projects", [.projects, .goals]),
+        ("Core", [.issues, .workspaces, .projects]),
     ]
 
-    private let companySection: (String, [AppScreen]) = ("Company", [.activity, .costs, .settings])
+    private let companySection: (String, [AppScreen]) = ("Spaces", [.activity, .settings])
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: Spacing.sm) {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(selectedCompany?.name ?? "Company")
+                    Text(selectedCompany?.name ?? "Space")
                         .font(Typography.bodyMedium)
                         .foregroundStyle(Color(hex: "F5F5F5"))
                         .lineLimit(1)
 
-                    Text(selectedCompany?.issuePrefix ?? "Local board")
+                    Text(selectedCompany?.issuePrefix ?? "Local model workspace")
                         .font(Typography.micro)
                         .foregroundStyle(Color(hex: "7A7A7A"))
                 }
@@ -401,7 +407,7 @@ private struct CompanyDashboardSidebar: View {
                 VStack(alignment: .leading, spacing: Spacing.lg) {
                     VStack(alignment: .leading, spacing: Spacing.xs) {
                         BoardSidebarButton(
-                            title: "New Issue",
+                            title: "New Conversation",
                             iconName: "plus",
                             isSelected: false,
                             action: onShowCreateIssue
@@ -432,37 +438,6 @@ private struct CompanyDashboardSidebar: View {
                                     action: { onSelectScreen(route) }
                                 )
                             }
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: Spacing.xs) {
-                        HStack(spacing: Spacing.sm) {
-                            sidebarSectionHeader("Agents")
-
-                            Spacer()
-
-                            Button(action: onShowCreateAgent) {
-                                Image(systemName: "plus")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(Color(hex: "8A8A8A"))
-                                    .frame(width: 18, height: 18)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .fill(Color(hex: "141414"))
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                            .help("Hire a new agent through the governed board flow")
-                            .padding(.trailing, Spacing.sm)
-                        }
-                        .padding(.top, Spacing.sm)
-
-                        ForEach(agents) { agent in
-                            AgentSidebarButton(
-                                title: agent.name,
-                                isSelected: selectedScreen == .agents && selectedAgentId == agent.id,
-                                action: { onSelectAgent(agent.id) }
-                            )
                         }
                     }
 
@@ -576,8 +551,33 @@ private struct DashboardRoute: View {
         ThemeColors(colorScheme)
     }
 
-    private var openIssuesCount: Int {
-        appState.issues.filter { $0.completedAt == nil && $0.cancelledAt == nil && $0.hiddenAt == nil }.count
+    private var visibleConversations: [DaemonIssue] {
+        appState.issues.filter { issue in
+            issue.hiddenAt == nil && isRootConversationIssue(issue)
+        }
+    }
+
+    private var openConversationCount: Int {
+        visibleConversations.filter { $0.completedAt == nil && $0.cancelledAt == nil }.count
+    }
+
+    private var recentConversations: [DaemonIssue] {
+        visibleConversations.sorted {
+            (parsedDate($0.updatedAt) ?? .distantPast) > (parsedDate($1.updatedAt) ?? .distantPast)
+        }
+    }
+
+    private var configuredModelCounts: [(label: String, count: Int)] {
+        Dictionary(grouping: visibleConversations) {
+            issueModelLabel($0, agents: appState.agents)
+        }
+        .map { (label: $0.key, count: $0.value.count) }
+        .sorted {
+            if $0.count == $1.count {
+                return $0.label.localizedCaseInsensitiveCompare($1.label) == .orderedAscending
+            }
+            return $0.count > $1.count
+        }
     }
 
     var body: some View {
@@ -606,24 +606,28 @@ private struct DashboardRoute: View {
                     }
 
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: Spacing.md)], spacing: Spacing.md) {
-                        DashboardMetricCard(title: "Issue Prefix", value: company.issuePrefix, footnote: "Next #\(company.issueCounter + 1)")
-                        DashboardMetricCard(title: "Open Issues", value: "\(openIssuesCount)", footnote: "\(appState.issues.count) total")
-                        DashboardMetricCard(title: "Agents", value: "\(appState.agents.count)", footnote: company.ceoAgentId == nil ? "CEO missing" : "CEO ready")
-                        DashboardMetricCard(title: "Live Workspaces", value: "\(appState.workspaces.count)", footnote: appState.workspaces.isEmpty ? "No active coding sessions" : "Issue-owned only")
+                        DashboardMetricCard(title: "Conversation Prefix", value: company.issuePrefix, footnote: "Next #\(company.issueCounter + 1)")
+                        DashboardMetricCard(title: "Open Conversations", value: "\(openConversationCount)", footnote: "\(visibleConversations.count) total")
+                        DashboardMetricCard(
+                            title: "Configured Models",
+                            value: "\(configuredModelCounts.count)",
+                            footnote: configuredModelCounts.first.map { "\($0.label) leads" } ?? "Defaults apply per conversation"
+                        )
+                        DashboardMetricCard(title: "Live Workspaces", value: "\(appState.workspaces.count)", footnote: appState.workspaces.isEmpty ? "No active coding sessions" : "Conversation-owned only")
                         DashboardMetricCard(title: "Projects", value: "\(appState.projects.count)", footnote: "Main repo anchors")
                         DashboardMetricCard(title: "Monthly Budget", value: money(company.budgetMonthlyCents), footnote: "Spent \(money(company.spentMonthlyCents))")
                     }
 
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: Spacing.md)], spacing: Spacing.md) {
-                        DashboardSurfaceCard(title: "Agents") {
-                            if appState.agents.isEmpty {
-                                DashboardEmptyText("Agents will appear here after the CEO hires them.")
+                        DashboardSurfaceCard(title: "Models") {
+                            if configuredModelCounts.isEmpty {
+                                DashboardEmptyText("Conversations choose Claude or Codex directly. Model routing will show up here once work is created.")
                             } else {
-                                ForEach(appState.agents.prefix(5)) { agent in
+                                ForEach(Array(configuredModelCounts.prefix(5)), id: \.label) { item in
                                     DashboardLineItem(
-                                        title: agent.name,
-                                        subtitle: agent.title ?? agent.role,
-                                        trailing: agent.status
+                                        title: item.label,
+                                        subtitle: item.count == 1 ? "1 conversation" : "\(item.count) conversations",
+                                        trailing: item.count == 1 ? "active" : "configured"
                                     )
                                 }
                             }
@@ -644,17 +648,18 @@ private struct DashboardRoute: View {
                         }
                     }
 
-                    DashboardSurfaceCard(title: "Recent Issues") {
-                        if appState.issues.isEmpty {
-                            DashboardEmptyText("Issues drive workspaces. Create one to start agent work.")
+                    DashboardSurfaceCard(title: "Recent Conversations") {
+                        if recentConversations.isEmpty {
+                            DashboardEmptyText("Conversations drive workspaces. Create one to start model work.")
                         } else {
-                            ForEach(appState.issues.prefix(8)) { issue in
+                            ForEach(recentConversations.prefix(8)) { issue in
                                 Button {
                                     appState.showIssueDetail(issueId: issue.id)
                                 } label: {
                                     DashboardLineItem(
                                         title: issue.identifier ?? issue.title,
-                                        subtitle: issue.title,
+                                        subtitle: [issue.title, issueModelLabel(issue, agents: appState.agents)]
+                                            .joined(separator: " · "),
                                         trailing: issue.workspaceSessionId == nil ? issue.status : "workspace"
                                     )
                                 }
@@ -665,7 +670,7 @@ private struct DashboardRoute: View {
 
                     DashboardSurfaceCard(title: "Active Workspaces") {
                         if appState.workspaces.isEmpty {
-                            DashboardEmptyText("Agent-created coding sessions appear here once work begins on an issue.")
+                            DashboardEmptyText("Conversation workspaces appear here once a model starts working.")
                         } else {
                             ForEach(appState.workspaces.prefix(6)) { workspace in
                                 Button {
@@ -674,7 +679,11 @@ private struct DashboardRoute: View {
                                 } label: {
                                     DashboardLineItem(
                                         title: workspace.issueIdentifier ?? workspace.title,
-                                        subtitle: [workspace.issueTitle, workspace.projectName, workspace.agentName]
+                                        subtitle: [
+                                            workspace.issueTitle,
+                                            workspace.projectName,
+                                            workspaceModelLabel(workspace, issues: appState.issues, agents: appState.agents)
+                                        ]
                                             .compactMap { $0 }
                                             .joined(separator: " · "),
                                         trailing: workspace.workspaceStatus
@@ -688,8 +697,8 @@ private struct DashboardRoute: View {
                 .padding(Spacing.xxl)
             } else {
                 BoardEmptyState(
-                    title: "Select a company",
-                    message: "Choose a company from the rail to view its dashboard."
+                    title: "Select a space",
+                    message: "Choose a space from the rail to view its dashboard."
                 )
             }
         }
@@ -811,27 +820,6 @@ private struct InboxRoute: View {
         appState.issues.filter { $0.hiddenAt == nil }
     }
 
-    private var pendingApprovals: [DaemonApproval] {
-        appState.approvals
-            .filter { $0.status == "pending" }
-            .sorted {
-                (parsedDate($0.updatedAt) ?? .distantPast) > (parsedDate($1.updatedAt) ?? .distantPast)
-            }
-    }
-
-    private var approvalFeedItems: [InboxFeedItem] {
-        pendingApprovals.map { approval in
-            InboxFeedItem(
-                id: "approval-\(approval.id)",
-                timestamp: parsedDate(approval.updatedAt) ?? .distantPast,
-                title: approval.approvalType.replacingOccurrences(of: "_", with: " ").capitalized,
-                subtitle: "Pending approval · \(formatDate(approval.updatedAt))",
-                trailingLabel: approval.status,
-                target: .approval(approval.id)
-            )
-        }
-    }
-
     private var issueActivityFeedItems: [InboxFeedItem] {
         visibleIssues.flatMap { issue in
             var items: [InboxFeedItem] = []
@@ -842,10 +830,10 @@ private struct InboxRoute: View {
                     InboxFeedItem(
                         id: "comment-\(comment.id)",
                         timestamp: parsedDate(comment.createdAt) ?? .distantPast,
-                        title: issueTitle,
-                        subtitle: "\(formatDate(comment.createdAt)) · \(comment.body)",
-                        trailingLabel: "comment",
-                        target: .issue(issue.id)
+                        title: issueCommentAuthorLabel(appState.agents, comment: comment),
+                        subtitle: "\(issueTitle) · \(comment.body)",
+                        trailingLabel: "message",
+                        issueId: issue.id
                     )
                 })
             }
@@ -855,9 +843,9 @@ private struct InboxRoute: View {
                     id: "issue-update-\(issue.id)",
                     timestamp: parsedDate(issue.updatedAt) ?? .distantPast,
                     title: issueTitle,
-                    subtitle: "\(formatDate(issue.updatedAt)) · \(issueActivitySummary(issue))",
+                    subtitle: "\(formatDate(issue.updatedAt)) · \(conversationActivitySummary(issue))",
                     trailingLabel: issue.status,
-                    target: .issue(issue.id)
+                    issueId: issue.id
                 )
             )
 
@@ -866,7 +854,7 @@ private struct InboxRoute: View {
     }
 
     private var feedItems: [InboxFeedItem] {
-        Array((approvalFeedItems + issueActivityFeedItems).sorted { $0.timestamp > $1.timestamp }.prefix(50))
+        Array(issueActivityFeedItems.sorted { $0.timestamp > $1.timestamp }.prefix(50))
     }
 
     var body: some View {
@@ -876,13 +864,13 @@ private struct InboxRoute: View {
                     Text("Inbox")
                         .font(Typography.caption)
                         .foregroundStyle(colors.primary)
-                    Text("Approvals and recent issue activity")
+                    Text("Recent conversation activity")
                         .font(Typography.pageTitle)
                 }
 
                 DashboardSurfaceCard(title: "Inbox") {
                     if feedItems.isEmpty {
-                        DashboardEmptyText("Pending approvals and recent issue activity will appear here.")
+                        DashboardEmptyText("Recent conversation updates and queued follow-ups will appear here.")
                     } else {
                         ForEach(feedItems) { item in
                             Button {
@@ -914,35 +902,87 @@ private struct InboxRoute: View {
     }
 
     private func open(_ item: InboxFeedItem) {
-        switch item.target {
-        case .approval(let approvalId):
-            appState.selectedApprovalId = approvalId
-            appState.selectedScreen = .approvals
-        case .issue(let issueId):
-            appState.showIssueDetail(issueId: issueId)
-        }
+        appState.showIssueDetail(issueId: item.issueId)
     }
 
-    private func issueActivitySummary(_ issue: DaemonIssue) -> String {
-        if issue.completedAt != nil {
-            return "Issue completed"
-        }
-        if issue.cancelledAt != nil {
-            return "Issue cancelled"
-        }
-        if issue.startedAt != nil {
-            return "Work started"
-        }
-        if issue.workspaceSessionId != nil {
-            return "Workspace attached"
-        }
-        return "Issue updated"
-    }
 }
 
-private enum InboxFeedTarget {
-    case approval(String)
-    case issue(String)
+private struct ActivityRoute: View {
+    @Environment(AppState.self) private var appState
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var colors: ThemeColors {
+        ThemeColors(colorScheme)
+    }
+
+    private var visibleIssues: [DaemonIssue] {
+        appState.issues.filter { $0.hiddenAt == nil }
+    }
+
+    private var visibleIssueIdsKey: String {
+        visibleIssues.map(\.id).sorted().joined(separator: "|")
+    }
+
+    private var feedItems: [InboxFeedItem] {
+        visibleIssues
+            .flatMap { issue in
+                let issueTitle = issue.identifier ?? issue.title
+                let comments = appState.issueComments[issue.id] ?? []
+                return comments.map { comment in
+                    InboxFeedItem(
+                        id: "message-\(comment.id)",
+                        timestamp: parsedDate(comment.createdAt) ?? .distantPast,
+                        title: issueCommentAuthorLabel(appState.agents, comment: comment),
+                        subtitle: "\(issueTitle) · \(comment.body)",
+                        trailingLabel: "message",
+                        issueId: issue.id
+                    )
+                }
+            }
+            .sorted { $0.timestamp > $1.timestamp }
+            .prefix(50)
+            .map { $0 }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Spacing.xxl) {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Text("Activity")
+                        .font(Typography.caption)
+                        .foregroundStyle(colors.primary)
+                    Text("Model messages across conversations")
+                        .font(Typography.pageTitle)
+                }
+
+                DashboardSurfaceCard(title: "Recent Activity") {
+                    if feedItems.isEmpty {
+                        DashboardEmptyText("Model messages across conversations will appear here.")
+                    } else {
+                        ForEach(feedItems) { item in
+                            Button {
+                                appState.showIssueDetail(issueId: item.issueId)
+                            } label: {
+                                DashboardLineItem(
+                                    title: item.title,
+                                    subtitle: item.subtitle,
+                                    trailing: item.trailingLabel
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+            .padding(Spacing.xl)
+        }
+        .background(colors.background)
+        .task(id: visibleIssueIdsKey) {
+            for issue in visibleIssues where appState.issueComments[issue.id] == nil {
+                await appState.refreshIssueComments(issueId: issue.id)
+            }
+        }
+    }
 }
 
 private struct InboxFeedItem: Identifiable {
@@ -951,7 +991,7 @@ private struct InboxFeedItem: Identifiable {
     let title: String
     let subtitle: String
     let trailingLabel: String
-    let target: InboxFeedTarget
+    let issueId: String
 }
 
 struct CreateFirstCompanyView: View {
@@ -962,7 +1002,6 @@ struct CreateFirstCompanyView: View {
     @State private var description = ""
     @State private var budget = ""
     @State private var brandColor = "#0F766E"
-    @State private var requireApproval = true
     @State private var isSaving = false
     @State private var errorMessage: String?
 
@@ -976,31 +1015,31 @@ struct CreateFirstCompanyView: View {
 
     var body: some View {
         BoardOnboardingContainer(
-            eyebrow: "Local board setup",
-            title: "Set up your first company",
-            message: "Your device is ready. Create a company to begin board setup. The next required steps create the CEO agent and its bootstrap issue so the first run can initialize the company properly."
+            eyebrow: "Space setup",
+            title: "Set up your first space",
+            message: "Your device is ready. Create a space and Unbound will prepare its default local executor automatically so projects and conversations can start immediately."
         ) {
             BoardCardSurface(padding: Spacing.xl) {
                 VStack(alignment: .leading, spacing: Spacing.sm) {
-                    Text("Company details")
+                    Text("Space details")
                         .font(Typography.h3)
 
-                    Text("This creates the company shell. Right after this, you’ll create the mandatory CEO agent and then author the bootstrap issue that kicks off its first run.")
+                    Text("This creates the space shell and prepares its default local executor in the background.")
                         .font(Typography.bodySmall)
                         .foregroundStyle(colors.mutedForeground)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
                 BoardFormFieldGroup(
-                    label: "Company Name",
-                    hint: "Shown in the company rail, sidebar, and dashboard."
+                    label: "Space Name",
+                    hint: "Shown in the spaces rail, sidebar, and dashboard."
                 ) {
                     ShadcnTextField("Acme Systems", text: $name, variant: .filled)
                 }
 
                 BoardFormFieldGroup(
                     label: "Description",
-                    hint: "Optional context for what this company does or what the board is managing."
+                    hint: "Optional context for what this space does or what the board is managing."
                 ) {
                     BoardMultilineInput(
                         placeholder: "Internal tools, customer support operations, product engineering, or another operating context...",
@@ -1017,16 +1056,10 @@ struct CreateFirstCompanyView: View {
 
                 BoardFormFieldGroup(
                     label: "Brand Color",
-                    hint: "Optional hex color used for the company badge and accents in the board."
+                    hint: "Optional hex color used for the space badge and accents in the board."
                 ) {
                     ShadcnTextField("#0F766E", text: $brandColor, variant: .filled)
                 }
-
-                BoardCheckboxRow(
-                    title: "Require approval for new agents",
-                    subtitle: "New hires start behind board approval so you can keep the company roster intentional.",
-                    isOn: $requireApproval
-                )
 
                 if let errorMessage {
                     BoardInlineMessage(text: errorMessage, tone: .error)
@@ -1043,7 +1076,7 @@ struct CreateFirstCompanyView: View {
                                 ProgressView()
                                     .controlSize(.small)
                             }
-                            Text("Create Company")
+                            Text("Create Space")
                                 .fontWeight(.medium)
                         }
                     }
@@ -1064,8 +1097,7 @@ struct CreateFirstCompanyView: View {
                 name: name.trimmingCharacters(in: .whitespacesAndNewlines),
                 description: description.nonEmpty,
                 budgetMonthlyCents: Int(budget),
-                brandColor: brandColor.nonEmpty,
-                requireBoardApprovalForNewAgents: requireApproval
+                brandColor: brandColor.nonEmpty
             )
         } catch {
             errorMessage = error.localizedDescription
@@ -1085,7 +1117,7 @@ private struct BoardOnboardingStepIndicator: View {
     var body: some View {
         HStack(spacing: Spacing.sm) {
             indicator(number: 1, title: "CEO", isActive: step == .createCEO, isComplete: step == .bootstrapIssue)
-            indicator(number: 2, title: "Bootstrap Issue", isActive: step == .bootstrapIssue, isComplete: false)
+            indicator(number: 2, title: "Bootstrap Conversation", isActive: step == .bootstrapIssue, isComplete: false)
         }
     }
 
@@ -1144,7 +1176,7 @@ struct CreateCEOAgentView: View {
     }
 
     private var companyName: String {
-        appState.selectedCompany?.name ?? "this company"
+        appState.selectedCompany?.name ?? "this space"
     }
 
     private var resolvedCEOAgentId: String? {
@@ -1174,10 +1206,10 @@ struct CreateCEOAgentView: View {
     var body: some View {
         BoardOnboardingContainer(
             eyebrow: "CEO setup required",
-            title: currentStep == .createCEO ? "Create the CEO agent" : "Create the CEO bootstrap issue",
+            title: currentStep == .createCEO ? "Create the CEO agent" : "Create the CEO bootstrap conversation",
             message: currentStep == .createCEO
                 ? "\(companyName) exists, but the board stays locked until it has a CEO. Step one creates the CEO agent with the local runtime defaults that power its first run."
-                : "\(companyName) now has a CEO, but the company is still blocked until you create the bootstrap issue that becomes the CEO’s first assigned run."
+                : "\(companyName) now has a CEO, but the space is still blocked until you create the bootstrap conversation that becomes the CEO’s first assigned run."
         ) {
             BoardCardSurface(padding: Spacing.xl) {
                 BoardOnboardingStepIndicator(step: currentStep)
@@ -1214,10 +1246,10 @@ struct CreateCEOAgentView: View {
                 .font(Typography.caption)
                 .foregroundStyle(colors.primary)
 
-            Text("Create the company’s CEO")
+            Text("Create the space’s CEO")
                 .font(Typography.h3)
 
-            Text("This creates the CEO agent record, reserves the local home path, and applies the default heartbeat runtime. The bootstrap issue in the next step is what actually initializes the agent’s instructions and operating files.")
+            Text("This creates the CEO agent record, reserves the local home path, and applies the default heartbeat runtime. The bootstrap conversation in the next step is what actually initializes the agent’s instructions and operating files.")
                 .font(Typography.bodySmall)
                 .foregroundStyle(colors.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1230,20 +1262,20 @@ struct CreateCEOAgentView: View {
 
         BoardFormFieldGroup(
             label: "Agent Name",
-            hint: "Shown across the board as the company’s executive owner."
+            hint: "Shown across the board as the space’s executive owner."
         ) {
             ShadcnTextField("CEO", text: $name, variant: .filled)
         }
 
         BoardFormFieldGroup(
             label: "Title",
-            hint: "Defaults to the executive title used in company dashboards and run details."
+            hint: "Defaults to the executive title used in space dashboards and run details."
         ) {
             ShadcnTextField("Chief Executive Officer", text: $title, variant: .filled)
         }
 
         BoardInlineMessage(
-            text: "The CEO uses the `crown` icon, becomes the company’s root reporting node, and stays in onboarding until the bootstrap issue is created.",
+            text: "The CEO uses the `crown` icon, becomes the space’s root reporting node, and stays in onboarding until the bootstrap conversation is created.",
             tone: .info
         )
 
@@ -1278,10 +1310,10 @@ struct CreateCEOAgentView: View {
                 .font(Typography.caption)
                 .foregroundStyle(colors.primary)
 
-            Text("Create the CEO bootstrap issue")
+            Text("Create the CEO bootstrap conversation")
                 .font(Typography.h3)
 
-            Text("This issue is mandatory. As soon as you create it, Unbound assigns it to the CEO and the existing issue-assignment trigger queues the CEO’s first run automatically.")
+            Text("This conversation is mandatory. As soon as you create it, Unbound assigns it to the CEO and the existing assignment trigger queues the CEO’s first run automatically.")
                 .font(Typography.bodySmall)
                 .foregroundStyle(colors.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1316,12 +1348,12 @@ struct CreateCEOAgentView: View {
         }
 
         BoardInlineMessage(
-            text: "Use this task to tell the CEO how to create or fetch its own instruction set. The run prompt also includes the board helper commands the CEO must use for governed hires, issue updates, and comments.",
+            text: "Use this conversation to tell the CEO how to create or fetch its own instruction set. The run prompt also includes the board helper commands the CEO must use for governed hires, conversation updates, and messages.",
             tone: .info
         )
 
         BoardFormFieldGroup(
-            label: "Issue Title",
+            label: "Conversation Title",
             hint: "Paperclip uses a direct setup task here so the CEO’s first run is intentional and editable."
         ) {
             ShadcnTextField("Create your CEO HEARTBEAT.md", text: $bootstrapIssueTitle, variant: .filled)
@@ -1353,7 +1385,7 @@ struct CreateCEOAgentView: View {
                         ProgressView()
                             .controlSize(.small)
                     }
-                    Text("Create Bootstrap Issue")
+                    Text("Create Bootstrap Conversation")
                         .fontWeight(.medium)
                 }
             }
@@ -1406,7 +1438,7 @@ struct CreateCEOAgentView: View {
     private func createBootstrapIssue() async {
         guard let companyId = appState.selectedCompanyId else { return }
         guard let resolvedCEOAgentId else {
-            errorMessage = "The CEO agent is missing. Recreate the CEO step before creating the bootstrap issue."
+            errorMessage = "The CEO agent is missing. Recreate the CEO step before creating the bootstrap conversation."
             return
         }
 
@@ -1480,7 +1512,7 @@ struct InitialCompanyLoadErrorView: View {
     var body: some View {
         BoardOnboardingContainer(
             eyebrow: "Board unavailable",
-            title: "Unable to load companies",
+            title: "Unable to load spaces",
             message: "Unbound could not finish loading the local board state. Retry once the daemon is healthy again."
         ) {
             BoardCardSurface(padding: Spacing.xl) {
@@ -1490,7 +1522,7 @@ struct InitialCompanyLoadErrorView: View {
                         .foregroundStyle(colors.destructive)
 
                     VStack(alignment: .leading, spacing: Spacing.xs) {
-                        Text("The initial company check failed")
+                        Text("The initial space check failed")
                             .font(Typography.h4)
                             .foregroundStyle(colors.foreground)
 
@@ -1640,7 +1672,7 @@ private struct AgentsRoute: View {
                 .padding(Spacing.xl)
             } else {
                 BoardEmptyState(
-                    title: "No agents in this company",
+                    title: "No agents in this space",
                     message: "Agents will appear here after the CEO creates them."
                 )
             }
@@ -2118,14 +2150,100 @@ private struct AgentRunListRow: View {
     }
 }
 
+private enum ConversationRuntimeProvider: String, CaseIterable, Identifiable {
+    case claude
+    case codex
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .claude:
+            return "Claude"
+        case .codex:
+            return "Codex"
+        }
+    }
+
+    var command: String { rawValue }
+
+    var defaultModelOptions: [String] {
+        switch self {
+        case .claude:
+            return ["default"] + AIModel.allModels.compactMap(\.modelIdentifier)
+        case .codex:
+            return ["default", "gpt-5", "gpt-5-mini", "gpt-5-codex"]
+        }
+    }
+
+    var browserLabel: String {
+        switch self {
+        case .claude:
+            return "Enable Chrome"
+        case .codex:
+            return "Enable web search"
+        }
+    }
+
+    var browserHint: String {
+        switch self {
+        case .claude:
+            return "Allow browser automation inside Claude runs."
+        case .codex:
+            return "Expose Codex web search during runs."
+        }
+    }
+}
+
+private struct IssueRuntimeDraft {
+    static let thinkingEffortOptions = ["auto", "low", "medium", "high"]
+
+    var provider: ConversationRuntimeProvider = .claude
+    var model: String = "default"
+    var thinkingEffort: String = "auto"
+    var planMode = false
+    var enableChrome = false
+    var skipPermissions = false
+
+    init() {}
+
+    init(issue: DaemonIssue) {
+        let command = anyCodableString(issue.assigneeAdapterOverrides, key: "command") ?? "claude"
+        let model = anyCodableString(issue.assigneeAdapterOverrides, key: "model") ?? "default"
+        let provider = runtimeProvider(command: command, model: model)
+        self.provider = provider
+        self.model = model
+        self.thinkingEffort =
+            anyCodableString(issue.assigneeAdapterOverrides, key: "thinkingEffort")
+            ?? anyCodableString(issue.assigneeAdapterOverrides, key: "reasoningEffort")
+            ?? "auto"
+        self.planMode = provider == .claude
+            && anyCodableString(issue.assigneeAdapterOverrides, key: "permissionMode") == "plan"
+        self.enableChrome = anyCodableBool(issue.assigneeAdapterOverrides, key: "enableChrome")
+        self.skipPermissions = anyCodableBool(issue.assigneeAdapterOverrides, key: "skipPermissions")
+    }
+
+    func asAdapterOverrides() -> [String: Any] {
+        [
+            "command": provider.command,
+            "model": model,
+            "thinkingEffort": thinkingEffort,
+            "reasoningEffort": thinkingEffort,
+            "permissionMode": provider == .claude && planMode ? "plan" : "default",
+            "planMode": provider == .claude && planMode,
+            "enableChrome": enableChrome,
+            "skipPermissions": skipPermissions,
+        ]
+    }
+}
+
 private struct IssueEditDraft {
     var title: String = ""
     var description: String = ""
     var status: String = "backlog"
-    var priority: String = "medium"
     var projectId: String = ""
-    var assigneeAgentId: String = ""
     var parentId: String = ""
+    var runtime = IssueRuntimeDraft()
 
     init() {}
 
@@ -2133,10 +2251,9 @@ private struct IssueEditDraft {
         self.title = issue.title
         self.description = issue.description ?? ""
         self.status = issue.status
-        self.priority = issue.priority
         self.projectId = issue.projectId ?? ""
-        self.assigneeAgentId = issue.assigneeAgentId ?? ""
         self.parentId = issue.parentId ?? ""
+        self.runtime = IssueRuntimeDraft(issue: issue)
     }
 }
 
@@ -2234,13 +2351,15 @@ private struct ProjectsRoute: View {
 private struct IssuesRoute: View {
     @Environment(AppState.self) private var appState
 
+    let onQueueMessage: (DaemonIssue) -> Void
+
     var body: some View {
         Group {
             switch appState.issuesRouteDestination {
             case .list:
                 IssuesListPage()
             case .detail(let issueId):
-                IssueDetailPage(issueId: issueId)
+                IssueDetailPage(issueId: issueId, onQueueMessage: onQueueMessage)
             }
         }
         .task(id: appState.issuesRouteDestination.issueId ?? "list") {
@@ -2260,7 +2379,7 @@ private struct IssuesListPage: View {
 
     private var summaryText: String {
         let issueCount = visibleIssues.count
-        let suffix = issueCount == 1 ? "issue" : "issues"
+        let suffix = issueCount == 1 ? "conversation" : "conversations"
         return "\(appState.selectedIssuesListTab.title) · \(issueCount) \(suffix)"
     }
 
@@ -2295,7 +2414,7 @@ private struct IssuesListPage: View {
 
     private var issuesHeader: some View {
         HStack {
-            Text("ISSUES")
+            Text("CONVERSATIONS")
                 .font(GeistFont.sans(size: FontSize.sm, weight: .bold))
                 .tracking(0.3)
                 .foregroundStyle(Color(hex: "E5E5E5"))
@@ -2352,10 +2471,10 @@ private struct IssuesListPage: View {
 
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
-            Text("No issues in \(appState.selectedIssuesListTab.title.lowercased())")
+            Text("No conversations in \(appState.selectedIssuesListTab.title.lowercased())")
                 .font(Typography.h4)
                 .foregroundStyle(Color(hex: "F5F5F5"))
-            Text("Issues own workspaces. Create one from the sidebar to start agent work.")
+            Text("Conversations own workspaces. Create one from the sidebar to start model work.")
                 .font(Typography.body)
                 .foregroundStyle(Color(hex: "7A7A7A"))
                 .fixedSize(horizontal: false, vertical: true)
@@ -2406,6 +2525,7 @@ private struct IssueDetailPage: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let issueId: String
+    let onQueueMessage: (DaemonIssue) -> Void
 
     @State private var newCommentBody = ""
     @State private var isEditingIssue = false
@@ -2421,24 +2541,27 @@ private struct IssueDetailPage: View {
         appState.issues.first(where: { $0.id == issueId })
     }
 
-    private var subissues: [DaemonIssue] {
-        appState.issues.filter { $0.parentId == issueId }
+    private var queuedMessages: [DaemonIssue] {
+        appState.issues.filter { $0.parentId == issueId && $0.hiddenAt == nil }
     }
 
     private var availableStatusOptions: [String] {
         mergedIssueOptions(defaults: ["backlog", "in_progress", "blocked", "done", "cancelled"], selected: issueDraft.status)
     }
 
-    private var availablePriorityOptions: [String] {
-        mergedIssueOptions(defaults: ["low", "medium", "high", "urgent"], selected: issueDraft.priority)
-    }
-
     private var selectableParentIssues: [DaemonIssue] {
         appState.issues.filter { $0.id != issueId }
     }
 
-    private var linkedIssueApprovals: [DaemonApproval] {
-        appState.approvals.filter { approvalLinksIssue($0, issueId: issueId) }
+    private var defaultExecutorId: String? {
+        appState.selectedCompany?.ceoAgentId ?? appState.agents.first?.id
+    }
+
+    private var runtimeModelOptions: [String] {
+        mergedIssueOptions(
+            defaults: issueDraft.runtime.provider.defaultModelOptions,
+            selected: issueDraft.runtime.model
+        )
     }
 
     var body: some View {
@@ -2448,21 +2571,21 @@ private struct IssueDetailPage: View {
                     Button {
                         appState.showIssuesList()
                     } label: {
-                        Label("Back to Issues", systemImage: "chevron.left")
+                        Label("Back to Conversations", systemImage: "chevron.left")
                             .font(Typography.label)
                             .foregroundStyle(Color(hex: "A3A3A3"))
                     }
                     .buttonStyle(.plain)
 
-                    Text("Issues")
+                    Text("Conversations")
                         .font(Typography.caption)
                         .foregroundStyle(colors.primary)
-                    Text("Issue Details")
+                    Text("Conversation Details")
                         .font(Typography.pageTitle)
                 }
 
                 if let issue = selectedIssue {
-                    DashboardSurfaceCard(title: "Issue Details") {
+                    DashboardSurfaceCard(title: "Conversation Details") {
                         VStack(alignment: .leading, spacing: Spacing.xl) {
                             HStack(alignment: .top) {
                                 VStack(alignment: .leading, spacing: Spacing.xs) {
@@ -2470,7 +2593,7 @@ private struct IssueDetailPage: View {
                                         .font(Typography.caption)
                                         .foregroundStyle(colors.primary)
                                     if isEditingIssue {
-                                        ShadcnTextField("Issue title", text: $issueDraft.title, variant: .filled)
+                                        ShadcnTextField("Conversation title", text: $issueDraft.title, variant: .filled)
                                             .frame(maxWidth: 420)
                                     } else {
                                         Text(issue.title)
@@ -2480,21 +2603,6 @@ private struct IssueDetailPage: View {
                                 }
                                 Spacer()
                                 HStack(spacing: Spacing.sm) {
-                                    if issue.assigneeAgentId != nil && issue.projectId != nil && !isEditingIssue {
-                                        Button {
-                                            Task {
-                                                do {
-                                                    _ = try await appState.checkoutIssue(issueId: issue.id)
-                                                } catch {
-                                                    boardLogger.error("Failed to start workspace for issue \(issue.id): \(error)")
-                                                }
-                                            }
-                                        } label: {
-                                            Label("Start Workspace", systemImage: "play.fill")
-                                        }
-                                        .buttonStyle(.borderedProminent)
-                                    }
-
                                     if isEditingIssue {
                                         Button("Cancel") {
                                             discardIssueEdits(for: issue)
@@ -2517,7 +2625,7 @@ private struct IssueDetailPage: View {
                                         .buttonPrimary(size: .md)
                                         .disabled(!canSaveIssueEdits)
                                     } else {
-                                        Button("Edit Issue") {
+                                        Button("Edit Conversation") {
                                             beginEditing(issue: issue)
                                         }
                                         .buttonSecondary(size: .md)
@@ -2528,10 +2636,10 @@ private struct IssueDetailPage: View {
                             if isEditingIssue {
                                 BoardFormFieldGroup(
                                     label: "Description",
-                                    hint: "Background, acceptance criteria, and bootstrap instructions all live here."
+                                    hint: "Context, decisions, and the next thing a model should pick up all live here."
                                 ) {
                                     BoardMultilineInput(
-                                        placeholder: "What needs to happen, what context matters, and what should the assignee do next?",
+                                        placeholder: "What needs to happen next, what context matters, and what should the next model run understand?",
                                         text: $issueDraft.description,
                                         minHeight: 140
                                     )
@@ -2545,10 +2653,9 @@ private struct IssueDetailPage: View {
                             } else {
                                 DetailGrid(items: [
                                     ("Status", humanizedIssueValue(issue.status)),
-                                    ("Priority", humanizedIssueValue(issue.priority)),
+                                    ("Model", issueModelLabel(issue, agents: appState.agents)),
                                     ("Project", projectLabel(for: issue.projectId)),
-                                    ("Assignee", assigneeLabel(for: issue.assigneeAgentId)),
-                                    ("Parent", parentIssueLabel(for: issue.parentId)),
+                                    ("Parent Conversation", parentIssueLabel(for: issue.parentId)),
                                     ("Depth", "\(issue.requestDepth)")
                                 ])
                             }
@@ -2557,56 +2664,55 @@ private struct IssueDetailPage: View {
                                 BoardInlineMessage(text: issueEditorError, tone: .error)
                             }
 
-                            if !subissues.isEmpty {
-                                VStack(alignment: .leading, spacing: Spacing.sm) {
-                                    Text("Subissues")
+                            VStack(alignment: .leading, spacing: Spacing.sm) {
+                                HStack {
+                                    Text("Queued Messages")
                                         .font(Typography.h4)
                                         .foregroundStyle(Color(hex: "F5F5F5"))
-                                    ForEach(subissues) { child in
-                                        HStack {
-                                            Text(child.identifier ?? child.title)
-                                            Spacer()
-                                            StatusPill(text: child.status)
-                                        }
-                                        .padding(.vertical, Spacing.xxs)
+                                    Spacer()
+                                    Button("Queue Message") {
+                                        onQueueMessage(issue)
                                     }
+                                    .buttonSecondary(size: .md)
                                 }
-                            }
 
-                            if !linkedIssueApprovals.isEmpty {
-                                VStack(alignment: .leading, spacing: Spacing.sm) {
-                                    Text("Linked Approvals")
-                                        .font(Typography.h4)
-                                        .foregroundStyle(Color(hex: "F5F5F5"))
-
-                                    ForEach(linkedIssueApprovals) { approval in
-                                        DashboardSelectableLineButton(
-                                            title: approval.approvalType.replacingOccurrences(of: "_", with: " ").capitalized,
-                                            subtitle: approval.status.replacingOccurrences(of: "_", with: " ").capitalized,
-                                            trailing: formatDate(approval.updatedAt),
-                                            isSelected: appState.selectedApprovalId == approval.id,
-                                            action: {
-                                                appState.selectedApprovalId = approval.id
-                                                appState.selectedScreen = .approvals
+                                if queuedMessages.isEmpty {
+                                    Text("No queued messages yet.")
+                                        .font(Typography.body)
+                                        .foregroundStyle(colors.mutedForeground)
+                                } else {
+                                    ForEach(queuedMessages) { child in
+                                        Button {
+                                            appState.showIssueDetail(issueId: child.id)
+                                        } label: {
+                                            HStack {
+                                                Text(child.identifier ?? child.title)
+                                                Spacer()
+                                                StatusPill(text: child.status)
                                             }
-                                        )
+                                            .padding(.vertical, Spacing.xxs)
+                                        }
+                                        .buttonStyle(.plain)
                                     }
                                 }
                             }
 
                             VStack(alignment: .leading, spacing: Spacing.md) {
-                                Text("Comments")
+                                Text("Messages")
                                     .font(Typography.h4)
                                     .foregroundStyle(Color(hex: "F5F5F5"))
 
                                 let comments = appState.issueComments[issue.id] ?? []
                                 if comments.isEmpty {
-                                    Text("No comments yet.")
+                                    Text("No messages yet.")
                                         .font(Typography.body)
                                         .foregroundStyle(colors.mutedForeground)
                                 } else {
                                     ForEach(comments) { comment in
                                         VStack(alignment: .leading, spacing: Spacing.xxs) {
+                                            Text(issueCommentAuthorLabel(appState.agents, comment: comment))
+                                                .font(Typography.captionMedium)
+                                                .foregroundStyle(colors.primary)
                                             Text(comment.body)
                                                 .font(Typography.body)
                                             Text(formatDate(comment.createdAt))
@@ -2627,7 +2733,7 @@ private struct IssueDetailPage: View {
                                         .background(colors.card)
                                         .clipShape(RoundedRectangle(cornerRadius: Radius.md))
 
-                                    Button("Add Comment") {
+                                    Button("Send Message") {
                                         let body = newCommentBody.trimmingCharacters(in: .whitespacesAndNewlines)
                                         guard !body.isEmpty else { return }
                                         Task {
@@ -2641,7 +2747,7 @@ private struct IssueDetailPage: View {
                                                 )
                                                 newCommentBody = ""
                                             } catch {
-                                                boardLogger.error("Failed to add issue comment: \(error)")
+                                                boardLogger.error("Failed to add conversation message: \(error)")
                                             }
                                         }
                                     }
@@ -2652,8 +2758,8 @@ private struct IssueDetailPage: View {
                     }
                 } else {
                     BoardEmptyState(
-                        title: "Issue unavailable",
-                        message: "This issue no longer exists. Return to the list to choose another issue."
+                        title: "Conversation unavailable",
+                        message: "This conversation no longer exists. Return to the list to choose another conversation."
                     )
                 }
             }
@@ -2678,7 +2784,7 @@ private struct IssueDetailPage: View {
         VStack(alignment: .leading, spacing: Spacing.lg) {
             BoardFormFieldGroup(
                 label: "Status",
-                hint: "Moves the issue through the board lifecycle and can trigger follow-up automation."
+                hint: "Moves the conversation through the board lifecycle and can trigger follow-up automation."
             ) {
                 BoardMenuField(valueText: humanizedIssueValue(issueDraft.status)) {
                     ForEach(availableStatusOptions, id: \.self) { status in
@@ -2690,21 +2796,8 @@ private struct IssueDetailPage: View {
             }
 
             BoardFormFieldGroup(
-                label: "Priority",
-                hint: "Controls ordering and urgency in issue views."
-            ) {
-                BoardMenuField(valueText: humanizedIssueValue(issueDraft.priority)) {
-                    ForEach(availablePriorityOptions, id: \.self) { priority in
-                        Button(humanizedIssueValue(priority)) {
-                            issueDraft.priority = priority
-                        }
-                    }
-                }
-            }
-
-            BoardFormFieldGroup(
                 label: "Project",
-                hint: "Optional project anchor for execution routing and repo context."
+                hint: "Optional project anchor for repo context and workspace routing."
             ) {
                 BoardMenuField(
                     valueText: projectLabel(for: issueDraft.projectId),
@@ -2722,33 +2815,14 @@ private struct IssueDetailPage: View {
             }
 
             BoardFormFieldGroup(
-                label: "Assignee",
-                hint: "Choose the agent who owns this work, or clear it to leave the issue unassigned."
-            ) {
-                BoardMenuField(
-                    valueText: assigneeLabel(for: issueDraft.assigneeAgentId.nonEmpty),
-                    isPlaceholder: issueDraft.assigneeAgentId.isEmpty
-                ) {
-                    Button("Unassigned") {
-                        issueDraft.assigneeAgentId = ""
-                    }
-                    ForEach(appState.agents) { agent in
-                        Button(agent.name) {
-                            issueDraft.assigneeAgentId = agent.id
-                        }
-                    }
-                }
-            }
-
-            BoardFormFieldGroup(
-                label: "Parent Issue",
-                hint: "Nest the issue under another one, or clear the parent to move it back to the root."
+                label: "Parent Conversation",
+                hint: "Nest this under another conversation, or clear the parent to move it back to the root."
             ) {
                 BoardMenuField(
                     valueText: parentIssueLabel(for: issueDraft.parentId.nonEmpty),
                     isPlaceholder: issueDraft.parentId.isEmpty
                 ) {
-                    Button("No parent issue") {
+                    Button("No parent conversation") {
                         issueDraft.parentId = ""
                     }
                     ForEach(selectableParentIssues) { parentIssue in
@@ -2758,6 +2832,88 @@ private struct IssueDetailPage: View {
                     }
                 }
             }
+
+            BoardFormFieldGroup(
+                label: "Provider",
+                hint: "Choose which local runtime handles this conversation."
+            ) {
+                BoardMenuField(valueText: issueDraft.runtime.provider.title) {
+                    ForEach(ConversationRuntimeProvider.allCases) { provider in
+                        Button(provider.title) {
+                            issueDraft.runtime.provider = provider
+                            if provider != .claude {
+                                issueDraft.runtime.planMode = false
+                            }
+                            if !provider.defaultModelOptions.contains(issueDraft.runtime.model) {
+                                issueDraft.runtime.model = "default"
+                            }
+                        }
+                    }
+                }
+            }
+
+            BoardFormFieldGroup(
+                label: "Model",
+                hint: "Pick the model identifier the local runtime should use."
+            ) {
+                BoardMenuField(valueText: runtimeModelDisplayName(issueDraft.runtime.model)) {
+                    ForEach(runtimeModelOptions, id: \.self) { option in
+                        Button(runtimeModelDisplayName(option)) {
+                            issueDraft.runtime.model = option
+                        }
+                    }
+                }
+            }
+
+            BoardFormFieldGroup(
+                label: "Thinking effort",
+                hint: "Controls how much reasoning time the model can spend before acting."
+            ) {
+                BoardMenuField(valueText: humanizedIssueValue(issueDraft.runtime.thinkingEffort)) {
+                    ForEach(
+                        mergedIssueOptions(
+                            defaults: IssueRuntimeDraft.thinkingEffortOptions,
+                            selected: issueDraft.runtime.thinkingEffort
+                        ),
+                        id: \.self
+                    ) { option in
+                        Button(humanizedIssueValue(option)) {
+                            issueDraft.runtime.thinkingEffort = option
+                        }
+                    }
+                }
+            }
+
+            BoardFormFieldGroup(
+                label: "Plan mode",
+                hint: "Claude can stay in planning mode until you explicitly move the conversation forward."
+            ) {
+                BoardMenuField(
+                    valueText: issueDraft.runtime.provider == .claude && issueDraft.runtime.planMode
+                        ? "Claude plan mode"
+                        : "Off"
+                ) {
+                    Button("Off") {
+                        issueDraft.runtime.planMode = false
+                    }
+                    Button("Claude plan mode") {
+                        issueDraft.runtime.provider = .claude
+                        issueDraft.runtime.planMode = true
+                    }
+                }
+            }
+
+            BoardCheckboxRow(
+                title: issueDraft.runtime.provider.browserLabel,
+                subtitle: issueDraft.runtime.provider.browserHint,
+                isOn: $issueDraft.runtime.enableChrome
+            )
+
+            BoardCheckboxRow(
+                title: "Skip permissions",
+                subtitle: "Let the model run without daemon approval prompts.",
+                isOn: $issueDraft.runtime.skipPermissions
+            )
         }
     }
 
@@ -2783,13 +2939,8 @@ private struct IssueDetailPage: View {
         return appState.projects.first(where: { $0.id == projectId })?.name ?? projectId
     }
 
-    private func assigneeLabel(for assigneeAgentId: String?) -> String {
-        guard let assigneeAgentId, !assigneeAgentId.isEmpty else { return "Unassigned" }
-        return appState.agents.first(where: { $0.id == assigneeAgentId })?.name ?? assigneeAgentId
-    }
-
     private func parentIssueLabel(for parentIssueId: String?) -> String {
-        guard let parentIssueId, !parentIssueId.isEmpty else { return "No parent issue" }
+        guard let parentIssueId, !parentIssueId.isEmpty else { return "No parent conversation" }
         let parentIssue = appState.issues.first(where: { $0.id == parentIssueId })
         return parentIssue?.identifier ?? parentIssue?.title ?? parentIssueId
     }
@@ -2822,16 +2973,23 @@ private struct IssueDetailPage: View {
         let trimmedTitle = issueDraft.title.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedDescription = issueDraft.description.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        guard !trimmedTitle.isEmpty else {
+            issueEditorError = "Conversation title is required."
+            return
+        }
+
         var params: [String: Any] = [
             "issue_id": issue.id,
             "title": trimmedTitle,
             "status": issueDraft.status,
-            "priority": issueDraft.priority,
         ]
         params["description"] = trimmedDescription.isEmpty ? NSNull() : trimmedDescription
         params["project_id"] = issueDraft.projectId.isEmpty ? NSNull() : issueDraft.projectId
-        params["assignee_agent_id"] = issueDraft.assigneeAgentId.isEmpty ? NSNull() : issueDraft.assigneeAgentId
         params["parent_id"] = issueDraft.parentId.isEmpty ? NSNull() : issueDraft.parentId
+        params["assignee_adapter_overrides"] = issueDraft.runtime.asAdapterOverrides()
+        if let defaultExecutorId, issue.assigneeAgentId?.isEmpty != false {
+            params["assignee_agent_id"] = defaultExecutorId
+        }
 
         do {
             let updatedIssue = try await appState.updateIssue(params: params)
@@ -3397,13 +3555,12 @@ private struct StatusPill: View {
 private struct CreateCompanySheet: View {
     @Environment(\.dismiss) private var dismiss
 
-    let onCreate: (String, String?, Int?, String?, Bool?) async throws -> Void
+    let onCreate: (String, String?, Int?, String?) async throws -> Void
 
     @State private var name = ""
     @State private var description = ""
     @State private var budget = ""
     @State private var brandColor = "#0F766E"
-    @State private var requireApproval = true
     @State private var isSaving = false
     @State private var errorMessage: String?
 
@@ -3413,22 +3570,22 @@ private struct CreateCompanySheet: View {
 
     var body: some View {
         BoardDialogScaffold(
-            title: "Create Company",
-            subtitle: "Add a new company shell. The required follow-up flow creates its CEO agent and then the CEO bootstrap issue."
+            title: "Create Space",
+            subtitle: "Add a new space shell. Unbound will prepare its default local executor automatically."
         ) {
             BoardFormFieldGroup(
-                label: "Company Name",
-                hint: "Used in the company rail, sidebar, and dashboard."
+                label: "Space Name",
+                hint: "Used in the spaces rail, sidebar, and dashboard."
             ) {
                 ShadcnTextField("Acme Systems", text: $name, variant: .filled)
             }
 
             BoardFormFieldGroup(
                 label: "Description",
-                hint: "Optional context for how this company should operate inside Unbound."
+                hint: "Optional context for how this space should operate inside Unbound."
             ) {
                 BoardMultilineInput(
-                    placeholder: "Internal platform team, design systems, launch operations, or another board context...",
+                    placeholder: "Internal platform team, design systems, launch operations, or another working context...",
                     text: $description,
                     minHeight: 88
                 )
@@ -3443,16 +3600,10 @@ private struct CreateCompanySheet: View {
 
             BoardFormFieldGroup(
                 label: "Brand Color",
-                hint: "Optional hex color for the company badge and related accents."
+                hint: "Optional hex color for the space badge and related accents."
             ) {
                 ShadcnTextField("#0F766E", text: $brandColor, variant: .filled)
             }
-
-            BoardCheckboxRow(
-                title: "Require approval for new agents",
-                subtitle: "Keep hiring gated until someone explicitly approves each new agent.",
-                isOn: $requireApproval
-            )
 
             if let errorMessage {
                 BoardInlineMessage(text: errorMessage, tone: .error)
@@ -3475,7 +3626,7 @@ private struct CreateCompanySheet: View {
                             ProgressView()
                                 .controlSize(.small)
                         }
-                        Text("Create Company")
+                        Text("Create Space")
                             .fontWeight(.medium)
                     }
                 }
@@ -3494,8 +3645,7 @@ private struct CreateCompanySheet: View {
                 name.trimmingCharacters(in: .whitespacesAndNewlines),
                 description.nonEmpty,
                 Int(budget),
-                brandColor.nonEmpty,
-                requireApproval
+                brandColor.nonEmpty
             )
             dismiss()
         } catch {
@@ -3531,7 +3681,7 @@ private struct CreateAgentSheet: View {
             title: requiresBoardApproval ? "Hire Agent" : "Create Agent",
             subtitle: requiresBoardApproval
                 ? "Submit a governed hire request. The agent record appears immediately, and the board creates a linked hire approval before the agent can start working."
-                : "Create a new company agent through the same governed hire flow the CEO uses during runs."
+                : "Create a new space agent through the same governed hire flow the CEO uses during runs."
         ) {
             BoardFormFieldGroup(
                 label: "Name",
@@ -3563,8 +3713,8 @@ private struct CreateAgentSheet: View {
 
             BoardInlineMessage(
                 text: requiresBoardApproval
-                    ? "This company requires approval for new agents. Saving here creates the pending agent and a hire approval together."
-                    : "This company does not require board approval, but hires still go through the board-native path so the request stays visible in the UI and activity log.",
+                    ? "This space requires approval for new agents. Saving here creates the pending agent and a hire approval together."
+                    : "This space does not require board approval, but hires still go through the board-native path so the request stays visible in the UI and activity log.",
                 tone: .info
             )
 
@@ -3966,76 +4116,116 @@ private struct CreateIssueSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     let companyId: String?
-    let agents: [DaemonAgent]
+    let defaultExecutorId: String?
     let projects: [DaemonProject]
     let issues: [DaemonIssue]
+    let mode: ConversationComposerMode
     let onCreate: ([String: Any]) async throws -> Void
 
     @State private var title = ""
     @State private var description = ""
-    @State private var priority = "medium"
-    @State private var selectedProjectId = ""
-    @State private var selectedAssigneeAgentId = ""
-    @State private var selectedParentIssueId = ""
+    @State private var selectedProjectId: String
+    @State private var selectedParentIssueId: String
+    @State private var runtimeDraft: IssueRuntimeDraft
     @State private var isSaving = false
     @State private var errorMessage: String?
 
-    private let priorities = ["low", "medium", "high", "urgent"]
+    init(
+        companyId: String?,
+        defaultExecutorId: String?,
+        projects: [DaemonProject],
+        issues: [DaemonIssue],
+        mode: ConversationComposerMode = .conversation,
+        defaultProjectId: String? = nil,
+        defaultParentIssueId: String? = nil,
+        onCreate: @escaping ([String: Any]) async throws -> Void
+    ) {
+        self.companyId = companyId
+        self.defaultExecutorId = defaultExecutorId
+        self.projects = projects
+        self.issues = issues
+        self.mode = mode
+        self.onCreate = onCreate
+        _selectedProjectId = State(initialValue: defaultProjectId ?? "")
+        _selectedParentIssueId = State(initialValue: defaultParentIssueId ?? "")
+        _runtimeDraft = State(initialValue: IssueRuntimeDraft())
+    }
 
     private var canCreate: Bool {
         !isSaving
             && companyId != nil
             && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && (mode == .conversation || !selectedParentIssueId.isEmpty)
     }
 
     private var selectedProjectLabel: String {
         projects.first(where: { $0.id == selectedProjectId })?.name ?? "No project"
     }
 
-    private var selectedAssigneeLabel: String {
-        agents.first(where: { $0.id == selectedAssigneeAgentId })?.name ?? "Unassigned"
-    }
-
     private var selectedParentIssueLabel: String {
         issues.first(where: { $0.id == selectedParentIssueId })?.identifier
             ?? issues.first(where: { $0.id == selectedParentIssueId })?.title
-            ?? "No parent issue"
+            ?? "No parent conversation"
+    }
+
+    private var sheetTitle: String {
+        mode.title
+    }
+
+    private var runtimeModelOptions: [String] {
+        mergedConversationOptions(
+            defaults: runtimeDraft.provider.defaultModelOptions,
+            selected: runtimeDraft.model
+        )
+    }
+
+    private var runtimeThinkingEffortOptions: [String] {
+        mergedConversationOptions(
+            defaults: IssueRuntimeDraft.thinkingEffortOptions,
+            selected: runtimeDraft.thinkingEffort
+        )
+    }
+
+    private var sheetSubtitle: String {
+        switch mode {
+        case .conversation:
+            return "Create a new conversation, choose its local model, and optionally route it to a project or parent conversation."
+        case .queuedMessage:
+            return "Queue a follow-up message under this conversation so it stays ready for the next model pass."
+        }
     }
 
     var body: some View {
         BoardDialogScaffold(
-            title: "Create Issue",
-            subtitle: "Create a new board issue with optional routing to a project, assignee, or parent issue."
+            title: sheetTitle,
+            subtitle: sheetSubtitle
         ) {
             BoardFormFieldGroup(
-                label: "Title",
-                hint: "This becomes the main issue title and the default workspace label."
+                label: mode == .queuedMessage ? "Message" : "Title",
+                hint: mode == .queuedMessage
+                    ? "This becomes the queued follow-up that stays attached to the parent conversation."
+                    : "This becomes the main conversation title and the default workspace label."
             ) {
-                ShadcnTextField("Investigate CI flake", text: $title, variant: .filled)
-            }
-
-            BoardFormFieldGroup(
-                label: "Description",
-                hint: "Optional background, acceptance criteria, or context for the assignee."
-            ) {
-                BoardMultilineInput(
-                    placeholder: "What needs to happen, how should success be measured, and what context should the assignee keep in mind?",
-                    text: $description,
-                    minHeight: 96
+                ShadcnTextField(
+                    mode == .queuedMessage ? "Follow up on the failing deploy logs" : "Investigate CI flake",
+                    text: $title,
+                    variant: .filled
                 )
             }
 
             BoardFormFieldGroup(
-                label: "Priority",
-                hint: "Controls ordering and urgency in board views."
+                label: "Description",
+                hint: mode == .queuedMessage
+                    ? "Optional extra context for the queued follow-up."
+                    : "Optional background, acceptance criteria, or context for the conversation."
             ) {
-                BoardMenuField(valueText: priority.capitalized) {
-                    ForEach(priorities, id: \.self) { option in
-                        Button(option.capitalized) {
-                            priority = option
-                        }
-                    }
-                }
+                BoardMultilineInput(
+                    placeholder: mode == .queuedMessage
+                        ? "What should the next model run keep in mind when it picks this up?"
+                        : "What needs to happen, how should success be measured, and what context should the next model run keep in mind?",
+                    text: $description,
+                    minHeight: 96
+                )
             }
 
             BoardFormFieldGroup(
@@ -4057,43 +4247,116 @@ private struct CreateIssueSheet: View {
                 }
             }
 
-            BoardFormFieldGroup(
-                label: "Assignee",
-                hint: "Optional agent owner for execution or follow-up."
-            ) {
-                BoardMenuField(
-                    valueText: selectedAssigneeLabel,
-                    isPlaceholder: selectedAssigneeAgentId.isEmpty
+            if mode == .conversation {
+                BoardFormFieldGroup(
+                    label: "Parent Conversation",
+                    hint: "Use this to nest follow-up work under an existing conversation."
                 ) {
-                    Button("Unassigned") {
-                        selectedAssigneeAgentId = ""
+                    BoardMenuField(
+                        valueText: selectedParentIssueLabel,
+                        isPlaceholder: selectedParentIssueId.isEmpty
+                    ) {
+                        Button("No parent conversation") {
+                            selectedParentIssueId = ""
+                        }
+                        ForEach(issues) { issue in
+                            Button(issue.identifier ?? issue.title) {
+                                selectedParentIssueId = issue.id
+                            }
+                        }
                     }
-                    ForEach(agents) { agent in
-                        Button(agent.name) {
-                            selectedAssigneeAgentId = agent.id
+                }
+            } else {
+                BoardFormFieldGroup(
+                    label: "Parent Conversation",
+                    hint: "Queued messages stay attached to this conversation."
+                ) {
+                    Text(selectedParentIssueLabel)
+                        .font(Typography.body)
+                        .foregroundStyle(Color(hex: "F5F5F5"))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, Spacing.md)
+                        .padding(.vertical, Spacing.md)
+                        .background(Color(hex: "111111"))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+                }
+            }
+
+            BoardFormFieldGroup(
+                label: "Provider",
+                hint: "Choose which local runtime handles this conversation."
+            ) {
+                BoardMenuField(valueText: runtimeDraft.provider.title) {
+                    ForEach(ConversationRuntimeProvider.allCases) { provider in
+                        Button(provider.title) {
+                            runtimeDraft.provider = provider
+                            if provider != .claude {
+                                runtimeDraft.planMode = false
+                            }
+                            if !provider.defaultModelOptions.contains(runtimeDraft.model) {
+                                runtimeDraft.model = "default"
+                            }
                         }
                     }
                 }
             }
 
             BoardFormFieldGroup(
-                label: "Parent Issue",
-                hint: "Use this to nest follow-up work under an existing issue."
+                label: "Model",
+                hint: "Pick the model identifier the local runtime should use."
             ) {
-                BoardMenuField(
-                    valueText: selectedParentIssueLabel,
-                    isPlaceholder: selectedParentIssueId.isEmpty
-                ) {
-                    Button("No parent issue") {
-                        selectedParentIssueId = ""
-                    }
-                    ForEach(issues) { issue in
-                        Button(issue.identifier ?? issue.title) {
-                            selectedParentIssueId = issue.id
+                BoardMenuField(valueText: runtimeModelDisplayName(runtimeDraft.model)) {
+                    ForEach(runtimeModelOptions, id: \.self) { option in
+                        Button(runtimeModelDisplayName(option)) {
+                            runtimeDraft.model = option
                         }
                     }
                 }
             }
+
+            BoardFormFieldGroup(
+                label: "Thinking effort",
+                hint: "Controls how much reasoning time the model can spend before acting."
+            ) {
+                BoardMenuField(valueText: humanizedConversationValue(runtimeDraft.thinkingEffort)) {
+                    ForEach(runtimeThinkingEffortOptions, id: \.self) { option in
+                        Button(humanizedConversationValue(option)) {
+                            runtimeDraft.thinkingEffort = option
+                        }
+                    }
+                }
+            }
+
+            BoardFormFieldGroup(
+                label: "Plan mode",
+                hint: "Claude can stay in planning mode until you explicitly move the conversation forward."
+            ) {
+                BoardMenuField(
+                    valueText: runtimeDraft.provider == .claude && runtimeDraft.planMode
+                        ? "Claude plan mode"
+                        : "Off"
+                ) {
+                    Button("Off") {
+                        runtimeDraft.planMode = false
+                    }
+                    Button("Claude plan mode") {
+                        runtimeDraft.provider = .claude
+                        runtimeDraft.planMode = true
+                    }
+                }
+            }
+
+            BoardCheckboxRow(
+                title: runtimeDraft.provider.browserLabel,
+                subtitle: runtimeDraft.provider.browserHint,
+                isOn: $runtimeDraft.enableChrome
+            )
+
+            BoardCheckboxRow(
+                title: "Skip permissions",
+                subtitle: "Let the model run without daemon approval prompts.",
+                isOn: $runtimeDraft.skipPermissions
+            )
 
             if let errorMessage {
                 BoardInlineMessage(text: errorMessage, tone: .error)
@@ -4116,7 +4379,7 @@ private struct CreateIssueSheet: View {
                             ProgressView()
                                 .controlSize(.small)
                         }
-                        Text("Create Issue")
+                        Text(mode == .queuedMessage ? "Queue Message" : "Create Conversation")
                             .fontWeight(.medium)
                     }
                 }
@@ -4135,12 +4398,15 @@ private struct CreateIssueSheet: View {
         var params: [String: Any] = [
             "company_id": companyId,
             "title": title.trimmingCharacters(in: .whitespacesAndNewlines),
-            "priority": priority,
+            "status": "backlog",
         ]
         if let description = description.nonEmpty { params["description"] = description }
         if !selectedProjectId.isEmpty { params["project_id"] = selectedProjectId }
-        if !selectedAssigneeAgentId.isEmpty { params["assignee_agent_id"] = selectedAssigneeAgentId }
         if !selectedParentIssueId.isEmpty { params["parent_id"] = selectedParentIssueId }
+        params["assignee_adapter_overrides"] = runtimeDraft.asAdapterOverrides()
+        if let defaultExecutorId, !defaultExecutorId.isEmpty {
+            params["assignee_agent_id"] = defaultExecutorId
+        }
 
         do {
             try await onCreate(params)
@@ -4170,7 +4436,7 @@ private func formatDate(_ value: String?) -> String {
 
 #if DEBUG
 
-#Preview("First Company Setup") {
+#Preview("First Space Setup") {
     CreateFirstCompanyView()
         .environment(AppState())
         .frame(width: 1180, height: 780)
@@ -4182,7 +4448,7 @@ private func formatDate(_ value: String?) -> String {
         .frame(width: 1180, height: 780)
 }
 
-#Preview("CEO Bootstrap Issue Step") {
+#Preview("CEO Bootstrap Conversation Step") {
     CreateCEOAgentView()
         .environment(makeCEOOnboardingPreviewState(step: .bootstrapIssue))
         .frame(width: 1180, height: 780)
@@ -4194,7 +4460,7 @@ private func formatDate(_ value: String?) -> String {
         .frame(width: 1180, height: 780)
 }
 
-#Preview("Initial Company Load Error") {
+#Preview("Initial Space Load Error") {
     InitialCompanyLoadErrorView(
         message: "The board schema could not be read from the local daemon. Check the daemon logs and try again.",
         onRetry: {}
@@ -4202,8 +4468,8 @@ private func formatDate(_ value: String?) -> String {
     .frame(width: 1180, height: 780)
 }
 
-#Preview("Create Company Sheet") {
-    CreateCompanySheet { _, _, _, _, _ in }
+#Preview("Create Space Sheet") {
+    CreateCompanySheet { _, _, _, _ in }
         .frame(width: 520, height: 420)
 }
 
@@ -4217,15 +4483,15 @@ private func formatDate(_ value: String?) -> String {
     .frame(width: 520, height: 440)
 }
 
-#Preview("Create Issue Sheet") {
+#Preview("Create Conversation Sheet") {
     CreateIssueSheet(
         companyId: "company-1",
-        agents: [],
+        defaultExecutorId: "agent-1",
         projects: [],
         issues: [],
         onCreate: { _ in }
     )
-    .frame(width: 620, height: 520)
+    .frame(width: 620, height: 700)
 }
 
 #endif
@@ -4237,7 +4503,7 @@ private func makeBoardRootPreviewState(selectedScreen: AppScreen) -> AppState {
     let company = DaemonCompany(
         id: "company-1",
         name: "Acme",
-        description: "Board shell preview company",
+        description: "Board shell preview space",
         status: "active",
         issuePrefix: "ACM",
         issueCounter: 1,
@@ -4379,23 +4645,6 @@ private func projectDialogTargetDateString(_ date: Date) -> String {
     return formatter.string(from: Calendar.current.startOfDay(for: date))
 }
 
-private func approvalLinksIssue(_ approval: DaemonApproval, issueId: String) -> Bool {
-    guard let payload = approval.payload else { return false }
-
-    if let sourceIssueId = payload["source_issue_id"]?.value as? String,
-       sourceIssueId == issueId {
-        return true
-    }
-
-    if let sourceIssueIds = payload["source_issue_ids"]?.value as? [Any] {
-        return sourceIssueIds.contains { value in
-            (value as? String) == issueId
-        }
-    }
-
-    return false
-}
-
 private func anyCodableDictionaryText(_ dictionary: [String: AnyCodableValue]) -> String {
     dictionary
         .sorted(by: { $0.key < $1.key })
@@ -4484,17 +4733,17 @@ private func agentRunWakeReasonLabel(_ wakeReason: String?) -> String {
     case "heartbeat_timer":
         return "Heartbeat Timer"
     case "issue_assigned":
-        return "Issue Assigned"
+        return "Conversation Routed"
     case "issue_status_changed":
-        return "Issue Status Changed"
+        return "Conversation Status Changed"
     case "issue_checked_out":
-        return "Issue Checked Out"
+        return "Conversation Checked Out"
     case "issue_commented":
-        return "Issue Commented"
+        return "Conversation Messaged"
     case "issue_comment_mentioned":
-        return "Issue Comment Mentioned"
+        return "Message Mentioned"
     case "issue_reopened_via_comment":
-        return "Issue Reopened"
+        return "Conversation Reopened"
     case "approval_approved":
         return "Approval Approved"
     case "issue_execution_promoted":
@@ -4528,13 +4777,163 @@ private func money(_ cents: Int) -> String {
     return dollars.formatted(.currency(code: "USD"))
 }
 
+private func conversationActivitySummary(_ issue: DaemonIssue) -> String {
+    if issue.completedAt != nil {
+        return "Conversation completed"
+    }
+    if issue.cancelledAt != nil {
+        return "Conversation cancelled"
+    }
+    if issue.startedAt != nil {
+        return "Work started"
+    }
+    if issue.workspaceSessionId != nil {
+        return "Workspace attached"
+    }
+    return "Conversation updated"
+}
+
+private func anyCodableString(_ dictionary: [String: AnyCodableValue]?, key: String) -> String? {
+    guard let value = dictionary?[key]?.value as? String else { return nil }
+    let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmedValue.isEmpty ? nil : trimmedValue
+}
+
+private func anyCodableBool(_ dictionary: [String: AnyCodableValue]?, key: String) -> Bool {
+    guard let value = dictionary?[key]?.value else { return false }
+    if let boolValue = value as? Bool {
+        return boolValue
+    }
+    if let stringValue = value as? String {
+        return ["1", "true", "yes", "on"].contains(stringValue.lowercased())
+    }
+    if let numberValue = value as? NSNumber {
+        return numberValue.boolValue
+    }
+    return false
+}
+
+private func mergedConversationOptions(defaults: [String], selected: String) -> [String] {
+    let trimmedSelected = selected.trimmingCharacters(in: .whitespacesAndNewlines)
+    var options: [String] = []
+    if !trimmedSelected.isEmpty {
+        options.append(trimmedSelected)
+    }
+    for value in defaults where !options.contains(value) {
+        options.append(value)
+    }
+    return options
+}
+
+private func humanizedConversationValue(_ value: String) -> String {
+    value.replacingOccurrences(of: "_", with: " ").capitalized
+}
+
+private func runtimeModelDisplayName(_ value: String) -> String {
+    value.caseInsensitiveCompare("default") == .orderedSame ? "Default" : value
+}
+
+private func providerLabel(command: String?, model: String?, extraValues: [String] = []) -> String? {
+    let combinedValues = ([command, model] + extraValues.map(Optional.some))
+        .compactMap { $0?.lowercased() }
+
+    if combinedValues.contains(where: { $0.contains("codex") }) {
+        return "Codex"
+    }
+    if combinedValues.contains(where: { $0.contains("claude") }) {
+        return "Claude"
+    }
+    if combinedValues.contains(where: { $0.contains("openai") }) {
+        return "OpenAI"
+    }
+    if combinedValues.contains(where: { $0.contains("gemini") }) {
+        return "Gemini"
+    }
+    return nil
+}
+
+private func runtimeProvider(command: String?, model: String?) -> ConversationRuntimeProvider {
+    providerLabel(command: command, model: model) == "Codex" ? .codex : .claude
+}
+
+private func providerLabel(for agent: DaemonAgent) -> String? {
+    providerLabel(
+        command: anyCodableString(agent.runtimeConfig, key: "command")
+            ?? anyCodableString(agent.adapterConfig, key: "command"),
+        model: anyCodableString(agent.runtimeConfig, key: "model")
+            ?? anyCodableString(agent.adapterConfig, key: "model"),
+        extraValues: [
+            anyCodableString(agent.runtimeConfig, key: "provider"),
+            anyCodableString(agent.adapterConfig, key: "provider"),
+            anyCodableString(agent.runtimeConfig, key: "adapter"),
+            anyCodableString(agent.adapterConfig, key: "adapter"),
+            agent.adapterType,
+        ]
+        .compactMap { $0 }
+    )
+}
+
+private func conversationModelLabel(_ agent: DaemonAgent) -> String {
+    if let model = anyCodableString(agent.runtimeConfig, key: "model")
+        ?? anyCodableString(agent.adapterConfig, key: "model"),
+       model.caseInsensitiveCompare("default") != .orderedSame {
+        return model
+    }
+
+    return providerLabel(for: agent) ?? "Default model"
+}
+
+private func conversationModelLabelByAgentId(_ agents: [DaemonAgent], agentId: String?) -> String? {
+    guard let agentId, !agentId.isEmpty else { return nil }
+    guard let agent = agents.first(where: { $0.id == agentId }) else { return agentId }
+    return conversationModelLabel(agent)
+}
+
+private func issueModelLabel(_ issue: DaemonIssue, agents: [DaemonAgent]) -> String {
+    let command = anyCodableString(issue.assigneeAdapterOverrides, key: "command")
+    let model = anyCodableString(issue.assigneeAdapterOverrides, key: "model")
+    if let model, model.caseInsensitiveCompare("default") != .orderedSame {
+        return model
+    }
+    if let provider = providerLabel(command: command, model: model) {
+        return provider
+    }
+    return conversationModelLabelByAgentId(agents, agentId: issue.assigneeAgentId) ?? "Claude"
+}
+
+private func workspaceModelLabel(
+    _ workspace: DaemonWorkspace,
+    issues: [DaemonIssue],
+    agents: [DaemonAgent]
+) -> String? {
+    if let issueId = workspace.issueId,
+       let issue = issues.first(where: { $0.id == issueId }) {
+        return issueModelLabel(issue, agents: agents)
+    }
+    return conversationModelLabelByAgentId(agents, agentId: workspace.agentId)
+}
+
+private func issueCommentAuthorLabel(_ agents: [DaemonAgent], comment: DaemonIssueComment) -> String {
+    if let authorAgentId = comment.authorAgentId {
+        return conversationModelLabelByAgentId(agents, agentId: authorAgentId) ?? authorAgentId
+    }
+    if let authorUserId = comment.authorUserId {
+        return authorUserId == "local-board" ? "You" : "You"
+    }
+    return "System"
+}
+
+private func isRootConversationIssue(_ issue: DaemonIssue) -> Bool {
+    issue.parentId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
+}
+
 func issuesVisible(
     in issues: [DaemonIssue],
     tab: IssuesListTab,
     now: Date = Date(),
     calendar: Calendar = .current
 ) -> [DaemonIssue] {
-    let visibleIssues = issues.filter { $0.hiddenAt == nil }
+    let visibleIssues = issues.filter { $0.hiddenAt == nil && isRootConversationIssue($0) }
 
     switch tab {
     case .all:

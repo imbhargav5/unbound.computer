@@ -64,6 +64,10 @@ pub enum Method {
     #[serde(rename = "company.get")]
     CompanyGet,
 
+    // Dashboard
+    #[serde(rename = "dashboard.overview")]
+    DashboardOverview,
+
     // Agents
     #[serde(rename = "agent.list")]
     AgentList,
@@ -87,6 +91,8 @@ pub enum Method {
     ProjectCreate,
     #[serde(rename = "project.get")]
     ProjectGet,
+    #[serde(rename = "project.update")]
+    ProjectUpdate,
     #[serde(rename = "project.delete")]
     ProjectDelete,
 

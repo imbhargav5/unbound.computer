@@ -10,7 +10,7 @@ use tracing::{debug, info};
 /// Unbound CLI - Control the Unbound daemon and manage coding sessions.
 #[derive(Parser)]
 #[command(name = "unbound")]
-#[command(about = "Unbound CLI for authentication and session management")]
+#[command(about = "Unbound CLI for GitHub auth and session management")]
 #[command(version)]
 struct Cli {
     #[command(subcommand)]
@@ -35,13 +35,13 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Login with email and password
+    /// Run GitHub CLI login
     Login,
 
-    /// Logout and clear session
+    /// Run GitHub CLI logout
     Logout,
 
-    /// Check authentication status
+    /// Check GitHub authentication status
     Status,
 
     /// Manage the daemon
@@ -136,82 +136,32 @@ enum RepoCommands {
     },
 }
 
-/// Ensure user is authenticated before starting TUI.
-/// If not logged in, prompts for email/password.
+/// Ensure GitHub CLI authentication is available before starting TUI.
 async fn ensure_authenticated() -> anyhow::Result<()> {
-    use std::io::{self, Write};
-
     // Check if daemon is running - never auto-start, daemon is a singleton
     let client = commands::get_daemon_client().await.map_err(|_| {
         anyhow::anyhow!("Daemon is not running. Start it separately with 'unbound daemon start'")
     })?;
 
-    // Check auth status
-    let response = client.call_method(daemon_ipc::Method::AuthStatus).await?;
+    let response = client
+        .call_method(daemon_ipc::Method::GhAuthStatus)
+        .await?;
 
     if let Some(result) = &response.result {
-        let logged_in = result
-            .get("logged_in")
-            .or_else(|| result.get("authenticated"))
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
+        let authenticated = result
+            .get("authenticated_host_count")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0)
+            > 0;
 
-        if logged_in {
-            // Already authenticated
+        if authenticated {
             return Ok(());
         }
     }
 
-    // Not authenticated - prompt for email/password
-    println!();
-    println!("Authentication required.");
-    println!();
-
-    print!("Email: ");
-    io::stdout().flush()?;
-    let mut email = String::new();
-    io::stdin().read_line(&mut email)?;
-    let email = email.trim().to_string();
-
-    if email.is_empty() {
-        anyhow::bail!("Email is required");
-    }
-
-    // Read password without echo
-    let password = rpassword::prompt_password("Password: ")?;
-
-    if password.is_empty() {
-        anyhow::bail!("Password is required");
-    }
-
-    println!();
-    println!("Logging in...");
-
-    let params = serde_json::json!({
-        "email": email,
-        "password": password,
-    });
-
-    let response = client
-        .call_method_with_params(daemon_ipc::Method::AuthLogin, params)
-        .await?;
-
-    if response.is_success() {
-        if let Some(result) = &response.result {
-            let email_display = result
-                .get("email")
-                .and_then(|v| v.as_str())
-                .or_else(|| result.get("user_id").and_then(|v| v.as_str()))
-                .unwrap_or("user");
-            println!("Logged in as {}", email_display);
-            println!();
-        }
-        Ok(())
-    } else if let Some(error) = &response.error {
-        anyhow::bail!("Login failed: {}", error.message);
-    } else {
-        anyhow::bail!("Login failed");
-    }
+    anyhow::bail!(
+        "GitHub authentication required. Run 'unbound login' or 'gh auth login' first."
+    );
 }
 
 /// Find the git repository root from the current directory.

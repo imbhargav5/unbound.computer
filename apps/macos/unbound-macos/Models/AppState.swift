@@ -100,16 +100,16 @@ struct BoardOnboardingState: Codable, Equatable {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let companyReference = (trimmedCompanyName?.isEmpty == false)
             ? trimmedCompanyName!
-            : "this company"
+            : "this space"
 
         return """
         Setup yourself as the CEO for \(companyReference).
 
         During your first run, use the Agent home and Instructions paths provided in the run context to create or fetch your AGENTS.md, HEARTBEAT.md, SOUL.md, TOOLS.md, and MEMORY.md files.
 
-        Make sure the CEO workspace is ready for future heartbeats, document what you created, and leave the company in a bootstrapped state for the next run.
+        Make sure the CEO workspace is ready for future heartbeats, document what you created, and leave the space in a bootstrapped state for the next run.
 
-        After you finish that setup, submit a board-native hire request for a Founding Engineer that links back to this issue. Use the board helper commands provided in the run prompt so Unbound creates the real agent record and any required approval. Do not create sibling agent directories or AGENTS.md files by hand for new hires.
+        After you finish that setup, submit a board-native hire request for a Founding Engineer that links back to this conversation. Use the board helper commands provided in the run prompt so Unbound creates the real agent record and any required approval. Do not create sibling agent directories or AGENTS.md files by hand for new hires.
         """
     }
 }
@@ -842,17 +842,51 @@ class AppState {
         name: String,
         description: String? = nil,
         budgetMonthlyCents: Int? = nil,
-        brandColor: String? = nil,
-        requireBoardApprovalForNewAgents: Bool? = nil
+        brandColor: String? = nil
     ) async throws -> DaemonCompany {
         let company = try await daemonClient.createCompany(
             name: name,
             description: description,
             budgetMonthlyCents: budgetMonthlyCents,
             brandColor: brandColor,
-            requireBoardApprovalForNewAgents: requireBoardApprovalForNewAgents
+            requireBoardApprovalForNewAgents: false
         )
-        beginBoardOnboarding(for: company.id, companyName: company.name)
+
+        do {
+            _ = try await daemonClient.createAgent(
+                params: [
+                    "company_id": company.id,
+                    "name": "Default Executor",
+                    "role": "ceo",
+                    "title": "Default Executor",
+                    "icon": "sparkles",
+                    "adapter_type": "process",
+                    "adapter_config": [
+                        "command": "claude",
+                        "model": "default",
+                        "thinkingEffort": "auto",
+                        "reasoningEffort": "auto",
+                        "permissionMode": "default",
+                        "enableChrome": false,
+                        "skipPermissions": false,
+                    ],
+                    "runtime_config": [
+                        "heartbeat": [
+                            "enabled": true,
+                            "intervalSec": 3600,
+                            "wakeOnDemand": true,
+                            "cooldownSec": 10,
+                            "maxConcurrentRuns": 1,
+                        ],
+                    ],
+                ]
+            )
+            clearBoardOnboardingState()
+        } catch {
+            logger.error("Failed to provision default executor for company \(company.id): \(error)")
+            beginBoardOnboarding(for: company.id, companyName: company.name)
+        }
+
         await refreshCompanies()
         await selectCompany(company.id)
         selectedScreen = .dashboard

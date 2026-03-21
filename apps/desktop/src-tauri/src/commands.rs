@@ -193,6 +193,12 @@ pub async fn board_update_company(params: Value) -> Result<Value, String> {
 }
 
 #[tauri::command]
+pub async fn board_create_agent(params: Value) -> Result<Value, String> {
+    let value = call_daemon(Method::AgentCreate, Some(params)).await?;
+    Ok(extract_field(value, "agent"))
+}
+
+#[tauri::command]
 pub async fn board_update_agent(params: Value) -> Result<Value, String> {
     let value = call_daemon(Method::AgentUpdate, Some(params)).await?;
     Ok(extract_field(value, "agent"))
@@ -234,8 +240,21 @@ pub async fn board_company_snapshot(company_id: String) -> Result<Value, String>
 }
 
 #[tauri::command]
+pub async fn board_dashboard_overview(company_id: String) -> Result<Value, String> {
+    let value = call_daemon(Method::DashboardOverview, Some(json!({ "company_id": company_id })))
+        .await?;
+    Ok(extract_field(value, "overview"))
+}
+
+#[tauri::command]
 pub async fn board_create_project(params: Value) -> Result<Value, String> {
     let value = call_daemon(Method::ProjectCreate, Some(params)).await?;
+    Ok(extract_field(value, "project"))
+}
+
+#[tauri::command]
+pub async fn board_update_project(params: Value) -> Result<Value, String> {
+    let value = call_daemon(Method::ProjectUpdate, Some(params)).await?;
     Ok(extract_field(value, "project"))
 }
 

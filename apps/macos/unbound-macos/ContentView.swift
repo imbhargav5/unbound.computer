@@ -52,8 +52,8 @@ struct ContentView: View {
         if appState.dependenciesSatisfied {
             if !appState.hasCompletedInitialCompanyLoad {
                 DaemonConnectingView(
-                    title: "Loading companies",
-                    message: "Checking local companies before opening Unbound..."
+                    title: "Loading spaces",
+                    message: "Checking local spaces before opening Unbound..."
                 )
                 .transition(.opacity)
             } else if let boardError = appState.boardError,

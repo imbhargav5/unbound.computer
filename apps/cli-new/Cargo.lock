@@ -386,7 +386,7 @@ dependencies = [
 
 [[package]]
 name = "daemon-config-and-utils"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "base64",
  "chacha20poly1305",
@@ -406,16 +406,18 @@ dependencies = [
 
 [[package]]
 name = "daemon-ipc"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "daemon-config-and-utils",
  "interprocess",
- "one-for-all-protocol",
+ "ipc-protocol-types",
+ "opentelemetry",
  "serde",
  "serde_json",
  "thiserror",
  "tokio",
  "tracing",
+ "tracing-opentelemetry",
  "uuid",
 ]
 
@@ -679,7 +681,7 @@ dependencies = [
 
 [[package]]
 name = "git-ops"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "git2",
  "serde",
@@ -819,6 +821,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tower-service",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -1020,6 +1023,15 @@ dependencies = [
  "tokio",
  "widestring",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "ipc-protocol-types"
+version = "0.0.19"
+dependencies = [
+ "serde",
+ "serde_json",
+ "uuid",
 ]
 
 [[package]]
@@ -1249,13 +1261,16 @@ dependencies = [
 
 [[package]]
 name = "observability"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
+ "async-trait",
  "dirs",
  "opentelemetry",
+ "opentelemetry-http",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
  "parking_lot",
+ "reqwest",
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
@@ -1272,15 +1287,6 @@ name = "once_cell_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
-
-[[package]]
-name = "one-for-all-protocol"
-version = "0.0.18"
-dependencies = [
- "serde",
- "serde_json",
- "uuid",
-]
 
 [[package]]
 name = "opaque-debug"
@@ -1780,6 +1786,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -2451,7 +2458,7 @@ checksum = "562d481066bde0658276a35467c4af00bdc6ee726305698a55b86e61d7ad82bb"
 
 [[package]]
 name = "unbound-cli"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2685,6 +2692,15 @@ checksum = "5a6580f308b1fad9207618087a65c04e7a10bc77e02c8e84e9b00dd4b12fa0bb"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "webpki-roots"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22cfaf3c063993ff62e73cb4311efde4db1efb31ab78a3e5c457939ad5cc0bed"
+dependencies = [
+ "rustls-pki-types",
 ]
 
 [[package]]

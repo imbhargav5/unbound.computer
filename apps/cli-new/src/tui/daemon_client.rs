@@ -9,6 +9,7 @@ use anyhow::Result;
 use daemon_config_and_utils::Paths;
 use daemon_ipc::{Event as DaemonEvent, IpcClient, Method, StreamingSubscription};
 use std::collections::HashMap;
+use std::process::Command;
 use tokio::sync::mpsc;
 
 impl App {
@@ -520,11 +521,9 @@ impl App {
 
     /// Logout from the current session.
     pub async fn logout(&mut self) -> Result<()> {
-        let client = get_ipc_client()?;
-        let response = client.call_method(Method::AuthLogout).await?;
-
-        if let Some(error) = &response.error {
-            return Err(anyhow::anyhow!("{}", error.message));
+        let status = Command::new("gh").args(["auth", "logout"]).status()?;
+        if !status.success() {
+            return Err(anyhow::anyhow!("gh auth logout exited with status {}", status));
         }
 
         // Clear auth status
@@ -632,7 +631,7 @@ impl App {
             EventType::SessionCreated | EventType::SessionDeleted => {
                 // Session lifecycle events - could refresh session list
             }
-            EventType::InitialState | EventType::Ping | EventType::AuthStateChanged => {
+            EventType::AgentEvent | EventType::InitialState | EventType::Ping => {
                 // Handled by subscription setup or ignored
             }
         }
@@ -668,25 +667,37 @@ fn get_ipc_client() -> Result<IpcClient> {
 
 /// Fetch authentication status from the daemon.
 async fn fetch_auth_status(client: &IpcClient) -> Result<AuthStatus> {
-    let response = client.call_method(Method::AuthStatus).await?;
+    let response = client.call_method(Method::GhAuthStatus).await?;
 
     if let Some(result) = &response.result {
-        // Check for "authenticated" first, then fall back to "logged_in"
         let authenticated = result
-            .get("authenticated")
-            .or_else(|| result.get("logged_in"))
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-        let user_id = result
-            .get("user_id")
+            .get("authenticated_host_count")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0)
+            > 0;
+
+        let active_host = result
+            .get("hosts")
+            .and_then(|value| value.as_array())
+            .and_then(|hosts| {
+                hosts.iter().find(|host| {
+                    host.get("active")
+                        .and_then(|value| value.as_bool())
+                        .unwrap_or(false)
+                        && host
+                            .get("state")
+                            .and_then(|value| value.as_str())
+                            .map(|state| state == "logged_in")
+                            .unwrap_or(false)
+                })
+            });
+
+        let user_id = active_host
+            .and_then(|host| host.get("host"))
             .and_then(|v| v.as_str())
             .map(String::from);
-        let user_email = result
-            .get("email")
-            .and_then(|v| v.as_str())
-            .map(String::from);
-        let expires_at = result
-            .get("expires_at")
+        let user_email = active_host
+            .and_then(|host| host.get("login"))
             .and_then(|v| v.as_str())
             .map(String::from);
 
@@ -694,7 +705,7 @@ async fn fetch_auth_status(client: &IpcClient) -> Result<AuthStatus> {
             authenticated,
             user_id,
             user_email,
-            expires_at,
+            expires_at: None,
         })
     } else {
         Ok(AuthStatus::default())

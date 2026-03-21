@@ -6,6 +6,7 @@ use daemon_board::{
     AddIssueAttachmentInput, AddIssueCommentInput, Approval, ApprovalDecisionInput, BoardError,
     CreateAgentHireInput, CreateAgentInput, CreateCompanyInput, CreateIssueInput,
     CreateProjectInput, Issue, IssueListFilter, UpdateAgentInput, UpdateIssueInput,
+    UpdateProjectInput,
 };
 use daemon_ipc::{error_codes, IpcServer, Method, Response};
 use serde::de::DeserializeOwned;
@@ -100,6 +101,26 @@ async fn register_company_handlers(server: &IpcServer, state: DaemonState) {
                 match service::update_company(&db, input).await {
                     Ok(company) => {
                         json_response(&req.id, &serde_json::json!({ "company": company }))
+                    }
+                    Err(error) => board_error_response(&req.id, error),
+                }
+            }
+        })
+        .await;
+
+    let dashboard_db = state.db.clone();
+    server
+        .register_handler(Method::DashboardOverview, move |req| {
+            let db = dashboard_db.clone();
+            async move {
+                let company_id =
+                    match required_string_param(&req.id, req.params.as_ref(), "company_id") {
+                        Ok(company_id) => company_id,
+                        Err(response) => return response,
+                    };
+                match service::get_dashboard_overview(&db, &company_id).await {
+                    Ok(overview) => {
+                        json_response(&req.id, &serde_json::json!({ "overview": overview }))
                     }
                     Err(error) => board_error_response(&req.id, error),
                 }
@@ -299,6 +320,25 @@ async fn register_project_handlers(server: &IpcServer, state: DaemonState) {
                         Err(response) => return response,
                     };
                 match service::delete_project(&db, &project_id).await {
+                    Ok(project) => {
+                        json_response(&req.id, &serde_json::json!({ "project": project }))
+                    }
+                    Err(error) => board_error_response(&req.id, error),
+                }
+            }
+        })
+        .await;
+
+    let update_db = state.db.clone();
+    server
+        .register_handler(Method::ProjectUpdate, move |req| {
+            let db = update_db.clone();
+            async move {
+                let input = match parse_params::<UpdateProjectInput>(&req.id, req.params.as_ref()) {
+                    Ok(input) => input,
+                    Err(response) => return response,
+                };
+                match service::update_project(&db, input).await {
                     Ok(project) => {
                         json_response(&req.id, &serde_json::json!({ "project": project }))
                     }
