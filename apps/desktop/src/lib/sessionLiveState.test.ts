@@ -22,6 +22,15 @@ describe("DesktopSessionStateManager", () => {
             content: [{ type: "text", text: "Working on it" }],
           },
         }),
+        message("3", 3, {
+          type: "result",
+          result: "Completed successfully.",
+          total_cost_usd: 0.01,
+          usage: {
+            input_tokens: 100,
+            output_tokens: 40,
+          },
+        }),
       ],
     ]);
     const manager = new DesktopSessionStateManager(api);
@@ -32,8 +41,13 @@ describe("DesktopSessionStateManager", () => {
 
     const snapshot = state.getSnapshot();
     expect(snapshot.subscriptionState).toBe("subscribed");
-    expect(snapshot.messages).toHaveLength(2);
-    expect(snapshot.conversationRows).toHaveLength(2);
+    expect(snapshot.messages).toHaveLength(3);
+    expect(snapshot.conversationRows).toHaveLength(3);
+    expect(snapshot.latestCompletionSummary).toMatchObject({
+      summaryText: "Completed successfully.",
+      totalCostUSD: 0.01,
+      totalTokens: 140,
+    });
     expect(api.sessionSubscribe).toHaveBeenCalledWith("session-1");
   });
 
@@ -86,6 +100,18 @@ describe("DesktopSessionStateManager", () => {
     expect(state.getSnapshot().messages).toHaveLength(1);
     expect(api.sessionSubscribe).toHaveBeenCalledTimes(2);
     expect(api.sessionUnsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns a stable empty snapshot for missing sessions", () => {
+    const manager = new DesktopSessionStateManager(createMockApi([]));
+
+    const first = manager.emptySnapshot(null, "claude");
+    const second = manager.emptySnapshot(null, "claude");
+    const third = manager.emptySnapshot(null, "codex");
+
+    expect(second).toBe(first);
+    expect(third).not.toBe(first);
+    expect(first.sessionId).toBe("missing-session");
   });
 
   it("captures stream errors on the active session", async () => {

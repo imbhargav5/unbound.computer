@@ -4,6 +4,7 @@ import claudeParserFixtures from "../../../shared/ClaudeConversationTimeline/Fix
 
 import {
   buildSessionConversationTimeline,
+  deriveLatestSessionCompletionSummary,
   sessionConversationBlockSemanticType,
 } from "./sessionConversation";
 import type { SessionMessage } from "./types";
@@ -121,6 +122,63 @@ describe("buildSessionConversationTimeline", () => {
         header: "Ship it",
         question: "Should I continue?",
       },
+    });
+  });
+
+  it("derives the latest Claude completion summary", () => {
+    const summary = deriveLatestSessionCompletionSummary(
+      [
+        message("1", 1, {
+          type: "result",
+          result: "Implemented the requested README update.",
+          stop_reason: "end_turn",
+          total_cost_usd: 0.021,
+          num_turns: 2,
+          usage: {
+            cache_creation_input_tokens: 80,
+            cache_read_input_tokens: 120,
+            input_tokens: 700,
+            output_tokens: 310,
+          },
+        }),
+      ],
+      "claude"
+    );
+
+    expect(summary).toEqual({
+      durationMs: null,
+      outcomeLabel: "end_turn",
+      summaryText: "Implemented the requested README update.",
+      totalCostUSD: 0.021,
+      totalTokens: 1210,
+      turns: 2,
+    });
+  });
+
+  it("derives the latest Codex completion summary", () => {
+    const summary = deriveLatestSessionCompletionSummary(
+      [
+        message("1", 1, {
+          type: "turn.completed",
+          duration_ms: 8421,
+          turn_count: 1,
+          usage: {
+            cached_input_tokens: 50,
+            input_tokens: 300,
+            output_tokens: 120,
+          },
+        }),
+      ],
+      "codex"
+    );
+
+    expect(summary).toEqual({
+      durationMs: 8421,
+      outcomeLabel: "turn_completed",
+      summaryText: null,
+      totalCostUSD: null,
+      totalTokens: 470,
+      turns: 1,
     });
   });
 });

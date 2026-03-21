@@ -119,6 +119,7 @@ import {
   buildConversationTimeline,
 } from "./lib/conversationTimeline";
 import {
+  type SessionCompletionSummary,
   type SessionConversationCommandBlock,
   type SessionConversationNoteBlock,
   type SessionConversationRow,
@@ -130,13 +131,10 @@ import {
 
 type AppScreen =
   | "dashboard"
-  | "inbox"
-  | "workspaces"
   | "agents"
   | "issues"
   | "approvals"
   | "projects"
-  | "goals"
   | "stats"
   | "activity"
   | "costs"
@@ -164,7 +162,6 @@ type DesktopPreferredViewValue =
   | "stats"
   | "activity"
   | "costs"
-  | "workspaces"
   | "settings";
 type IssuesListTab = "new" | "all";
 type IssuesRouteMode = "list" | "detail";
@@ -177,12 +174,11 @@ interface IssueLinkedRun {
   run: AgentRunRecord;
 }
 
-type BoardRootLayout = "companyDashboard" | "workspace" | "settings";
+type BoardRootLayout = "companyDashboard" | "settings";
 type WorkspaceCenterTab = "conversation" | "runs" | "terminal" | "preview";
 type WorkspaceSidebarTab = "changes" | "files" | "commits" | "issue";
 type CompanyContextMenuScreen =
   | "dashboard"
-  | "workspaces"
   | "issues"
   | "companySettings";
 type CompanyContextMenuIconKey =
@@ -191,8 +187,6 @@ type CompanyContextMenuIconKey =
   | "agents"
   | "approvals"
   | "costs"
-  | "goals"
-  | "inbox"
   | "stats";
 
 interface CompanyContextMenuState {
@@ -1012,8 +1006,7 @@ function issueWorkspaceTargetHint({
 }
 
 const primaryBoardSections: Array<{ title: string; screens: AppScreen[] }> = [
-  { title: "Work", screens: ["issues", "workspaces"] },
-  { title: "Planning", screens: ["goals"] },
+  { title: "Work", screens: ["issues"] },
 ];
 
 const companyBoardSection: { title: string; screens: AppScreen[] } = {
@@ -1044,7 +1037,6 @@ const desktopPreferredViewOptions: Array<
   { label: "Stats", value: "stats" },
   { label: "Activity", value: "activity" },
   { label: "Costs", value: "costs" },
-  { label: "Worktrees", value: "workspaces" },
   { label: "Settings", value: "settings" },
 ];
 
@@ -1065,7 +1057,6 @@ const companyContextMenuItems: Array<{
   screen: CompanyContextMenuScreen;
 }> = [
   { icon: "dashboard", label: "Dashboard", screen: "dashboard" },
-  { icon: "workspaces", label: "Worktrees", screen: "workspaces" },
   { icon: "issues", label: "Conversations", screen: "issues" },
   { icon: "companySettings", label: "Settings", screen: "companySettings" },
 ];
@@ -1074,17 +1065,21 @@ const defaultDashboardCanvasOffset: DashboardCanvasOffset = {
   x: 96,
   y: 88,
 };
+const defaultBirdsEyeCanvasOffset: DashboardCanvasOffset = {
+  x: 48,
+  y: 40,
+};
 const dashboardCanvasZoomLevels = [0.7, 0.85, 1, 1.15, 1.3] as const;
 const defaultDashboardCanvasZoomIndex = 2;
 
 const dashboardProjectBoardMinWidth = 920;
 const dashboardProjectBoardHeight = 1280;
-const dashboardProjectBoardGapX = 88;
-const dashboardProjectBoardGapY = 80;
-const dashboardProjectBoardStackGap = dashboardProjectBoardGapY;
+const dashboardProjectBoardGapX = 440;
+const dashboardProjectBoardGapY = 440;
+const dashboardProjectBoardStackGap = 80;
 const dashboardProjectBoardPadding = 18;
 const dashboardProjectBoardBorderWidth = 1;
-const dashboardProjectBoardColumnWidth = 340;
+const dashboardProjectBoardColumnWidth = 680;
 const dashboardProjectBoardColumnGap = 14;
 const dashboardProjectAddViewSlotHeight = 126;
 const dashboardDefaultProjectViewId = "default";
@@ -1117,7 +1112,6 @@ export function App() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
     null
   );
-  const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [selectedIssuesListTab, setSelectedIssuesListTab] =
     useState<IssuesListTab>("new");
@@ -1382,10 +1376,6 @@ export function App() {
   const dashboardPreviewRunCardUpdate =
     dashboardPreviewChatSummary?.run_update ?? null;
   const boardGoals = companySnapshot?.goals ?? emptyGoalRecords;
-  const selectedGoal =
-    boardGoals.find((goal) => goal.id === selectedGoalId) ??
-    boardGoals[0] ??
-    null;
   const boardProjects = companySnapshot?.projects ?? emptyProjectRecords;
   const currentProjectsForCreation =
     boardProjects.length > 0 ? boardProjects : dashboardOverviewProjects;
@@ -1503,9 +1493,6 @@ export function App() {
   );
   const activeSession =
     sessions.find((session) => session.id === selectedSessionId) ?? null;
-  const selectedBoardWorkspaceIssue =
-    boardIssues.find((issue) => issue.id === selectedBoardWorkspace?.issue_id) ??
-    null;
   const activeWorkspaceAgent =
     boardAgents.find((agent) => agent.id === selectedBoardWorkspace?.agent_id) ??
     null;
@@ -1513,12 +1500,6 @@ export function App() {
     activeSession,
     activeWorkspaceAgent
   );
-  const activeWorkspaceProviderLabel =
-    activeWorkspaceProvider === "codex"
-      ? "Codex"
-      : activeWorkspaceProvider === "claude"
-        ? "Claude"
-        : "Agent";
   const activeSessionLiveState = useDesktopSessionLiveState(
     sessionStateManager,
     activeSession?.id ?? null,
@@ -2023,7 +2004,6 @@ export function App() {
   useEffect(() => {
     const nextWorkspaces = companySnapshot?.workspaces ?? [];
     const nextAgents = companySnapshot?.agents ?? [];
-    const nextGoals = companySnapshot?.goals ?? [];
     const nextIssues = companySnapshot?.issues ?? [];
     const nextApprovals = companySnapshot?.approvals ?? [];
     const nextProjects = companySnapshot?.projects ?? [];
@@ -2067,13 +2047,6 @@ export function App() {
         return current;
       }
       return nextProjects[0]?.id ?? null;
-    });
-
-    setSelectedGoalId((current) => {
-      if (current && nextGoals.some((goal) => goal.id === current)) {
-        return current;
-      }
-      return nextGoals[0]?.id ?? null;
     });
 
     setIssueCommentsByIssueId((current) =>
@@ -2953,9 +2926,6 @@ export function App() {
     startTransition(() => {
       setSelectedCompanyId(companyId);
       setSelectedScreen(screen);
-      if (screen === "workspaces") {
-        setWorkspaceCenterTab("conversation");
-      }
       if (screen === "issues") {
         setIssuesRouteMode("list");
         setSelectedIssueId(null);
@@ -3196,19 +3166,14 @@ export function App() {
   };
 
   const handleSelectBoardWorkspace = (workspace: WorkspaceRecord) => {
-    startTransition(() => {
-      setSelectedBoardWorkspaceId(workspace.id);
-      setSelectedScreen("workspaces");
-      setWorkspaceCenterTab("conversation");
-      setSelectedRepositoryId(workspace.repository_id);
-      setSelectedSessionId(workspace.session_id);
-    });
+    setSelectedBoardWorkspaceId(workspace.id);
 
-    void persistSettings({
-      ...settings,
-      preferred_repository_id: workspace.repository_id,
-      preferred_view: preferredViewForScreen("workspaces"),
-    });
+    if (workspace.issue_id) {
+      void handleSelectIssue(workspace.issue_id);
+      return;
+    }
+
+    setStatusMessage("This worktree is not linked to a conversation.");
   };
 
   const handleSelectAgent = (agentId: string) => {
@@ -4754,11 +4719,6 @@ export function App() {
     );
   }
 
-  const activeWorkspaceTitle =
-    activeSession?.title ??
-    selectedBoardWorkspace?.issue_title ??
-    selectedBoardWorkspace?.title ??
-    null;
   const showBoardSidebar =
     layout === "companyDashboard" && selectedScreen !== "dashboard";
 
@@ -4913,12 +4873,6 @@ export function App() {
                         : null
                     }
                   />
-                  <BoardSidebarButton
-                    active={selectedScreen === "inbox"}
-                    icon="inbox"
-                    label="Inbox"
-                    onClick={() => handleSelectScreen("inbox")}
-                  />
                 </div>
 
                 {primaryBoardSections.map((section) => (
@@ -5002,15 +4956,7 @@ export function App() {
                 chats={dashboardOverviewChats}
                 dependencyCheck={dependencyCheck}
                 isLoadingOverview={isDashboardOverviewLoading}
-                previewAttachments={dashboardPreviewAttachments}
-                previewComments={dashboardPreviewComments}
-                previewErrorMessage={dashboardIssuePreviewError}
                 previewIssue={dashboardPreviewIssue}
-                previewIsLoading={isDashboardIssuePreviewLoading}
-                previewRunCardUpdate={dashboardPreviewRunCardUpdate}
-                previewSubissueCount={
-                  dashboardPreviewChatSummary?.child_issue_count ?? 0
-                }
                 projects={dashboardOverviewProjects}
                 onCreateProject={handleOpenCreateProjectDialog}
                 onCreateQuickChat={(title, defaults) =>
@@ -5022,6 +4968,37 @@ export function App() {
                 }
                 onOpenIssuePreview={handleOpenDashboardIssuePreview}
                 workspaces={dashboardOverviewWorkspaces}
+              />
+            ) : null}
+
+            {selectedScreen === "dashboard" && dashboardPreviewIssue ? (
+              <DashboardIssuePreviewDialogView
+                agents={dashboardOverviewAgents}
+                attachments={dashboardPreviewAttachments}
+                comments={dashboardPreviewComments}
+                errorMessage={dashboardIssuePreviewError}
+                isLoading={isDashboardIssuePreviewLoading}
+                issue={dashboardPreviewIssue}
+                onClose={handleCloseDashboardIssuePreview}
+                onOpenIssue={() =>
+                  void handleOpenDashboardIssueDetail(dashboardPreviewIssue.id)
+                }
+                parentIssueLabel={(parentIssueId) =>
+                  issueParentLabel(boardIssues, parentIssueId)
+                }
+                projectLabel={(projectId) =>
+                  issueProjectLabel(
+                    boardProjects.length > 0
+                      ? boardProjects
+                      : dashboardOverviewProjects,
+                    projectId
+                  )
+                }
+                runCardUpdate={dashboardPreviewRunCardUpdate}
+                statusLabel={issueStatusLabel}
+                subissueCount={
+                  dashboardPreviewChatSummary?.child_issue_count ?? 0
+                }
               />
             ) : null}
 
@@ -5038,13 +5015,6 @@ export function App() {
               />
             ) : null}
 
-            {selectedScreen === "inbox" ? (
-              <RoutePlaceholder
-                body="Inbox routing exists in the shell now. Use Conversations while the daemon inbox surface catches up."
-                title="Inbox"
-              />
-            ) : null}
-
             {selectedScreen === "agents" ? (
               <RoutePlaceholder
                 body="Conversations now run models directly. Configure Claude or Codex on each conversation instead of managing agent pages."
@@ -5057,7 +5027,7 @@ export function App() {
                 <IssueWorkspaceDetailView
                   agents={companySnapshot?.agents ?? []}
                   availableStatusOptions={issueStatusOptions}
-                  currentDirectory={currentDirectory}
+                  dependencyCheck={dependencyCheck}
                   isSavingIssue={isSavingIssue}
                   isWorking={isWorking}
                   issue={selectedIssue}
@@ -5132,7 +5102,9 @@ export function App() {
                       ...patch,
                     }))
                   }
-                  onOpenRunDetail={(run) => handleOpenIssueLinkedRun(run)}
+                  onAddAttachment={() =>
+                    void handleAddIssueAttachment(selectedIssue)
+                  }
                   onPromptChange={setPrompt}
                   onRespondToQuestion={(response) =>
                     void handleRespondToSessionQuestion(response)
@@ -5178,8 +5150,21 @@ export function App() {
                       ? activeSession
                       : null
                   }
-                  sessionErrorMessage={activeSessionLiveState.errorMessage}
-                  sessionLoading={activeSessionLiveState.isLoadingMessages}
+                  sessionErrorMessage={
+                    selectedIssueWorkspace?.session_id === activeSession?.id
+                      ? activeSessionLiveState.errorMessage
+                      : null
+                  }
+                  sessionLoading={
+                    selectedIssueWorkspace?.session_id === activeSession?.id
+                      ? activeSessionLiveState.isLoadingMessages
+                      : false
+                  }
+                  latestCompletionSummary={
+                    selectedIssueWorkspace?.session_id === activeSession?.id
+                      ? activeSessionLiveState.latestCompletionSummary
+                      : null
+                  }
                   sessionRows={
                     selectedIssueWorkspace?.session_id === activeSession?.id
                       ? activeSessionConversationRows
@@ -5188,6 +5173,11 @@ export function App() {
                   statusLabel={issueStatusLabel}
                   terminalCommand={terminalCommand}
                   terminalContainerRef={terminalContainerRef}
+                  runtimeStatusValue={
+                    selectedIssueWorkspace?.session_id === activeSession?.id
+                      ? stringifyStatus(activeRuntimeStatusState)
+                      : "waiting"
+                  }
                   terminalStatusValue={stringifyStatus(activeTerminalStatusState)}
                   workspace={selectedIssueWorkspace}
                   workspaceCenterTab={workspaceCenterTab}
@@ -5240,21 +5230,9 @@ export function App() {
                 goals={boardGoals}
                 onDeleteProject={handleDeleteProject}
                 onOpenCreateProject={handleOpenCreateProjectDialog}
-                onSelectProject={setSelectedProjectId}
                 onUpdateProjectDefaultNewChatArea={
                   handleUpdateProjectDefaultNewChatArea
                 }
-                projects={boardProjects}
-              />
-            ) : null}
-
-            {selectedScreen === "goals" ? (
-              <GoalsRouteView
-                agents={companySnapshot?.agents ?? []}
-                currentGoal={selectedGoal}
-                goals={boardGoals}
-                onSelectGoal={setSelectedGoalId}
-                projects={boardProjects}
               />
             ) : null}
 
@@ -5373,323 +5351,6 @@ export function App() {
               />
             ) : null}
           </main>
-        </div>
-      ) : null}
-
-      {layout === "workspace" ? (
-        <div className="workspace-shell">
-          <aside className="workspace-sidebar">
-            <div className="workspace-sidebar-header">
-              <div>
-                <h2>Worktrees</h2>
-                <span>{selectedCompany?.name ?? "Space"} board</span>
-              </div>
-              <button
-                className="icon-button"
-                onClick={() => void refreshBoardData()}
-                type="button"
-              >
-                ↻
-              </button>
-            </div>
-
-            {companyWorkspaces.length ? (
-              <div className="workspace-session-list workspace-board-list">
-                {companyWorkspaces.map((workspace) => (
-                  <WorkspaceBoardItem
-                    active={workspace.id === selectedBoardWorkspaceId}
-                    key={workspace.id}
-                    onClick={() => handleSelectBoardWorkspace(workspace)}
-                    workspace={workspace}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="workspace-empty-state">
-                <h3>No active worktrees</h3>
-                <p>
-                  Worktrees appear automatically when a conversation starts a
-                  model run.
-                </p>
-              </div>
-            )}
-          </aside>
-
-          <main className="workspace-center">
-            {selectedBoardWorkspace ? (
-              <>
-                <section className="workspace-summary-banner">
-                  <div>
-                    <span className="route-kicker">
-                      {selectedBoardWorkspace.issue_identifier ?? "Worktree"}
-                    </span>
-                    <h1>
-                      {selectedBoardWorkspace.issue_title ??
-                        selectedBoardWorkspace.title}
-                    </h1>
-                    <p>
-                      {[
-                        selectedBoardWorkspace.project_name,
-                        selectedBoardWorkspace.issue_id
-                          ? issueModelLabel(
-                              boardIssues.find(
-                                (issue) =>
-                                  issue.id === selectedBoardWorkspace.issue_id
-                              ) ?? null,
-                              boardAgents
-                            )
-                          : agentModelLabelById(
-                              boardAgents,
-                              selectedBoardWorkspace.agent_id
-                            ),
-                        selectedBoardWorkspace.workspace_branch,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ") || "Conversation run"}
-                    </p>
-                  </div>
-                  <SummaryPill
-                    label="Status"
-                    value={selectedBoardWorkspace.workspace_status ?? "active"}
-                  />
-                </section>
-
-                <div className="workspace-center-header">
-                  <div className="workspace-tab-strip">
-                    <WorkspaceCenterTabButton
-                      active={workspaceCenterTab === "conversation"}
-                      label={activeWorkspaceTitle ?? "New conversation"}
-                      onClick={() => setWorkspaceCenterTab("conversation")}
-                    />
-                    <WorkspaceCenterTabButton
-                      active={workspaceCenterTab === "terminal"}
-                      label="Terminal"
-                      onClick={() => setWorkspaceCenterTab("terminal")}
-                    />
-                    {selectedFilePath ? (
-                      <WorkspaceCenterTabButton
-                        active={workspaceCenterTab === "preview"}
-                        label={previewTabLabel}
-                        onClick={() => setWorkspaceCenterTab("preview")}
-                      />
-                    ) : null}
-                  </div>
-                  <div className="workspace-header-actions">
-                    <SummaryPill
-                      label={activeWorkspaceProviderLabel}
-                      value={stringifyStatus(activeRuntimeStatusState)}
-                    />
-                    <SummaryPill
-                      label="Terminal"
-                      value={stringifyStatus(activeTerminalStatusState)}
-                    />
-                  </div>
-                </div>
-
-                {statusMessage ? (
-                  <div className="status-banner">{statusMessage}</div>
-                ) : null}
-
-                {workspaceCenterTab === "conversation" ? (
-                  <section className="workspace-panel workspace-chat-panel">
-                    <div className="workspace-panel-header">
-                      <div>
-                        <span className="route-kicker">Conversation</span>
-                        <h1>{selectedRepository?.name ?? "Session"}</h1>
-                      </div>
-                      <div className="workspace-header-actions">
-                        {selectedSessionId ? (
-                          <button
-                            className="secondary-button"
-                            onClick={() => void agentStop(selectedSessionId)}
-                            type="button"
-                          >
-                            Stop {activeWorkspaceProviderLabel}
-                          </button>
-                        ) : null}
-                        {selectedBoardWorkspace.workspace_repo_path ? (
-                          <button
-                            className="secondary-button"
-                            onClick={() =>
-                              void desktopRevealInFinder(
-                                selectedBoardWorkspace.workspace_repo_path ?? ""
-                              )
-                            }
-                            type="button"
-                          >
-                            Reveal repo
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    {activeSessionLiveState.isLoadingMessages ? (
-                      <div className="conversation-empty-state">
-                        <h3>Loading conversation…</h3>
-                        <p>The daemon session is hydrating its transcript.</p>
-                      </div>
-                    ) : activeSessionConversationRows.length ? (
-                      <div className="conversation-timeline-scroll">
-                        <SessionConversationTimeline
-                          onRespondToQuestion={(response) =>
-                            void handleRespondToSessionQuestion(response)
-                          }
-                          rows={activeSessionConversationRows}
-                        />
-                      </div>
-                    ) : (
-                      <div className="conversation-empty-state">
-                        <h3>No daemon messages yet</h3>
-                        <p>
-                          Send the first prompt to start the workspace transcript.
-                        </p>
-                      </div>
-                    )}
-
-                    <form className="composer" onSubmit={handleRunAgent}>
-                      <textarea
-                        onChange={(event) => setPrompt(event.target.value)}
-                        placeholder={`Send a prompt to ${activeWorkspaceProviderLabel} for the selected session`}
-                        value={prompt}
-                      />
-                      <button
-                        className="primary-button"
-                        disabled={isWorking}
-                        type="submit"
-                      >
-                        Send prompt
-                      </button>
-                    </form>
-                  </section>
-                ) : null}
-
-                {workspaceCenterTab === "terminal" ? (
-                  <section className="workspace-panel workspace-chat-panel">
-                    <div className="workspace-panel-header">
-                      <h3>Terminal</h3>
-                      <button
-                        className="secondary-button"
-                        onClick={() => {
-                          if (selectedSessionId) {
-                            void terminalStop(selectedSessionId);
-                          }
-                        }}
-                        type="button"
-                      >
-                        Stop
-                      </button>
-                    </div>
-                    <div
-                      className="terminal-frame"
-                      ref={terminalContainerRef}
-                    />
-                    <form
-                      className="workspace-terminal-form"
-                      onSubmit={handleRunTerminal}
-                    >
-                      <input
-                        onChange={(event) =>
-                          setTerminalCommand(event.target.value)
-                        }
-                        placeholder="Run a shell command in the selected session"
-                        value={terminalCommand}
-                      />
-                      <button
-                        className="primary-button"
-                        disabled={isWorking}
-                        type="submit"
-                      >
-                        Run
-                      </button>
-                    </form>
-                  </section>
-                ) : null}
-
-                {workspaceCenterTab === "preview" ? (
-                  <section className="workspace-panel workspace-chat-panel">
-                    <div className="workspace-panel-header">
-                      <div>
-                        <span className="route-kicker">
-                          {selectedDiff ? "Diff preview" : "File preview"}
-                        </span>
-                        <h1>{selectedFilePath ?? "Preview"}</h1>
-                      </div>
-                    </div>
-                    {selectedDiff ? (
-                      <div className="workspace-preview">
-                        <div className="summary-grid">
-                          <SummaryPill
-                            label="Added"
-                            value={selectedDiff.additions}
-                          />
-                          <SummaryPill
-                            label="Deleted"
-                            value={selectedDiff.deletions}
-                          />
-                          <SummaryPill
-                            label="Binary"
-                            value={selectedDiff.is_binary ? "yes" : "no"}
-                          />
-                        </div>
-                        <pre>{selectedDiff.diff}</pre>
-                      </div>
-                    ) : selectedFile ? (
-                      <div className="workspace-preview">
-                        <pre>{selectedFile.content}</pre>
-                      </div>
-                    ) : (
-                      <p>Select a file or change to preview it here.</p>
-                    )}
-                  </section>
-                ) : null}
-              </>
-            ) : (
-              <section className="workspace-empty-state workspace-center-empty">
-                <h3>Select a worktree</h3>
-                <p>
-                  Conversation runs appear here. Repo-root targets run
-                  directly in the project checkout.
-                </p>
-              </section>
-            )}
-          </main>
-
-          <WorkspaceInspectorSidebar
-            currentBranch={currentBranch}
-            currentBranchName={currentBranchName}
-            currentDirectory={currentDirectory}
-            fileEntries={fileEntries}
-            gitCommitMessage={gitCommitMessage}
-            gitHistory={gitHistory}
-            gitState={gitState}
-            hasUncommittedChanges={hasUncommittedChanges}
-            issueMeta={
-              selectedBoardWorkspaceIssue ? (
-                <IssueWorkspaceSummaryMeta
-                  agents={boardAgents}
-                  issue={selectedBoardWorkspaceIssue}
-                  projects={boardProjects}
-                  statusLabel={issueStatusLabel}
-                />
-              ) : null
-            }
-            hasUnpushedCommits={hasUnpushedCommits}
-            isWorking={isWorking}
-            selectedDiff={selectedDiff}
-            selectedFilePath={selectedFilePath}
-            workspace={selectedBoardWorkspace}
-            workspaceSidebarTab={workspaceSidebarTab}
-            onDiscardFile={(file) => void handleDiscardFile(file)}
-            onGitCommit={(push) => void handleGitCommit(push)}
-            onGitCommitMessageChange={setGitCommitMessage}
-            onGitPush={() => void handleGitPush()}
-            onOpenDiff={(path) => void handleOpenDiff(path)}
-            onOpenDirectory={(path) => void handleOpenDirectory(path)}
-            onOpenFile={(path) => void handleOpenFile(path)}
-            onSelectSidebarTab={setWorkspaceSidebarTab}
-            onStageFile={(file) => void handleStageFile(file)}
-            onUnstageFile={(file) => void handleUnstageFile(file)}
-          />
         </div>
       ) : null}
 
@@ -7877,13 +7538,7 @@ function DashboardBirdsEyeRouteView({
   onCreateQuickChat,
   onOpenIssueDetail,
   onOpenIssuePreview,
-  previewAttachments,
-  previewComments,
-  previewErrorMessage,
-  previewIsLoading,
   previewIssue,
-  previewRunCardUpdate,
-  previewSubissueCount,
   projects,
   workspaces,
 }: {
@@ -7899,13 +7554,7 @@ function DashboardBirdsEyeRouteView({
   ) => Promise<IssueRecord>;
   onOpenIssueDetail: (issueId: string) => void;
   onOpenIssuePreview: (issueId: string) => void;
-  previewAttachments: IssueAttachmentRecord[];
-  previewComments: IssueCommentRecord[];
-  previewErrorMessage: string | null;
-  previewIsLoading: boolean;
   previewIssue: IssueRecord | null;
-  previewRunCardUpdate: IssueRunCardUpdateRecord | null;
-  previewSubissueCount: number;
   projects: ProjectRecord[];
   workspaces: WorkspaceRecord[];
 }) {
@@ -7950,6 +7599,11 @@ function DashboardBirdsEyeRouteView({
   const [pendingFocusRowId, setPendingFocusRowId] = useState<string | null>(
     null
   );
+  const [birdsEyeCanvasOffset, setBirdsEyeCanvasOffset] =
+    useState<DashboardCanvasOffset>(defaultBirdsEyeCanvasOffset);
+  const [isBirdsEyeCanvasDragging, setIsBirdsEyeCanvasDragging] =
+    useState(false);
+  const [isHelpMenuOpen, setIsHelpMenuOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [commandPaletteQuery, setCommandPaletteQuery] = useState("");
   const [commandPaletteIndex, setCommandPaletteIndex] = useState(0);
@@ -7959,6 +7613,16 @@ function DashboardBirdsEyeRouteView({
   const rowRefs = useRef(new Map<string, HTMLButtonElement | null>());
   const quickCreateInputRef = useRef<HTMLInputElement | null>(null);
   const commandPaletteInputRef = useRef<HTMLInputElement | null>(null);
+  const canvasViewportRef = useRef<HTMLDivElement | null>(null);
+  const canvasPanRef = useRef<{
+    pointerId: number;
+    originX: number;
+    originY: number;
+    startX: number;
+    startY: number;
+  } | null>(null);
+  const helpButtonRef = useRef<HTMLButtonElement | null>(null);
+  const helpMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setExpandedRowIds((current) => {
@@ -8041,17 +7705,6 @@ function DashboardBirdsEyeRouteView({
     return [...ids];
   }, [previewChat?.sessionId, visibleRows]);
   const codeImpactBySessionId = useBirdsEyeCodeImpact(impactSessionIds);
-  const shortcutSummary = useMemo(
-    () => [
-      `${projects.length} ${projects.length === 1 ? "project" : "projects"}`,
-      `${chats.length} ${chats.length === 1 ? "chat" : "chats"}`,
-      `${workspaces.length} ${
-        workspaces.length === 1 ? "workspace" : "workspaces"
-      }`,
-    ].join(" · "),
-    [chats.length, projects.length, workspaces.length]
-  );
-
   useEffect(() => {
     if (visibleRows.length === 0) {
       setFocusedRowId(null);
@@ -8109,6 +7762,44 @@ function DashboardBirdsEyeRouteView({
       window.cancelAnimationFrame(frameId);
     };
   }, [isCommandPaletteOpen]);
+
+  useEffect(() => {
+    if (!isHelpMenuOpen) {
+      return;
+    }
+
+    const closeMenu = (event?: Event) => {
+      const target = event?.target as Node | null | undefined;
+      if (
+        target &&
+        (helpButtonRef.current?.contains(target) ||
+          helpMenuRef.current?.contains(target))
+      ) {
+        return;
+      }
+      setIsHelpMenuOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsHelpMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", closeMenu);
+    document.addEventListener("scroll", closeMenu, true);
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("blur", closeMenu);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu);
+      document.removeEventListener("scroll", closeMenu, true);
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("blur", closeMenu);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isHelpMenuOpen]);
 
   const toggleRowExpansion = (rowId: string, nextValue?: boolean) => {
     setExpandedRowIds((current) => ({
@@ -8414,6 +8105,91 @@ function DashboardBirdsEyeRouteView({
     setFocusedRowId(
       quickCreateState.sourceRowId ?? quickCreateState.folderRowId ?? focusedRow?.rowId ?? null
     );
+  };
+
+  const handleBirdsEyeCanvasPointerDown = (
+    event: PointerEvent<HTMLDivElement>
+  ) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    const target = event.target as HTMLElement | null;
+    if (
+      target?.closest(
+        "button, a, input, textarea, select, label, [role='menu'], [role='menuitem']"
+      )
+    ) {
+      return;
+    }
+
+    canvasPanRef.current = {
+      pointerId: event.pointerId,
+      originX: birdsEyeCanvasOffset.x,
+      originY: birdsEyeCanvasOffset.y,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+    event.preventDefault();
+    window.getSelection()?.removeAllRanges();
+    setIsBirdsEyeCanvasDragging(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleBirdsEyeCanvasPointerMove = (
+    event: PointerEvent<HTMLDivElement>
+  ) => {
+    const panState = canvasPanRef.current;
+    if (!panState || panState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    setBirdsEyeCanvasOffset({
+      x: panState.originX + event.clientX - panState.startX,
+      y: panState.originY + event.clientY - panState.startY,
+    });
+  };
+
+  const handleBirdsEyeCanvasPointerEnd = (
+    event: PointerEvent<HTMLDivElement>
+  ) => {
+    if (canvasPanRef.current?.pointerId !== event.pointerId) {
+      return;
+    }
+
+    canvasPanRef.current = null;
+    setIsBirdsEyeCanvasDragging(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const handleBirdsEyeCanvasWheel = (event: WheelEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null;
+    if (
+      target?.closest(
+        "input, textarea, select, .shadcn-select-content, [role='menu']"
+      )
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    setBirdsEyeCanvasOffset((current) => ({
+      x: current.x - event.deltaX,
+      y: current.y - event.deltaY,
+    }));
+  };
+
+  const handleOpenBirdsEyeCommandPalette = () => {
+    setIsHelpMenuOpen(false);
+    setIsCommandPaletteOpen(true);
+    setCommandPaletteQuery("");
+  };
+
+  const handleResetBirdsEyeCanvas = () => {
+    setIsHelpMenuOpen(false);
+    setBirdsEyeCanvasOffset(defaultBirdsEyeCanvasOffset);
   };
 
   const commandActions = useMemo(() => {
@@ -8854,63 +8630,88 @@ function DashboardBirdsEyeRouteView({
   return (
     <section className="birds-eye-route">
       <div className="birds-eye-route-header">
-        <div className="birds-eye-route-header-main">
+        <div className="birds-eye-route-header-inner">
           <DashboardBreadcrumbs items={[{ label: "Dashboard" }]} />
-          <span className="route-kicker">Birds Eye</span>
-          <h1>Projects, folders, and chats in one pass</h1>
-          <p>
-            Dense keyboard-first scanning across repo root conversations,
-            worktrees, and the latest model activity.
-          </p>
-        </div>
-        <div className="birds-eye-route-header-meta">
-          <SummaryPill label="Overview" value={shortcutSummary} />
-          <SummaryPill label="Shortcuts" value="N · Cmd+K · Arrows" />
+          <div className="birds-eye-route-actions">
+            <div className="birds-eye-help-shell">
+              <button
+                aria-expanded={isHelpMenuOpen}
+                aria-haspopup="menu"
+                className={
+                  isHelpMenuOpen
+                    ? "secondary-button compact-button birds-eye-help-button is-open"
+                    : "secondary-button compact-button birds-eye-help-button"
+                }
+                onClick={() => setIsHelpMenuOpen((current) => !current)}
+                ref={helpButtonRef}
+                type="button"
+              >
+                <span>Help</span>
+                <span aria-hidden="true" className="birds-eye-help-button-icon">
+                  <ChevronUpDownIcon />
+                </span>
+              </button>
+              {isHelpMenuOpen ? (
+                <div
+                  className="birds-eye-help-menu"
+                  ref={helpMenuRef}
+                  role="menu"
+                >
+                  <button
+                    className="birds-eye-help-item"
+                    onClick={handleOpenBirdsEyeCommandPalette}
+                    role="menuitem"
+                    type="button"
+                  >
+                    <strong>Keyboard shortcuts</strong>
+                    <span>Open the command palette.</span>
+                  </button>
+                  <button
+                    className="birds-eye-help-item"
+                    onClick={handleResetBirdsEyeCanvas}
+                    role="menuitem"
+                    type="button"
+                  >
+                    <strong>Reset canvas position</strong>
+                    <span>Return the overview to its default anchor.</span>
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
         </div>
       </div>
-
       {projects.length ? (
         <div className="birds-eye-layout">
           <div className="birds-eye-tree-panel">
-            <div className="birds-eye-toolbar">
-              <button
-                className="primary-button compact-button"
-                onClick={() => openQuickCreate()}
-                type="button"
+            <div
+              className={
+                isBirdsEyeCanvasDragging
+                  ? "birds-eye-canvas-viewport is-dragging"
+                  : "birds-eye-canvas-viewport"
+              }
+              onPointerCancel={handleBirdsEyeCanvasPointerEnd}
+              onPointerDown={handleBirdsEyeCanvasPointerDown}
+              onPointerMove={handleBirdsEyeCanvasPointerMove}
+              onPointerUp={handleBirdsEyeCanvasPointerEnd}
+              onWheel={handleBirdsEyeCanvasWheel}
+              ref={canvasViewportRef}
+            >
+              <div className="birds-eye-canvas-grid" />
+              <div
+                className="birds-eye-canvas-stage"
+                style={{
+                  transform: `translate(${birdsEyeCanvasOffset.x}px, ${birdsEyeCanvasOffset.y}px)`,
+                }}
               >
-                New chat
-              </button>
-              <button
-                className="secondary-button compact-button"
-                onClick={() => setIsCommandPaletteOpen(true)}
-                type="button"
-              >
-                Command palette
-              </button>
-            </div>
-
-            <div className="birds-eye-tree" role="tree">
-              {treeModel.projects.map((project) => renderBirdsEyeProjectGroup(project))}
+                <div className="birds-eye-tree" role="tree">
+                  {treeModel.projects.map((project) =>
+                    renderBirdsEyeProjectGroup(project)
+                  )}
+                </div>
+              </div>
             </div>
           </div>
-
-          <BirdsEyePreviewPanel
-            agents={agents}
-            attachments={previewAttachments}
-            codeImpact={
-              previewChat?.sessionId
-                ? codeImpactBySessionId[previewChat.sessionId] ?? null
-                : null
-            }
-            comments={previewComments}
-            errorMessage={previewErrorMessage}
-            isLoading={previewIsLoading}
-            issue={previewIssue}
-            onClose={onClosePreview}
-            onOpenIssue={onOpenIssueDetail}
-            runCardUpdate={previewRunCardUpdate}
-            subissueCount={previewSubissueCount}
-          />
         </div>
       ) : isLoadingOverview ? (
         <div className="dashboard-canvas-empty-wrap birds-eye-empty-wrap">
@@ -9098,33 +8899,11 @@ function BirdsEyeRow({
 
       <div className="birds-eye-row-main">
         {node.kind === "project" ? (
-          <>
-            <strong>{node.label}</strong>
-            <span>
-              {[
-                node.repoPath ?? "No repository folder",
-                `${node.folderCount} ${
-                  node.folderCount === 1 ? "folder" : "folders"
-                }`,
-              ].join(" · ")}
-            </span>
-          </>
+          <strong>{node.label}</strong>
         ) : null}
 
         {node.kind === "folder" ? (
-          <>
-            <strong>{node.label}</strong>
-            <span>
-              {[
-                node.secondaryLabel,
-                `${node.chatCount} ${
-                  node.chatCount === 1 ? "chat" : "chats"
-                }`,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </span>
-          </>
+          <strong>{node.label}</strong>
         ) : null}
 
         {node.kind === "chat" ? (
@@ -9153,6 +8932,11 @@ function BirdsEyeRow({
       <div className="birds-eye-row-meta">
         {node.kind === "project" || node.kind === "folder" ? (
           <>
+            <span className="birds-eye-row-metric">
+              {node.kind === "project"
+                ? `${node.folderCount} ${node.folderCount === 1 ? "folder" : "folders"}`
+                : `${node.chatCount} ${node.chatCount === 1 ? "chat" : "chats"}`}
+            </span>
             {node.liveRunCount > 0 ? (
               <span className="birds-eye-row-metric">
                 {node.liveRunCount} live
@@ -9177,7 +8961,7 @@ function BirdsEyeRow({
   );
 }
 
-function BirdsEyeQuickCreateRow({
+export function BirdsEyeQuickCreateRow({
   dependencyCheck,
   draft,
   errorMessage,
@@ -9205,6 +8989,11 @@ function BirdsEyeQuickCreateRow({
   title: string;
 }) {
   const runtimeProvider = detectAgentCliProvider(draft.command, draft.model);
+  const runtimeProviderOptions = buildIssueRuntimeProviderOptions(
+    dependencyCheck,
+    draft.command,
+    draft.model
+  );
   const runtimeModelOptions = buildAgentModelOptions(
     { command: draft.command, model: draft.model },
     dependencyCheck
@@ -9240,6 +9029,30 @@ function BirdsEyeQuickCreateRow({
           </div>
 
           <div className="birds-eye-draft-controls">
+            <label className="birds-eye-draft-field">
+              <span>Provider</span>
+              <IssueDialogInlineSelect
+                ariaLabel="New chat provider"
+                className="birds-eye-draft-select"
+                onChange={(value) =>
+                  onDraftChange(
+                    runtimeDraftPatchForProviderSelection(
+                      value,
+                      draft,
+                      dependencyCheck
+                    )
+                  )
+                }
+                value={draft.command}
+              >
+                {runtimeProviderOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </IssueDialogInlineSelect>
+            </label>
+
             <label className="birds-eye-draft-field">
               <span>Model</span>
               <IssueDialogInlineSelect
@@ -11314,14 +11127,13 @@ function IssueDetailView({
                         ariaLabel="Conversation provider"
                         id="issue-detail-command"
                         onChange={(value) =>
-                          commitPropertyPatch({
-                            command: value,
-                            planMode:
-                              detectAgentCliProvider(value, issueDraft.model) ===
-                              "claude"
-                                ? issueDraft.planMode
-                                : false,
-                          })
+                          commitPropertyPatch(
+                            runtimeDraftPatchForProviderSelection(
+                              value,
+                              issueDraft,
+                              dependencyCheck
+                            )
+                          )
                         }
                         value={issueDraft.command}
                       >
@@ -12241,14 +12053,13 @@ function ConversationIssueDetailView({
                         ariaLabel="Conversation provider"
                         id="issue-detail-command"
                         onChange={(value) =>
-                          commitPropertyPatch({
-                            command: value,
-                            planMode:
-                              detectAgentCliProvider(value, issueDraft.model) ===
-                              "claude"
-                                ? issueDraft.planMode
-                                : false,
-                          })
+                          commitPropertyPatch(
+                            runtimeDraftPatchForProviderSelection(
+                              value,
+                              issueDraft,
+                              dependencyCheck
+                            )
+                          )
                         }
                         value={issueDraft.command}
                       >
@@ -12387,7 +12198,7 @@ function ConversationIssueDetailView({
 function IssueWorkspaceDetailView({
   agents,
   availableStatusOptions,
-  currentDirectory,
+  dependencyCheck,
   issue,
   issueDraft,
   issueEditorError,
@@ -12395,9 +12206,9 @@ function IssueWorkspaceDetailView({
   isSavingIssue,
   isWorking,
   onBack,
+  onAddAttachment,
   onCommitIssuePatch,
   onIssueDraftChange,
-  onOpenRunDetail,
   onPromptChange,
   onRespondToQuestion,
   onRevealRepo,
@@ -12418,8 +12229,10 @@ function IssueWorkspaceDetailView({
   session,
   sessionErrorMessage,
   sessionLoading,
+  latestCompletionSummary,
   sessionRows,
   statusLabel,
+  runtimeStatusValue,
   terminalCommand,
   terminalContainerRef,
   terminalStatusValue,
@@ -12431,7 +12244,7 @@ function IssueWorkspaceDetailView({
 }: {
   agents: AgentRecord[];
   availableStatusOptions: string[];
-  currentDirectory: string | null;
+  dependencyCheck: RuntimeCapabilities | null;
   issue: IssueRecord;
   issueDraft: IssueEditDraft;
   issueEditorError: string | null;
@@ -12439,9 +12252,9 @@ function IssueWorkspaceDetailView({
   isSavingIssue: boolean;
   isWorking: boolean;
   onBack: () => void;
+  onAddAttachment: () => void;
   onCommitIssuePatch: (patch: Partial<IssueEditDraft>) => void;
   onIssueDraftChange: (patch: Partial<IssueEditDraft>) => void;
-  onOpenRunDetail: (run: AgentRunRecord) => void;
   onPromptChange: (value: string) => void;
   onRespondToQuestion: (response: string) => void;
   onRevealRepo: () => void;
@@ -12462,8 +12275,10 @@ function IssueWorkspaceDetailView({
   session: SessionRecord | null;
   sessionErrorMessage: string | null;
   sessionLoading: boolean;
+  latestCompletionSummary: SessionCompletionSummary | null;
   sessionRows: SessionConversationRow[];
   statusLabel: (value: string) => string;
+  runtimeStatusValue: string;
   terminalCommand: string;
   terminalContainerRef: RefObject<HTMLDivElement | null>;
   terminalStatusValue: string;
@@ -12473,63 +12288,38 @@ function IssueWorkspaceDetailView({
   workspaceTargetLoading: boolean;
   workspaceTargetWorktrees: GitWorktreeRecord[];
 }) {
-  const [linkedRuns, setLinkedRuns] = useState<IssueLinkedRun[]>([]);
-  const [linkedRunsError, setLinkedRunsError] = useState<string | null>(null);
-  const [isLoadingLinkedRuns, setIsLoadingLinkedRuns] = useState(false);
   const issueProjectName = projectLabel(issueDraft.projectId || issue.project_id);
   const issueBreadcrumbTitle = issueDraft.title.trim() || issue.title;
   const hasWorkspaceSession = Boolean(workspace?.session_id);
   const isConversationLoading =
     sessionLoading || (hasWorkspaceSession && session == null && sessionRows.length === 0);
-  const composerDisabled = isWorking || !session;
-  const runtimeStatusValue =
-    sessionErrorMessage != null && sessionErrorMessage.trim().length > 0
-      ? sessionErrorMessage
-      : session == null
-        ? "Waiting"
-        : "Connected";
+  const composerDisabled = !session;
+  const effectiveWorkspaceCenterTab =
+    workspaceCenterTab === "runs" ? "conversation" : workspaceCenterTab;
+  const runtimeProvider = detectAgentCliProvider(
+    issueDraft.command,
+    issueDraft.model
+  );
+  const runtimeProviderOptions = buildIssueRuntimeProviderOptions(
+    dependencyCheck,
+    issueDraft.command,
+    issueDraft.model
+  );
+  const runtimeModelOptions = buildAgentModelOptions(issueDraft, dependencyCheck);
+  const runtimeThinkingEffortOptions = mergeIssueOptions(
+    ["auto", "low", "medium", "high"],
+    issueDraft.thinkingEffort
+  );
+  const isSessionStreaming =
+    runtimeStatusValue === "running" || runtimeStatusValue === "waiting";
+  const runtimeTone = workspaceRuntimeTone(runtimeStatusValue, sessionErrorMessage);
 
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoadingLinkedRuns(true);
+  const commitRuntimePatch = (patch: Partial<IssueEditDraft>) => {
+    onIssueDraftChange(patch);
+    onCommitIssuePatch(patch);
+  };
 
-    void boardListIssueRuns(issue.id, 100)
-      .then((runs) => {
-        if (cancelled) {
-          return;
-        }
-
-        setLinkedRuns(
-          (runs as AgentRunRecord[]).map((run) => ({
-            label: issueLinkedRunLabel(issue, run),
-            run,
-          }))
-        );
-        setLinkedRunsError(null);
-      })
-      .catch((error) => {
-        if (cancelled) {
-          return;
-        }
-
-        setLinkedRuns([]);
-        setLinkedRunsError(
-          error instanceof Error ? error.message : "Could not load linked runs."
-        );
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setIsLoadingLinkedRuns(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [issue.id, issue.checkout_run_id, issue.execution_run_id]);
-
-  const handleSubmitPrompt = (event: FormEvent) => {
-    event.preventDefault();
+  const handleSendPromptFromComposer = () => {
     if (!prompt.trim()) {
       return;
     }
@@ -12549,87 +12339,42 @@ function IssueWorkspaceDetailView({
         <main className="workspace-center">
           {workspace ? (
             <>
-              <section className="workspace-summary-banner">
-                <div>
-                  <span className="route-kicker">
-                    {issue.identifier ?? workspace.issue_identifier ?? issue.id}
-                  </span>
-                  <h1>{issueDraft.title.trim() || workspace.issue_title || issue.title}</h1>
-                  <p>
-                    {[
-                      issueProjectName,
-                      issueAssigneeLabel(agents, issueDraft.assigneeAgentId || issue.assignee_agent_id),
-                      workspace.workspace_branch,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ") || "Issue workspace"}
-                  </p>
-                </div>
-                <SummaryPill
-                  label="Status"
-                  value={statusLabel(issueDraft.status || issue.status)}
-                />
-              </section>
-
               <div className="workspace-center-header">
                 <div className="workspace-tab-strip">
                   <WorkspaceCenterTabButton
-                    active={workspaceCenterTab === "conversation"}
+                    active={effectiveWorkspaceCenterTab === "conversation"}
                     label={session?.title ?? (issueDraft.title.trim() || issue.title)}
                     onClick={() => onSelectWorkspaceCenterTab("conversation")}
                   />
                   <WorkspaceCenterTabButton
-                    active={workspaceCenterTab === "runs"}
-                    label="Runs"
-                    onClick={() => onSelectWorkspaceCenterTab("runs")}
-                  />
-                  <WorkspaceCenterTabButton
-                    active={workspaceCenterTab === "terminal"}
+                    active={effectiveWorkspaceCenterTab === "terminal"}
                     label="Terminal"
                     onClick={() => onSelectWorkspaceCenterTab("terminal")}
                   />
                   {selectedFilePath ? (
                     <WorkspaceCenterTabButton
-                      active={workspaceCenterTab === "preview"}
+                      active={effectiveWorkspaceCenterTab === "preview"}
                       label={previewTabLabel}
                       onClick={() => onSelectWorkspaceCenterTab("preview")}
                     />
                   ) : null}
                 </div>
-                <div className="workspace-header-actions">
-                  <SummaryPill label="Runtime" value={runtimeStatusValue} />
-                  <SummaryPill label="Terminal" value={terminalStatusValue} />
-                </div>
               </div>
 
-              {workspaceCenterTab === "conversation" ? (
-                <section className="workspace-panel workspace-chat-panel">
-                  <div className="workspace-panel-header">
-                    <div>
-                      <span className="route-kicker">Conversation</span>
-                      <h1>{issue.title}</h1>
-                    </div>
-                    <div className="workspace-header-actions">
-                      {session ? (
-                        <button
-                          className="secondary-button"
-                          onClick={onStopSession}
-                          type="button"
-                        >
-                          Stop
-                        </button>
-                      ) : null}
-                      {workspace.workspace_repo_path ? (
-                        <button
-                          className="secondary-button"
-                          onClick={onRevealRepo}
-                          type="button"
-                        >
-                          Reveal repo
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
+              {effectiveWorkspaceCenterTab === "conversation" ? (
+                <section className="workspace-panel workspace-chat-panel workspace-conversation-panel">
+                  <WorkspaceSessionHeaderCard
+                    agentLabel={
+                      issueAssigneeLabel(
+                        agents,
+                        issueDraft.assigneeAgentId || issue.assignee_agent_id
+                      ) || providerLabelForRuntimeConfig(issueDraft.command, issueDraft.model)
+                    }
+                    issueLabel={issueDraft.title.trim() || issue.title}
+                    renderedCount={sessionRows.length}
+                    sessionId={session?.id ?? null}
+                    title={session?.title ?? (issueDraft.title.trim() || issue.title)}
+                  />
 
                   {isConversationLoading ? (
                     <div className="conversation-empty-state">
@@ -12650,78 +12395,52 @@ function IssueWorkspaceDetailView({
                     </div>
                   )}
 
-                  <form className="conversation-composer" onSubmit={handleSubmitPrompt}>
-                    <textarea
-                      className="conversation-composer-input"
-                      disabled={composerDisabled}
-                      onChange={(event) => onPromptChange(event.target.value)}
-                      placeholder="Leave a comment…"
-                      rows={3}
-                      value={prompt}
-                    />
-                    <div className="conversation-composer-footer">
-                      <span className="issues-detail-copy muted">
-                        {currentDirectory
-                          ? `Working in ${currentDirectory}`
-                          : "Replies, tools, and git changes stream from the daemon session."}
-                      </span>
-                      <button
-                        className="primary-button"
-                        disabled={composerDisabled || !prompt.trim()}
-                        type="submit"
-                      >
-                        Comment
-                      </button>
-                    </div>
-                  </form>
+                  <WorkspaceRuntimeStatusLine
+                    detail={sessionErrorMessage}
+                    status={runtimeStatusValue}
+                    tone={runtimeTone}
+                  />
+
+                  <WorkspaceChatComposer
+                    disabled={composerDisabled}
+                    isPlanMode={issueDraft.planMode}
+                    isStreaming={isSessionStreaming}
+                    latestCompletionSummary={latestCompletionSummary}
+                    modelOptions={runtimeModelOptions}
+                    onChange={onPromptChange}
+                    onAddAttachment={onAddAttachment}
+                    onCancel={session ? onStopSession : undefined}
+                    onModelChange={(value) => commitRuntimePatch({ model: value })}
+                    onPlanModeChange={(value) =>
+                      commitRuntimePatch({
+                        planMode:
+                          runtimeProvider === "claude" ? value : false,
+                      })
+                    }
+                    onProviderChange={(value) =>
+                      commitRuntimePatch(
+                        runtimeDraftPatchForProviderSelection(
+                          value,
+                          issueDraft,
+                          dependencyCheck
+                        )
+                      )
+                    }
+                    onSend={handleSendPromptFromComposer}
+                    onThinkingEffortChange={(value) =>
+                      commitRuntimePatch({ thinkingEffort: value })
+                    }
+                    providerOptions={runtimeProviderOptions}
+                    selectedModel={issueDraft.model}
+                    selectedProvider={issueDraft.command}
+                    selectedThinkingEffort={issueDraft.thinkingEffort}
+                    thinkingEffortOptions={runtimeThinkingEffortOptions}
+                    value={prompt}
+                  />
                 </section>
               ) : null}
 
-              {workspaceCenterTab === "runs" ? (
-                <section className="workspace-panel workspace-chat-panel">
-                  <div className="workspace-panel-header">
-                    <div>
-                      <span className="route-kicker">Runs</span>
-                      <h1>Issue activity</h1>
-                    </div>
-                  </div>
-
-                  {isLoadingLinkedRuns ? (
-                    <div className="conversation-empty-state">
-                      <h3>Loading runs…</h3>
-                      <p>The issue-linked daemon runs are being fetched.</p>
-                    </div>
-                  ) : linkedRunsError ? (
-                    <div className="issue-dialog-alert">{linkedRunsError}</div>
-                  ) : linkedRuns.length ? (
-                    <div className="surface-list dense workspace-run-list">
-                      {linkedRuns.map(({ label, run }) => (
-                        <button
-                          className="workspace-run-row"
-                          key={run.id}
-                          onClick={() => onOpenRunDetail(run)}
-                          type="button"
-                        >
-                          <div>
-                            <strong>{label ?? run.id}</strong>
-                            <span>
-                              {humanizeIssueValue(run.status)} ·{" "}
-                              {formatRelativeIssueDate(run.updated_at)}
-                            </span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="conversation-empty-state">
-                      <h3>No runs yet</h3>
-                      <p>This issue has not recorded any linked runs.</p>
-                    </div>
-                  )}
-                </section>
-              ) : null}
-
-              {workspaceCenterTab === "terminal" ? (
+              {effectiveWorkspaceCenterTab === "terminal" ? (
                 <section className="workspace-panel workspace-chat-panel">
                   <div className="workspace-panel-header">
                     <h3>Terminal</h3>
@@ -12753,7 +12472,7 @@ function IssueWorkspaceDetailView({
                 </section>
               ) : null}
 
-              {workspaceCenterTab === "preview" ? (
+              {effectiveWorkspaceCenterTab === "preview" ? (
                 <section className="workspace-panel workspace-chat-panel">
                   <div className="workspace-panel-header">
                     <div>
@@ -12853,12 +12572,6 @@ function SessionConversationRowView({
             : "conversation-row"
       }
     >
-      <div className="conversation-row-meta">
-        <span className="conversation-row-role">
-          {conversationRoleLabel(row.role)}
-        </span>
-        <span className="conversation-row-sequence">#{row.sequenceNumber}</span>
-      </div>
       <div className="conversation-row-content">
         {row.blocks.map((block) => {
           if (block.kind === "text") {
@@ -12945,6 +12658,515 @@ function SessionConversationRowView({
       </div>
     </article>
   );
+}
+
+export function WorkspaceSessionHeaderCard({
+  agentLabel,
+  issueLabel,
+  onPrimaryAction,
+  onRevealRepo,
+  onStopSession,
+  primaryActionLabel,
+  renderedCount,
+  sessionId,
+  title,
+}: {
+  agentLabel: string;
+  issueLabel: string;
+  onPrimaryAction?: (() => void) | undefined;
+  onRevealRepo?: (() => void) | undefined;
+  onStopSession?: (() => void) | undefined;
+  primaryActionLabel?: string | undefined;
+  renderedCount: number;
+  sessionId: string | null;
+  title: string;
+}) {
+  return (
+    <div className="workspace-session-header-card">
+      <div className="workspace-session-header-copy">
+        <strong>{title}</strong>
+        {agentLabel ? (
+          <span className="workspace-session-header-meta">{agentLabel}</span>
+        ) : null}
+        {issueLabel && issueLabel !== title ? (
+          <span className="workspace-session-header-meta">{issueLabel}</span>
+        ) : null}
+        {sessionId ? (
+          <span className="workspace-session-header-id">{sessionId}</span>
+        ) : null}
+      </div>
+
+      <div className="workspace-session-header-actions">
+        {onPrimaryAction && primaryActionLabel ? (
+          <button
+            className="secondary-button compact-button"
+            onClick={onPrimaryAction}
+            type="button"
+          >
+            {primaryActionLabel}
+          </button>
+        ) : onStopSession ? (
+          <button
+            className="secondary-button compact-button"
+            onClick={onStopSession}
+            type="button"
+          >
+            Stop
+          </button>
+        ) : null}
+        {onRevealRepo ? (
+          <button
+            className="secondary-button compact-button"
+            onClick={onRevealRepo}
+            type="button"
+          >
+            Reveal repo
+          </button>
+        ) : null}
+        <div className="workspace-session-header-count">
+          <span>Rendered</span>
+          <strong>{renderedCount}</strong>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function WorkspaceRuntimeStatusLine({
+  detail,
+  status,
+  tone,
+}: {
+  detail?: string | null;
+  status: string;
+  tone: "error" | "idle" | "running" | "waiting";
+}) {
+  return (
+    <div className={`workspace-runtime-line ${tone}`}>
+      <span className="workspace-runtime-line-dot" />
+      <span>{status}</span>
+      {detail ? (
+        <span className="workspace-runtime-line-detail">{detail}</span>
+      ) : null}
+    </div>
+  );
+}
+
+export function WorkspaceChatComposer({
+  disabled,
+  isPlanMode,
+  isStreaming,
+  latestCompletionSummary,
+  modelOptions,
+  onAddAttachment,
+  onCancel,
+  onChange,
+  onModelChange,
+  onPlanModeChange,
+  onProviderChange,
+  onSend,
+  onThinkingEffortChange,
+  providerOptions = [],
+  selectedModel,
+  selectedProvider,
+  selectedThinkingEffort,
+  thinkingEffortOptions,
+  value,
+}: {
+  disabled: boolean;
+  isPlanMode: boolean;
+  isStreaming: boolean;
+  latestCompletionSummary?: SessionCompletionSummary | null;
+  modelOptions: string[];
+  onAddAttachment?: (() => void) | undefined;
+  onCancel?: (() => void) | undefined;
+  onChange: (value: string) => void;
+  onModelChange: (value: string) => void;
+  onPlanModeChange: (value: boolean) => void;
+  onProviderChange?: ((value: string) => void) | undefined;
+  onSend: () => void;
+  onThinkingEffortChange: (value: string) => void;
+  providerOptions?: Array<{ label: string; value: string }>;
+  selectedModel: string;
+  selectedProvider?: string | null;
+  selectedThinkingEffort: string;
+  thinkingEffortOptions: string[];
+  value: string;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const composerRef = useRef<HTMLFormElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const trimmedValue = value.trim();
+  const isCompact = !isExpanded && trimmedValue.length === 0;
+  const planModeAvailable =
+    detectAgentCliProvider(selectedProvider, selectedModel) === "claude";
+  const completionMetrics = formatSessionCompletionMetrics(
+    latestCompletionSummary ?? null
+  );
+
+  useEffect(() => {
+    if (trimmedValue.length > 0) {
+      setIsExpanded(true);
+    }
+  }, [trimmedValue]);
+
+  useEffect(() => {
+    if (!isCompact) {
+      inputRef.current?.focus();
+    }
+  }, [isCompact]);
+
+  useEffect(() => {
+    if (!isMenuOpen) {
+      return;
+    }
+
+    const closeMenu = (event: Event) => {
+      const target = event.target as Node | null;
+      if (target && composerRef.current?.contains(target)) {
+        return;
+      }
+      setIsMenuOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", closeMenu);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isMenuOpen]);
+
+  const handleBlur = () => {
+    requestAnimationFrame(() => {
+      const activeElement = document.activeElement;
+      if (
+        trimmedValue.length === 0 &&
+        (!activeElement || !composerRef.current?.contains(activeElement))
+      ) {
+        setIsExpanded(false);
+        setIsMenuOpen(false);
+      }
+    });
+  };
+
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    if (disabled) {
+      return;
+    }
+    if (isStreaming) {
+      onCancel?.();
+      return;
+    }
+    if (trimmedValue.length === 0) {
+      return;
+    }
+    onSend();
+  };
+
+  const handleInputKeyDown = (
+    event: ReactKeyboardEvent<HTMLTextAreaElement>
+  ) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+      event.preventDefault();
+      if (!disabled && !isStreaming && trimmedValue.length > 0) {
+        onSend();
+      }
+      return;
+    }
+
+    if (event.shiftKey && event.key === "Tab") {
+      event.preventDefault();
+      if (planModeAvailable) {
+        onPlanModeChange(!isPlanMode);
+      }
+    }
+  };
+
+  return (
+    <form
+      className={
+        isCompact
+          ? "workspace-chat-composer is-compact"
+          : isPlanMode
+            ? "workspace-chat-composer is-expanded is-plan"
+            : "workspace-chat-composer is-expanded"
+      }
+      onClick={() => {
+        if (!disabled && isCompact) {
+          setIsExpanded(true);
+        }
+      }}
+      onSubmit={handleSubmit}
+      ref={composerRef}
+    >
+      {!isCompact && isPlanMode ? (
+        <div className="workspace-chat-composer-plan">
+          <span className="workspace-chat-composer-plan-icon">⌘</span>
+          <span>Plan mode — Claude will create a plan before making changes</span>
+        </div>
+      ) : null}
+
+      {!isCompact ? (
+        <textarea
+          className="workspace-chat-composer-input"
+          disabled={disabled}
+          onBlur={handleBlur}
+          onChange={(event) => onChange(event.target.value)}
+          onFocus={() => setIsExpanded(true)}
+          onKeyDown={handleInputKeyDown}
+          placeholder="What do you want to build?"
+          ref={inputRef}
+          rows={3}
+          value={value}
+        />
+      ) : (
+        <div className="workspace-chat-composer-compact-copy">
+          What do you want to build?
+        </div>
+      )}
+
+      <div className="workspace-chat-composer-toolbar">
+        <div className="workspace-chat-composer-controls">
+          {!isCompact ? (
+            <>
+              {providerOptions.length > 0 && onProviderChange ? (
+                <WorkspaceChatComposerSelect
+                  ariaLabel="Conversation provider"
+                  disabled={disabled}
+                  onChange={onProviderChange}
+                  value={selectedProvider ?? providerOptions[0]?.value ?? "claude"}
+                >
+                  {providerOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </WorkspaceChatComposerSelect>
+              ) : null}
+
+              <WorkspaceChatComposerSelect
+                ariaLabel="Conversation model"
+                disabled={disabled}
+                onChange={onModelChange}
+                value={selectedModel}
+              >
+                {modelOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option === "default" ? "Default" : option}
+                  </option>
+                ))}
+              </WorkspaceChatComposerSelect>
+
+              <WorkspaceChatComposerSelect
+                ariaLabel="Conversation thinking effort"
+                disabled={disabled}
+                onChange={onThinkingEffortChange}
+                value={selectedThinkingEffort}
+              >
+                {thinkingEffortOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {capitalize(option)}
+                  </option>
+                ))}
+              </WorkspaceChatComposerSelect>
+
+              <div className="workspace-chat-composer-trailing">
+                <div className="workspace-chat-plus-shell">
+                  <button
+                    aria-expanded={isMenuOpen}
+                    aria-label="Composer actions"
+                    className="workspace-chat-plus-button"
+                    disabled={disabled}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setIsMenuOpen((current) => !current);
+                    }}
+                    type="button"
+                  >
+                    +
+                  </button>
+
+                  {isMenuOpen ? (
+                    <div className="workspace-chat-plus-menu">
+                      <button
+                        className="workspace-chat-plus-menu-item"
+                        disabled={disabled}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          onAddAttachment?.();
+                          setIsMenuOpen(false);
+                        }}
+                        type="button"
+                      >
+                        <AttachmentButtonIcon />
+                        <span>Add Attachments</span>
+                      </button>
+                      <button
+                        className="workspace-chat-plus-menu-item workspace-chat-plus-menu-item-toggle"
+                        disabled={!planModeAvailable}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          if (!planModeAvailable) {
+                            return;
+                          }
+                          onPlanModeChange(!isPlanMode);
+                        }}
+                        type="button"
+                      >
+                        <span className="workspace-chat-plus-menu-map">⌘</span>
+                        <span>Plan mode</span>
+                        <span
+                          aria-hidden="true"
+                          className={
+                            isPlanMode
+                              ? "workspace-chat-plus-toggle active"
+                              : "workspace-chat-plus-toggle"
+                          }
+                        >
+                          <span />
+                        </span>
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+
+                {completionMetrics ? (
+                  <span className="workspace-chat-composer-metrics">
+                    {completionMetrics}
+                  </span>
+                ) : null}
+
+                <span
+                  aria-hidden="true"
+                  className="workspace-chat-composer-grid-icon"
+                >
+                  ⌗
+                </span>
+              </div>
+            </>
+          ) : (
+            <span className="workspace-chat-composer-compact-spacer" />
+          )}
+        </div>
+        <button
+          aria-label={isStreaming ? "Stop response" : "Send prompt"}
+          className="workspace-chat-send-button"
+          disabled={disabled || (!isStreaming && trimmedValue.length === 0)}
+          type="submit"
+        >
+          {isStreaming ? <ComposerStopIcon /> : <ComposerSendIcon />}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function WorkspaceChatComposerSelect({
+  ariaLabel,
+  children,
+  disabled,
+  onChange,
+  value,
+}: {
+  ariaLabel: string;
+  children: ReactNode;
+  disabled: boolean;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  return (
+    <label className="workspace-chat-composer-select-shell">
+      <select
+        aria-label={ariaLabel}
+        className="workspace-chat-composer-select"
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        value={value}
+      >
+        {children}
+      </select>
+      <span aria-hidden="true" className="workspace-chat-composer-select-arrow">
+        ▼
+      </span>
+    </label>
+  );
+}
+
+function ComposerSendIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="none"
+      height="14"
+      viewBox="0 0 14 14"
+      width="14"
+    >
+      <path
+        d="M7 11V3.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M3.75 6.25L7 3l3.25 3.25"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
+}
+
+function ComposerStopIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="currentColor"
+      height="12"
+      viewBox="0 0 12 12"
+      width="12"
+    >
+      <rect height="8" rx="1.6" width="8" x="2" y="2" />
+    </svg>
+  );
+}
+
+function formatSessionCompletionMetrics(
+  summary: SessionCompletionSummary | null
+) {
+  if (!summary) {
+    return "";
+  }
+
+  const metrics: string[] = [];
+  if (typeof summary.totalTokens === "number") {
+    metrics.push(`${compactMetricNumber(summary.totalTokens)} tokens`);
+  }
+  if (typeof summary.totalCostUSD === "number") {
+    metrics.push(`$${summary.totalCostUSD.toFixed(2)}`);
+  }
+  return metrics.join(" • ");
+}
+
+function compactMetricNumber(value: number) {
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1)}m`;
+  }
+  if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(1)}k`;
+  }
+  return `${value}`;
 }
 
 function SessionConversationCommandCard({
@@ -14823,23 +15045,19 @@ function CostAgentRow({ agent }: { agent: AgentRecord }) {
 }
 
 function ProjectsRouteView({
-  projects,
   goals,
   currentProject,
   currentProjectIssueCount,
   currentProjectWorkspaceCount,
   onDeleteProject,
-  onSelectProject,
   onOpenCreateProject,
   onUpdateProjectDefaultNewChatArea,
 }: {
-  projects: ProjectRecord[];
   goals: GoalRecord[];
   currentProject: ProjectRecord | null;
   currentProjectIssueCount: number;
   currentProjectWorkspaceCount: number;
   onDeleteProject: (projectId: string) => Promise<void>;
-  onSelectProject: (projectId: string) => void;
   onOpenCreateProject: () => void;
   onUpdateProjectDefaultNewChatArea: (
     projectId: string,
@@ -14970,10 +15188,6 @@ function ProjectsRouteView({
               <div className="projects-detail-grid">
                 <DetailRow label="Status" value={currentProject.status} />
                 <DetailRow
-                  label="Lead Agent"
-                  value={currentProject.lead_agent_id ?? "Unassigned"}
-                />
-                <DetailRow
                   label="Goal"
                   value={goalTitleForProject(goals, currentProject.goal_id)}
                 />
@@ -15056,28 +15270,6 @@ function ProjectsRouteView({
           )}
         </section>
 
-        <section className="surface-panel projects-panel">
-          <div className="surface-header">
-            <h3>Projects</h3>
-          </div>
-          {projects.length ? (
-            <div className="surface-list">
-              {projects.map((project) => (
-                <ProjectQueueRow
-                  isSelected={currentProject?.id === project.id}
-                  key={project.id}
-                  onClick={() => onSelectProject(project.id)}
-                  project={project}
-                />
-              ))}
-            </div>
-          ) : (
-            <p className="projects-empty-text">
-              Projects define the main repo anchor that conversation worktrees run
-              inside.
-            </p>
-          )}
-        </section>
       </section>
 
       {isDeleteDialogOpen && currentProject ? (
@@ -15096,230 +15288,6 @@ function ProjectsRouteView({
         />
       ) : null}
     </>
-  );
-}
-
-function GoalsRouteView({
-  agents,
-  currentGoal,
-  goals,
-  onSelectGoal,
-  projects,
-}: {
-  agents: AgentRecord[];
-  currentGoal: GoalRecord | null;
-  goals: GoalRecord[];
-  onSelectGoal: (goalId: string) => void;
-  projects: ProjectRecord[];
-}) {
-  const childGoals = currentGoal
-    ? goals.filter((goal) => goal.parent_id === currentGoal.id)
-    : [];
-  const relatedProjects = currentGoal
-    ? projects.filter((project) => project.goal_id === currentGoal.id)
-    : [];
-
-  return (
-    <section className="route-scroll">
-      <div className="route-header compact">
-        <DashboardBreadcrumbs
-          items={
-            currentGoal
-              ? [{ label: "Goals" }, { label: currentGoal.title }]
-              : [{ label: "Goals" }]
-          }
-        />
-        <span className="route-kicker">Goals</span>
-        <h1>Board objectives and hierarchy</h1>
-        <p>
-          Goals are already loaded from the daemon and used during project
-          planning. This route surfaces them directly in the space shell.
-        </p>
-      </div>
-
-      <section className="surface-panel goals-panel">
-        <div className="surface-header">
-          <h3>Goals</h3>
-        </div>
-        {goals.length ? (
-          <div className="surface-list">
-            {goals.map((goal) => (
-              <GoalQueueRow
-                goal={goal}
-                isSelected={currentGoal?.id === goal.id}
-                key={goal.id}
-                onClick={() => onSelectGoal(goal.id)}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="workspace-empty-state goals-empty-state-panel">
-            <h3>No goals yet</h3>
-            <p>
-              Goals created through the daemon-backed board flows will appear
-              here.
-            </p>
-          </div>
-        )}
-      </section>
-
-      {currentGoal ? (
-        <section className="surface-panel goals-panel">
-          <div className="surface-header">
-            <h3>Goal Details</h3>
-          </div>
-
-          <div className="goals-detail-stack">
-            <div className="goals-detail-hero">
-              <div>
-                <span className="goal-level-pill">
-                  {humanizeIssueValue(currentGoal.level ?? "company")}
-                </span>
-                <h2>{currentGoal.title}</h2>
-              </div>
-              <span className="goal-status-pill">
-                {humanizeIssueValue(currentGoal.status ?? "planned")}
-              </span>
-            </div>
-
-            {currentGoal.description ? (
-              <section className="projects-detail-section">
-                <h3>Description</h3>
-                <p>{currentGoal.description}</p>
-              </section>
-            ) : null}
-
-            <div className="goals-detail-grid">
-              <DetailRow
-                label="Level"
-                value={humanizeIssueValue(currentGoal.level ?? "company")}
-              />
-              <DetailRow
-                label="Status"
-                value={humanizeIssueValue(currentGoal.status ?? "planned")}
-              />
-              <DetailRow
-                label="Owner Agent"
-                value={goalOwnerLabel(agents, currentGoal.owner_agent_id)}
-              />
-              <DetailRow
-                label="Parent Goal"
-                value={goalTitleForProject(goals, currentGoal.parent_id)}
-              />
-              <DetailRow
-                label="Child Goals"
-                value={String(childGoals.length)}
-              />
-              <DetailRow
-                label="Linked Projects"
-                value={String(relatedProjects.length)}
-              />
-              <DetailRow
-                label="Created"
-                value={formatBoardDate(currentGoal.created_at)}
-              />
-              <DetailRow
-                label="Updated"
-                value={formatBoardDate(currentGoal.updated_at)}
-              />
-            </div>
-
-            {childGoals.length ? (
-              <section className="goals-detail-section">
-                <h3>Child Goals</h3>
-                <div className="surface-list">
-                  {childGoals.map((goal) => (
-                    <button
-                      className="goal-relationship-row"
-                      key={goal.id}
-                      onClick={() => onSelectGoal(goal.id)}
-                      type="button"
-                    >
-                      <div className="goal-relationship-row-main">
-                        <strong>{goal.title}</strong>
-                        <span>
-                          {humanizeIssueValue(goal.status ?? "planned")}
-                        </span>
-                      </div>
-                      <span className="goal-relationship-row-trailing">
-                        {humanizeIssueValue(goal.level ?? "company")}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ) : null}
-
-            {relatedProjects.length ? (
-              <section className="goals-detail-section">
-                <h3>Linked Projects</h3>
-                <div className="surface-list">
-                  {relatedProjects.map((project) => (
-                    <div className="surface-list-row" key={project.id}>
-                      <span>{project.name}</span>
-                      <strong>
-                        {humanizeIssueValue(project.status ?? "planned")}
-                      </strong>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            ) : null}
-          </div>
-        </section>
-      ) : null}
-    </section>
-  );
-}
-
-function GoalQueueRow({
-  goal,
-  isSelected,
-  onClick,
-}: {
-  goal: GoalRecord;
-  isSelected: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      className={isSelected ? "goal-queue-row active" : "goal-queue-row"}
-      onClick={onClick}
-      type="button"
-    >
-      <div className="goal-queue-row-main">
-        <strong>{goal.title}</strong>
-        <span>{goal.description ?? "No description yet"}</span>
-      </div>
-      <div className="goal-queue-row-meta">
-        <span>{humanizeIssueValue(goal.level ?? "company")}</span>
-        <span>{humanizeIssueValue(goal.status ?? "planned")}</span>
-      </div>
-    </button>
-  );
-}
-
-function ProjectQueueRow({
-  project,
-  isSelected,
-  onClick,
-}: {
-  project: ProjectRecord;
-  isSelected: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      className={isSelected ? "project-queue-row active" : "project-queue-row"}
-      onClick={onClick}
-      type="button"
-    >
-      <div className="project-queue-row-main">
-        <strong>{project.name}</strong>
-        <span>{project.primary_workspace?.cwd ?? "Missing repo path"}</span>
-      </div>
-      <span className="project-queue-row-trailing">{project.status}</span>
-    </button>
   );
 }
 
@@ -16080,10 +16048,14 @@ function CreateIssueDialogView({
                     ariaLabel="Conversation provider"
                     id="issue-dialog-command"
                     onChange={(value) => {
-                      onCommandChange(value);
-                      if (detectAgentCliProvider(value, issueModel) !== "claude") {
-                        onPlanModeChange(false);
-                      }
+                      const patch = runtimeDraftPatchForProviderSelection(
+                        value,
+                        { model: issueModel, planMode: isPlanMode },
+                        dependencyCheck
+                      );
+                      onCommandChange(patch.command);
+                      onModelChange(patch.model);
+                      onPlanModeChange(patch.planMode);
                     }}
                     value={issueCommand}
                   >
@@ -16782,39 +16754,6 @@ function CompanyBrandColorField({
   );
 }
 
-function WorkspaceBoardItem({
-  active,
-  workspace,
-  onClick,
-}: {
-  active: boolean;
-  workspace: WorkspaceRecord;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      className={
-        active ? "workspace-board-item active" : "workspace-board-item"
-      }
-      onClick={onClick}
-      type="button"
-    >
-      <div className="workspace-board-item-top">
-        <strong>{workspace.issue_identifier ?? workspace.title}</strong>
-        <span className="workspace-status-pill">
-          {workspace.workspace_status ?? workspace.status ?? "active"}
-        </span>
-      </div>
-      <span>{workspace.issue_title ?? workspace.title}</span>
-      <small>
-        {[workspace.project_name, workspace.agent_name]
-          .filter(Boolean)
-          .join(" · ") || "Assigned worktree"}
-      </small>
-    </button>
-  );
-}
-
 function WorkspaceCenterTabButton({
   active,
   label,
@@ -17129,7 +17068,7 @@ function WorkspaceSidebarTabButton({
   );
 }
 
-function WorkspaceInspectorSidebar({
+export function WorkspaceInspectorSidebar({
   currentBranch,
   currentBranchName,
   currentDirectory,
@@ -17182,39 +17121,79 @@ function WorkspaceInspectorSidebar({
   onStageFile: (file: GitStatusFile) => void;
   onUnstageFile: (file: GitStatusFile) => void;
 }) {
+  const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
+  const showWorkspaceDetails = Boolean(workspace && !issueMeta);
+  const workspaceDetails = showWorkspaceDetails ? workspace : null;
+  const headerActionMode = hasUncommittedChanges
+    ? ("commit" as const)
+    : hasUnpushedCommits
+      ? ("push" as const)
+      : ("disabledCommit" as const);
+  const canCommit = !isWorking && gitCommitMessage.trim().length > 0;
+  const canPush = !isWorking && hasUnpushedCommits;
+
+  useEffect(() => {
+    setIsActionMenuOpen(false);
+  }, [headerActionMode]);
+
+  useEffect(() => {
+    if (!isActionMenuOpen) {
+      return;
+    }
+
+    const closeMenu = () => {
+      setIsActionMenuOpen(false);
+    };
+
+    window.addEventListener("pointerdown", closeMenu);
+    return () => {
+      window.removeEventListener("pointerdown", closeMenu);
+    };
+  }, [isActionMenuOpen]);
+
   return (
     <aside className="workspace-inspector">
-      {workspace ? (
+      {workspaceDetails ? (
         <section className="inspector-panel workspace-details-panel">
-          <h3>Worktree Details</h3>
+          <h3>Workspace Details</h3>
           <div className="workspace-detail-grid">
             <DetailRow
               label="Conversation"
               value={
-                workspace.issue_identifier ?? workspace.issue_id ?? "Missing"
+                workspaceDetails.issue_identifier ??
+                workspaceDetails.issue_id ??
+                "Missing"
               }
             />
             <DetailRow
               label="Agent"
-              value={workspace.agent_name ?? workspace.agent_id ?? "Missing"}
+              value={
+                workspaceDetails.agent_name ??
+                workspaceDetails.agent_id ??
+                "Missing"
+              }
             />
             <DetailRow
               label="Project"
               value={
-                workspace.project_name ?? workspace.project_id ?? "Missing"
+                workspaceDetails.project_name ??
+                workspaceDetails.project_id ??
+                "Missing"
               }
             />
             <DetailRow
               label="Branch"
-              value={workspace.workspace_branch ?? "main"}
+              value={workspaceDetails.workspace_branch ?? "main"}
             />
             <DetailRow
               label="Repo"
-              value={workspace.workspace_repo_path ?? "Missing"}
+              value={workspaceDetails.workspace_repo_path ?? "Missing"}
             />
           </div>
         </section>
       ) : null}
+
+      {workspaceDetails ? <div className="workspace-sidebar-divider" /> : null}
 
       <section className="inspector-panel workspace-git-panel">
         <div className="git-sidebar-header">
@@ -17229,35 +17208,81 @@ function WorkspaceInspectorSidebar({
             ) : null}
           </div>
 
-          <div className="git-sidebar-actions">
-            {hasUncommittedChanges ? (
-              <>
+          <div
+            className="git-sidebar-actions"
+            onPointerDown={(event) => event.stopPropagation()}
+          >
+            {headerActionMode === "commit" ? (
+              <div className="git-header-split-button-shell">
+                <div
+                  className={
+                    canCommit
+                      ? "git-header-split-button"
+                      : "git-header-split-button disabled"
+                  }
+                >
+                  <button
+                    className="git-header-split-button-primary"
+                    disabled={!canCommit}
+                    onClick={() => onGitCommit(false)}
+                    type="button"
+                  >
+                    Commit
+                  </button>
+                  <button
+                    aria-expanded={isActionMenuOpen}
+                    aria-label="Commit actions"
+                    className="git-header-split-button-toggle"
+                    disabled={!canCommit}
+                    onClick={() => setIsActionMenuOpen((current) => !current)}
+                    type="button"
+                  >
+                    ▾
+                  </button>
+                </div>
+                {isActionMenuOpen ? (
+                  <div className="git-header-dropdown-menu">
+                    <button
+                      className="git-header-dropdown-item"
+                      disabled={!canCommit}
+                      onClick={() => {
+                        setIsActionMenuOpen(false);
+                        onGitCommit(true);
+                      }}
+                      type="button"
+                    >
+                      Commit + Push
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : headerActionMode === "push" ? (
                 <button
-                  className="primary-button compact-button"
-                  disabled={isWorking || !gitCommitMessage.trim()}
-                  onClick={() => onGitCommit(false)}
+                  aria-label="Push changes"
+                  className="git-header-push-button"
+                  disabled={!canPush}
+                  onClick={onGitPush}
+                  type="button"
+              >
+                Push
+              </button>
+            ) : (
+              <div className="git-header-split-button disabled">
+                <button
+                  className="git-header-split-button-primary"
+                  disabled
                   type="button"
                 >
                   Commit
                 </button>
                 <button
-                  className="secondary-button compact-button"
-                  disabled={isWorking || !gitCommitMessage.trim()}
-                  onClick={() => onGitCommit(true)}
+                  className="git-header-split-button-toggle"
+                  disabled
                   type="button"
                 >
-                  Commit + Push
+                  ▾
                 </button>
-              </>
-            ) : (
-              <button
-                className="primary-button compact-button"
-                disabled={isWorking || !hasUnpushedCommits}
-                onClick={onGitPush}
-                type="button"
-              >
-                Push
-              </button>
+              </div>
             )}
           </div>
         </div>
@@ -17430,22 +17455,6 @@ function CompanyContextMenuIcon({
           />
         </svg>
       );
-    case "workspaces":
-      return (
-        <svg
-          aria-hidden="true"
-          className={className}
-          fill="none"
-          viewBox="0 0 16 16"
-        >
-          <path
-            d="M2.5 3.25h4.75v4.75H2.5zM8.75 3.25h4.75v4.75H8.75zM2.5 8.75h4.75v4.75H2.5zM8.75 8.75h4.75v4.75H8.75z"
-            rx="1.3"
-            stroke="currentColor"
-            strokeWidth="1.4"
-          />
-        </svg>
-      );
     case "issues":
       return (
         <svg
@@ -17463,35 +17472,6 @@ function CompanyContextMenuIcon({
             d="M5.25 6h5.5M5.25 8.5h5.5M5.25 11h3"
             stroke="currentColor"
             strokeLinecap="round"
-            strokeWidth="1.4"
-          />
-        </svg>
-      );
-    case "inbox":
-      return (
-        <svg
-          aria-hidden="true"
-          className={className}
-          fill="none"
-          viewBox="0 0 16 16"
-        >
-          <path
-            d="M2.5 5.25h11v6a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 11.25Z"
-            stroke="currentColor"
-            strokeWidth="1.4"
-          />
-          <path
-            d="M2.75 8.75h3l1.1 1.5h2.3l1.1-1.5h3"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="1.4"
-          />
-          <path
-            d="M5 5.25 6 3.5h4l1 1.75"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeLinejoin="round"
             strokeWidth="1.4"
           />
         </svg>
@@ -17538,36 +17518,6 @@ function CompanyContextMenuIcon({
             stroke="currentColor"
             strokeLinecap="round"
             strokeWidth="1.2"
-          />
-        </svg>
-      );
-    case "goals":
-      return (
-        <svg
-          aria-hidden="true"
-          className={className}
-          fill="none"
-          viewBox="0 0 16 16"
-        >
-          <circle
-            cx="8"
-            cy="8"
-            r="4.75"
-            stroke="currentColor"
-            strokeWidth="1.3"
-          />
-          <circle
-            cx="8"
-            cy="8"
-            r="2.25"
-            stroke="currentColor"
-            strokeWidth="1.3"
-          />
-          <path
-            d="M8 1.75v1.5M8 12.75v1.5M1.75 8h1.5M12.75 8h1.5"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeWidth="1.3"
           />
         </svg>
       );
@@ -17744,16 +17694,12 @@ function GitChangeSection({
   );
 }
 
-function screenLabel(screen: AppScreen) {
+function screenLabel(screen: AppScreen): string {
   switch (screen) {
     case "dashboard":
       return "Dashboard";
     case "stats":
       return "Stats";
-    case "inbox":
-      return "Inbox";
-    case "workspaces":
-      return "Worktrees";
     case "agents":
       return "Agents";
     case "issues":
@@ -17762,8 +17708,6 @@ function screenLabel(screen: AppScreen) {
       return "Approvals";
     case "projects":
       return "Projects";
-    case "goals":
-      return "Goals";
     case "activity":
       return "Activity";
     case "costs":
@@ -17772,6 +17716,8 @@ function screenLabel(screen: AppScreen) {
     case "appSettings":
       return "Settings";
   }
+
+  return "Dashboard";
 }
 
 function sidebarScreenIcon(
@@ -17780,16 +17726,10 @@ function sidebarScreenIcon(
   switch (screen) {
     case "dashboard":
       return "dashboard";
-    case "inbox":
-      return "inbox";
-    case "workspaces":
-      return "workspaces";
     case "issues":
       return "issues";
     case "approvals":
       return "approvals";
-    case "goals":
-      return "goals";
     case "stats":
       return "stats";
     case "activity":
@@ -17817,10 +17757,6 @@ function sidebarAgentAvatarLabel(agent: AgentRecord) {
 }
 
 function boardRootLayout(screen: AppScreen): BoardRootLayout {
-  if (screen === "workspaces") {
-    return "workspace";
-  }
-
   if (screen === "appSettings") {
     return "settings";
   }
@@ -17829,10 +17765,6 @@ function boardRootLayout(screen: AppScreen): BoardRootLayout {
 }
 
 function preferredViewForScreen(screen: AppScreen) {
-  if (screen === "workspaces") {
-    return "workspaces";
-  }
-
   if (screen === "activity") {
     return "activity";
   }
@@ -17882,7 +17814,7 @@ function normalizeScreen(view: string | null | undefined): AppScreen {
   }
 
   if (view === "workspace" || view === "workspaces") {
-    return "workspaces";
+    return "dashboard";
   }
 
   return "dashboard";
@@ -17912,7 +17844,7 @@ function preferredViewSelectValue(
   }
 
   if (view === "workspace" || view === "workspaces") {
-    return "workspaces";
+    return "dashboard";
   }
 
   return "dashboard";
@@ -18364,6 +18296,17 @@ function mergeIssueOptions(defaults: string[], selected: string) {
 
 type AgentCliProvider = "claude" | "codex" | "custom";
 
+const fallbackClaudeModelOptions = ["sonnet", "opus", "haiku"];
+const fallbackCodexModelOptions = [
+  "gpt-5.3-codex",
+  "gpt-5.2-codex",
+  "gpt-5.1-codex-max",
+  "gpt-5.1-codex",
+  "gpt-5.1-codex-mini",
+  "gpt-5-codex",
+  "codex-mini-latest",
+];
+
 function detectAgentCliProvider(
   command: string | null | undefined,
   model?: string | null
@@ -18453,11 +18396,10 @@ function buildIssueRuntimeProviderOptions(
   return options;
 }
 
-function buildAgentModelOptions(
-  draft: Pick<IssueRuntimeDraft, "command" | "model">,
+function buildProviderModelCatalog(
+  provider: AgentCliProvider,
   dependencyCheck: RuntimeCapabilities | null
 ) {
-  const provider = detectAgentCliProvider(draft.command, draft.model);
   const discoveredModels =
     provider === "codex"
       ? dependencyCheck?.cli.codex.installed
@@ -18468,8 +18410,42 @@ function buildAgentModelOptions(
           ? dependencyCheck?.cli.claude.models ?? []
           : []
         : [];
+  const fallbackModels =
+    provider === "codex"
+      ? fallbackCodexModelOptions
+      : provider === "claude"
+        ? fallbackClaudeModelOptions
+        : [];
 
-  return mergeIssueOptions(["default", ...discoveredModels], draft.model);
+  return ["default", ...(discoveredModels.length ? discoveredModels : fallbackModels)];
+}
+
+function runtimeDraftPatchForProviderSelection(
+  command: string,
+  draft: Pick<IssueRuntimeDraft, "model" | "planMode">,
+  dependencyCheck: RuntimeCapabilities | null
+) {
+  const provider = detectAgentCliProvider(command);
+  const availableModels = buildProviderModelCatalog(provider, dependencyCheck);
+  const model = availableModels.includes(draft.model) ? draft.model : "default";
+
+  return {
+    command,
+    model,
+    planMode: provider === "claude" ? draft.planMode : false,
+  };
+}
+
+function buildAgentModelOptions(
+  draft: Pick<IssueRuntimeDraft, "command" | "model">,
+  dependencyCheck: RuntimeCapabilities | null
+) {
+  const provider = detectAgentCliProvider(draft.command, draft.model);
+
+  return mergeIssueOptions(
+    buildProviderModelCatalog(provider, dependencyCheck),
+    draft.model
+  );
 }
 
 function detectWorkspaceAgentProvider(
@@ -20901,4 +20877,25 @@ function stringifyStatus(value: Record<string, unknown> | null) {
   }
 
   return "ready";
+}
+
+function workspaceRuntimeTone(
+  status: string,
+  errorMessage?: string | null
+): "error" | "idle" | "running" | "waiting" {
+  if (errorMessage && errorMessage.trim().length > 0) {
+    return "error";
+  }
+
+  const normalized = status.trim().toLowerCase();
+  if (normalized === "running" || normalized === "connected") {
+    return "running";
+  }
+  if (normalized === "waiting" || normalized === "queued") {
+    return "waiting";
+  }
+  if (normalized === "error" || normalized === "failed") {
+    return "error";
+  }
+  return "idle";
 }

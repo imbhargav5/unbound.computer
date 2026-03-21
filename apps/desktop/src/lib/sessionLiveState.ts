@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 
 import {
   agentStatus,
@@ -9,6 +9,8 @@ import {
 } from "./api";
 import {
   buildSessionConversationTimeline,
+  deriveLatestSessionCompletionSummary,
+  type SessionCompletionSummary,
   type SessionConversationProvider,
   type SessionConversationRow,
 } from "./sessionConversation";
@@ -24,6 +26,7 @@ export interface DesktopSessionStateSnapshot {
   conversationRows: SessionConversationRow[];
   errorMessage: string | null;
   isLoadingMessages: boolean;
+  latestCompletionSummary: SessionCompletionSummary | null;
   messages: SessionMessage[];
   provider: SessionConversationProvider;
   runtimeStatus: Record<string, unknown> | null;
@@ -40,7 +43,14 @@ export interface DesktopSessionLiveStateApi {
   terminalStatus(sessionId: string): Promise<Record<string, unknown>>;
 }
 
-const emptySnapshotBySessionId = new Map<string, DesktopSessionStateSnapshot>();
+const emptySnapshotByKey = new Map<string, DesktopSessionStateSnapshot>();
+
+function emptySnapshotKey(
+  sessionId: string | null,
+  provider: SessionConversationProvider
+) {
+  return `${sessionId ?? "missing-session"}:${provider}`;
+}
 
 function createEmptySnapshot(
   sessionId: string,
@@ -50,6 +60,7 @@ function createEmptySnapshot(
     conversationRows: [],
     errorMessage: null,
     isLoadingMessages: false,
+    latestCompletionSummary: null,
     messages: [],
     provider,
     runtimeStatus: null,
@@ -197,6 +208,10 @@ class DesktopSessionLiveState {
         conversationRows: buildSessionConversationTimeline(messages, provider),
         errorMessage: null,
         isLoadingMessages: false,
+        latestCompletionSummary: deriveLatestSessionCompletionSummary(
+          messages,
+          provider
+        ),
         messages,
         runtimeStatus,
         terminalStatus: nextTerminalStatus,
@@ -227,6 +242,10 @@ class DesktopSessionLiveState {
 
     this.updateSnapshot({
       conversationRows: buildSessionConversationTimeline(
+        this.snapshot.messages,
+        provider
+      ),
+      latestCompletionSummary: deriveLatestSessionCompletionSummary(
         this.snapshot.messages,
         provider
       ),
@@ -268,17 +287,14 @@ export class DesktopSessionStateManager {
     sessionId: string | null,
     provider: SessionConversationProvider
   ) {
-    if (!sessionId) {
-      return createEmptySnapshot("missing-session", provider);
-    }
-
-    const cached = emptySnapshotBySessionId.get(sessionId);
-    if (cached && cached.provider === provider) {
+    const key = emptySnapshotKey(sessionId, provider);
+    const cached = emptySnapshotByKey.get(key);
+    if (cached) {
       return cached;
     }
 
-    const snapshot = createEmptySnapshot(sessionId, provider);
-    emptySnapshotBySessionId.set(sessionId, snapshot);
+    const snapshot = createEmptySnapshot(sessionId ?? "missing-session", provider);
+    emptySnapshotByKey.set(key, snapshot);
     return snapshot;
   }
 
@@ -312,10 +328,23 @@ export function useDesktopSessionLiveState(
     };
   }, [liveState, provider]);
 
+  const emptySnapshot = useMemo(
+    () => manager.emptySnapshot(sessionId, provider),
+    [manager, provider, sessionId]
+  );
+  const getSnapshot = useCallback(
+    () => liveState?.getSnapshot() ?? emptySnapshot,
+    [emptySnapshot, liveState]
+  );
+  const subscribe = useMemo(
+    () => liveState?.subscribe ?? noopSubscribe,
+    [liveState]
+  );
+
   return useSyncExternalStore(
-    liveState?.subscribe ?? noopSubscribe,
-    liveState?.getSnapshot ?? (() => manager.emptySnapshot(sessionId, provider)),
-    () => manager.emptySnapshot(sessionId, provider)
+    subscribe,
+    getSnapshot,
+    getSnapshot
   );
 }
 

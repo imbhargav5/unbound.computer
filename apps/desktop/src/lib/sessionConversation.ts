@@ -64,6 +64,15 @@ export interface SessionConversationRow {
   sequenceNumber: number;
 }
 
+export interface SessionCompletionSummary {
+  durationMs: number | null;
+  outcomeLabel: string;
+  summaryText: string | null;
+  totalCostUSD: number | null;
+  totalTokens: number | null;
+  turns: number | null;
+}
+
 export function buildSessionConversationTimeline(
   messages: SessionMessage[],
   provider: SessionConversationProvider
@@ -99,6 +108,17 @@ export function buildSessionConversationTimeline(
   return dedupeSessionConversationRows([...baseRows, ...compactBoundaryRows, ...resultRows]).sort(
     (left, right) => left.sequenceNumber - right.sequenceNumber
   );
+}
+
+export function deriveLatestSessionCompletionSummary(
+  messages: SessionMessage[],
+  provider: SessionConversationProvider
+): SessionCompletionSummary | null {
+  if (provider === "codex") {
+    return deriveCodexCompletionSummary(messages);
+  }
+
+  return deriveClaudeCompletionSummary(messages);
 }
 
 export function sessionConversationBlockSemanticType(
@@ -282,6 +302,56 @@ function buildCodexConversationTimeline(messages: SessionMessage[]) {
   return rows;
 }
 
+function deriveCodexCompletionSummary(messages: SessionMessage[]) {
+  const orderedMessages = messages
+    .slice()
+    .sort(
+      (left, right) =>
+        normalizeSequenceNumber(left.sequence_number) -
+        normalizeSequenceNumber(right.sequence_number)
+    );
+
+  for (let index = orderedMessages.length - 1; index >= 0; index -= 1) {
+    const message = orderedMessages[index];
+    if (!message) {
+      continue;
+    }
+
+    const normalized = normalizeMessageContent(message.content);
+    if (normalized.kind !== "object") {
+      continue;
+    }
+
+    const payload = normalized.value;
+    if (readString(payload.type)?.toLowerCase() !== "turn.completed") {
+      continue;
+    }
+
+    const usage = readRecord(payload.usage);
+    const inputTokens = numberFromUnknown(usage?.input_tokens) ?? 0;
+    const cachedInputTokens = numberFromUnknown(usage?.cached_input_tokens) ?? 0;
+    const outputTokens = numberFromUnknown(usage?.output_tokens) ?? 0;
+    const totalTokens = inputTokens + cachedInputTokens + outputTokens;
+    const durationMs = numberFromUnknown(payload.duration_ms);
+    const turns = numberFromUnknown(payload.turn_count ?? payload.turns);
+
+    if (totalTokens === 0 && durationMs == null && turns == null) {
+      return null;
+    }
+
+    return {
+      durationMs,
+      outcomeLabel: "turn_completed",
+      summaryText: null,
+      totalCostUSD: null,
+      totalTokens: totalTokens > 0 ? totalTokens : null,
+      turns,
+    };
+  }
+
+  return null;
+}
+
 function normalizeClaudeMessages(messages: SessionMessage[]) {
   return messages.map((message) => {
     const normalized = normalizeMessageContent(message.content);
@@ -418,6 +488,81 @@ function buildClaudeResultRow(
         role: "result" as const,
         sequenceNumber: normalizeSequenceNumber(message.sequence_number),
       };
+}
+
+function deriveClaudeCompletionSummary(messages: SessionMessage[]) {
+  const orderedMessages = messages
+    .slice()
+    .sort(
+      (left, right) =>
+        normalizeSequenceNumber(left.sequence_number) -
+        normalizeSequenceNumber(right.sequence_number)
+    );
+
+  for (let index = orderedMessages.length - 1; index >= 0; index -= 1) {
+    const message = orderedMessages[index];
+    if (!message) {
+      continue;
+    }
+
+    const normalized = normalizeMessageContent(message.content);
+    if (normalized.kind !== "object") {
+      continue;
+    }
+
+    const payload = normalized.value;
+    if (readString(payload.type)?.toLowerCase() !== "result") {
+      continue;
+    }
+    if (Boolean(payload.is_error)) {
+      return null;
+    }
+
+    const usage = readRecord(payload.usage);
+    const inputTokens = numberFromUnknown(usage?.input_tokens) ?? 0;
+    const outputTokens = numberFromUnknown(usage?.output_tokens) ?? 0;
+    const cacheReadInputTokens =
+      numberFromUnknown(usage?.cache_read_input_tokens) ?? 0;
+    const cacheCreationInputTokens =
+      numberFromUnknown(usage?.cache_creation_input_tokens) ?? 0;
+    const totalTokens =
+      inputTokens +
+      outputTokens +
+      cacheReadInputTokens +
+      cacheCreationInputTokens;
+    const totalCostUSD =
+      numberFromUnknown(payload.total_cost_usd) ??
+      numberFromUnknown(payload.cost_usd);
+    const turns =
+      numberFromUnknown(payload.num_turns) ??
+      numberFromUnknown(payload.turn_count) ??
+      numberFromUnknown(payload.turns);
+    const durationMs =
+      numberFromUnknown(payload.duration_ms) ??
+      numberFromUnknown(payload.durationMs);
+    const summaryText = sanitizeText(readString(payload.result));
+
+    if (
+      summaryText == null &&
+      turns == null &&
+      totalTokens === 0 &&
+      totalCostUSD == null &&
+      durationMs == null
+    ) {
+      return null;
+    }
+
+    return {
+      durationMs,
+      outcomeLabel: sanitizeText(readString(payload.stop_reason)) ?? "end_turn",
+      summaryText,
+      totalCostUSD,
+      totalTokens: totalTokens > 0 ? totalTokens : null,
+      turns,
+    };
+  }
+
+  return null;
 }
 
 function isClaudeResultMessage(message: SessionMessage) {
