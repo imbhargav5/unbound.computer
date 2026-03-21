@@ -9,6 +9,7 @@ vi.mock("@xterm/xterm", () => ({
 }));
 
 import {
+  BirdsEyeQuickCreateRow,
   WorkspaceChatComposer,
   WorkspaceInspectorSidebar,
   WorkspaceRuntimeStatusLine,
@@ -196,6 +197,76 @@ describe("issue detail parity components", () => {
       stopButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows provider-specific options in birds eye quick create", () => {
+    const onDraftChange = vi.fn();
+
+    const view = render(
+      <BirdsEyeQuickCreateRow
+        dependencyCheck={null}
+        draft={{
+          command: "claude",
+          enableChrome: false,
+          model: "sonnet",
+          planMode: true,
+          priority: "medium",
+          projectId: "project-1",
+          skipPermissions: false,
+          status: "backlog",
+          thinkingEffort: "auto",
+          workspaceTargetMode: "main",
+          workspaceWorktreeBranch: "",
+          workspaceWorktreeName: "",
+          workspaceWorktreePath: "",
+        }}
+        errorMessage={null}
+        folder={{ label: "Repo root" } as any}
+        inputRef={() => undefined}
+        isSaving={false}
+        onCancel={() => undefined}
+        onDraftChange={onDraftChange}
+        onSubmit={(event) => event.preventDefault()}
+        onTitleChange={() => undefined}
+        sourceNode={null}
+        title="Follow up"
+      />
+    );
+
+    const providerSelect = view.querySelector(
+      'select[aria-label="New chat provider"]'
+    );
+    const modelSelect = view.querySelector('select[aria-label="New chat model"]');
+
+    expect(providerSelect).not.toBeNull();
+    expect(modelSelect).not.toBeNull();
+    expect(
+      Array.from(providerSelect?.querySelectorAll("option") ?? []).map(
+        (option) => option.textContent
+      )
+    ).toEqual(["Claude", "Codex"]);
+    expect(
+      Array.from(modelSelect?.querySelectorAll("option") ?? []).map(
+        (option) => option.value
+      )
+    ).toEqual(expect.arrayContaining(["default", "sonnet", "opus", "haiku"]));
+
+    act(() => {
+      if (providerSelect instanceof HTMLSelectElement) {
+        const valueSetter = Object.getOwnPropertyDescriptor(
+          HTMLSelectElement.prototype,
+          "value"
+        )?.set;
+        valueSetter?.call(providerSelect, "codex");
+      }
+      providerSelect?.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    expect(onDraftChange).toHaveBeenCalledWith({
+      command: "codex",
+      model: "default",
+      planMode: false,
+    });
   });
 
   it("renders the sidebar shell with git actions and the issue tab", () => {
