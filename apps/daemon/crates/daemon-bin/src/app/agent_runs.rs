@@ -9,13 +9,14 @@ use crate::armin_adapter::DaemonArmin;
 use crate::observability::{current_trace_context, spawn_in_current_span};
 use crate::utils::SessionSecretCache;
 use agent_session_sqlite_persist_core::{
-    CodingSessionStatus, NewMessage, NewSession, RepositoryId, Session, SessionId, SessionWriter,
+    CodingSessionStatus, NewMessage, NewSession, RepositoryId, Session, SessionId, SessionReader,
+    SessionWriter,
 };
 use chrono::Utc;
 use daemon_board::{
     service, summarize_agent_run_event, summarize_agent_run_excerpt, summarize_agent_run_result,
-    summarize_agent_run_text, AddIssueCommentInput, Agent, AgentRun, Approval, BoardError,
-    CreateAgentDecisionApprovalInput, Issue, IssueComment, UpdateIssueInput,
+    summarize_agent_run_text, AddIssueCommentInput, Agent, AgentRun, BoardError, Issue,
+    IssueComment, UpdateIssueInput,
 };
 use daemon_config_and_utils::Paths;
 use daemon_database::{queries, AsyncDatabase, NewRepository};
@@ -132,7 +133,6 @@ struct AgentDecisionRequest {
     question: String,
     options: Vec<String>,
     questions: Option<Value>,
-    raw_request: Value,
 }
 
 impl AgentRunCoordinator {
@@ -171,6 +171,41 @@ impl AgentRunCoordinator {
         spawn_in_current_span(async move {
             reaper.stale_run_reaper_loop().await;
         });
+    }
+
+    pub async fn ensure_issue_session_initialized(&self, issue_id: &str) -> Result<(), BoardError> {
+        let issue = service::get_issue(&self.db, issue_id)
+            .await?
+            .ok_or_else(|| BoardError::NotFound("Issue not found for session init".to_string()))?;
+        let Some(agent_id) = issue.assignee_agent_id.as_deref() else {
+            return Ok(());
+        };
+        let agent = service::get_agent(&self.db, agent_id)
+            .await?
+            .ok_or_else(|| BoardError::NotFound("Assigned agent not found".to_string()))?;
+        let strategy = issue_run_session_strategy(&issue);
+        let session = self
+            .resolve_session_for_run(&agent, Some(issue.id.clone()))
+            .await?;
+
+        if strategy == IssueRunSessionStrategy::ProjectRoot
+            && issue.workspace_session_id.as_deref() != Some(session.local_session_id.as_str())
+        {
+            let resolved_workspace =
+                resolve_working_dir_from_str(&*self.armin, &session.local_session_id)
+                    .map_err(map_resolve_error)?;
+            service::attach_issue_workspace_session(
+                &self.db,
+                &issue.id,
+                &session.local_session_id,
+                &resolved_workspace.working_dir,
+                resolved_workspace.repository.default_branch.clone(),
+            )
+            .await?;
+        }
+
+        self.seed_issue_message_if_empty(&session.local_session_id, &issue)?;
+        Ok(())
     }
 
     pub async fn enqueue_run(
@@ -761,6 +796,7 @@ impl AgentRunCoordinator {
                     .await?
             }
         };
+        let system_prompt = agent_run_system_prompt(resolved_workspace.is_worktree);
 
         self.db
             .call_with_operation("agent_run.execute.prepare", {
@@ -796,11 +832,11 @@ impl AgentRunCoordinator {
             .await?;
 
         let armin_session_id = SessionId::from_string(&session.local_session_id);
-        self.append_claude_message(&armin_session_id, &prompt, "agent_run_prompt");
 
         let config = build_agent_cli_config(
             &agent,
             issue.as_ref(),
+            Some(system_prompt),
             &prompt,
             resolved_workspace.working_dir,
             if resumes_existing_session {
@@ -921,7 +957,7 @@ impl AgentRunCoordinator {
 
         let timeout_deadline = timeout_sec.map(|seconds| sleep(Duration::from_secs(seconds)));
         tokio::pin!(timeout_deadline);
-        let mut surfaced_approval_ids = HashSet::new();
+        let mut surfaced_input_request_keys = HashSet::new();
 
         loop {
             let event = if let Some(deadline) = timeout_deadline.as_mut().as_pin_mut() {
@@ -969,25 +1005,14 @@ impl AgentRunCoordinator {
                         },
                     );
                     self.broadcast_session_event(&session.local_session_id, raw);
-                    if decision_request.is_some() {
-                        self.write_runtime_status_if_changed(
-                            &armin_session_id,
-                            CodingSessionStatus::Waiting,
-                            None,
-                            "awaiting-board-approval",
-                            &mut last_status,
-                            &mut last_error_message,
-                        );
-                    } else {
-                        self.write_runtime_status_if_changed(
-                            &armin_session_id,
-                            CodingSessionStatus::Running,
-                            None,
-                            "event-processing",
-                            &mut last_status,
-                            &mut last_error_message,
-                        );
-                    }
+                    self.write_runtime_status_if_changed(
+                        &armin_session_id,
+                        CodingSessionStatus::Running,
+                        None,
+                        "event-processing",
+                        &mut last_status,
+                        &mut last_error_message,
+                    );
                     if let Some(summary) = summarize_process_event(cli_kind, json) {
                         push_excerpt(&mut stdout_excerpt, &summary);
                     }
@@ -1004,33 +1029,23 @@ impl AgentRunCoordinator {
                     .await?;
 
                     if let Some(decision_request) = decision_request {
-                        let approval = self
-                            .maybe_create_agent_decision_approval(
-                                &run,
-                                issue_id.as_deref(),
-                                &decision_request,
-                            )
-                            .await?;
-                        if surfaced_approval_ids.insert(approval.id.clone()) {
-                            let approval_message = format!(
-                                "Waiting for board decision: {}",
-                                decision_request.question
-                            );
-                            push_excerpt(&mut stdout_excerpt, &approval_message);
+                        let request_key = decision_request_request_key(&run, &decision_request);
+                        if surfaced_input_request_keys.insert(request_key) {
+                            let input_request_message =
+                                format!("Agent requested input: {}", decision_request.question);
                             self.record_run_event(
                                 &run,
                                 seq + 1,
-                                "approval_requested",
+                                "input_requested",
                                 Some("system"),
                                 Some("info"),
-                                Some(&approval_message),
+                                Some(&input_request_message),
                                 Some(json!({
-                                    "approval_id": approval.id,
-                                    "approval_type": approval.approval_type,
                                     "provider": decision_request.provider,
                                     "provider_request_id": decision_request.provider_request_id.clone(),
                                     "question": decision_request.question.clone(),
                                     "options": decision_request.options.clone(),
+                                    "questions": decision_request.questions.clone(),
                                     "issue_id": issue_id.clone(),
                                 })),
                             )
@@ -1759,6 +1774,7 @@ impl AgentRunCoordinator {
                         &issue_id,
                     )
                     .await?;
+                    self.seed_issue_message_if_empty(&workspace.session_id, &issue)?;
                     return Ok(RunSessionContext {
                         local_session_id: workspace.session_id,
                         local_session_title: workspace.title,
@@ -1766,13 +1782,43 @@ impl AgentRunCoordinator {
                     });
                 }
                 IssueRunSessionStrategy::ProjectRoot => {
-                    return self.ensure_issue_project_root_session(agent, &issue).await;
+                    let session = self
+                        .ensure_issue_project_root_session(agent, &issue)
+                        .await?;
+                    self.seed_issue_message_if_empty(&session.local_session_id, &issue)?;
+                    return Ok(session);
                 }
                 IssueRunSessionStrategy::AgentHome => {}
             }
         }
 
         self.ensure_agent_home_session(agent).await
+    }
+
+    fn seed_issue_message_if_empty(
+        &self,
+        session_id: &str,
+        issue: &Issue,
+    ) -> Result<(), BoardError> {
+        let armin_session_id = SessionId::from_string(session_id);
+        let snapshot = self.armin.snapshot();
+        let snapshot_has_messages = snapshot
+            .session(&armin_session_id)
+            .is_some_and(|session| !session.messages().is_empty());
+        let delta_has_messages = !self.armin.delta(&armin_session_id).messages().is_empty();
+        if snapshot_has_messages || delta_has_messages {
+            return Ok(());
+        }
+
+        self.armin
+            .append(
+                &armin_session_id,
+                NewMessage {
+                    content: issue_transcript_seed_message(issue),
+                },
+            )
+            .map_err(|error| BoardError::Runtime(error.to_string()))?;
+        Ok(())
     }
 
     async fn ensure_issue_project_root_session(
@@ -1871,46 +1917,100 @@ impl AgentRunCoordinator {
             .repo_ref
             .clone()
             .or(repository.default_branch.clone());
+        let repository_id = repository.id.as_str().to_string();
+        let repository_name = repository.name.clone();
         let session_id_for_db = session_id.clone();
         let company_id = agent.company_id.clone();
         let agent_id = agent.id.clone();
+        let agent_name = agent.name.clone();
         let title_for_db = title.clone();
+        let issue_title = issue.title.clone();
+        let provider = session.provider.clone();
         let task_session_ref_for_db = task_session_ref.clone();
+        let workspace_metadata = json!({
+            "scope": "issue_project_root",
+            "issue_id": issue_id.clone(),
+            "issue_identifier": issue_identifier.clone(),
+            "project_id": project_id.clone(),
+            "agent_id": agent_id.clone(),
+        })
+        .to_string();
         self.db
             .call_with_operation("agent_run.issue_project_root.persist", move |conn| {
                 let tx = conn.unchecked_transaction()?;
+                let board_repository_id = tx
+                    .query_row(
+                        "SELECT id FROM repositories WHERE path = ?1",
+                        params![workspace_repo_path.clone()],
+                        |row| row.get::<_, String>(0),
+                    )
+                    .optional()?
+                    .unwrap_or_else(|| repository_id.clone());
                 tx.execute(
-                    "UPDATE agent_coding_sessions
-                     SET company_id = ?1,
-                         project_id = ?2,
-                         issue_id = ?3,
-                         agent_id = ?4,
-                         workspace_type = 'issue_project_root',
-                         workspace_status = 'active',
-                         workspace_repo_path = ?5,
-                         workspace_branch = ?6,
-                         workspace_metadata = ?7,
-                         updated_at = ?8,
-                         title = ?9
-                     WHERE id = ?10",
+                    "INSERT INTO repositories (
+                        id, path, name, last_accessed_at, added_at, is_git_repository,
+                        sessions_path, default_branch, default_remote, created_at, updated_at
+                     ) VALUES (
+                        ?1, ?2, ?3, ?4, ?4, 1,
+                        NULL, ?5, NULL, ?4, ?4
+                     )
+                     ON CONFLICT(path) DO UPDATE SET
+                        name = excluded.name,
+                        default_branch = excluded.default_branch,
+                        last_accessed_at = excluded.last_accessed_at,
+                        updated_at = excluded.updated_at",
                     params![
-                        company_id,
-                        project_id,
-                        issue_id,
-                        agent_id,
+                        board_repository_id.clone(),
+                        workspace_repo_path.clone(),
+                        repository_name,
+                        now.clone(),
+                        workspace_branch.clone(),
+                    ],
+                )?;
+                tx.execute(
+                    "INSERT INTO agent_coding_sessions (
+                        id, repository_id, title, agent_id, agent_name, issue_id, issue_title,
+                        provider, status, is_worktree, created_at, last_accessed_at, updated_at,
+                        company_id, project_id, workspace_type, workspace_status,
+                        workspace_repo_path, workspace_branch, workspace_metadata
+                     ) VALUES (
+                        ?1, ?2, ?3, ?4, ?5, ?6, ?7,
+                        ?8, 'active', 0, ?9, ?9, ?9,
+                        ?10, ?11, 'issue_project_root', 'active',
+                        ?12, ?13, ?14
+                     )
+                     ON CONFLICT(id) DO UPDATE SET
+                        repository_id = excluded.repository_id,
+                        title = excluded.title,
+                        agent_id = excluded.agent_id,
+                        agent_name = excluded.agent_name,
+                        issue_id = excluded.issue_id,
+                        issue_title = excluded.issue_title,
+                        provider = excluded.provider,
+                        company_id = excluded.company_id,
+                        project_id = excluded.project_id,
+                        workspace_type = excluded.workspace_type,
+                        workspace_status = excluded.workspace_status,
+                        workspace_repo_path = excluded.workspace_repo_path,
+                        workspace_branch = excluded.workspace_branch,
+                        workspace_metadata = excluded.workspace_metadata,
+                        last_accessed_at = excluded.last_accessed_at,
+                        updated_at = excluded.updated_at",
+                    params![
+                        session_id_for_db.clone(),
+                        board_repository_id,
+                        title_for_db,
+                        agent_id.clone(),
+                        agent_name,
+                        issue_id.clone(),
+                        issue_title,
+                        provider,
+                        now.clone(),
+                        company_id.clone(),
+                        project_id.clone(),
                         workspace_repo_path,
                         workspace_branch,
-                        json!({
-                            "scope": "issue_project_root",
-                            "issue_id": issue_id,
-                            "issue_identifier": issue_identifier,
-                            "project_id": project_id,
-                            "agent_id": agent_id,
-                        })
-                        .to_string(),
-                        now,
-                        title_for_db,
-                        session_id_for_db,
+                        workspace_metadata,
                     ],
                 )?;
                 tx.execute(
@@ -2106,54 +2206,6 @@ impl AgentRunCoordinator {
         })
     }
 
-    async fn approval_prompt_context(&self, run: &AgentRun) -> Result<Option<String>, BoardError> {
-        let Some(snapshot) = run.context_snapshot.as_ref() else {
-            return Ok(None);
-        };
-        let approval_id = snapshot
-            .get("payload")
-            .and_then(|payload| payload.get("approval_id"))
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|value| !value.is_empty());
-        let Some(approval_id) = approval_id else {
-            return Ok(None);
-        };
-
-        let approval = service::get_approval(&self.db, approval_id)
-            .await?
-            .ok_or_else(|| BoardError::NotFound("Approval not found for run".to_string()))?;
-        Ok(format_approval_prompt_context(&approval))
-    }
-
-    async fn maybe_create_agent_decision_approval(
-        &self,
-        run: &AgentRun,
-        issue_id: Option<&str>,
-        decision_request: &AgentDecisionRequest,
-    ) -> Result<Approval, BoardError> {
-        let request_key = decision_request_request_key(run, decision_request);
-        service::create_agent_decision_approval(
-            &self.db,
-            CreateAgentDecisionApprovalInput {
-                company_id: run.company_id.clone(),
-                requested_by_agent_id: run.agent_id.clone(),
-                requested_by_run_id: run.id.clone(),
-                requested_by_user_id: None,
-                source_issue_id: issue_id.map(ToOwned::to_owned),
-                source_issue_ids: None,
-                provider: Some(decision_request.provider.to_string()),
-                provider_request_id: decision_request.provider_request_id.clone(),
-                request_key,
-                question: decision_request.question.clone(),
-                options: Some(decision_request.options.clone()),
-                questions: decision_request.questions.clone(),
-                raw_request: Some(decision_request.raw_request.clone()),
-            },
-        )
-        .await
-    }
-
     async fn build_prompt(
         &self,
         run: &AgentRun,
@@ -2184,10 +2236,7 @@ impl AgentRunCoordinator {
                 issue.title,
                 issue.status,
                 issue.priority,
-                issue
-                    .description
-                    .as_deref()
-                    .unwrap_or("No description."),
+                issue.description.as_deref().unwrap_or("No description."),
                 comment_summary,
                 attachment_summary,
             )
@@ -2209,11 +2258,6 @@ impl AgentRunCoordinator {
             .as_ref()
             .and_then(|issue| issue.assignee_adapter_overrides.as_ref())
             .is_some();
-        let approval_context = self
-            .approval_prompt_context(run)
-            .await?
-            .map(|context| format!("{context}\n"))
-            .unwrap_or_default();
         let rendered_prompt_template = rendered_prompt_template(agent, run, issue_id)
             .unwrap_or_else(|| default_agent_run_prompt(agent, issue_id));
         let bootstrap_prompt = if include_bootstrap_prompt {
@@ -2233,57 +2277,29 @@ impl AgentRunCoordinator {
         } else {
             format!(
                 "You are {}, a {} agent inside Unbound.",
-                agent.name,
-                agent.role
+                agent.name, agent.role
             )
         };
-        let unlinked_issue_rule = if direct_model_run {
-            "- If this run is not linked to a specific conversation, stop and ask for a conversation instead of scanning an agent queue.\n".to_string()
+        let issue_opening_prompt = if include_bootstrap_prompt {
+            issue
+                .as_ref()
+                .map(|issue| format!("{}\n\n", issue_initial_message(issue)))
+                .unwrap_or_default()
         } else {
-            "- If this run is not linked to an issue, list your assigned issues, work on in_progress first, then todo, and skip blocked work unless there is fresh context that lets you unblock it.\n".to_string()
+            String::new()
         };
 
         Ok(format!(
-            "{bootstrap_prompt}{run_identity}\n\
-             Invocation source: {source}\n\
-             Trigger detail: {trigger}\n\
-             Wake reason: {wake_reason}\n\
-             Agent home: {home_path}\n\
-             Instructions: {instructions_path}\n\n\
+            "{issue_opening_prompt}{bootstrap_prompt}{run_identity}\n\n\
              {rendered_prompt_template}\n\n\
              {governance_instructions}\n\
-             {issue_context}\n\
-             {approval_context}\
-             Run operating rules:\n\
-             - Treat each run as a focused execution window: inspect the assigned work, do the next useful step, and exit.\n\
-             - If this run is linked to an issue, treat that issue as the primary work item for this run.\n\
-             {unlinked_issue_rule}\
-             - Before doing issue work, make sure the issue worktree is ready with the board issue-checkout helper instead of creating ad hoc folders yourself.\n\
-             - The daemon will move a linked todo issue into in_progress when the run actually starts.\n\
-             - Do not use the board helper for the routine end-of-run status update or summary comment on the linked issue; the daemon records that automatically from your final output.\n\
-             - If you need the linked issue status to change, say it explicitly in your final summary using the exact phrase: `Issue status should change to <status>`.\n\
-             - If you need mid-run coordination, want to wake another agent, or need a non-routine board action, you can still use the board helper commands intentionally.\n\
-             - Work directly in the resolved local worktree. Only create or switch to a fresh git worktree when the issue or user explicitly asks for it.\n\
-             - If this wake reason is approval_approved, continue the same provider session and treat the board decision as authoritative new input.\n\
-             Finish with a concise summary that covers:\n\
-             1. what you changed or concluded\n\
-             2. any blockers or follow-up needed\n\
-             3. whether the linked issue status should change, written as `Issue status should change to <status>` when applicable\n",
+             {issue_context}",
+            issue_opening_prompt = issue_opening_prompt,
             bootstrap_prompt = bootstrap_prompt,
             run_identity = run_identity,
-            source = run.invocation_source,
-            trigger = run.trigger_detail.clone().unwrap_or_else(|| "unknown".to_string()),
-            wake_reason = run.wake_reason.clone().unwrap_or_else(|| "manual".to_string()),
-            home_path = agent.home_path.clone().unwrap_or_else(|| "missing".to_string()),
-            instructions_path = agent
-                .instructions_path
-                .clone()
-                .unwrap_or_else(|| "missing".to_string()),
             rendered_prompt_template = rendered_prompt_template,
             governance_instructions = governance_instructions,
             issue_context = issue_context,
-            approval_context = approval_context,
-            unlinked_issue_rule = unlinked_issue_rule,
         ))
     }
 
@@ -2792,6 +2808,34 @@ fn next_issue_status_after_completion(
     }
 }
 
+fn issue_initial_message(issue: &Issue) -> String {
+    let identifier = issue.identifier.as_deref().unwrap_or(issue.id.as_str());
+    let description = issue
+        .description
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("No description.");
+
+    format!(
+        "Conversation: {identifier}\nTitle: {}\nDescription: {description}\nStatus: {}\nPriority: {}",
+        issue.title, issue.status, issue.priority
+    )
+}
+
+fn issue_transcript_seed_message(issue: &Issue) -> String {
+    let trimmed_title = issue.title.trim();
+    if !trimmed_title.is_empty() {
+        return trimmed_title.to_string();
+    }
+
+    issue
+        .identifier
+        .as_deref()
+        .unwrap_or(issue.id.as_str())
+        .to_string()
+}
+
 fn extract_process_final_message(kind: AgentCliKind, json: &Value) -> Option<String> {
     match kind {
         AgentCliKind::Claude => json
@@ -2876,7 +2920,6 @@ fn extract_claude_decision_request(json: &Value) -> Option<AgentDecisionRequest>
             "claude",
             block.get("id").and_then(Value::as_str),
             block.get("input").unwrap_or(&Value::Null),
-            block.clone(),
         )
     })
 }
@@ -2931,7 +2974,6 @@ fn maybe_build_codex_decision_request(value: &Value) -> Option<AgentDecisionRequ
             .or_else(|| value.get("tool_call_id"))
             .and_then(Value::as_str),
         &args,
-        value.clone(),
     )
 }
 
@@ -2939,7 +2981,6 @@ fn build_agent_decision_request(
     provider: &'static str,
     provider_request_id: Option<&str>,
     input: &Value,
-    raw_request: Value,
 ) -> Option<AgentDecisionRequest> {
     let questions = normalize_agent_decision_questions(input);
     let primary_question = questions
@@ -2972,7 +3013,6 @@ fn build_agent_decision_request(
         question: primary_question,
         options,
         questions: Some(Value::Array(questions)),
-        raw_request,
     })
 }
 
@@ -3086,70 +3126,6 @@ fn decision_request_request_key(run: &AgentRun, decision_request: &AgentDecision
         hasher.update(questions.to_string().as_bytes());
     }
     format!("{:x}", hasher.finalize())
-}
-
-fn format_approval_prompt_context(approval: &Approval) -> Option<String> {
-    let question = approval
-        .payload
-        .get("question")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned)
-        .or_else(|| {
-            approval
-                .payload
-                .pointer("/questions/0/question")
-                .and_then(Value::as_str)
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .map(ToOwned::to_owned)
-        })?;
-    let mut context = format!(
-        "Board approval context:\nApproval ID: {}\nApproval type: {}\nDecision status: {}\nRequested decision: {}",
-        approval.id,
-        approval.approval_type,
-        approval.status,
-        question,
-    );
-
-    if let Some(questions) = approval.payload.get("questions").and_then(Value::as_array) {
-        for question in questions {
-            let prompt = question
-                .get("question")
-                .and_then(Value::as_str)
-                .map(str::trim)
-                .filter(|value| !value.is_empty());
-            let Some(prompt) = prompt else {
-                continue;
-            };
-            context.push_str(&format!("\n- {prompt}"));
-            if let Some(options) = question.get("options").and_then(Value::as_array) {
-                let labels = options
-                    .iter()
-                    .filter_map(|option| option.get("label").and_then(Value::as_str))
-                    .map(str::trim)
-                    .filter(|value| !value.is_empty())
-                    .collect::<Vec<_>>();
-                if !labels.is_empty() {
-                    context.push_str(&format!("\n  Options: {}", labels.join(", ")));
-                }
-            }
-        }
-    }
-
-    if let Some(decision_note) = approval
-        .decision_note
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
-        context.push_str(&format!("\nBoard answer:\n{decision_note}"));
-    } else {
-        context.push_str("\nBoard answer: Approved without an explicit note.");
-    }
-
-    Some(context)
 }
 
 fn extract_result_error_message(raw_json: &str) -> String {
@@ -3353,7 +3329,11 @@ fn merged_issue_adapter_config(
     agent: &Agent,
     issue: Option<&Issue>,
 ) -> serde_json::Map<String, Value> {
-    let mut adapter_config = agent.adapter_config.as_object().cloned().unwrap_or_default();
+    let mut adapter_config = agent
+        .adapter_config
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
     if let Some(overrides) = issue
         .and_then(|issue| issue.assignee_adapter_overrides.as_ref())
         .and_then(Value::as_object)
@@ -3368,12 +3348,8 @@ fn merged_issue_adapter_config(
 fn agent_cli_kind(agent: &Agent, issue: Option<&Issue>) -> AgentCliKind {
     let adapter_config = merged_issue_adapter_config(agent, issue);
     detect_agent_cli_kind(
-        adapter_config
-            .get("command")
-            .and_then(Value::as_str),
-        adapter_config
-            .get("model")
-            .and_then(Value::as_str),
+        adapter_config.get("command").and_then(Value::as_str),
+        adapter_config.get("model").and_then(Value::as_str),
     )
 }
 
@@ -3384,6 +3360,7 @@ fn agent_cli_label(kind: AgentCliKind) -> &'static str {
 fn build_agent_cli_config(
     agent: &Agent,
     issue: Option<&Issue>,
+    system_prompt: Option<&str>,
     prompt: &str,
     working_dir: String,
     resume_session_id: Option<&str>,
@@ -3391,12 +3368,21 @@ fn build_agent_cli_config(
     let merged_adapter_config = merged_issue_adapter_config(agent, issue);
     let mut config = build_agent_cli_config_from_adapter(
         Some(&merged_adapter_config),
+        system_prompt,
         prompt,
         working_dir,
         resume_session_id,
     );
     config.interrupt_grace_sec = agent_interrupt_grace_sec(agent);
     config
+}
+
+fn agent_run_system_prompt(is_worktree: bool) -> &'static str {
+    if is_worktree {
+        "Workspace type: worktree."
+    } else {
+        "Workspace type: repo root."
+    }
 }
 
 fn agent_timeout_sec(agent: &Agent) -> Option<u64> {
@@ -3463,6 +3449,13 @@ fn process_event_type(json: &Value) -> String {
 }
 
 fn summarize_process_event(kind: AgentCliKind, json: &Value) -> Option<String> {
+    if let Some(decision_request) = extract_agent_decision_request(kind, json) {
+        return Some(format!(
+            "Agent requested input: {}",
+            decision_request.question
+        ));
+    }
+
     match kind {
         AgentCliKind::Claude => summarize_agent_run_event(json)
             .or_else(|| summarize_agent_run_result(json))
@@ -3595,17 +3588,37 @@ async fn next_run_seq(db: &AsyncDatabase, run_id: &str) -> Result<i64, BoardErro
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_session_sqlite_persist_core::SessionReader;
     use daemon_board::{
         CreateAgentInput, CreateCompanyInput, CreateIssueInput, CreateProjectInput,
     };
     use serde_json::json;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static TEST_PROJECT_REPO_SEQ: AtomicUsize = AtomicUsize::new(1);
 
     async fn create_test_project(db: &AsyncDatabase, company_id: &str, name: &str) -> String {
+        let repo_suffix = TEST_PROJECT_REPO_SEQ.fetch_add(1, Ordering::Relaxed);
+        let repo_slug = name
+            .chars()
+            .map(|character| {
+                if character.is_ascii_alphanumeric() {
+                    character.to_ascii_lowercase()
+                } else {
+                    '-'
+                }
+            })
+            .collect::<String>();
+        let repo_path = std::env::temp_dir().join(format!(
+            "unbound-daemon-agent-runs-{repo_slug}-{repo_suffix}"
+        ));
+        std::fs::create_dir_all(&repo_path).expect("create test repo root");
         service::create_project(
             db,
             CreateProjectInput {
                 company_id: company_id.to_string(),
                 name: name.to_string(),
+                repo_path: Some(repo_path.to_string_lossy().into_owned()),
                 ..CreateProjectInput::default()
             },
         )
@@ -3875,7 +3888,7 @@ mod tests {
             db: db.clone(),
             paths: Arc::new(paths.clone()),
             armin,
-            db_encryption_key: Arc::new(Mutex::new(None)),
+            db_encryption_key: Arc::new(Mutex::new(Some([7; 32]))),
             session_secret_cache: SessionSecretCache::new(),
             subscriptions,
             claude_processes: Arc::new(Mutex::new(HashMap::new())),
@@ -4009,7 +4022,7 @@ mod tests {
             db: db.clone(),
             paths: Arc::new(paths.clone()),
             armin,
-            db_encryption_key: Arc::new(Mutex::new(None)),
+            db_encryption_key: Arc::new(Mutex::new(Some([7; 32]))),
             session_secret_cache: SessionSecretCache::new(),
             subscriptions,
             claude_processes: Arc::new(Mutex::new(HashMap::new())),
@@ -4084,7 +4097,7 @@ mod tests {
             db: db.clone(),
             paths: Arc::new(paths.clone()),
             armin,
-            db_encryption_key: Arc::new(Mutex::new(None)),
+            db_encryption_key: Arc::new(Mutex::new(Some([7; 32]))),
             session_secret_cache: SessionSecretCache::new(),
             subscriptions,
             claude_processes: Arc::new(Mutex::new(HashMap::new())),
@@ -4103,6 +4116,193 @@ mod tests {
             .expect("get issue")
             .expect("issue present");
         assert_eq!(updated_issue.status, "in_progress");
+    }
+
+    #[tokio::test]
+    async fn ensure_issue_session_initialized_seeds_transcript_with_issue_title_only() {
+        let paths = Paths::with_base_dir(
+            std::env::temp_dir().join(format!("unbound-run-seed-{}", Uuid::new_v4())),
+        );
+        paths.ensure_dirs().expect("paths");
+        let db = AsyncDatabase::open(&paths.database_file())
+            .await
+            .expect("db");
+
+        let company = service::create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .expect("company");
+        let agent = service::create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "Builder".to_string(),
+                role: Some("engineer".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .expect("agent");
+        let project_id = create_test_project(&db, &company.id, "Issue seed").await;
+        let issue = service::create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                project_id: Some(project_id),
+                title: "Start from the issue".to_string(),
+                description: Some("Use the issue body as the opening message.".to_string()),
+                assignee_agent_id: Some(agent.id.clone()),
+                status: Some("todo".to_string()),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .expect("issue");
+
+        let subscriptions = SubscriptionManager::new();
+        let armin = crate::armin_adapter::create_test_armin(subscriptions.clone()).expect("armin");
+        let coordinator = AgentRunCoordinator {
+            db: db.clone(),
+            paths: Arc::new(paths.clone()),
+            armin,
+            db_encryption_key: Arc::new(Mutex::new(Some([7; 32]))),
+            session_secret_cache: SessionSecretCache::new(),
+            subscriptions,
+            claude_processes: Arc::new(Mutex::new(HashMap::new())),
+            device_id: Arc::new(Mutex::new(None)),
+            run_processes: Arc::new(Mutex::new(HashMap::new())),
+            queue_notify: Arc::new(Notify::new()),
+        };
+
+        coordinator
+            .ensure_issue_session_initialized(&issue.id)
+            .await
+            .expect("initialize issue session");
+
+        let refreshed_issue = service::get_issue(&db, &issue.id)
+            .await
+            .expect("get issue")
+            .expect("issue present");
+        let workspace_session_id = refreshed_issue
+            .workspace_session_id
+            .clone()
+            .expect("workspace session id");
+        let session_context = coordinator
+            .resolve_session_for_run(&agent, Some(issue.id.clone()))
+            .await
+            .expect("resolve seeded session");
+        assert_eq!(workspace_session_id, session_context.local_session_id);
+        let session_snapshot = coordinator
+            .armin
+            .get_session(&SessionId::from_string(&session_context.local_session_id))
+            .expect("read session")
+            .expect("session present");
+        let session_delta = coordinator
+            .armin
+            .delta(&SessionId::from_string(&session_context.local_session_id));
+
+        assert_eq!(
+            session_snapshot.id.as_str(),
+            session_context.local_session_id
+        );
+        assert_eq!(session_delta.messages().len(), 1);
+        assert_eq!(
+            session_delta.messages()[0].content,
+            issue_transcript_seed_message(&refreshed_issue)
+        );
+    }
+
+    #[tokio::test]
+    async fn seed_issue_message_if_empty_does_not_duplicate_delta_messages() {
+        let paths = Paths::with_base_dir(
+            std::env::temp_dir().join(format!("unbound-run-delta-seed-{}", Uuid::new_v4())),
+        );
+        paths.ensure_dirs().expect("paths");
+        let db = AsyncDatabase::open(&paths.database_file())
+            .await
+            .expect("db");
+
+        let company = service::create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .expect("company");
+        let agent = service::create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "Builder".to_string(),
+                role: Some("engineer".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .expect("agent");
+        let project_id = create_test_project(&db, &company.id, "Attached issue seed").await;
+        let issue = service::create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                project_id: Some(project_id),
+                title: "Avoid duplicate delta transcript seeds".to_string(),
+                assignee_agent_id: Some(agent.id.clone()),
+                status: Some("todo".to_string()),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .expect("issue");
+
+        let subscriptions = SubscriptionManager::new();
+        let armin = crate::armin_adapter::create_test_armin(subscriptions.clone()).expect("armin");
+        let coordinator = AgentRunCoordinator {
+            db: db.clone(),
+            paths: Arc::new(paths.clone()),
+            armin,
+            db_encryption_key: Arc::new(Mutex::new(None)),
+            session_secret_cache: SessionSecretCache::new(),
+            subscriptions,
+            claude_processes: Arc::new(Mutex::new(HashMap::new())),
+            device_id: Arc::new(Mutex::new(None)),
+            run_processes: Arc::new(Mutex::new(HashMap::new())),
+            queue_notify: Arc::new(Notify::new()),
+        };
+
+        let session_context = coordinator
+            .resolve_session_for_run(&agent, Some(issue.id.clone()))
+            .await
+            .expect("resolve session");
+        coordinator
+            .seed_issue_message_if_empty(&session_context.local_session_id, &issue)
+            .expect("second seed is ignored");
+        let refreshed_issue = service::get_issue(&db, &issue.id)
+            .await
+            .expect("get issue")
+            .expect("issue present");
+        let session_delta = coordinator
+            .armin
+            .delta(&SessionId::from_string(&session_context.local_session_id));
+
+        assert_eq!(session_delta.messages().len(), 1);
+        assert_eq!(
+            session_delta.messages()[0].content,
+            issue_transcript_seed_message(&refreshed_issue)
+        );
     }
 
     #[test]
@@ -4130,15 +4330,6 @@ mod tests {
             "automation",
             Some("system"),
             Some("issue_commented")
-        ));
-    }
-
-    #[test]
-    fn approval_driven_issue_wakes_can_resume_existing_session() {
-        assert!(should_resume_claude_session(
-            "automation",
-            Some("system"),
-            Some("approval_approved")
         ));
     }
 
@@ -4208,40 +4399,167 @@ mod tests {
     }
 
     #[test]
-    fn approval_prompt_context_includes_board_answer() {
-        let approval = Approval {
-            id: "approval-1".to_string(),
-            company_id: "company-1".to_string(),
-            approval_type: "agent_decision".to_string(),
-            requested_by_agent_id: Some("agent-1".to_string()),
-            requested_by_user_id: None,
-            status: "approved".to_string(),
-            payload: json!({
-                "question": "Ship the migration?",
-                "questions": [
+    fn summarize_process_event_surfaces_claude_question_request() {
+        let json = json!({
+            "type": "assistant",
+            "message": {
+                "content": [
                     {
-                        "header": "Migration",
-                        "question": "Ship the migration?",
-                        "options": [
-                            { "label": "Ship it" },
-                            { "label": "Hold" }
-                        ]
+                        "type": "tool_use",
+                        "id": "toolu_123",
+                        "name": "AskUserQuestion",
+                        "input": {
+                            "question": "Ship the migration?",
+                            "options": ["Ship it", "Hold"]
+                        }
                     }
                 ]
-            }),
-            decision_note: Some("Migration: Ship it".to_string()),
-            decided_by_user_id: Some("local-board".to_string()),
-            decided_at: Some("2026-03-20T10:05:00Z".to_string()),
-            created_at: "2026-03-20T10:00:00Z".to_string(),
-            updated_at: "2026-03-20T10:05:00Z".to_string(),
+            }
+        });
+
+        assert_eq!(
+            summarize_process_event(AgentCliKind::Claude, &json).as_deref(),
+            Some("Agent requested input: Ship the migration?")
+        );
+    }
+
+    #[test]
+    fn summarize_process_event_surfaces_codex_question_request() {
+        let json = json!({
+            "type": "response.output_item.added",
+            "item": {
+                "id": "call_456",
+                "type": "function_call",
+                "name": "request_user_input",
+                "arguments": "{\"questions\":[{\"id\":\"ship_it\",\"header\":\"Migration\",\"question\":\"Ship the migration?\",\"options\":[{\"label\":\"Ship it\",\"description\":\"Deploy now\"},{\"label\":\"Hold\",\"description\":\"Wait for review\"}]}]}"
+            }
+        });
+
+        assert_eq!(
+            summarize_process_event(AgentCliKind::Codex, &json).as_deref(),
+            Some("Agent requested input: Ship the migration?")
+        );
+    }
+
+    #[tokio::test]
+    async fn build_prompt_starts_with_issue_message_for_new_issue_runs() {
+        let paths = Paths::with_base_dir(
+            std::env::temp_dir().join(format!("unbound-run-prompt-{}", Uuid::new_v4())),
+        );
+        paths.ensure_dirs().expect("paths");
+        let db = AsyncDatabase::open(&paths.database_file())
+            .await
+            .expect("db");
+
+        let company = service::create_company(
+            &db,
+            &paths,
+            CreateCompanyInput {
+                name: "Acme".to_string(),
+                require_board_approval_for_new_agents: Some(false),
+                ..CreateCompanyInput::default()
+            },
+        )
+        .await
+        .expect("company");
+        let agent = service::create_agent(
+            &db,
+            &paths,
+            CreateAgentInput {
+                company_id: company.id.clone(),
+                name: "Builder".to_string(),
+                role: Some("engineer".to_string()),
+                ..CreateAgentInput::default()
+            },
+        )
+        .await
+        .expect("agent");
+        let project_id = create_test_project(&db, &company.id, "Issue prompt").await;
+        let issue = service::create_issue(
+            &db,
+            CreateIssueInput {
+                company_id: company.id.clone(),
+                project_id: Some(project_id),
+                title: "Start from the issue".to_string(),
+                description: Some("Use the issue body as the opening message.".to_string()),
+                assignee_agent_id: Some(agent.id.clone()),
+                status: Some("todo".to_string()),
+                ..CreateIssueInput::default()
+            },
+        )
+        .await
+        .expect("issue");
+
+        let run = AgentRun {
+            id: "run-1".to_string(),
+            company_id: company.id.clone(),
+            agent_id: agent.id.clone(),
+            issue_id: Some(issue.id.clone()),
+            invocation_source: "assignment".to_string(),
+            trigger_detail: Some("system".to_string()),
+            wake_reason: Some("issue_assigned".to_string()),
+            status: STATUS_QUEUED.to_string(),
+            started_at: None,
+            finished_at: None,
+            error: None,
+            wakeup_request_id: None,
+            exit_code: None,
+            signal: None,
+            usage_json: None,
+            result_json: None,
+            session_id_before: None,
+            session_id_after: None,
+            log_store: None,
+            log_ref: None,
+            log_bytes: None,
+            log_sha256: None,
+            log_compressed: false,
+            stdout_excerpt: None,
+            stderr_excerpt: None,
+            error_code: None,
+            external_run_id: None,
+            context_snapshot: Some(json!({ "payload": { "issue_id": issue.id.clone() } })),
+            created_at: "2026-03-20T00:00:00Z".to_string(),
+            updated_at: "2026-03-20T00:00:00Z".to_string(),
         };
 
-        let context = format_approval_prompt_context(&approval).expect("approval context");
+        let subscriptions = SubscriptionManager::new();
+        let armin = crate::armin_adapter::create_test_armin(subscriptions.clone()).expect("armin");
+        let coordinator = AgentRunCoordinator {
+            db: db.clone(),
+            paths: Arc::new(paths.clone()),
+            armin,
+            db_encryption_key: Arc::new(Mutex::new(Some([7; 32]))),
+            session_secret_cache: SessionSecretCache::new(),
+            subscriptions,
+            claude_processes: Arc::new(Mutex::new(HashMap::new())),
+            device_id: Arc::new(Mutex::new(None)),
+            run_processes: Arc::new(Mutex::new(HashMap::new())),
+            queue_notify: Arc::new(Notify::new()),
+        };
 
-        assert!(context.contains("Approval ID: approval-1"));
-        assert!(context.contains("Ship the migration?"));
-        assert!(context.contains("Ship it, Hold"));
-        assert!(context.contains("Migration: Ship it"));
+        let prompt = coordinator
+            .build_prompt(&run, &agent, Some(issue.id.as_str()), true)
+            .await
+            .expect("build prompt");
+
+        assert!(prompt.starts_with(&format!("{}\n\n", issue_initial_message(&issue))));
+        assert!(prompt.contains(&default_agent_run_prompt(&agent, Some(issue.id.as_str()))));
+        assert!(!prompt.contains("Invocation source:"));
+        assert!(!prompt.contains("Trigger detail:"));
+        assert!(!prompt.contains("Wake reason:"));
+        assert!(!prompt.contains("Agent home:"));
+        assert!(!prompt.contains("Instructions:"));
+        assert!(!prompt.contains("Run operating rules:"));
+        assert!(!prompt.contains("Treat each run as a focused execution window"));
+        assert!(!prompt.contains("Finish with a concise summary that covers"));
+        assert!(!prompt.contains("Issue status should change to <status>"));
+    }
+
+    #[test]
+    fn agent_run_system_prompt_only_reports_workspace_type() {
+        assert_eq!(agent_run_system_prompt(true), "Workspace type: worktree.");
+        assert_eq!(agent_run_system_prompt(false), "Workspace type: repo root.");
     }
 
     #[test]

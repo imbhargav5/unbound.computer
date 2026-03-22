@@ -1,11 +1,11 @@
 use crate::error::{BoardError, BoardResult};
 use crate::models::{
     AddIssueAttachmentInput, AddIssueCommentInput, Agent, AgentLiveRunCount, AgentRun,
-    AgentRunEvent, Approval, ApprovalDecisionInput, Company, CreateAgentDecisionApprovalInput,
-    CreateAgentHireInput, CreateAgentInput, CreateCompanyInput, CreateIssueInput,
-    CreateProjectInput, DashboardOverview, DashboardOverviewChat, Goal, Issue,
-    IssueAttachment, IssueComment, IssueListFilter, IssueRunCardUpdate, Project,
-    ProjectWorkspace, UpdateAgentInput, UpdateIssueInput, UpdateProjectInput, Workspace,
+    AgentRunEvent, Approval, ApprovalDecisionInput, Company, CreateAgentHireInput,
+    CreateAgentInput, CreateCompanyInput, CreateIssueInput, CreateProjectInput, DashboardOverview,
+    DashboardOverviewChat, Goal, Issue, IssueAttachment, IssueComment, IssueListFilter,
+    IssueRunCardUpdate, Project, ProjectWorkspace, UpdateAgentInput, UpdateIssueInput,
+    UpdateProjectInput, Workspace,
 };
 use crate::run_summary::{
     summarize_agent_run_event, summarize_agent_run_excerpt, summarize_agent_run_result,
@@ -1077,7 +1077,9 @@ pub async fn update_project(db: &AsyncDatabase, input: UpdateProjectInput) -> Bo
                  SET execution_workspace_policy = ?1, updated_at = ?2
                  WHERE id = ?3",
                 params![
-                    next_execution_workspace_policy.as_ref().map(Value::to_string),
+                    next_execution_workspace_policy
+                        .as_ref()
+                        .map(Value::to_string),
                     now,
                     project_id,
                 ],
@@ -1903,138 +1905,6 @@ pub async fn approve_approval(
             Err(error.into())
         }
     }
-}
-
-pub async fn create_agent_decision_approval(
-    db: &AsyncDatabase,
-    input: CreateAgentDecisionApprovalInput,
-) -> BoardResult<Approval> {
-    let company_id = require_name(&input.company_id, "company_id")?;
-    let requested_by_agent_id =
-        require_name(&input.requested_by_agent_id, "requested_by_agent_id")?;
-    let requested_by_run_id = require_name(&input.requested_by_run_id, "requested_by_run_id")?;
-    let request_key = require_name(&input.request_key, "request_key")?;
-    let question = require_name(&input.question, "question")?;
-    let requested_by_user_id = normalize_optional_string(input.requested_by_user_id);
-    let provider = normalize_optional_string(input.provider);
-    let provider_request_id = normalize_optional_string(input.provider_request_id);
-    let source_issue_ids = normalize_issue_id_list(input.source_issue_id, input.source_issue_ids);
-    let options = normalize_string_list(input.options);
-    let questions = input.questions;
-    let raw_request = input.raw_request;
-    let now = now_rfc3339();
-
-    Ok(db
-        .call_with_operation("board.approval.create_agent_decision", move |conn| {
-            let tx = conn.unchecked_transaction()?;
-            ensure_local_board_user(&tx, &now)?;
-
-            if let Some(existing) = tx
-                .query_row(
-                    "SELECT
-                        id, company_id, type, requested_by_agent_id, requested_by_user_id,
-                        status, payload, decision_note, decided_by_user_id, decided_at,
-                        created_at, updated_at
-                     FROM approvals
-                     WHERE company_id = ?1
-                       AND type = 'agent_decision'
-                       AND status = 'pending'
-                       AND json_extract(payload, '$.request_key') = ?2
-                     ORDER BY created_at DESC
-                     LIMIT 1",
-                    params![company_id, request_key],
-                    row_to_approval,
-                )
-                .optional()?
-            {
-                tx.rollback()?;
-                return Ok(existing);
-            }
-
-            let approval_id = Uuid::new_v4().to_string();
-            let payload = json!({
-                "source_issue_id": source_issue_ids.first().cloned(),
-                "source_issue_ids": source_issue_ids.clone(),
-                "requested_by_run_id": requested_by_run_id.clone(),
-                "requested_by_agent_id": requested_by_agent_id.clone(),
-                "provider": provider.clone(),
-                "provider_request_id": provider_request_id.clone(),
-                "request_key": request_key.clone(),
-                "question": question.clone(),
-                "options": options.clone(),
-                "questions": questions.clone(),
-                "raw_request": raw_request.clone(),
-            });
-            tx.execute(
-                "INSERT INTO approvals (
-                    id, company_id, type, requested_by_agent_id, requested_by_user_id, status,
-                    payload, created_at, updated_at
-                 ) VALUES (?1, ?2, 'agent_decision', ?3, ?4, 'pending', ?5, ?6, ?6)",
-                params![
-                    approval_id,
-                    company_id,
-                    requested_by_agent_id,
-                    requested_by_user_id,
-                    payload.to_string(),
-                    now,
-                ],
-            )?;
-
-            for issue_id in &source_issue_ids {
-                tx.execute(
-                    "INSERT OR IGNORE INTO issue_approvals (
-                        company_id, issue_id, approval_id, linked_by_agent_id, linked_by_user_id, created_at
-                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                    params![
-                        company_id,
-                        issue_id,
-                        approval_id,
-                        requested_by_agent_id,
-                        requested_by_user_id,
-                        now,
-                    ],
-                )?;
-            }
-
-            let (actor_type, actor_id) =
-                activity_actor(Some(requested_by_agent_id.as_str()), requested_by_user_id.as_deref());
-            insert_activity_sync(
-                &tx,
-                &company_id,
-                actor_type,
-                actor_id,
-                "approval.created",
-                "approval",
-                &approval_id,
-                Some(&requested_by_agent_id),
-                Some(json!({
-                    "type": "agent_decision",
-                    "requested_by_run_id": requested_by_run_id,
-                    "question": question,
-                    "source_issue_ids": source_issue_ids,
-                })),
-                &now,
-            )?;
-
-            let approval = tx
-                .query_row(
-                    "SELECT
-                        id, company_id, type, requested_by_agent_id, requested_by_user_id,
-                        status, payload, decision_note, decided_by_user_id, decided_at,
-                        created_at, updated_at
-                     FROM approvals
-                     WHERE id = ?1",
-                    params![approval_id],
-                    row_to_approval,
-                )
-                .optional()?
-                .ok_or_else(|| {
-                    DatabaseError::NotFound("Approval missing after insert".to_string())
-                })?;
-            tx.commit()?;
-            Ok(approval)
-        })
-        .await?)
 }
 
 pub async fn list_workspaces(db: &AsyncDatabase, company_id: &str) -> BoardResult<Vec<Workspace>> {
@@ -3046,9 +2916,7 @@ fn row_to_issue_run_card_update_row(row: &Row<'_>) -> rusqlite::Result<IssueRunC
     })
 }
 
-fn row_to_dashboard_overview_chat_row(
-    row: &Row<'_>,
-) -> rusqlite::Result<DashboardOverviewChat> {
+fn row_to_dashboard_overview_chat_row(row: &Row<'_>) -> rusqlite::Result<DashboardOverviewChat> {
     Ok(DashboardOverviewChat {
         id: row.get(0)?,
         project_id: row.get(1)?,
@@ -3103,7 +2971,10 @@ fn list_issue_run_card_updates_sync(
         return Ok(Vec::new());
     }
 
-    let run_ids = rows.iter().map(|row| row.run_id.clone()).collect::<Vec<_>>();
+    let run_ids = rows
+        .iter()
+        .map(|row| row.run_id.clone())
+        .collect::<Vec<_>>();
     let events_by_run = list_recent_events_for_run_ids(conn, &run_ids, 8)?;
 
     Ok(rows
@@ -3564,21 +3435,6 @@ fn normalize_issue_id_list(
         .chain(source_issue_ids.into_iter().flatten())
     {
         let trimmed = issue_id.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-        if seen.insert(trimmed.to_string()) {
-            normalized.push(trimmed.to_string());
-        }
-    }
-    normalized
-}
-
-fn normalize_string_list(values: Option<Vec<String>>) -> Vec<String> {
-    let mut normalized = Vec::new();
-    let mut seen = HashSet::new();
-    for value in values.into_iter().flatten() {
-        let trimmed = value.trim();
         if trimmed.is_empty() {
             continue;
         }
@@ -4340,230 +4196,6 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(issue_link_count, 1);
-    }
-
-    #[tokio::test]
-    async fn create_agent_decision_approval_links_issue_and_dedupes_request_key() {
-        let dir = tempdir().unwrap();
-        let paths = Paths::with_base_dir(dir.path().join("unbound"));
-        paths.ensure_dirs().unwrap();
-        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
-
-        let company = create_company(
-            &db,
-            &paths,
-            CreateCompanyInput {
-                name: "Acme".to_string(),
-                require_board_approval_for_new_agents: Some(false),
-                ..CreateCompanyInput::default()
-            },
-        )
-        .await
-        .unwrap();
-
-        let agent = create_agent(
-            &db,
-            &paths,
-            CreateAgentInput {
-                company_id: company.id.clone(),
-                name: "Operator".to_string(),
-                role: Some("general".to_string()),
-                ..CreateAgentInput::default()
-            },
-        )
-        .await
-        .unwrap();
-        let project = create_test_project(&db, &company.id, "Decisions").await;
-
-        let issue = create_issue(
-            &db,
-            CreateIssueInput {
-                company_id: company.id.clone(),
-                project_id: Some(project.id.clone()),
-                title: "Need board guidance".to_string(),
-                assignee_agent_id: Some(agent.id.clone()),
-                ..CreateIssueInput::default()
-            },
-        )
-        .await
-        .unwrap();
-
-        let approval = create_agent_decision_approval(
-            &db,
-            CreateAgentDecisionApprovalInput {
-                company_id: company.id.clone(),
-                requested_by_agent_id: agent.id.clone(),
-                requested_by_run_id: "run-123".to_string(),
-                source_issue_id: Some(issue.id.clone()),
-                provider: Some("claude".to_string()),
-                provider_request_id: Some("toolu_123".to_string()),
-                request_key: "decision-key-1".to_string(),
-                question: "Should I land this risky migration?".to_string(),
-                options: Some(vec!["Land it".to_string(), "Hold".to_string()]),
-                questions: Some(json!([
-                    {
-                        "id": "ship_it",
-                        "header": "Migration",
-                        "question": "Should I land this risky migration?",
-                        "options": [
-                            { "label": "Land it", "description": "Proceed now" },
-                            { "label": "Hold", "description": "Wait for review" }
-                        ]
-                    }
-                ])),
-                raw_request: Some(json!({
-                    "name": "AskUserQuestion",
-                    "input": {
-                        "question": "Should I land this risky migration?"
-                    }
-                })),
-                ..CreateAgentDecisionApprovalInput::default()
-            },
-        )
-        .await
-        .unwrap();
-
-        assert_eq!(approval.approval_type, "agent_decision");
-        assert_eq!(approval.requested_by_agent_id, Some(agent.id.clone()));
-        assert_eq!(
-            approval
-                .payload
-                .get("source_issue_id")
-                .and_then(Value::as_str),
-            Some(issue.id.as_str())
-        );
-        assert_eq!(
-            approval
-                .payload
-                .pointer("/questions/0/options/0/label")
-                .and_then(Value::as_str),
-            Some("Land it")
-        );
-
-        let duplicate = create_agent_decision_approval(
-            &db,
-            CreateAgentDecisionApprovalInput {
-                company_id: company.id.clone(),
-                requested_by_agent_id: agent.id.clone(),
-                requested_by_run_id: "run-123".to_string(),
-                source_issue_id: Some(issue.id.clone()),
-                request_key: "decision-key-1".to_string(),
-                question: "Should I land this risky migration?".to_string(),
-                ..CreateAgentDecisionApprovalInput::default()
-            },
-        )
-        .await
-        .unwrap();
-
-        assert_eq!(duplicate.id, approval.id);
-
-        let approvals = list_approvals(&db, &company.id).await.unwrap();
-        assert_eq!(approvals.len(), 1);
-
-        let issue_link_count = db
-            .call_with_operation("board.test.decision_issue_approval_count", {
-                let approval_id = approval.id.clone();
-                let issue_id = issue.id.clone();
-                move |conn| {
-                    Ok(conn.query_row(
-                        "SELECT COUNT(*) FROM issue_approvals WHERE approval_id = ?1 AND issue_id = ?2",
-                        params![approval_id, issue_id],
-                        |row| row.get::<_, i64>(0),
-                    )?)
-                }
-            })
-            .await
-            .unwrap();
-        assert_eq!(issue_link_count, 1);
-    }
-
-    #[tokio::test]
-    async fn approving_agent_decision_approval_persists_decision_note() {
-        let dir = tempdir().unwrap();
-        let paths = Paths::with_base_dir(dir.path().join("unbound"));
-        paths.ensure_dirs().unwrap();
-        let db = AsyncDatabase::open(&paths.database_file()).await.unwrap();
-
-        let company = create_company(
-            &db,
-            &paths,
-            CreateCompanyInput {
-                name: "Acme".to_string(),
-                require_board_approval_for_new_agents: Some(false),
-                ..CreateCompanyInput::default()
-            },
-        )
-        .await
-        .unwrap();
-
-        let agent = create_agent(
-            &db,
-            &paths,
-            CreateAgentInput {
-                company_id: company.id.clone(),
-                name: "Operator".to_string(),
-                role: Some("general".to_string()),
-                ..CreateAgentInput::default()
-            },
-        )
-        .await
-        .unwrap();
-        let project = create_test_project(&db, &company.id, "Approvals").await;
-
-        let issue = create_issue(
-            &db,
-            CreateIssueInput {
-                company_id: company.id.clone(),
-                project_id: Some(project.id.clone()),
-                title: "Need board guidance".to_string(),
-                assignee_agent_id: Some(agent.id.clone()),
-                ..CreateIssueInput::default()
-            },
-        )
-        .await
-        .unwrap();
-
-        let approval = create_agent_decision_approval(
-            &db,
-            CreateAgentDecisionApprovalInput {
-                company_id: company.id.clone(),
-                requested_by_agent_id: agent.id.clone(),
-                requested_by_run_id: "run-123".to_string(),
-                source_issue_id: Some(issue.id.clone()),
-                request_key: "decision-key-2".to_string(),
-                question: "Should I ship this now?".to_string(),
-                options: Some(vec!["Ship".to_string(), "Wait".to_string()]),
-                ..CreateAgentDecisionApprovalInput::default()
-            },
-        )
-        .await
-        .unwrap();
-
-        let approved = approve_approval(
-            &db,
-            &paths,
-            ApprovalDecisionInput {
-                approval_id: approval.id.clone(),
-                decided_by_user_id: Some(LOCAL_BOARD_USER_ID.to_string()),
-                decision_note: Some("Decision: Ship".to_string()),
-            },
-        )
-        .await
-        .unwrap();
-
-        assert_eq!(approved.status, "approved");
-        assert_eq!(
-            approved.decided_by_user_id.as_deref(),
-            Some(LOCAL_BOARD_USER_ID)
-        );
-        assert_eq!(approved.decision_note.as_deref(), Some("Decision: Ship"));
-        assert_eq!(
-            approved
-                .payload
-                .get("source_issue_id")
-                .and_then(Value::as_str),
-            Some(issue.id.as_str())
-        );
     }
 
     #[tokio::test]

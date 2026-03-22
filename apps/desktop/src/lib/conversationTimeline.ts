@@ -1,4 +1,5 @@
 import type { SessionMessage } from "./types";
+import { shouldHideSyntheticSessionMessage } from "./sessionMessageVisibility";
 
 export type ConversationRole = "user" | "assistant" | "system";
 export type ConversationToolStatus = "running" | "completed" | "failed";
@@ -96,6 +97,7 @@ export function buildConversationTimeline(
   messages: SessionMessage[]
 ): ConversationRow[] {
   const orderedMessages = messages
+    .filter((message) => !shouldHideSyntheticSessionMessage(message))
     .slice()
     .sort(
       (left, right) =>
@@ -136,7 +138,10 @@ export function buildConversationTimeline(
     const messageType = readString(payload.type)?.toLowerCase() ?? null;
 
     if (!messageType) {
-      const questionBlocks = parseQuestionBlocksFromPayload(payload, message.id);
+      const questionBlocks = parseQuestionBlocksFromPayload(
+        payload,
+        message.id
+      );
       if (questionBlocks.length > 0) {
         rows.push({
           blocks: questionBlocks,
@@ -163,7 +168,7 @@ export function buildConversationTimeline(
       contentBlocks.forEach((block, blockIndex) => {
         const blockRecord = readRecord(block);
         const blockType = readString(blockRecord?.type)?.toLowerCase();
-        if (!blockRecord || !blockType) {
+        if (!(blockRecord && blockType)) {
           return;
         }
 
@@ -201,7 +206,10 @@ export function buildConversationTimeline(
 
         if (isQuestionTool(toolName)) {
           row.blocks.push(
-            ...parseQuestionBlocks(inputValue, `${message.id}-question-${blockIndex}`)
+            ...parseQuestionBlocks(
+              inputValue,
+              `${message.id}-question-${blockIndex}`
+            )
           );
           return;
         }
@@ -218,7 +226,11 @@ export function buildConversationTimeline(
           }
           const mergeKey = todoListMergeKey(todoList);
           if (mergeKey && todoAnchors.has(mergeKey)) {
-            updateTodoAtAnchor(rows, todoAnchors.get(mergeKey) ?? null, todoList);
+            updateTodoAtAnchor(
+              rows,
+              todoAnchors.get(mergeKey) ?? null,
+              todoList
+            );
             return;
           }
           row.blocks.push({
@@ -238,7 +250,10 @@ export function buildConversationTimeline(
           const pendingTools = pendingChildTools.get(toolUseId) ?? [];
           if (pendingTools.length > 0) {
             activity.tools = mergeTools(activity.tools, pendingTools);
-            activity.status = deriveSubAgentStatus(activity.tools, activity.status);
+            activity.status = deriveSubAgentStatus(
+              activity.tools,
+              activity.status
+            );
             pendingChildTools.delete(toolUseId);
           }
           row.blocks.push({
@@ -312,7 +327,7 @@ export function buildConversationTimeline(
         contentBlocks.forEach((block, blockIndex) => {
           const blockRecord = readRecord(block);
           const blockType = readString(blockRecord?.type)?.toLowerCase();
-          if (!blockRecord || !blockType) {
+          if (!(blockRecord && blockType)) {
             return;
           }
 
@@ -339,12 +354,16 @@ export function buildConversationTimeline(
 
           const didUpdateTool =
             toolUseId != null &&
-            updateToolAtAnchor(rows, toolAnchors.get(toolUseId) ?? null, (tool) => ({
-              ...tool,
-              detail: outputText || tool.detail,
-              output: outputText || tool.output,
-              status: isError ? "failed" : "completed",
-            }));
+            updateToolAtAnchor(
+              rows,
+              toolAnchors.get(toolUseId) ?? null,
+              (tool) => ({
+                ...tool,
+                detail: outputText || tool.detail,
+                output: outputText || tool.output,
+                status: isError ? "failed" : "completed",
+              })
+            );
 
           if (!didUpdateTool && outputText) {
             if (isError) {
@@ -392,7 +411,6 @@ export function buildConversationTimeline(
         role: "system",
         sequenceNumber: normalizeSequenceNumber(message.sequence_number),
       });
-      continue;
     }
   }
 
@@ -455,7 +473,7 @@ function appendToolToSubAgent(
 ) {
   const row = rows[anchor.rowIndex];
   const block = row?.blocks[anchor.blockIndex];
-  if (!row || !block || block.kind !== "subagent") {
+  if (!(row && block) || block.kind !== "subagent") {
     return;
   }
   const nextTools = mergeTools(block.activity.tools, [tool]);
@@ -496,7 +514,7 @@ function updateToolAtAnchor(
 
   const row = rows[anchor.rowIndex];
   const block = row?.blocks[anchor.blockIndex];
-  if (!row || !block) {
+  if (!(row && block)) {
     return false;
   }
 
@@ -540,7 +558,7 @@ function updateTodoAtAnchor(
   }
   const row = rows[anchor.rowIndex];
   const block = row?.blocks[anchor.blockIndex];
-  if (!row || !block || block.kind !== "todo") {
+  if (!(row && block) || block.kind !== "todo") {
     return;
   }
   row.blocks[anchor.blockIndex] = {
@@ -627,10 +645,13 @@ function parseQuestionBlocksFromPayload(
 ) {
   const toolName =
     readString(payload.name) ?? readString(payload.tool_name) ?? null;
-  if (!toolName || !isQuestionTool(toolName)) {
+  if (!(toolName && isQuestionTool(toolName))) {
     return [];
   }
-  return parseQuestionBlocks(payload.input ?? payload.args ?? payload.arguments, messageId);
+  return parseQuestionBlocks(
+    payload.input ?? payload.args ?? payload.arguments,
+    messageId
+  );
 }
 
 function parseQuestion(
@@ -641,7 +662,7 @@ function parseQuestion(
   const question =
     sanitizeText(readString(record?.question)) ??
     sanitizeText(readString(record?.prompt));
-  if (!record || !question) {
+  if (!(record && question)) {
     return null;
   }
 
@@ -666,7 +687,9 @@ function parseQuestion(
   };
 }
 
-function parseQuestionOption(value: unknown): ConversationQuestionOption | null {
+function parseQuestionOption(
+  value: unknown
+): ConversationQuestionOption | null {
   if (typeof value === "string") {
     const label = sanitizeText(value);
     if (!label) {
@@ -684,7 +707,7 @@ function parseQuestionOption(value: unknown): ConversationQuestionOption | null 
     sanitizeText(readString(record?.label)) ??
     sanitizeText(readString(record?.title)) ??
     sanitizeText(readString(record?.value));
-  if (!record || !label) {
+  if (!(record && label)) {
     return null;
   }
 
@@ -732,7 +755,7 @@ function parseTodoItem(
   const content =
     sanitizeText(readString(record?.content)) ??
     sanitizeText(readString(record?.text));
-  if (!record || !content) {
+  if (!(record && content)) {
     return null;
   }
 
@@ -853,7 +876,7 @@ function summarizeToolInput(value: unknown) {
 
 function looksLikeProtocolArtifact(text: string) {
   const trimmed = text.trim();
-  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
+  if (!(trimmed.startsWith("{") && trimmed.endsWith("}"))) {
     return false;
   }
 
@@ -903,7 +926,7 @@ function resolvePayload(payload: Record<string, unknown>) {
     const rawJson = readString(current.raw_json);
     const parsed = parseJsonValue(rawJson);
     const record = readRecord(parsed);
-    if (!rawJson || !record) {
+    if (!(rawJson && record)) {
       break;
     }
     current = record;

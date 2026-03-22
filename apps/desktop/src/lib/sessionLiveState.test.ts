@@ -138,7 +138,8 @@ function createMockApi(messageResponses: SessionMessage[][]) {
   return {
     agentStatus: vi.fn(async () => ({ status: "idle" })),
     messageList: vi.fn(async () => {
-      const current = messageResponses[Math.min(index, messageResponses.length - 1)];
+      const current =
+        messageResponses[Math.min(index, messageResponses.length - 1)];
       index += 1;
       return current;
     }),
@@ -161,8 +162,7 @@ function message(
   content: unknown
 ): SessionMessage {
   return {
-    content:
-      typeof content === "string" ? content : JSON.stringify(content),
+    content: typeof content === "string" ? content : JSON.stringify(content),
     id,
     sequence_number: sequenceNumber,
     session_id: "session-1",

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import claudeParserFixtures from "../../../shared/ClaudeConversationTimeline/Fixtures/claude-parser-contract-fixtures.json";
+import { buildConversationTimeline } from "./conversationTimeline";
 
 import {
   buildSessionConversationTimeline,
@@ -22,17 +23,13 @@ describe("buildSessionConversationTimeline", () => {
       }
 
       if (Array.isArray(testCase.expect.roles)) {
-        expect(
-          uniqueRoles(rows),
-          testCase.id
-        ).toEqual(testCase.expect.roles);
+        expect(uniqueRoles(rows), testCase.id).toEqual(testCase.expect.roles);
       }
 
       if (Array.isArray(testCase.expect.blockTypes)) {
-        expect(
-          uniqueSemanticBlockTypes(rows),
-          testCase.id
-        ).toEqual(testCase.expect.blockTypes);
+        expect(uniqueSemanticBlockTypes(rows), testCase.id).toEqual(
+          testCase.expect.blockTypes
+        );
       }
     }
   });
@@ -63,7 +60,7 @@ describe("buildSessionConversationTimeline", () => {
         }),
         message("4", 4, {
           type: "stderr",
-          message: "Auth(TokenRefreshFailed(\"invalid_grant\"))",
+          message: 'Auth(TokenRefreshFailed("invalid_grant"))',
         }),
       ],
       "codex"
@@ -125,6 +122,62 @@ describe("buildSessionConversationTimeline", () => {
     });
   });
 
+  it("hides legacy daemon-injected run prompts and issue seed text from Claude rows", () => {
+    const rows = buildSessionConversationTimeline(
+      [
+        message("seed", 1, syntheticIssueSeedText()),
+        message("prompt", 2, syntheticRunPromptText()),
+        message("user", 3, "how are you mate"),
+      ],
+      "claude"
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.role).toBe("user");
+    expect(rows[0]?.blocks[0]).toMatchObject({
+      kind: "text",
+      text: "how are you mate",
+    });
+  });
+
+  it("keeps a plain issue-title seed visible in Claude rows", () => {
+    const rows = buildSessionConversationTimeline(
+      [
+        message("title", 1, "how are you mate"),
+        message("user", 2, {
+          type: "assistant",
+          message: {
+            content: [{ type: "text", text: "Doing well." }],
+          },
+        }),
+      ],
+      "claude"
+    );
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.role).toBe("user");
+    expect(rows[0]?.blocks[0]).toMatchObject({
+      kind: "text",
+      text: "how are you mate",
+    });
+  });
+
+  it("hides legacy daemon-injected run prompts from Codex rows", () => {
+    const rows = buildSessionConversationTimeline(
+      [
+        message("prompt", 1, syntheticRunPromptText()),
+        message("user", 2, "how are you mate"),
+      ],
+      "codex"
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.blocks[0]).toMatchObject({
+      kind: "text",
+      text: "how are you mate",
+    });
+  });
+
   it("derives the latest Claude completion summary", () => {
     const summary = deriveLatestSessionCompletionSummary(
       [
@@ -183,6 +236,34 @@ describe("buildSessionConversationTimeline", () => {
   });
 });
 
+describe("buildConversationTimeline", () => {
+  it("skips legacy daemon-injected bootstrap messages", () => {
+    const rows = buildConversationTimeline([
+      message("seed", 1, syntheticIssueSeedText()),
+      message("prompt", 2, syntheticRunPromptText()),
+      message("user", 3, "how are you mate"),
+    ]);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.role).toBe("user");
+    expect(rows[0]?.blocks[0]).toMatchObject({
+      kind: "text",
+      text: "how are you mate",
+    });
+  });
+
+  it("keeps a plain issue-title seed visible", () => {
+    const rows = buildConversationTimeline([message("title", 1, "how are you mate")]);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.role).toBe("user");
+    expect(rows[0]?.blocks[0]).toMatchObject({
+      kind: "text",
+      text: "how are you mate",
+    });
+  });
+});
+
 function flattenSemanticBlockTypes(
   rows: ReturnType<typeof buildSessionConversationTimeline>
 ) {
@@ -197,7 +278,9 @@ function uniqueSemanticBlockTypes(
   return Array.from(new Set(flattenSemanticBlockTypes(rows)));
 }
 
-function uniqueRoles(rows: ReturnType<typeof buildSessionConversationTimeline>) {
+function uniqueRoles(
+  rows: ReturnType<typeof buildSessionConversationTimeline>
+) {
   return Array.from(new Set(rows.map((row) => row.role)));
 }
 
@@ -206,9 +289,7 @@ function fixtureMessages(events: Array<Record<string, unknown>>) {
     message(
       `fixture-${index + 1}`,
       index + 1,
-      Object.prototype.hasOwnProperty.call(event, "raw_json")
-        ? event.raw_json
-        : event
+      Object.hasOwn(event, "raw_json") ? event.raw_json : event
     )
   );
 }
@@ -219,10 +300,41 @@ function message(
   content: unknown
 ): SessionMessage {
   return {
-    content:
-      typeof content === "string" ? content : JSON.stringify(content),
+    content: typeof content === "string" ? content : JSON.stringify(content),
     id,
     sequence_number: sequenceNumber,
     session_id: "session-1",
   };
+}
+
+function syntheticIssueSeedText() {
+  return [
+    "Conversation: ISSUE-1",
+    "Title: Hello",
+    "Description: Seeded issue context",
+    "Status: todo",
+    "Priority: medium",
+  ].join("\n");
+}
+
+function syntheticRunPromptText() {
+  return [
+    "Conversation: ISSUE-1",
+    "Title: Hello",
+    "Description: Seeded issue context",
+    "Status: todo",
+    "Priority: medium",
+    "",
+    "You are Builder, a engineer agent inside Unbound.",
+    "",
+    "This run is focused on issue issue-1. Read the issue context and do the next useful piece of work.",
+    "",
+    "Governance rules:",
+    "- Hiring must use the board helper commands below.",
+    "",
+    "Board helper commands:",
+    "- Prepare the issue worktree: \"unbound-daemon\" --base-dir \"/tmp\" board issue-checkout --issue-id \"issue-1\"",
+    "",
+    "Issue: ISSUE-1",
+  ].join("\n");
 }

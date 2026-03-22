@@ -405,6 +405,9 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
                     Ok(issue) => {
                         let issue = prepare_attached_issue_workspace_if_needed(&state, issue).await;
                         if let Some(wake_reason) = issue_create_wake_reason(&issue) {
+                            let issue =
+                                prepare_issue_session_if_needed(&state, runs.as_ref(), &issue)
+                                    .await;
                             maybe_enqueue_issue_run(
                                 runs.as_ref(),
                                 &issue,
@@ -448,6 +451,9 @@ async fn register_issue_handlers(server: &IpcServer, state: DaemonState) {
                     Ok(issue) => {
                         let issue = prepare_attached_issue_workspace_if_needed(&state, issue).await;
                         if let Some(wake_reason) = issue_update_wake_reason(&previous, &issue) {
+                            let issue =
+                                prepare_issue_session_if_needed(&state, runs.as_ref(), &issue)
+                                    .await;
                             maybe_enqueue_issue_run(
                                 runs.as_ref(),
                                 &issue,
@@ -1189,6 +1195,37 @@ async fn prepare_attached_issue_workspace_if_needed(state: &DaemonState, issue: 
                 "Failed to reload issue after preparing attached workspace"
             );
             issue
+        }
+    }
+}
+
+async fn prepare_issue_session_if_needed(
+    state: &DaemonState,
+    coordinator: &crate::app::AgentRunCoordinator,
+    issue: &Issue,
+) -> Issue {
+    if let Err(error) = coordinator
+        .ensure_issue_session_initialized(&issue.id)
+        .await
+    {
+        warn!(
+            error = %error,
+            issue_id = %issue.id,
+            "Failed to initialize issue session before auto-run"
+        );
+        return issue.clone();
+    }
+
+    match service::get_issue(&state.db, &issue.id).await {
+        Ok(Some(updated_issue)) => updated_issue,
+        Ok(None) => issue.clone(),
+        Err(error) => {
+            warn!(
+                error = %error,
+                issue_id = %issue.id,
+                "Failed to reload issue after initializing issue session"
+            );
+            issue.clone()
         }
     }
 }

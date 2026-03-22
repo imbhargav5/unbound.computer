@@ -453,20 +453,3 @@ pub struct ApprovalDecisionInput {
     pub decided_by_user_id: Option<String>,
     pub decision_note: Option<String>,
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct CreateAgentDecisionApprovalInput {
-    pub company_id: String,
-    pub requested_by_agent_id: String,
-    pub requested_by_run_id: String,
-    pub requested_by_user_id: Option<String>,
-    pub source_issue_id: Option<String>,
-    pub source_issue_ids: Option<Vec<String>>,
-    pub provider: Option<String>,
-    pub provider_request_id: Option<String>,
-    pub request_key: String,
-    pub question: String,
-    pub options: Option<Vec<String>>,
-    pub questions: Option<serde_json::Value>,
-    pub raw_request: Option<serde_json::Value>,
-}

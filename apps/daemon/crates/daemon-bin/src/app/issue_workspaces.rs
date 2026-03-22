@@ -250,7 +250,11 @@ fn merged_issue_adapter_config(
     issue: &Issue,
     agent: &daemon_board::Agent,
 ) -> serde_json::Map<String, Value> {
-    let mut adapter_config = agent.adapter_config.as_object().cloned().unwrap_or_default();
+    let mut adapter_config = agent
+        .adapter_config
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
     if let Some(overrides) = issue
         .assignee_adapter_overrides
         .as_ref()
@@ -268,9 +272,7 @@ fn issue_workspace_provider(adapter_config: &serde_json::Map<String, Value>) -> 
         adapter_config
             .get("command")
             .and_then(|value| value.as_str()),
-        adapter_config
-            .get("model")
-            .and_then(|value| value.as_str()),
+        adapter_config.get("model").and_then(|value| value.as_str()),
     ) {
         AgentCliKind::Claude => "claude",
         AgentCliKind::Codex => "codex",

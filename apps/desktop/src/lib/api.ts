@@ -8,8 +8,8 @@ import type {
   AgentRunRecord,
   Company,
   CompanySnapshot,
-  DashboardOverviewRecord,
   DaemonVersionInfo,
+  DashboardOverviewRecord,
   DesktopBootstrapStatus,
   DesktopSettings,
   FileEntry,
@@ -21,8 +21,8 @@ import type {
   GitWorktreeRecord,
   IssueAttachmentRecord,
   IssueCommentRecord,
-  IssueRunCardUpdateRecord,
   IssueRecord,
+  IssueRunCardUpdateRecord,
   ProjectRecord,
   RepositoryRecord,
   RuntimeCapabilities,
@@ -131,9 +131,6 @@ export const boardCheckoutIssue = (issueId: string) =>
   invokeCommand<WorkspaceRecord>("board_checkout_issue", {
     issueId,
   });
-
-export const boardApproveApproval = (params: Record<string, unknown>) =>
-  invokeCommand<Record<string, unknown>>("board_approve_approval", { params });
 
 export const boardListAgentRuns = (agentId: string, limit?: number) =>
   invokeCommand<AgentRunRecord[]>("board_list_agent_runs", {

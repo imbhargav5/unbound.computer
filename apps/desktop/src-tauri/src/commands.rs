@@ -213,16 +213,14 @@ pub async fn board_company_snapshot(company_id: String) -> Result<Value, String>
         let goals_request = call_daemon(Method::GoalList, Some(company_params.clone()));
         let projects_request = call_daemon(Method::ProjectList, Some(company_params.clone()));
         let issues_request = call_daemon(Method::IssueList, Some(company_params.clone()));
-        let approvals_request = call_daemon(Method::ApprovalList, Some(company_params.clone()));
         let workspaces_request = call_daemon(Method::WorkspaceList, Some(company_params));
 
-        let (company, agents, goals, projects, issues, approvals, workspaces) = tokio::try_join!(
+        let (company, agents, goals, projects, issues, workspaces) = tokio::try_join!(
             company_request,
             agents_request,
             goals_request,
             projects_request,
             issues_request,
-            approvals_request,
             workspaces_request
         )?;
 
@@ -232,7 +230,6 @@ pub async fn board_company_snapshot(company_id: String) -> Result<Value, String>
             "goals": extract_field(goals, "goals"),
             "projects": extract_field(projects, "projects"),
             "issues": extract_field(issues, "issues"),
-            "approvals": extract_field(approvals, "approvals"),
             "workspaces": extract_field(workspaces, "workspaces"),
         }))
     })

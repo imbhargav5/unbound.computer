@@ -1,5 +1,7 @@
 use claude_process_manager::DEFAULT_ALLOWED_TOOLS;
 use serde_json::Value;
+use std::env;
+use std::path::Path;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader, Lines};
 use tokio::process::{Child, ChildStderr, ChildStdout, Command};
@@ -17,6 +19,7 @@ pub enum AgentCliKind {
 pub struct AgentCliConfig {
     pub kind: AgentCliKind,
     pub executable: String,
+    pub system_prompt: Option<String>,
     pub message: String,
     pub working_dir: String,
     pub resume_session_id: Option<String>,
@@ -40,6 +43,7 @@ impl AgentCliConfig {
         Self {
             kind,
             executable: executable.into(),
+            system_prompt: None,
             message: message.into(),
             working_dir: working_dir.into(),
             resume_session_id: None,
@@ -285,6 +289,7 @@ pub fn agent_cli_label(kind: AgentCliKind) -> &'static str {
 
 pub fn build_agent_cli_config_from_adapter(
     adapter_config: Option<&serde_json::Map<String, Value>>,
+    system_prompt: Option<&str>,
     message: &str,
     working_dir: String,
     resume_session_id: Option<&str>,
@@ -301,15 +306,16 @@ pub fn build_agent_cli_config_from_adapter(
         AgentCliKind::Claude => "claude",
         AgentCliKind::Codex => "codex",
     };
-    let executable = adapter_config
-        .and_then(|config| config.get("command"))
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or(default_command)
-        .to_string();
+    let executable = resolve_agent_cli_executable(
+        kind,
+        adapter_config
+            .and_then(|config| config.get("command"))
+            .and_then(Value::as_str),
+        default_command,
+    );
 
     let mut config = AgentCliConfig::new(kind, executable, message, working_dir);
+    config.system_prompt = system_prompt.map(ToOwned::to_owned);
     config.resume_session_id = resume_session_id.map(ToOwned::to_owned);
     config.model = adapter_config
         .and_then(|config| config.get("model"))
@@ -371,7 +377,9 @@ fn build_claude_args(config: &AgentCliConfig) -> Vec<String> {
         args.push(model);
     }
 
-    if let Some(effort) = normalize_thinking_effort(config.thinking_effort.as_deref()) {
+    if let Some(effort) =
+        normalize_thinking_effort_for_kind(AgentCliKind::Claude, config.thinking_effort.as_deref())
+    {
         args.push("--effort".to_string());
         args.push(effort);
     }
@@ -381,6 +389,11 @@ fn build_claude_args(config: &AgentCliConfig) -> Vec<String> {
     {
         args.push("--permission-mode".to_string());
         args.push("plan".to_string());
+    }
+
+    if let Some(system_prompt) = normalize_optional_string(config.system_prompt.as_deref()) {
+        args.push("--append-system-prompt".to_string());
+        args.push(system_prompt);
     }
 
     if let Some(session_id) = normalize_optional_string(config.resume_session_id.as_deref()) {
@@ -418,6 +431,10 @@ fn build_codex_args(config: &AgentCliConfig) -> Vec<String> {
         args.push("-c".to_string());
         args.push(r#"sandbox_mode="workspace-write""#.to_string());
 
+        if let Some(system_prompt) = normalize_optional_string(config.system_prompt.as_deref()) {
+            push_string_config_override(&mut args, "developer_instructions", &system_prompt);
+        }
+
         if let Some(model) = normalize_model(config.model.as_deref()) {
             args.push("-m".to_string());
             args.push(model);
@@ -428,7 +445,10 @@ fn build_codex_args(config: &AgentCliConfig) -> Vec<String> {
             args.push("web_search".to_string());
         }
 
-        if let Some(effort) = normalize_thinking_effort(config.thinking_effort.as_deref()) {
+        if let Some(effort) = normalize_thinking_effort_for_kind(
+            AgentCliKind::Codex,
+            config.thinking_effort.as_deref(),
+        ) {
             args.push("-c".to_string());
             args.push(format!(r#"model_reasoning_effort="{effort}""#));
         }
@@ -446,6 +466,10 @@ fn build_codex_args(config: &AgentCliConfig) -> Vec<String> {
     args.push("-c".to_string());
     args.push(r#"sandbox_mode="workspace-write""#.to_string());
 
+    if let Some(system_prompt) = normalize_optional_string(config.system_prompt.as_deref()) {
+        push_string_config_override(&mut args, "developer_instructions", &system_prompt);
+    }
+
     if let Some(model) = normalize_model(config.model.as_deref()) {
         args.push("-m".to_string());
         args.push(model);
@@ -456,7 +480,9 @@ fn build_codex_args(config: &AgentCliConfig) -> Vec<String> {
         args.push("web_search".to_string());
     }
 
-    if let Some(effort) = normalize_thinking_effort(config.thinking_effort.as_deref()) {
+    if let Some(effort) =
+        normalize_thinking_effort_for_kind(AgentCliKind::Codex, config.thinking_effort.as_deref())
+    {
         args.push("-c".to_string());
         args.push(format!(r#"model_reasoning_effort="{effort}""#));
     }
@@ -484,12 +510,93 @@ fn normalize_model(value: Option<&str>) -> Option<String> {
     }
 }
 
-fn normalize_thinking_effort(value: Option<&str>) -> Option<String> {
-    let effort = normalize_optional_string(value)?;
-    if effort.eq_ignore_ascii_case("auto") {
-        None
+fn resolve_agent_cli_executable(
+    kind: AgentCliKind,
+    configured_command: Option<&str>,
+    default_command: &str,
+) -> String {
+    let Some(command) = normalize_optional_string(configured_command) else {
+        return default_command.to_string();
+    };
+
+    if !looks_like_filesystem_path(&command) {
+        return command;
+    }
+
+    let path = Path::new(&command);
+    if path.exists() {
+        return command;
+    }
+
+    if command_on_path(default_command) {
+        warn!(
+            configured_command = %command,
+            fallback_command = default_command,
+            kind = ?kind,
+            "Configured agent CLI command path is missing; falling back to default command"
+        );
+        default_command.to_string()
     } else {
-        Some(effort)
+        warn!(
+            configured_command = %command,
+            kind = ?kind,
+            "Configured agent CLI command path is missing and the default command was not found on PATH"
+        );
+        command
+    }
+}
+
+fn looks_like_filesystem_path(value: &str) -> bool {
+    let path = Path::new(value);
+    path.is_absolute() || value.contains(std::path::MAIN_SEPARATOR) || value.contains('/')
+}
+
+fn command_on_path(command: &str) -> bool {
+    let Some(path_value) = env::var_os("PATH") else {
+        return false;
+    };
+
+    env::split_paths(&path_value).any(|directory| directory.join(command).exists())
+}
+
+fn push_string_config_override(args: &mut Vec<String>, key: &str, value: &str) {
+    let serialized_value =
+        serde_json::to_string(value).expect("serializing CLI config override should succeed");
+    args.push("-c".to_string());
+    args.push(format!("{key}={serialized_value}"));
+}
+
+fn normalize_thinking_effort_for_kind(kind: AgentCliKind, value: Option<&str>) -> Option<String> {
+    let effort = normalize_optional_string(value)?;
+    let normalized = effort.to_ascii_lowercase();
+
+    match kind {
+        AgentCliKind::Claude => {
+            if normalized == "auto" {
+                return None;
+            }
+            if normalized == "xhigh"
+                || normalized == "extra high"
+                || normalized == "extra_high"
+                || normalized == "extrahigh"
+            {
+                return Some("max".to_string());
+            }
+            Some(normalized)
+        }
+        AgentCliKind::Codex => {
+            if normalized == "auto" {
+                return None;
+            }
+            if normalized == "max"
+                || normalized == "extra high"
+                || normalized == "extra_high"
+                || normalized == "extrahigh"
+            {
+                return Some("xhigh".to_string());
+            }
+            Some(normalized)
+        }
     }
 }
 
@@ -541,6 +648,7 @@ mod tests {
     #[test]
     fn claude_args_include_selected_model_and_effort() {
         let mut config = AgentCliConfig::new(AgentCliKind::Claude, "claude", "hello", "/tmp");
+        config.system_prompt = Some("Workspace type: worktree.".to_string());
         config.model = Some("claude-sonnet-4-6".to_string());
         config.thinking_effort = Some("high".to_string());
         config.resume_session_id = Some("sess-123".to_string());
@@ -554,6 +662,8 @@ mod tests {
         assert!(args.iter().any(|arg| arg == "claude-sonnet-4-6"));
         assert!(args.iter().any(|arg| arg == "--effort"));
         assert!(args.iter().any(|arg| arg == "high"));
+        assert!(args.iter().any(|arg| arg == "--append-system-prompt"));
+        assert!(args.iter().any(|arg| arg == "Workspace type: worktree."));
         assert!(args
             .iter()
             .any(|arg| arg == "--dangerously-skip-permissions"));
@@ -565,6 +675,7 @@ mod tests {
     #[test]
     fn codex_args_support_resume_and_reasoning_effort() {
         let mut config = AgentCliConfig::new(AgentCliKind::Codex, "codex", "continue", "/tmp");
+        config.system_prompt = Some("Workspace type: repo root.".to_string());
         config.model = Some("gpt-5.3-codex".to_string());
         config.thinking_effort = Some("medium".to_string());
         config.resume_session_id = Some("thread-123".to_string());
@@ -582,6 +693,9 @@ mod tests {
         assert!(args
             .iter()
             .any(|arg| arg == r#"sandbox_mode="workspace-write""#));
+        assert!(args
+            .iter()
+            .any(|arg| arg == r#"developer_instructions="Workspace type: repo root.""#));
         assert!(args.iter().any(|arg| arg == "web_search"));
         assert!(args.iter().any(|arg| arg == "gpt-5.3-codex"));
         assert!(args
@@ -595,6 +709,29 @@ mod tests {
     }
 
     #[test]
+    fn claude_args_map_xhigh_to_max_effort() {
+        let mut config = AgentCliConfig::new(AgentCliKind::Claude, "claude", "hello", "/tmp");
+        config.thinking_effort = Some("xhigh".to_string());
+
+        let args = config.build_args();
+
+        assert!(args.iter().any(|arg| arg == "--effort"));
+        assert!(args.iter().any(|arg| arg == "max"));
+    }
+
+    #[test]
+    fn codex_args_map_max_to_xhigh_effort() {
+        let mut config = AgentCliConfig::new(AgentCliKind::Codex, "codex", "hello", "/tmp");
+        config.thinking_effort = Some("max".to_string());
+
+        let args = config.build_args();
+
+        assert!(args
+            .iter()
+            .any(|arg| arg == r#"model_reasoning_effort="xhigh""#));
+    }
+
+    #[test]
     fn build_config_detects_reasoning_effort_alias() {
         let adapter = serde_json::json!({
             "command": "codex",
@@ -605,14 +742,37 @@ mod tests {
 
         let config = build_agent_cli_config_from_adapter(
             adapter.as_object(),
+            Some("Workspace type: worktree."),
             "hello",
             "/tmp".to_string(),
             None,
         );
 
         assert_eq!(config.kind, AgentCliKind::Codex);
+        assert_eq!(
+            config.system_prompt.as_deref(),
+            Some("Workspace type: worktree.")
+        );
         assert_eq!(config.thinking_effort.as_deref(), Some("high"));
         assert!(config.skip_permissions);
+    }
+
+    #[test]
+    fn build_config_falls_back_from_missing_absolute_command_path() {
+        let adapter = serde_json::json!({
+            "command": "/definitely/missing/claude",
+        });
+
+        let config = build_agent_cli_config_from_adapter(
+            adapter.as_object(),
+            None,
+            "hello",
+            "/tmp".to_string(),
+            None,
+        );
+
+        assert_eq!(config.kind, AgentCliKind::Claude);
+        assert_eq!(config.executable, "claude");
     }
 
     #[test]

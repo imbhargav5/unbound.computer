@@ -104,6 +104,7 @@ pub async fn agent_send_core(
         agent
             .as_ref()
             .and_then(|agent| agent.adapter_config.as_object()),
+        None,
         &content,
         working_dir,
         codex_resume_session_id(&session),

@@ -1,12 +1,12 @@
 import { Terminal } from "@xterm/xterm";
 import {
+  type DragEvent,
   type FormEvent,
-  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent,
   type PointerEvent,
-  type RefObject,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
-  type WheelEvent,
+  type RefObject,
   startTransition,
   useDeferredValue,
   useEffect,
@@ -14,25 +14,45 @@ import {
   useMemo,
   useRef,
   useState,
+  type WheelEvent,
 } from "react";
+import { Badge } from "./components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./components/ui/select";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "./components/ui/sheet";
+import { Switch } from "./components/ui/switch";
+import {
+  agentSend,
+  agentStop,
   boardAddIssueAttachment,
   boardCancelAgentRun,
-  boardApproveApproval,
+  boardCheckoutIssue,
   boardCompanySnapshot,
-  boardDashboardOverview,
   boardCreateAgent,
   boardCreateCompany,
   boardCreateIssue,
   boardCreateProject,
+  boardDashboardOverview,
   boardDeleteProject,
   boardGetAgentRun,
   boardGetIssue,
   boardListAgentLiveRunCounts,
-  boardListIssueAttachments,
   boardListAgentRunEvents,
   boardListAgentRuns,
   boardListCompanies,
+  boardListIssueAttachments,
   boardListIssueComments,
   boardListIssueRunCardUpdates,
   boardListIssueRuns,
@@ -43,46 +63,53 @@ import {
   boardUpdateCompany,
   boardUpdateIssue,
   boardUpdateProject,
-  agentSend,
-  agentStatus,
-  agentStop,
   desktopBootstrap,
   desktopOpenExternal,
   desktopPickFile,
   desktopPickRepositoryDirectory,
   desktopRevealInFinder,
-  gitCommit,
   gitBranches,
+  gitCommit,
   gitDiffFile,
-  gitDiscard,
   gitLog,
   gitPush,
-  gitStage,
   gitStatus,
   gitWorktrees,
-  gitUnstage,
   listenToSessionEvents,
   listenToSessionStreamErrors,
-  messageList,
   repositoryList,
   repositoryListFiles,
   repositoryReadFile,
   sessionList,
-  sessionSubscribe,
-  sessionUnsubscribe,
   settingsGet,
   settingsUpdate,
   systemCheckDependencies,
   terminalRun,
-  terminalStatus,
   terminalStop,
 } from "./lib/api";
+import {
+  buildConversationTimeline,
+  type ConversationQuestion,
+  type ConversationRow,
+  type ConversationSubAgent,
+  type ConversationTodoItem,
+  type ConversationTool,
+} from "./lib/conversationTimeline";
+import type {
+  SessionCompletionSummary,
+  SessionConversationCommandBlock,
+  SessionConversationNoteBlock,
+  SessionConversationRow,
+} from "./lib/sessionConversation";
+import {
+  DesktopSessionStateManager,
+  useDesktopSessionLiveState,
+} from "./lib/sessionLiveState";
 import type {
   AgentLiveRunCountRecord,
+  AgentRecord,
   AgentRunEventRecord,
   AgentRunRecord,
-  AgentRecord,
-  ApprovalRecord,
   Company,
   CompanySnapshot,
   DashboardOverviewChatRecord,
@@ -97,11 +124,11 @@ import type {
   GitStatusFile,
   GitStatusResult,
   GitWorktreeRecord,
-  IssueAttachmentRecord,
   GoalRecord,
+  IssueAttachmentRecord,
   IssueCommentRecord,
-  IssueRunCardUpdateRecord,
   IssueRecord,
+  IssueRunCardUpdateRecord,
   ProjectRecord,
   RepositoryRecord,
   RuntimeCapabilities,
@@ -110,30 +137,11 @@ import type {
   SessionStreamPayload,
   WorkspaceRecord,
 } from "./lib/types";
-import {
-  type ConversationQuestion,
-  type ConversationRow,
-  type ConversationSubAgent,
-  type ConversationTodoItem,
-  type ConversationTool,
-  buildConversationTimeline,
-} from "./lib/conversationTimeline";
-import {
-  type SessionCompletionSummary,
-  type SessionConversationCommandBlock,
-  type SessionConversationNoteBlock,
-  type SessionConversationRow,
-} from "./lib/sessionConversation";
-import {
-  DesktopSessionStateManager,
-  useDesktopSessionLiveState,
-} from "./lib/sessionLiveState";
 
 type AppScreen =
   | "dashboard"
   | "agents"
   | "issues"
-  | "approvals"
   | "projects"
   | "stats"
   | "activity"
@@ -142,18 +150,13 @@ type AppScreen =
   | "appSettings";
 
 const emptyAgentRecords: AgentRecord[] = [];
-const emptyApprovalRecords: ApprovalRecord[] = [];
 const emptyGoalRecords: GoalRecord[] = [];
 const emptyIssueRecords: IssueRecord[] = [];
 const emptyProjectRecords: ProjectRecord[] = [];
 const emptyWorkspaceRecords: WorkspaceRecord[] = [];
 const emptyDashboardOverviewChats: DashboardOverviewChatRecord[] = [];
 
-type SettingsSection =
-  | "general"
-  | "appearance"
-  | "notifications"
-  | "privacy";
+type SettingsSection = "general" | "appearance" | "notifications" | "privacy";
 
 type ThemeMode = "system" | "light" | "dark";
 type FontSizePreset = "small" | "medium" | "large";
@@ -177,22 +180,18 @@ interface IssueLinkedRun {
 type BoardRootLayout = "companyDashboard" | "settings";
 type WorkspaceCenterTab = "conversation" | "runs" | "terminal" | "preview";
 type WorkspaceSidebarTab = "changes" | "files" | "commits" | "issue";
-type CompanyContextMenuScreen =
-  | "dashboard"
-  | "issues"
-  | "companySettings";
+type CompanyContextMenuScreen = "dashboard" | "issues" | "companySettings";
 type CompanyContextMenuIconKey =
   | CompanyContextMenuScreen
   | "activity"
   | "agents"
-  | "approvals"
   | "costs"
   | "stats";
 
 interface CompanyContextMenuState {
+  agents: AgentRecord[];
   companyId: string;
   companyName: string;
-  agents: AgentRecord[];
   isLoadingAgents: boolean;
   x: number;
   y: number;
@@ -203,17 +202,20 @@ interface DashboardCanvasOffset {
   y: number;
 }
 
+const dashboardRootTabId = "dashboard" as const;
+type DashboardTabId = typeof dashboardRootTabId | `issue:${string}`;
+
 type DashboardProjectGrouping = "status" | "priority" | "assignee";
 type IssueWorkspaceTargetMode = "main" | "new_worktree" | "existing_worktree";
 type ProjectDefaultNewChatArea = "repo_root" | "new_worktree";
 
 interface IssueRuntimeDraft {
   command: string;
-  model: string;
-  thinkingEffort: string;
-  planMode: boolean;
   enableChrome: boolean;
+  model: string;
+  planMode: boolean;
   skipPermissions: boolean;
+  thinkingEffort: string;
 }
 
 interface DashboardProjectColumn {
@@ -225,23 +227,30 @@ interface DashboardProjectColumn {
 
 interface DashboardProjectBoardLayout {
   boardId: string;
+  columns: DashboardProjectColumn[];
   grouping: DashboardProjectGrouping;
   isDefaultView: boolean;
+  issueCount: number;
   project: ProjectRecord;
-  columns: DashboardProjectColumn[];
   viewId: string;
   viewName: string;
   width: number;
-  issueCount: number;
 }
 
 interface DashboardProjectColumnLayout {
-  project: ProjectRecord;
   boards: DashboardProjectBoardLayout[];
   height: number;
   left: number;
+  project: ProjectRecord;
   top: number;
   width: number;
+}
+
+interface DashboardRouteTab {
+  id: DashboardTabId;
+  issueId: string | null;
+  isClosable: boolean;
+  label: string;
 }
 
 interface SelectOption<T extends string> {
@@ -257,17 +266,17 @@ const projectDefaultNewChatAreaOptions: Array<
 ];
 
 interface CreateIssueDialogDefaults {
-  dialogMode?: IssueDialogMode;
-  parentId?: string;
-  projectId?: string;
-  priority?: string;
-  status?: string;
   command?: string;
-  model?: string;
-  thinkingEffort?: string;
-  planMode?: boolean;
+  dialogMode?: IssueDialogMode;
   enableChrome?: boolean;
+  model?: string;
+  parentId?: string;
+  planMode?: boolean;
+  priority?: string;
+  projectId?: string;
   skipPermissions?: boolean;
+  status?: string;
+  thinkingEffort?: string;
   workspaceTargetMode?: IssueWorkspaceTargetMode;
   workspaceWorktreeBranch?: string;
   workspaceWorktreeName?: string;
@@ -280,71 +289,71 @@ interface DashboardProjectViewDraft {
 }
 
 interface IssueEditDraft extends IssueRuntimeDraft {
-  title: string;
+  assigneeAgentId: string;
   description: string;
-  status: string;
+  parentId: string;
   priority: string;
   projectId: string;
-  assigneeAgentId: string;
-  parentId: string;
+  status: string;
+  title: string;
   workspaceTargetMode: IssueWorkspaceTargetMode;
-  workspaceWorktreePath: string;
   workspaceWorktreeBranch: string;
   workspaceWorktreeName: string;
+  workspaceWorktreePath: string;
 }
 
 interface ProjectWorktreeState {
-  worktrees: GitWorktreeRecord[];
-  isLoading: boolean;
   errorMessage: string | null;
   hasLoaded?: boolean;
+  isLoading: boolean;
   repoPath?: string | null;
+  worktrees: GitWorktreeRecord[];
 }
 
 interface IssueAttachmentDraft {
-  path: string;
   name: string;
+  path: string;
 }
 
 interface AgentConfigEnvVarDraft {
   id: string;
   key: string;
-  value: string;
   mode: "plain" | "secret";
+  value: string;
 }
 
 interface AgentConfigDraft {
-  name: string;
-  title: string;
-  capabilities: string;
-  promptTemplate: string;
   adapterType: string;
-  workingDirectory: string;
-  instructionsPath: string;
-  command: string;
-  model: string;
-  thinkingEffort: string;
   bootstrapPrompt: string;
-  enableChrome: boolean;
-  skipPermissions: boolean;
-  maxTurns: string;
-  extraArgs: string;
-  envVars: AgentConfigEnvVarDraft[];
-  timeoutSec: string;
-  interruptGraceSec: string;
   canCreateAgents: boolean;
+  capabilities: string;
+  command: string;
+  enableChrome: boolean;
+  envVars: AgentConfigEnvVarDraft[];
+  extraArgs: string;
+  instructionsPath: string;
+  interruptGraceSec: string;
+  maxTurns: string;
+  model: string;
   monthlyBudget: string;
+  name: string;
+  promptTemplate: string;
+  skipPermissions: boolean;
+  thinkingEffort: string;
+  timeoutSec: string;
+  title: string;
+  workingDirectory: string;
 }
 
 type ActivityFeedTarget = { kind: "issue"; issueId: string };
 
 interface ActivityFeedItem {
   id: string;
+  subtitle: string;
+  target: ActivityFeedTarget;
   timestamp: Date;
   title: string;
-  subtitle: string;
   trailingLabel: string;
-  target: ActivityFeedTarget;
 }
 
 interface DashboardBreadcrumbItem {
@@ -360,48 +369,48 @@ interface BirdsEyeCodeImpactSummary {
 }
 
 interface BirdsEyeChatNode {
-  kind: "chat";
-  rowId: string;
-  chat: DashboardOverviewChatRecord;
-  projectId: string;
-  folderRowId: string;
-  title: string;
   agentLabel: string;
+  chat: DashboardOverviewChatRecord;
+  createDefaults: CreateIssueDialogDefaults;
+  folderRowId: string;
+  kind: "chat";
   lastActivityAt: string | null;
+  projectId: string;
+  rowId: string;
   runStatus: string | null;
   runSummary: string | null;
   sessionId: string | null;
-  createDefaults: CreateIssueDialogDefaults;
+  title: string;
 }
 
 interface BirdsEyeFolderNode {
-  kind: "folder";
-  rowId: string;
-  projectId: string;
-  folderKey: string;
-  label: string;
-  secondaryLabel: string | null;
-  path: string | null;
-  folderType: "repo_root" | "worktree" | "pending_worktree";
-  chats: BirdsEyeChatNode[];
   chatCount: number;
-  liveRunCount: number;
-  lastActivityAt: string | null;
+  chats: BirdsEyeChatNode[];
   createDefaults: CreateIssueDialogDefaults;
+  folderKey: string;
+  folderType: "repo_root" | "worktree" | "pending_worktree";
+  kind: "folder";
+  label: string;
+  lastActivityAt: string | null;
+  liveRunCount: number;
+  path: string | null;
+  projectId: string;
+  rowId: string;
+  secondaryLabel: string | null;
 }
 
 interface BirdsEyeProjectNode {
-  kind: "project";
-  rowId: string;
-  project: ProjectRecord;
-  label: string;
-  repoPath: string | null;
-  folders: BirdsEyeFolderNode[];
-  folderCount: number;
   chatCount: number;
-  liveRunCount: number;
-  lastActivityAt: string | null;
   createDefaults: CreateIssueDialogDefaults;
+  folderCount: number;
+  folders: BirdsEyeFolderNode[];
+  kind: "project";
+  label: string;
+  lastActivityAt: string | null;
+  liveRunCount: number;
+  project: ProjectRecord;
+  repoPath: string | null;
+  rowId: string;
 }
 
 type BirdsEyeTreeNode =
@@ -410,18 +419,18 @@ type BirdsEyeTreeNode =
   | BirdsEyeChatNode;
 
 interface BirdsEyeVisibleRow {
-  rowId: string;
   depth: number;
   hasChildren: boolean;
   isExpanded: boolean;
-  parentRowId: string | null;
   node: BirdsEyeTreeNode;
+  parentRowId: string | null;
+  rowId: string;
 }
 
 interface BirdsEyeTreeModel {
+  chatByIssueId: Map<string, BirdsEyeChatNode>;
   projects: BirdsEyeProjectNode[];
   rowById: Map<string, BirdsEyeTreeNode>;
-  chatByIssueId: Map<string, BirdsEyeChatNode>;
   rowIds: Set<string>;
 }
 
@@ -477,8 +486,14 @@ function normalizeGitWorktreeRecords(value: unknown): GitWorktreeRecord[] {
     );
   }
 
-  if (value && typeof value === "object" && Array.isArray((value as { worktrees?: unknown }).worktrees)) {
-    return normalizeGitWorktreeRecords((value as { worktrees: unknown }).worktrees);
+  if (
+    value &&
+    typeof value === "object" &&
+    Array.isArray((value as { worktrees?: unknown }).worktrees)
+  ) {
+    return normalizeGitWorktreeRecords(
+      (value as { worktrees: unknown }).worktrees
+    );
   }
 
   return [];
@@ -563,7 +578,8 @@ function useDashboardProjectWorktrees(
         }))
         .filter(
           (entry) =>
-            entry.repoPath.length > 0 && requestedProjectIdSet.has(entry.projectId)
+            entry.repoPath.length > 0 &&
+            requestedProjectIdSet.has(entry.projectId)
         ),
     [projects, requestedProjectIdSet]
   );
@@ -590,7 +606,7 @@ function useDashboardProjectWorktrees(
         return (
           !current ||
           current.repoPath !== entry.repoPath ||
-          (!current.hasLoaded && !current.isLoading)
+          !(current.hasLoaded || current.isLoading)
         );
       }),
     [requestedRepoEntries, stateByProjectId]
@@ -675,7 +691,12 @@ function useDashboardProjectWorktrees(
     return () => {
       cancelled = true;
     };
-  }, [pendingRepoEntries, pendingRepoKey, requestedRepoEntries, requestedRepoKey]);
+  }, [
+    pendingRepoEntries,
+    pendingRepoKey,
+    requestedRepoEntries,
+    requestedRepoKey,
+  ]);
 
   return stateByProjectId;
 }
@@ -728,7 +749,7 @@ function createDefaultIssueRuntimeDraft(
       dependencyCheck
     ),
     model: "default",
-    thinkingEffort: "auto",
+    thinkingEffort: defaultReasoningEffortForProvider(defaultProvider),
     planMode: false,
     enableChrome: false,
     skipPermissions: false,
@@ -826,9 +847,9 @@ function parseIssueAdapterOverrides(value: unknown): IssueRuntimeDraft {
   return {
     command,
     model,
-    thinkingEffort: stringFromUnknown(
-      record?.thinkingEffort ?? record?.reasoningEffort,
-      "auto"
+    thinkingEffort: normalizeReasoningEffortForProvider(
+      stringFromUnknown(record?.thinkingEffort ?? record?.reasoningEffort),
+      provider
     ),
     planMode:
       stringFromUnknown(record?.permissionMode) === "plan" ||
@@ -851,9 +872,11 @@ function issueAdapterOverridesFromDraft(
 ) {
   const command = normalizeOptionalDraftString(draft.command) ?? "claude";
   const model = normalizeOptionalDraftString(draft.model) ?? "default";
-  const thinkingEffort =
-    normalizeOptionalDraftString(draft.thinkingEffort) ?? "auto";
   const provider = detectAgentCliProvider(command, model);
+  const thinkingEffort = normalizeReasoningEffortForProvider(
+    normalizeOptionalDraftString(draft.thinkingEffort),
+    provider
+  );
 
   return {
     command,
@@ -983,11 +1006,11 @@ function issueWorkspaceTargetHint({
   worktreeCount: number;
 }) {
   if (!hasProject) {
-    return "Link the conversation to a project first.";
+    return "Link the conversation to a repository first.";
   }
 
   if (!hasRepoPath) {
-    return "The selected project does not have a repository folder yet.";
+    return "The selected repository does not have a local folder yet.";
   }
 
   if (errorMessage) {
@@ -1071,6 +1094,8 @@ const defaultBirdsEyeCanvasOffset: DashboardCanvasOffset = {
 };
 const dashboardCanvasZoomLevels = [0.7, 0.85, 1, 1.15, 1.3] as const;
 const defaultDashboardCanvasZoomIndex = 2;
+const birdsEyeCanvasZoomLevels = [0.85, 0.95, 1, 1.1, 1.2] as const;
+const defaultBirdsEyeCanvasZoomIndex = 2;
 
 const dashboardProjectBoardMinWidth = 920;
 const dashboardProjectBoardHeight = 1280;
@@ -1085,6 +1110,12 @@ const dashboardProjectAddViewSlotHeight = 126;
 const dashboardDefaultProjectViewId = "default";
 
 const defaultCompanyBrandColor = "#0F766E";
+
+const dashboardIssueTabId = (issueId: string): DashboardTabId =>
+  `issue:${issueId}`;
+
+const issueIdForDashboardTab = (tabId: DashboardTabId): string | null =>
+  tabId === dashboardRootTabId ? null : tabId.slice("issue:".length);
 
 export function App() {
   const [bootstrap, setBootstrap] = useState<DesktopBootstrapStatus | null>(
@@ -1106,9 +1137,6 @@ export function App() {
     string | null
   >(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(
-    null
-  );
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
     null
   );
@@ -1161,7 +1189,6 @@ export function App() {
     null
   );
   const [fileEntries, setFileEntries] = useState<FileEntry[]>([]);
-  const [currentDirectory, setCurrentDirectory] = useState("");
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<FileReadResult | null>(null);
   const [selectedDiff, setSelectedDiff] = useState<GitDiffResult | null>(null);
@@ -1189,9 +1216,6 @@ export function App() {
   );
   const [isCompanyDialogSaving, setIsCompanyDialogSaving] = useState(false);
   const [projectDialogRepoPath, setProjectDialogRepoPath] = useState("");
-  const [projectDialogStatus, setProjectDialogStatus] = useState("planned");
-  const [projectDialogGoalId, setProjectDialogGoalId] = useState("");
-  const [projectDialogTargetDate, setProjectDialogTargetDate] = useState("");
   const [projectDialogError, setProjectDialogError] = useState<string | null>(
     null
   );
@@ -1208,10 +1232,9 @@ export function App() {
   const [issueDialogCommand, setIssueDialogCommand] = useState("claude");
   const [issueDialogModel, setIssueDialogModel] = useState("default");
   const [issueDialogThinkingEffort, setIssueDialogThinkingEffort] =
-    useState("auto");
+    useState(defaultReasoningEffortForProvider("claude"));
   const [issueDialogPlanMode, setIssueDialogPlanMode] = useState(false);
-  const [issueDialogEnableChrome, setIssueDialogEnableChrome] =
-    useState(false);
+  const [issueDialogEnableChrome, setIssueDialogEnableChrome] = useState(false);
   const [issueDialogSkipPermissions, setIssueDialogSkipPermissions] =
     useState(false);
   const [issueDialogWorkspaceTargetMode, setIssueDialogWorkspaceTargetMode] =
@@ -1243,6 +1266,11 @@ export function App() {
   const [dashboardIssuePreviewError, setDashboardIssuePreviewError] = useState<
     string | null
   >(null);
+  const [dashboardOpenIssueTabIds, setDashboardOpenIssueTabIds] = useState<
+    string[]
+  >([]);
+  const [dashboardActiveTabId, setDashboardActiveTabId] =
+    useState<DashboardTabId>(dashboardRootTabId);
   const [issueDraft, setIssueDraft] = useState<IssueEditDraft>(
     createEmptyIssueDraft()
   );
@@ -1320,8 +1348,9 @@ export function App() {
     [boardIssues, selectedIssuesListTab]
   );
   const dashboardPreviewChatSummary =
-    dashboardOverviewChats.find((chat) => chat.id === dashboardIssuePreviewId) ??
-    null;
+    dashboardOverviewChats.find(
+      (chat) => chat.id === dashboardIssuePreviewId
+    ) ?? null;
   const activityVisibleIssues = useMemo(
     () => boardIssues.filter((issue) => !issue.hidden_at),
     [boardIssues]
@@ -1375,6 +1404,7 @@ export function App() {
     : [];
   const dashboardPreviewRunCardUpdate =
     dashboardPreviewChatSummary?.run_update ?? null;
+  const activeDashboardIssueTabId = issueIdForDashboardTab(dashboardActiveTabId);
   const boardGoals = companySnapshot?.goals ?? emptyGoalRecords;
   const boardProjects = companySnapshot?.projects ?? emptyProjectRecords;
   const currentProjectsForCreation =
@@ -1382,8 +1412,7 @@ export function App() {
   const issueDialogProjectRepoPath =
     currentProjectsForCreation.find(
       (project) => project.id === issueDialogProjectId
-    )
-      ?.primary_workspace?.cwd ?? null;
+    )?.primary_workspace?.cwd ?? null;
   const issueDialogWorktreeState = useProjectWorktrees(
     issueDialogProjectRepoPath
   );
@@ -1419,12 +1448,8 @@ export function App() {
     boardProjects.find((project) => project.id === selectedProjectId) ??
     boardProjects[0] ??
     null;
-  const boardApprovals = companySnapshot?.approvals ?? emptyApprovalRecords;
-  const selectedApproval =
-    boardApprovals.find((approval) => approval.id === selectedApprovalId) ??
-    boardApprovals[0] ??
-    null;
-  const companyWorkspaces = companySnapshot?.workspaces ?? emptyWorkspaceRecords;
+  const companyWorkspaces =
+    companySnapshot?.workspaces ?? emptyWorkspaceRecords;
   const selectedBoardWorkspace =
     companyWorkspaces.find(
       (workspace) => workspace.id === selectedBoardWorkspaceId
@@ -1432,7 +1457,7 @@ export function App() {
     companyWorkspaces[0] ??
     null;
   const selectedIssueWorkspace = selectedIssue
-    ? companyWorkspaces.find((workspace) => {
+    ? (companyWorkspaces.find((workspace) => {
         if (workspace.issue_id === selectedIssue.id) {
           return true;
         }
@@ -1445,7 +1470,7 @@ export function App() {
           workspace.id === selectedIssue.workspace_session_id ||
           workspace.session_id === selectedIssue.workspace_session_id
         );
-      }) ?? null
+      }) ?? null)
     : null;
   const selectedAgent =
     boardAgents.find((agent) => agent.id === selectedAgentId) ??
@@ -1475,8 +1500,11 @@ export function App() {
   );
   const orderedSidebarProjects = useMemo(
     () =>
-      [...(boardProjects.length > 0 ? boardProjects : dashboardOverviewProjects)].sort(
-        (left, right) =>
+      [
+        ...(boardProjects.length > 0
+          ? boardProjects
+          : dashboardOverviewProjects),
+      ].sort((left, right) =>
         (left.name ?? left.title ?? left.id).localeCompare(
           right.name ?? right.title ?? right.id
         )
@@ -1494,8 +1522,9 @@ export function App() {
   const activeSession =
     sessions.find((session) => session.id === selectedSessionId) ?? null;
   const activeWorkspaceAgent =
-    boardAgents.find((agent) => agent.id === selectedBoardWorkspace?.agent_id) ??
-    null;
+    boardAgents.find(
+      (agent) => agent.id === selectedBoardWorkspace?.agent_id
+    ) ?? null;
   const activeWorkspaceProvider = detectWorkspaceAgentProvider(
     activeSession,
     activeWorkspaceAgent
@@ -1529,6 +1558,55 @@ export function App() {
   const selectableParentIssues = useMemo(
     () => boardIssues.filter((issue) => issue.id !== selectedIssue?.id),
     [boardIssues, selectedIssue?.id]
+  );
+  const isDashboardIssueTabActive =
+    selectedScreen === "dashboard" && activeDashboardIssueTabId !== null;
+  const isIssueDetailVisible =
+    (selectedScreen === "issues" && issuesRouteMode === "detail") ||
+    isDashboardIssueTabActive;
+  const dashboardRouteTabs = useMemo<DashboardRouteTab[]>(
+    () => [
+      {
+        id: dashboardRootTabId,
+        issueId: null,
+        isClosable: false,
+        label: "Dashboard",
+      },
+      ...dashboardOpenIssueTabIds.map((issueId) => {
+        const activeIssueLabel =
+          selectedIssueId === issueId ? issueDraft.title.trim() : "";
+        const boardIssueTitle =
+          boardIssues.find((issue) => issue.id === issueId)?.title?.trim() ??
+          "";
+        const overviewIssueTitle =
+          dashboardOverviewChats.find((chat) => chat.id === issueId)?.title?.trim() ??
+          "";
+        const previewIssueTitle =
+          dashboardPreviewIssue?.id === issueId
+            ? dashboardPreviewIssue.title.trim()
+            : "";
+
+        return {
+          id: dashboardIssueTabId(issueId),
+          issueId,
+          isClosable: true,
+          label:
+            activeIssueLabel ||
+            boardIssueTitle ||
+            overviewIssueTitle ||
+            previewIssueTitle ||
+            "Conversation",
+        };
+      }),
+    ],
+    [
+      boardIssues,
+      dashboardOpenIssueTabIds,
+      dashboardOverviewChats,
+      dashboardPreviewIssue,
+      issueDraft.title,
+      selectedIssueId,
+    ]
   );
   const layout = boardRootLayout(selectedScreen);
   const clampDashboardOffset = (next: DashboardCanvasOffset) => {
@@ -1606,7 +1684,7 @@ export function App() {
   const refreshSelectedAgentRun = async (resetStreams: boolean) => {
     const agentId = selectedAgentIdRef.current;
     const runId = selectedAgentRunIdRef.current;
-    if (!agentId || !runId) {
+    if (!(agentId && runId)) {
       return;
     }
 
@@ -1932,7 +2010,7 @@ export function App() {
     if (
       !selectedCompanyId ||
       bootstrap?.state !== "ready" ||
-      selectedScreen === "dashboard"
+      (selectedScreen === "dashboard" && !isDashboardIssueTabActive)
     ) {
       return;
     }
@@ -1958,7 +2036,12 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [bootstrap?.state, selectedCompanyId, selectedScreen]);
+  }, [
+    bootstrap?.state,
+    isDashboardIssueTabActive,
+    selectedCompanyId,
+    selectedScreen,
+  ]);
 
   useEffect(() => {
     if (!selectedCompanyId || bootstrap?.state !== "ready") {
@@ -2002,10 +2085,18 @@ export function App() {
   }, [bootstrap?.state, selectedCompanyId, selectedScreen]);
 
   useEffect(() => {
+    setDashboardOpenIssueTabIds([]);
+    setDashboardActiveTabId(dashboardRootTabId);
+    setDashboardIssuePreviewId(null);
+    setDashboardPreviewIssueDetail(null);
+    setDashboardIssuePreviewError(null);
+    setIsDashboardIssuePreviewLoading(false);
+  }, [selectedCompanyId]);
+
+  useEffect(() => {
     const nextWorkspaces = companySnapshot?.workspaces ?? [];
     const nextAgents = companySnapshot?.agents ?? [];
     const nextIssues = companySnapshot?.issues ?? [];
-    const nextApprovals = companySnapshot?.approvals ?? [];
     const nextProjects = companySnapshot?.projects ?? [];
 
     setSelectedBoardWorkspaceId((current) => {
@@ -2027,16 +2118,6 @@ export function App() {
 
     setSelectedIssueId((current) => {
       if (current && nextIssues.some((issue) => issue.id === current)) {
-        return current;
-      }
-      return null;
-    });
-
-    setSelectedApprovalId((current) => {
-      if (
-        current &&
-        nextApprovals.some((approval) => approval.id === current)
-      ) {
         return current;
       }
       return null;
@@ -2105,13 +2186,15 @@ export function App() {
         const nextCounts = Object.fromEntries(
           counts.map((entry) => [entry.agent_id, entry.live_count])
         );
-        const hasLiveRuns = Object.values(nextCounts).some((count) => count > 0);
+        const hasLiveRuns = Object.values(nextCounts).some(
+          (count) => count > 0
+        );
 
         startTransition(() => {
           setLiveAgentRunCountsByAgentId(nextCounts);
         });
 
-        scheduleRefresh(hasLiveRuns ? 2000 : 10000);
+        scheduleRefresh(hasLiveRuns ? 2000 : 10_000);
       } catch (error) {
         if (cancelled) {
           return;
@@ -2201,7 +2284,7 @@ export function App() {
           });
         });
 
-        scheduleRefresh(hasLiveUpdates ? 2000 : 10000);
+        scheduleRefresh(hasLiveUpdates ? 2000 : 10_000);
       } catch (error) {
         if (cancelled) {
           return;
@@ -2222,11 +2305,7 @@ export function App() {
         window.clearTimeout(timeoutId);
       }
     };
-  }, [
-    bootstrap?.state,
-    activityVisibleIssueIdsKey,
-    selectedCompanyId,
-  ]);
+  }, [bootstrap?.state, activityVisibleIssueIdsKey, selectedCompanyId]);
 
   useEffect(() => {
     if (issuesRouteMode === "detail" && !selectedIssueId) {
@@ -2307,7 +2386,9 @@ export function App() {
 
     if (
       dashboardIssuePreviewId &&
-      !dashboardOverviewChats.some((chat) => chat.id === dashboardIssuePreviewId)
+      !dashboardOverviewChats.some(
+        (chat) => chat.id === dashboardIssuePreviewId
+      )
     ) {
       setDashboardIssuePreviewId(null);
       setDashboardPreviewIssueDetail(null);
@@ -2394,7 +2475,7 @@ export function App() {
   }, [selectedAgent?.id]);
 
   useEffect(() => {
-    if (selectedScreen === "agents" || selectedScreen === "approvals") {
+    if (selectedScreen === "agents") {
       setSelectedScreen("issues");
     }
   }, [selectedScreen]);
@@ -2589,8 +2670,7 @@ export function App() {
 
   useEffect(() => {
     if (
-      selectedScreen !== "issues" ||
-      issuesRouteMode !== "detail" ||
+      !isIssueDetailVisible ||
       !selectedIssueWorkspace ||
       selectedIssueWorkspace.id === selectedBoardWorkspaceId
     ) {
@@ -2601,11 +2681,22 @@ export function App() {
       setSelectedBoardWorkspaceId(selectedIssueWorkspace.id);
     });
   }, [
-    issuesRouteMode,
+    isIssueDetailVisible,
     selectedBoardWorkspaceId,
     selectedIssueWorkspace?.id,
-    selectedScreen,
   ]);
+
+  useEffect(() => {
+    if (
+      selectedScreen !== "dashboard" ||
+      !activeDashboardIssueTabId ||
+      activeDashboardIssueTabId === selectedIssueId
+    ) {
+      return;
+    }
+
+    void loadIssueDetailState(activeDashboardIssueTabId);
+  }, [activeDashboardIssueTabId, selectedIssueId, selectedScreen]);
 
   useEffect(() => {
     if (!selectedRepositoryId || bootstrap?.state !== "ready") {
@@ -2688,12 +2779,13 @@ export function App() {
 
     const loadWorkspace = async () => {
       try {
-        const [nextFiles, nextGit, nextHistory, nextBranches] = await Promise.all([
-          repositoryListFiles(selectedSessionId, ""),
-          gitStatus(selectedSessionId),
-          gitLog(selectedSessionId),
-          gitBranches(selectedSessionId),
-        ]);
+        const [nextFiles, nextGit, nextHistory, nextBranches] =
+          await Promise.all([
+            repositoryListFiles(selectedSessionId, ""),
+            gitStatus(selectedSessionId),
+            gitLog(selectedSessionId),
+            gitBranches(selectedSessionId),
+          ]);
 
         if (cancelled) {
           return;
@@ -2701,7 +2793,6 @@ export function App() {
 
         startTransition(() => {
           setFileEntries(nextFiles as FileEntry[]);
-          setCurrentDirectory("");
           setSelectedDiff(null);
           setGitState(nextGit as GitStatusResult);
           setGitHistory(nextHistory as GitLogResult);
@@ -2761,7 +2852,9 @@ export function App() {
       })
       .catch((error) => {
         if (!cancelled) {
-          setStatusMessage(error instanceof Error ? error.message : String(error));
+          setStatusMessage(
+            error instanceof Error ? error.message : String(error)
+          );
         }
       });
 
@@ -2839,12 +2932,14 @@ export function App() {
 
   const refreshActiveWorkspaceArtifacts = async (sessionId: string) => {
     try {
-      const [nextFiles, nextGit, nextHistory, nextBranches] = await Promise.all([
-        repositoryListFiles(sessionId, currentDirectory),
-        gitStatus(sessionId),
-        gitLog(sessionId),
-        gitBranches(sessionId),
-      ]);
+      const [nextFiles, nextGit, nextHistory, nextBranches] = await Promise.all(
+        [
+          repositoryListFiles(sessionId, ""),
+          gitStatus(sessionId),
+          gitLog(sessionId),
+          gitBranches(sessionId),
+        ]
+      );
       setFileEntries(nextFiles as FileEntry[]);
       setGitState(nextGit as GitStatusResult);
       setGitHistory(nextHistory as GitLogResult);
@@ -2860,18 +2955,25 @@ export function App() {
     }
 
     try {
-      const [loadedCompanies, boardData] = await Promise.all([
-        boardListCompanies(),
-        selectedScreen === "dashboard"
-          ? boardDashboardOverview(selectedCompanyId)
-          : boardCompanySnapshot(selectedCompanyId),
-      ]);
+      const loadedCompanies = await boardListCompanies();
       setCompanies(loadedCompanies as Company[]);
+
       if (selectedScreen === "dashboard") {
-        setDashboardOverview(boardData as DashboardOverviewRecord);
-      } else {
-        setCompanySnapshot(boardData as CompanySnapshot);
+        const [overview, snapshot] = await Promise.all([
+          boardDashboardOverview(selectedCompanyId),
+          isDashboardIssueTabActive
+            ? boardCompanySnapshot(selectedCompanyId)
+            : Promise.resolve(null),
+        ]);
+        setDashboardOverview(overview as DashboardOverviewRecord);
+        if (snapshot) {
+          setCompanySnapshot(snapshot as CompanySnapshot);
+        }
+        return;
       }
+
+      const snapshot = await boardCompanySnapshot(selectedCompanyId);
+      setCompanySnapshot(snapshot as CompanySnapshot);
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : String(error));
     }
@@ -2900,7 +3002,6 @@ export function App() {
       setSelectedIssueId(null);
       setIssuesRouteMode("list");
       setIssueCommentsByIssueId({});
-      setSelectedApprovalId(null);
     });
     void persistSettings({
       ...settings,
@@ -2951,7 +3052,6 @@ export function App() {
       setSelectedScreen("agents");
       setAgentsRouteMode("dashboard");
       setSelectedIssueId(null);
-      setSelectedApprovalId(null);
       setIssuesRouteMode("list");
       setIssueCommentsByIssueId({});
     });
@@ -3078,8 +3178,7 @@ export function App() {
     wheelZoomState.accumulatedDeltaY += event.deltaY;
 
     const isTrackpadPinch = event.ctrlKey;
-    const threshold =
-      event.deltaMode === 1 ? 1 : isTrackpadPinch ? 6 : 16;
+    const threshold = event.deltaMode === 1 ? 1 : isTrackpadPinch ? 6 : 16;
     if (Math.abs(wheelZoomState.accumulatedDeltaY) < threshold) {
       return;
     }
@@ -3095,9 +3194,7 @@ export function App() {
   };
 
   const setDashboardCanvasZoom = (
-    nextZoomIndex:
-      | number
-      | ((currentZoomIndex: number) => number),
+    nextZoomIndex: number | ((currentZoomIndex: number) => number),
     anchor?: DashboardCanvasOffset
   ) => {
     const viewport = dashboardCanvasViewportRef.current;
@@ -3259,7 +3356,7 @@ export function App() {
     const deletedProject = await boardDeleteProject(projectId);
     const snapshot = await boardCompanySnapshot(selectedCompanyId);
     setCompanySnapshot(snapshot);
-    setStatusMessage(`Deleted project ${deletedProject.name}.`);
+    setStatusMessage(`Deleted repository ${deletedProject.name}.`);
   };
 
   const handleUpdateProjectDefaultNewChatArea = async (
@@ -3466,9 +3563,6 @@ export function App() {
 
   const resetProjectDialog = () => {
     setProjectDialogRepoPath("");
-    setProjectDialogStatus("planned");
-    setProjectDialogGoalId("");
-    setProjectDialogTargetDate("");
     setProjectDialogError(null);
     setIsProjectDialogSaving(false);
   };
@@ -3499,8 +3593,7 @@ export function App() {
 
   const handleCreateProjectFromDialog = async () => {
     if (
-      !selectedCompanyId ||
-      !projectDialogDerivedName ||
+      !(selectedCompanyId && projectDialogDerivedName) ||
       isProjectDialogSaving
     ) {
       return;
@@ -3514,18 +3607,7 @@ export function App() {
         company_id: selectedCompanyId,
         name: projectDialogDerivedName,
         repo_path: projectDialogRepoPath.trim(),
-        status: projectDialogStatus,
       };
-
-      if (projectDialogGoalId) {
-        params.goal_id = projectDialogGoalId;
-      }
-
-      if (projectDialogTargetDate) {
-        params.target_date = new Date(
-          `${projectDialogTargetDate}T00:00:00`
-        ).toISOString();
-      }
 
       const project = await boardCreateProject(params);
       const snapshot = await boardCompanySnapshot(selectedCompanyId);
@@ -3614,8 +3696,9 @@ export function App() {
     const nextProjectId =
       defaults?.projectId ?? currentProjectsForCreation[0]?.id ?? "";
     const nextProject =
-      currentProjectsForCreation.find((project) => project.id === nextProjectId) ??
-      null;
+      currentProjectsForCreation.find(
+        (project) => project.id === nextProjectId
+      ) ?? null;
     const nextWorkspaceDefaults: Pick<
       IssueEditDraft,
       | "workspaceTargetMode"
@@ -3665,8 +3748,8 @@ export function App() {
     if (!nextProjectId && currentProjectsForCreation.length === 0) {
       setIssueDialogError(
         defaults?.dialogMode === "queuedMessage"
-          ? "Create a project before queueing messages."
-          : "Create a project before creating a conversation."
+          ? "Create a repository before queueing messages."
+          : "Create a repository before creating a conversation."
       );
     }
     setIsCreateIssueDialogOpen(true);
@@ -3709,12 +3792,14 @@ export function App() {
     attachments = [],
     description = "",
     navigateToDetail = false,
+    startConversation = false,
     title,
     ...defaults
   }: CreateIssueDialogDefaults & {
     attachments?: IssueAttachmentDraft[];
     description?: string;
     navigateToDetail?: boolean;
+    startConversation?: boolean;
     title: string;
   }) => {
     if (!selectedCompanyId) {
@@ -3737,8 +3822,8 @@ export function App() {
     if (!trimmedProjectId) {
       throw new Error(
         availableProjectsForCreation.length === 0
-          ? "Create a project before creating a conversation."
-          : "Project is required."
+          ? "Create a repository before creating a conversation."
+          : "Repository is required."
       );
     }
 
@@ -3828,24 +3913,37 @@ export function App() {
       }
     }
 
+    let initializedIssue = createdIssue;
+    let conversationStartErrorMessage: string | null = null;
+
+    if (startConversation && hiddenExecutionAgentId) {
+      try {
+        await boardCheckoutIssue(createdIssue.id);
+        initializedIssue = (await boardGetIssue(createdIssue.id)) as IssueRecord;
+      } catch (error) {
+        conversationStartErrorMessage =
+          error instanceof Error ? error.message : String(error);
+      }
+    }
+
     if (navigateToDetail || selectedScreen !== "dashboard") {
       const snapshot = await boardCompanySnapshot(selectedCompanyId);
       setCompanySnapshot(snapshot);
     } else {
       const overview = await boardDashboardOverview(selectedCompanyId);
       setDashboardOverview(overview);
-      setDashboardPreviewIssueDetail(createdIssue);
+      setDashboardPreviewIssueDetail(initializedIssue);
     }
     if (uploadedAttachments.length > 0) {
       setIssueAttachmentsByIssueId((current) => ({
         ...current,
-        [createdIssue.id]: uploadedAttachments,
+        [initializedIssue.id]: uploadedAttachments,
       }));
     }
 
     if (navigateToDetail) {
-      setSelectedIssueId(createdIssue.id);
-      setIssueDraft(createIssueDraft(createdIssue));
+      setSelectedIssueId(initializedIssue.id);
+      setIssueDraft(createIssueDraft(initializedIssue));
       setIssuesRouteMode("detail");
       setSelectedScreen("issues");
       void persistSettings({
@@ -3853,34 +3951,52 @@ export function App() {
         preferred_view: preferredViewForScreen("issues"),
       });
     } else {
-      setDashboardIssuePreviewId(createdIssue.id);
-      setDashboardPreviewIssueDetail(createdIssue);
+      setDashboardIssuePreviewId(initializedIssue.id);
+      setDashboardPreviewIssueDetail(initializedIssue);
       setDashboardIssuePreviewError(null);
       setSelectedScreen("dashboard");
     }
 
     if (!hiddenExecutionAgentId) {
       setStatusMessage(
-        `${createdIssue.identifier ?? createdIssue.title} created, but this space does not have a default local executor yet.`
+        `${initializedIssue.identifier ?? initializedIssue.title} created, but this space does not have a default local executor yet.`
+      );
+    } else if (conversationStartErrorMessage && attachmentUploadMessage) {
+      setStatusMessage(
+        `${initializedIssue.identifier ?? initializedIssue.title} created, but the conversation could not start and one or more attachments failed to upload: ${conversationStartErrorMessage}; ${attachmentUploadMessage}`
+      );
+    } else if (conversationStartErrorMessage) {
+      setStatusMessage(
+        `${initializedIssue.identifier ?? initializedIssue.title} created, but the conversation could not start automatically: ${conversationStartErrorMessage}`
       );
     } else if (attachmentUploadMessage) {
       setStatusMessage(
-        `${createdIssue.identifier ?? createdIssue.title} saved, but one or more attachments failed to upload: ${attachmentUploadMessage}`
+        `${initializedIssue.identifier ?? initializedIssue.title} saved, but one or more attachments failed to upload: ${attachmentUploadMessage}`
+      );
+    } else if (startConversation) {
+      setStatusMessage(
+        `${initializedIssue.identifier ?? initializedIssue.title} created and started in ${issueProjectLabel(
+          availableProjectsForCreation,
+          initializedIssue.project_id
+        )}.`
       );
     } else if (!navigateToDetail) {
       setStatusMessage(
-        `${createdIssue.identifier ?? createdIssue.title} created in ${issueProjectLabel(
+        `${initializedIssue.identifier ?? initializedIssue.title} created in ${issueProjectLabel(
           availableProjectsForCreation,
-          createdIssue.project_id
+          initializedIssue.project_id
         )}.`
       );
     }
 
-    return createdIssue;
+    return initializedIssue;
   };
 
   const handleCreateIssueFromDialog = async () => {
-    if (!selectedCompanyId || !issueDialogTitle.trim() || isIssueDialogSaving) {
+    if (
+      !(selectedCompanyId && issueDialogTitle.trim()) ||
+      isIssueDialogSaving
+    ) {
       return;
     }
 
@@ -3889,9 +4005,9 @@ export function App() {
       setIssueDialogError(
         currentProjectsForCreation.length === 0
           ? issueDialogMode === "queuedMessage"
-            ? "Create a project before queueing messages."
-            : "Create a project before creating a conversation."
-          : "Project is required."
+            ? "Create a repository before queueing messages."
+            : "Create a repository before creating a conversation."
+          : "Repository is required."
       );
       return;
     }
@@ -3912,6 +4028,7 @@ export function App() {
         priority: issueDialogPriority,
         projectId: trimmedProjectId,
         skipPermissions: issueDialogSkipPermissions,
+        startConversation: issueDialogMode !== "queuedMessage",
         status: issueDialogStatus,
         thinkingEffort: issueDialogThinkingEffort,
         title: issueDialogTitle,
@@ -3963,30 +4080,93 @@ export function App() {
     createIssueWithDefaults({
       ...defaults,
       navigateToDetail: false,
+      startConversation: true,
       title,
     });
 
-  const handleSelectIssue = async (issueId: string) => {
+  const loadIssueDetailState = async (issueId: string) => {
     setStatusMessage(null);
     try {
       const issue = await boardGetIssue(issueId);
-      setSelectedIssueId((issue as IssueRecord).id);
-      setIssueDraft(createIssueDraft(issue as IssueRecord));
+      const nextIssue = issue as IssueRecord;
+      setSelectedIssueId(nextIssue.id);
+      setIssueDraft(createIssueDraft(nextIssue));
       setWorkspaceCenterTab("conversation");
-      setIssuesRouteMode("detail");
-      setSelectedScreen("issues");
-      void persistSettings({
-        ...settings,
-        preferred_view: preferredViewForScreen("issues"),
-      });
+      return nextIssue;
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : String(error));
+      return null;
     }
   };
 
-  const handleOpenDashboardIssueDetail = async (issueId: string) => {
+  const handleSelectIssue = async (issueId: string) => {
+    const issue = await loadIssueDetailState(issueId);
+    if (!issue) {
+      return;
+    }
+
+    setIssuesRouteMode("detail");
+    setSelectedScreen("issues");
+    void persistSettings({
+      ...settings,
+      preferred_view: preferredViewForScreen("issues"),
+    });
+  };
+
+  const handleSelectDashboardTab = (tabId: DashboardTabId) => {
+    setDashboardActiveTabId(tabId);
+    if (tabId !== dashboardRootTabId) {
+      handleCloseDashboardIssuePreview();
+    }
+  };
+
+  const handleOpenDashboardIssueDetail = (issueId: string) => {
     handleCloseDashboardIssuePreview();
-    await handleSelectIssue(issueId);
+    setDashboardOpenIssueTabIds((current) =>
+      current.includes(issueId) ? current : [...current, issueId]
+    );
+    setDashboardActiveTabId(dashboardIssueTabId(issueId));
+  };
+
+  const handleCloseDashboardIssueTab = (issueId: string) => {
+    setDashboardOpenIssueTabIds((current) => {
+      const tabIndex = current.indexOf(issueId);
+      if (tabIndex === -1) {
+        return current;
+      }
+
+      if (dashboardActiveTabId === dashboardIssueTabId(issueId)) {
+        const nextTabId =
+          tabIndex > 0
+            ? dashboardIssueTabId(current[tabIndex - 1])
+            : dashboardRootTabId;
+        setDashboardActiveTabId(nextTabId);
+      }
+
+      return current.filter((currentIssueId) => currentIssueId !== issueId);
+    });
+  };
+
+  const handleReorderDashboardIssueTabs = (
+    draggedIssueId: string,
+    targetIssueId: string
+  ) => {
+    if (draggedIssueId === targetIssueId) {
+      return;
+    }
+
+    setDashboardOpenIssueTabIds((current) => {
+      const fromIndex = current.indexOf(draggedIssueId);
+      const toIndex = current.indexOf(targetIssueId);
+      if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) {
+        return current;
+      }
+
+      const next = [...current];
+      next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, draggedIssueId);
+      return next;
+    });
   };
 
   function enqueueIssueUpdate<T>(task: () => Promise<T>) {
@@ -4026,45 +4206,45 @@ export function App() {
   ) => {
     const nextDraftPatch: Partial<IssueEditDraft> = {};
 
-    if (Object.prototype.hasOwnProperty.call(patch, "title")) {
+    if (Object.hasOwn(patch, "title")) {
       nextDraftPatch.title = updatedIssue.title;
     }
-    if (Object.prototype.hasOwnProperty.call(patch, "description")) {
+    if (Object.hasOwn(patch, "description")) {
       nextDraftPatch.description = updatedIssue.description ?? "";
     }
-    if (Object.prototype.hasOwnProperty.call(patch, "status")) {
+    if (Object.hasOwn(patch, "status")) {
       nextDraftPatch.status = updatedIssue.status;
     }
-    if (Object.prototype.hasOwnProperty.call(patch, "priority")) {
+    if (Object.hasOwn(patch, "priority")) {
       nextDraftPatch.priority = updatedIssue.priority;
     }
-    if (Object.prototype.hasOwnProperty.call(patch, "projectId")) {
+    if (Object.hasOwn(patch, "projectId")) {
       nextDraftPatch.projectId = updatedIssue.project_id ?? "";
     }
-    if (Object.prototype.hasOwnProperty.call(patch, "assigneeAgentId")) {
+    if (Object.hasOwn(patch, "assigneeAgentId")) {
       nextDraftPatch.assigneeAgentId = updatedIssue.assignee_agent_id ?? "";
     }
     if (
-      Object.prototype.hasOwnProperty.call(patch, "command") ||
-      Object.prototype.hasOwnProperty.call(patch, "model") ||
-      Object.prototype.hasOwnProperty.call(patch, "thinkingEffort") ||
-      Object.prototype.hasOwnProperty.call(patch, "planMode") ||
-      Object.prototype.hasOwnProperty.call(patch, "enableChrome") ||
-      Object.prototype.hasOwnProperty.call(patch, "skipPermissions")
+      Object.hasOwn(patch, "command") ||
+      Object.hasOwn(patch, "model") ||
+      Object.hasOwn(patch, "thinkingEffort") ||
+      Object.hasOwn(patch, "planMode") ||
+      Object.hasOwn(patch, "enableChrome") ||
+      Object.hasOwn(patch, "skipPermissions")
     ) {
       Object.assign(
         nextDraftPatch,
         parseIssueAdapterOverrides(updatedIssue.assignee_adapter_overrides)
       );
     }
-    if (Object.prototype.hasOwnProperty.call(patch, "parentId")) {
+    if (Object.hasOwn(patch, "parentId")) {
       nextDraftPatch.parentId = updatedIssue.parent_id ?? "";
     }
     if (
-      Object.prototype.hasOwnProperty.call(patch, "workspaceTargetMode") ||
-      Object.prototype.hasOwnProperty.call(patch, "workspaceWorktreePath") ||
-      Object.prototype.hasOwnProperty.call(patch, "workspaceWorktreeBranch") ||
-      Object.prototype.hasOwnProperty.call(patch, "workspaceWorktreeName")
+      Object.hasOwn(patch, "workspaceTargetMode") ||
+      Object.hasOwn(patch, "workspaceWorktreePath") ||
+      Object.hasOwn(patch, "workspaceWorktreeBranch") ||
+      Object.hasOwn(patch, "workspaceWorktreeName")
     ) {
       Object.assign(
         nextDraftPatch,
@@ -4091,14 +4271,12 @@ export function App() {
   ) =>
     enqueueIssueUpdate(async () => {
       const shouldValidateIssueStatus =
-        Object.prototype.hasOwnProperty.call(patch, "status") ||
-        Object.prototype.hasOwnProperty.call(patch, "assigneeAgentId");
+        Object.hasOwn(patch, "status") ||
+        Object.hasOwn(patch, "assigneeAgentId");
       if (shouldValidateIssueStatus) {
         const validationMessage = issueStatusAssigneeValidationMessage(
-          Object.prototype.hasOwnProperty.call(patch, "status")
-            ? patch.status
-            : issueDraft.status,
-          Object.prototype.hasOwnProperty.call(patch, "assigneeAgentId")
+          Object.hasOwn(patch, "status") ? patch.status : issueDraft.status,
+          Object.hasOwn(patch, "assigneeAgentId")
             ? patch.assigneeAgentId
             : issueDraft.assigneeAgentId,
           boardAgents
@@ -4112,7 +4290,7 @@ export function App() {
         issue_id: issue.id,
       };
 
-      if (Object.prototype.hasOwnProperty.call(patch, "title")) {
+      if (Object.hasOwn(patch, "title")) {
         const trimmedTitle = (patch.title ?? "").trim();
         if (!trimmedTitle) {
           setIssueEditorError("Conversation title is required.");
@@ -4121,58 +4299,56 @@ export function App() {
         params.title = trimmedTitle;
       }
 
-      if (Object.prototype.hasOwnProperty.call(patch, "description")) {
+      if (Object.hasOwn(patch, "description")) {
         const trimmedDescription = (patch.description ?? "").trim();
         params.description = trimmedDescription ? trimmedDescription : null;
       }
 
-      if (Object.prototype.hasOwnProperty.call(patch, "status")) {
+      if (Object.hasOwn(patch, "status")) {
         params.status = patch.status;
       }
 
-      if (Object.prototype.hasOwnProperty.call(patch, "priority")) {
+      if (Object.hasOwn(patch, "priority")) {
         params.priority = patch.priority;
       }
 
-      if (Object.prototype.hasOwnProperty.call(patch, "projectId")) {
+      if (Object.hasOwn(patch, "projectId")) {
         const trimmedProjectId = patch.projectId?.trim() ?? "";
         if (!trimmedProjectId) {
-          setIssueEditorError("Project is required.");
+          setIssueEditorError("Repository is required.");
           return null;
         }
         params.project_id = trimmedProjectId;
       }
 
-      if (Object.prototype.hasOwnProperty.call(patch, "assigneeAgentId")) {
+      if (Object.hasOwn(patch, "assigneeAgentId")) {
         params.assignee_agent_id = patch.assigneeAgentId?.trim()
           ? patch.assigneeAgentId.trim()
           : null;
       }
 
-      if (Object.prototype.hasOwnProperty.call(patch, "parentId")) {
+      if (Object.hasOwn(patch, "parentId")) {
         params.parent_id = patch.parentId?.trim()
           ? patch.parentId.trim()
           : null;
       }
 
       const shouldPersistRuntimeSettings =
-        Object.prototype.hasOwnProperty.call(patch, "command") ||
-        Object.prototype.hasOwnProperty.call(patch, "model") ||
-        Object.prototype.hasOwnProperty.call(patch, "thinkingEffort") ||
-        Object.prototype.hasOwnProperty.call(patch, "planMode") ||
-        Object.prototype.hasOwnProperty.call(patch, "enableChrome") ||
-        Object.prototype.hasOwnProperty.call(patch, "skipPermissions");
+        Object.hasOwn(patch, "command") ||
+        Object.hasOwn(patch, "model") ||
+        Object.hasOwn(patch, "thinkingEffort") ||
+        Object.hasOwn(patch, "planMode") ||
+        Object.hasOwn(patch, "enableChrome") ||
+        Object.hasOwn(patch, "skipPermissions");
 
       if (shouldPersistRuntimeSettings) {
         params.assignee_adapter_overrides = issueAdapterOverridesFromDraft({
           command: patch.command ?? issueDraft.command,
           model: patch.model ?? issueDraft.model,
-          thinkingEffort:
-            patch.thinkingEffort ?? issueDraft.thinkingEffort,
+          thinkingEffort: patch.thinkingEffort ?? issueDraft.thinkingEffort,
           planMode: patch.planMode ?? issueDraft.planMode,
           enableChrome: patch.enableChrome ?? issueDraft.enableChrome,
-          skipPermissions:
-            patch.skipPermissions ?? issueDraft.skipPermissions,
+          skipPermissions: patch.skipPermissions ?? issueDraft.skipPermissions,
         });
         if (hiddenExecutionAgentId && !issue.assignee_agent_id?.trim()) {
           params.assignee_agent_id = hiddenExecutionAgentId;
@@ -4180,32 +4356,30 @@ export function App() {
       }
 
       const shouldPersistWorkspaceSettings =
-        Object.prototype.hasOwnProperty.call(patch, "workspaceTargetMode") ||
-        Object.prototype.hasOwnProperty.call(patch, "workspaceWorktreePath") ||
-        Object.prototype.hasOwnProperty.call(
-          patch,
-          "workspaceWorktreeBranch"
-        ) ||
-        Object.prototype.hasOwnProperty.call(patch, "workspaceWorktreeName");
+        Object.hasOwn(patch, "workspaceTargetMode") ||
+        Object.hasOwn(patch, "workspaceWorktreePath") ||
+        Object.hasOwn(patch, "workspaceWorktreeBranch") ||
+        Object.hasOwn(patch, "workspaceWorktreeName");
 
       if (shouldPersistWorkspaceSettings) {
         params.execution_workspace_settings =
-          issueExecutionWorkspaceSettingsFromDraft({
-            workspaceTargetMode:
-              patch.workspaceTargetMode ?? issueDraft.workspaceTargetMode,
-            workspaceWorktreePath:
-              patch.workspaceWorktreePath ?? issueDraft.workspaceWorktreePath,
-            workspaceWorktreeBranch:
-              patch.workspaceWorktreeBranch ?? issueDraft.workspaceWorktreeBranch,
-            workspaceWorktreeName:
-              patch.workspaceWorktreeName ?? issueDraft.workspaceWorktreeName,
-          }, patch.projectId ?? issueDraft.projectId);
+          issueExecutionWorkspaceSettingsFromDraft(
+            {
+              workspaceTargetMode:
+                patch.workspaceTargetMode ?? issueDraft.workspaceTargetMode,
+              workspaceWorktreePath:
+                patch.workspaceWorktreePath ?? issueDraft.workspaceWorktreePath,
+              workspaceWorktreeBranch:
+                patch.workspaceWorktreeBranch ??
+                issueDraft.workspaceWorktreeBranch,
+              workspaceWorktreeName:
+                patch.workspaceWorktreeName ?? issueDraft.workspaceWorktreeName,
+            },
+            patch.projectId ?? issueDraft.projectId
+          );
       }
 
-      if (
-        options &&
-        Object.prototype.hasOwnProperty.call(options, "hiddenAt")
-      ) {
+      if (options && Object.hasOwn(options, "hiddenAt")) {
         params.hidden_at = options.hiddenAt;
       }
 
@@ -4296,49 +4470,17 @@ export function App() {
     }
   };
 
-  const handleApproveApproval = async (
-    approvalId: string,
-    decisionNote?: string
-  ) => {
-    if (!selectedCompanyId) {
-      return;
-    }
-
-    setIsWorking(true);
-    setStatusMessage(null);
-    try {
-      const approval = await boardApproveApproval({
-        approval_id: approvalId,
-        decision_note: decisionNote,
-      });
-      const snapshot = await boardCompanySnapshot(selectedCompanyId);
-      setCompanySnapshot(snapshot);
-      setSelectedApprovalId((approval as ApprovalRecord).id);
-      setSelectedScreen("approvals");
-    } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setIsWorking(false);
-    }
-  };
-
-  const handleOpenDirectory = async (relativePath: string) => {
+  const handleLoadDirectoryChildren = async (relativePath: string) => {
     if (!selectedSessionId) {
-      return;
+      return [];
     }
 
     try {
-      const entries = await repositoryListFiles(
-        selectedSessionId,
-        relativePath
-      );
-      setCurrentDirectory(relativePath);
-      setFileEntries(entries as FileEntry[]);
-      setSelectedFilePath(null);
-      setSelectedFile(null);
-      setSelectedDiff(null);
+      const entries = await repositoryListFiles(selectedSessionId, relativePath);
+      return entries as FileEntry[];
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : String(error));
+      return [];
     }
   };
 
@@ -4376,7 +4518,7 @@ export function App() {
 
   const sendSessionMessage = async (content: string) => {
     const trimmedContent = content.trim();
-    if (!selectedSessionId || !trimmedContent) {
+    if (!(selectedSessionId && trimmedContent)) {
       return;
     }
 
@@ -4386,7 +4528,9 @@ export function App() {
       await agentSend(
         selectedSessionId,
         trimmedContent,
-        activeWorkspaceProvider === "custom" ? undefined : activeWorkspaceProvider
+        activeWorkspaceProvider === "custom"
+          ? undefined
+          : activeWorkspaceProvider
       );
       sessionStateManager.handleSessionEvent({
         event: {},
@@ -4427,7 +4571,7 @@ export function App() {
 
   const handleRunTerminal = async (event: FormEvent) => {
     event.preventDefault();
-    if (!selectedSessionId || !terminalCommand.trim()) {
+    if (!(selectedSessionId && terminalCommand.trim())) {
       return;
     }
 
@@ -4587,26 +4731,8 @@ export function App() {
     }
   };
 
-  const handleStageFile = async (file: GitStatusFile) => {
-    await runGitMutation(() =>
-      gitStage([file.path], selectedSessionId ?? undefined)
-    );
-  };
-
-  const handleUnstageFile = async (file: GitStatusFile) => {
-    await runGitMutation(() =>
-      gitUnstage([file.path], selectedSessionId ?? undefined)
-    );
-  };
-
-  const handleDiscardFile = async (file: GitStatusFile) => {
-    await runGitMutation(() =>
-      gitDiscard([file.path], selectedSessionId ?? undefined)
-    );
-  };
-
   const handleGitCommit = async (pushAfterCommit = false) => {
-    if (!selectedSessionId || !gitCommitMessage.trim()) {
+    if (!(selectedSessionId && gitCommitMessage.trim())) {
       return;
     }
 
@@ -4719,6 +4845,174 @@ export function App() {
     );
   }
 
+  const renderSelectedIssueWorkspaceDetail = ({
+    embeddedInDashboard = false,
+    onBack,
+  }: {
+    embeddedInDashboard?: boolean;
+    onBack: () => void;
+  }) => {
+    if (!selectedIssue) {
+      return null;
+    }
+
+    return (
+      <IssueWorkspaceDetailView
+        agents={companySnapshot?.agents ?? []}
+        availableStatusOptions={issueStatusOptions}
+        dependencyCheck={dependencyCheck}
+        embeddedInDashboard={embeddedInDashboard}
+        isSavingIssue={isSavingIssue}
+        isWorking={isWorking}
+        issue={selectedIssue}
+        issueDraft={issueDraft}
+        issueEditorError={issueEditorError}
+        issueWorkspaceSidebar={
+          <WorkspaceInspectorSidebar
+            currentBranch={currentBranch}
+            currentBranchName={currentBranchName}
+            fileEntries={fileEntries}
+            fileTreeCacheKey={selectedSessionId}
+            gitCommitMessage={gitCommitMessage}
+            gitHistory={gitHistory}
+            gitState={gitState}
+            hasUncommittedChanges={hasUncommittedChanges}
+            hasUnpushedCommits={hasUnpushedCommits}
+            isWorking={isWorking}
+            issueMeta={
+              <IssueWorkspaceInspectorMeta
+                agents={companySnapshot?.agents ?? []}
+                availableStatusOptions={issueStatusOptions}
+                isSavingIssue={isSavingIssue}
+                issue={selectedIssue}
+                issueDraft={issueDraft}
+                issueEditorError={issueEditorError}
+                onCommitIssuePatch={(patch) =>
+                  void handlePersistIssuePatch(selectedIssue, patch)
+                }
+                onIssueDraftChange={(patch) =>
+                  setIssueDraft((current) => ({
+                    ...current,
+                    ...patch,
+                  }))
+                }
+                projects={companySnapshot?.projects ?? []}
+                selectableParentIssues={selectableParentIssues}
+                statusLabel={issueStatusLabel}
+                workspaceTargetErrorMessage={
+                  issueDetailWorktreeState.errorMessage
+                }
+                workspaceTargetLoading={issueDetailWorktreeState.isLoading}
+                workspaceTargetWorktrees={issueDetailWorktreeState.worktrees}
+              />
+            }
+            onGitCommit={(push) => void handleGitCommit(push)}
+            onGitCommitMessageChange={setGitCommitMessage}
+            onGitPush={() => void handleGitPush()}
+            onOpenDiff={(path) => void handleOpenDiff(path)}
+            onLoadDirectoryChildren={handleLoadDirectoryChildren}
+            onOpenFile={(path) => void handleOpenFile(path)}
+            onRefreshSidebar={() => {
+              if (!selectedSessionId) {
+                return;
+              }
+
+              void refreshActiveWorkspaceArtifacts(selectedSessionId);
+            }}
+            onSelectSidebarTab={setWorkspaceSidebarTab}
+            selectedDiff={selectedDiff}
+            selectedFilePath={selectedFilePath}
+            workspace={selectedIssueWorkspace}
+            workspaceSidebarTab={workspaceSidebarTab}
+          />
+        }
+        latestCompletionSummary={
+          selectedIssueWorkspace?.session_id === activeSession?.id
+            ? activeSessionLiveState.latestCompletionSummary
+            : null
+        }
+        onAddAttachment={() => void handleAddIssueAttachment(selectedIssue)}
+        onBack={onBack}
+        onCommitIssuePatch={(patch) =>
+          void handlePersistIssuePatch(selectedIssue, patch)
+        }
+        onIssueDraftChange={(patch) =>
+          setIssueDraft((current) => ({
+            ...current,
+            ...patch,
+          }))
+        }
+        onPromptChange={setPrompt}
+        onRespondToQuestion={(response) =>
+          void handleRespondToSessionQuestion(response)
+        }
+        onRevealRepo={() => {
+          if (selectedIssueWorkspace?.workspace_repo_path) {
+            void desktopRevealInFinder(selectedIssueWorkspace.workspace_repo_path);
+          }
+        }}
+        onRunTerminal={handleRunTerminal}
+        onSelectWorkspaceCenterTab={setWorkspaceCenterTab}
+        onSendPrompt={(content) => void handleSendConversationPrompt(content)}
+        onStopSession={() => {
+          if (selectedIssueWorkspace?.session_id) {
+            void agentStop(selectedIssueWorkspace.session_id);
+          }
+        }}
+        onStopTerminal={() => {
+          if (selectedIssueWorkspace?.session_id) {
+            void terminalStop(selectedIssueWorkspace.session_id);
+          }
+        }}
+        onTerminalCommandChange={setTerminalCommand}
+        previewTabLabel={previewTabLabel}
+        projectLabel={(projectId) =>
+          issueProjectLabel(companySnapshot?.projects ?? [], projectId)
+        }
+        projects={companySnapshot?.projects ?? []}
+        prompt={prompt}
+        runtimeStatusValue={
+          selectedIssueWorkspace?.session_id === activeSession?.id
+            ? stringifyStatus(activeRuntimeStatusState)
+            : "waiting"
+        }
+        selectableParentIssues={selectableParentIssues}
+        selectedDiff={selectedDiff}
+        selectedFile={selectedFile}
+        selectedFilePath={selectedFilePath}
+        session={
+          selectedIssueWorkspace?.session_id === activeSession?.id
+            ? activeSession
+            : null
+        }
+        sessionErrorMessage={
+          selectedIssueWorkspace?.session_id === activeSession?.id
+            ? activeSessionLiveState.errorMessage
+            : null
+        }
+        sessionLoading={
+          selectedIssueWorkspace?.session_id === activeSession?.id
+            ? activeSessionLiveState.isLoadingMessages
+            : false
+        }
+        sessionRows={
+          selectedIssueWorkspace?.session_id === activeSession?.id
+            ? activeSessionConversationRows
+            : []
+        }
+        statusLabel={issueStatusLabel}
+        terminalCommand={terminalCommand}
+        terminalContainerRef={terminalContainerRef}
+        terminalStatusValue={stringifyStatus(activeTerminalStatusState)}
+        workspace={selectedIssueWorkspace}
+        workspaceCenterTab={workspaceCenterTab}
+        workspaceTargetErrorMessage={issueDetailWorktreeState.errorMessage}
+        workspaceTargetLoading={issueDetailWorktreeState.isLoading}
+        workspaceTargetWorktrees={issueDetailWorktreeState.worktrees}
+      />
+    );
+  };
+
   const showBoardSidebar =
     layout === "companyDashboard" && selectedScreen !== "dashboard";
 
@@ -4792,7 +5086,7 @@ export function App() {
           style={{ left: companyContextMenu.x, top: companyContextMenu.y }}
         >
           <div className="company-context-menu-header">
-            <div className="company-context-menu-monogram" aria-hidden="true">
+            <div aria-hidden="true" className="company-context-menu-monogram">
               {companyContextMenu.companyName.slice(0, 1).toUpperCase()}
             </div>
             <div className="company-context-menu-copy">
@@ -4894,10 +5188,10 @@ export function App() {
 
                 <div className="board-sidebar-section">
                   <div className="sidebar-section-row">
-                    <span className="sidebar-section-title">Projects</span>
+                    <span className="sidebar-section-title">Repositories</span>
                   </div>
                   <SidebarLinkButton
-                    label="New Project"
+                    label="New Repository"
                     onClick={handleOpenCreateProjectDialog}
                   />
                   {orderedSidebarProjects.length ? (
@@ -4917,7 +5211,9 @@ export function App() {
                       </button>
                     ))
                   ) : (
-                    <div className="agent-sidebar-empty">No projects yet</div>
+                    <div className="agent-sidebar-empty">
+                      No repositories yet
+                    </div>
                   )}
                 </div>
 
@@ -4952,26 +5248,41 @@ export function App() {
 
             {selectedScreen === "dashboard" ? (
               <DashboardBirdsEyeRouteView
+                activeTabId={dashboardActiveTabId}
                 agents={dashboardOverviewAgents}
                 chats={dashboardOverviewChats}
                 dependencyCheck={dependencyCheck}
+                issueDetailContent={
+                  activeDashboardIssueTabId &&
+                  selectedIssue?.id === activeDashboardIssueTabId
+                    ? renderSelectedIssueWorkspaceDetail({
+                        embeddedInDashboard: true,
+                        onBack: () =>
+                          handleSelectDashboardTab(dashboardRootTabId),
+                      })
+                    : null
+                }
                 isLoadingOverview={isDashboardOverviewLoading}
-                previewIssue={dashboardPreviewIssue}
-                projects={dashboardOverviewProjects}
+                onClosePreview={handleCloseDashboardIssuePreview}
+                onCloseTab={handleCloseDashboardIssueTab}
                 onCreateProject={handleOpenCreateProjectDialog}
                 onCreateQuickChat={(title, defaults) =>
                   handleCreateBirdsEyeChat(title, defaults)
                 }
-                onClosePreview={handleCloseDashboardIssuePreview}
-                onOpenIssueDetail={(issueId) =>
-                  void handleOpenDashboardIssueDetail(issueId)
-                }
+                onOpenIssueDetail={handleOpenDashboardIssueDetail}
                 onOpenIssuePreview={handleOpenDashboardIssuePreview}
+                onReorderTabs={handleReorderDashboardIssueTabs}
+                previewIssue={dashboardPreviewIssue}
+                projects={dashboardOverviewProjects}
+                tabs={dashboardRouteTabs}
+                onSelectTab={handleSelectDashboardTab}
                 workspaces={dashboardOverviewWorkspaces}
               />
             ) : null}
 
-            {selectedScreen === "dashboard" && dashboardPreviewIssue ? (
+            {selectedScreen === "dashboard" &&
+            dashboardActiveTabId === dashboardRootTabId &&
+            dashboardPreviewIssue ? (
               <DashboardIssuePreviewDialogView
                 agents={dashboardOverviewAgents}
                 attachments={dashboardPreviewAttachments}
@@ -4981,7 +5292,7 @@ export function App() {
                 issue={dashboardPreviewIssue}
                 onClose={handleCloseDashboardIssuePreview}
                 onOpenIssue={() =>
-                  void handleOpenDashboardIssueDetail(dashboardPreviewIssue.id)
+                  handleOpenDashboardIssueDetail(dashboardPreviewIssue.id)
                 }
                 parentIssueLabel={(parentIssueId) =>
                   issueParentLabel(boardIssues, parentIssueId)
@@ -5024,169 +5335,9 @@ export function App() {
 
             {selectedScreen === "issues" ? (
               issuesRouteMode === "detail" && selectedIssue ? (
-                <IssueWorkspaceDetailView
-                  agents={companySnapshot?.agents ?? []}
-                  availableStatusOptions={issueStatusOptions}
-                  dependencyCheck={dependencyCheck}
-                  isSavingIssue={isSavingIssue}
-                  isWorking={isWorking}
-                  issue={selectedIssue}
-                  issueDraft={issueDraft}
-                  issueEditorError={issueEditorError}
-                  issueWorkspaceSidebar={
-                    <WorkspaceInspectorSidebar
-                      currentBranch={currentBranch}
-                      currentBranchName={currentBranchName}
-                      currentDirectory={currentDirectory}
-                      fileEntries={fileEntries}
-                      gitCommitMessage={gitCommitMessage}
-                      gitHistory={gitHistory}
-                      gitState={gitState}
-                      hasUncommittedChanges={hasUncommittedChanges}
-                      hasUnpushedCommits={hasUnpushedCommits}
-                      issueMeta={
-                        <IssueWorkspaceInspectorMeta
-                          agents={companySnapshot?.agents ?? []}
-                          availableStatusOptions={issueStatusOptions}
-                          issue={selectedIssue}
-                          issueDraft={issueDraft}
-                          issueEditorError={issueEditorError}
-                          isSavingIssue={isSavingIssue}
-                          onCommitIssuePatch={(patch) =>
-                            void handlePersistIssuePatch(selectedIssue, patch)
-                          }
-                          onIssueDraftChange={(patch) =>
-                            setIssueDraft((current) => ({
-                              ...current,
-                              ...patch,
-                            }))
-                          }
-                          projects={companySnapshot?.projects ?? []}
-                          selectableParentIssues={selectableParentIssues}
-                          statusLabel={issueStatusLabel}
-                          workspaceTargetErrorMessage={
-                            issueDetailWorktreeState.errorMessage
-                          }
-                          workspaceTargetLoading={
-                            issueDetailWorktreeState.isLoading
-                          }
-                          workspaceTargetWorktrees={
-                            issueDetailWorktreeState.worktrees
-                          }
-                        />
-                      }
-                      isWorking={isWorking}
-                      selectedDiff={selectedDiff}
-                      selectedFilePath={selectedFilePath}
-                      workspace={selectedIssueWorkspace}
-                      workspaceSidebarTab={workspaceSidebarTab}
-                      onDiscardFile={(file) => void handleDiscardFile(file)}
-                      onGitCommit={(push) => void handleGitCommit(push)}
-                      onGitCommitMessageChange={setGitCommitMessage}
-                      onGitPush={() => void handleGitPush()}
-                      onOpenDiff={(path) => void handleOpenDiff(path)}
-                      onOpenDirectory={(path) => void handleOpenDirectory(path)}
-                      onOpenFile={(path) => void handleOpenFile(path)}
-                      onSelectSidebarTab={setWorkspaceSidebarTab}
-                      onStageFile={(file) => void handleStageFile(file)}
-                      onUnstageFile={(file) => void handleUnstageFile(file)}
-                    />
-                  }
-                  onBack={() => handleShowIssuesList()}
-                  onCommitIssuePatch={(patch) =>
-                    void handlePersistIssuePatch(selectedIssue, patch)
-                  }
-                  onIssueDraftChange={(patch) =>
-                    setIssueDraft((current) => ({
-                      ...current,
-                      ...patch,
-                    }))
-                  }
-                  onAddAttachment={() =>
-                    void handleAddIssueAttachment(selectedIssue)
-                  }
-                  onPromptChange={setPrompt}
-                  onRespondToQuestion={(response) =>
-                    void handleRespondToSessionQuestion(response)
-                  }
-                  onRevealRepo={() => {
-                    if (selectedIssueWorkspace?.workspace_repo_path) {
-                      void desktopRevealInFinder(
-                        selectedIssueWorkspace.workspace_repo_path
-                      );
-                    }
-                  }}
-                  onRunTerminal={handleRunTerminal}
-                  onSelectWorkspaceCenterTab={setWorkspaceCenterTab}
-                  onSendPrompt={(content) =>
-                    void handleSendConversationPrompt(content)
-                  }
-                  onStopSession={() => {
-                    if (selectedIssueWorkspace?.session_id) {
-                      void agentStop(selectedIssueWorkspace.session_id);
-                    }
-                  }}
-                  onStopTerminal={() => {
-                    if (selectedIssueWorkspace?.session_id) {
-                      void terminalStop(selectedIssueWorkspace.session_id);
-                    }
-                  }}
-                  onTerminalCommandChange={setTerminalCommand}
-                  previewTabLabel={previewTabLabel}
-                  projectLabel={(projectId) =>
-                    issueProjectLabel(
-                      companySnapshot?.projects ?? [],
-                      projectId
-                    )
-                  }
-                  projects={companySnapshot?.projects ?? []}
-                  prompt={prompt}
-                  selectableParentIssues={selectableParentIssues}
-                  selectedDiff={selectedDiff}
-                  selectedFile={selectedFile}
-                  selectedFilePath={selectedFilePath}
-                  session={
-                    selectedIssueWorkspace?.session_id === activeSession?.id
-                      ? activeSession
-                      : null
-                  }
-                  sessionErrorMessage={
-                    selectedIssueWorkspace?.session_id === activeSession?.id
-                      ? activeSessionLiveState.errorMessage
-                      : null
-                  }
-                  sessionLoading={
-                    selectedIssueWorkspace?.session_id === activeSession?.id
-                      ? activeSessionLiveState.isLoadingMessages
-                      : false
-                  }
-                  latestCompletionSummary={
-                    selectedIssueWorkspace?.session_id === activeSession?.id
-                      ? activeSessionLiveState.latestCompletionSummary
-                      : null
-                  }
-                  sessionRows={
-                    selectedIssueWorkspace?.session_id === activeSession?.id
-                      ? activeSessionConversationRows
-                      : []
-                  }
-                  statusLabel={issueStatusLabel}
-                  terminalCommand={terminalCommand}
-                  terminalContainerRef={terminalContainerRef}
-                  runtimeStatusValue={
-                    selectedIssueWorkspace?.session_id === activeSession?.id
-                      ? stringifyStatus(activeRuntimeStatusState)
-                      : "waiting"
-                  }
-                  terminalStatusValue={stringifyStatus(activeTerminalStatusState)}
-                  workspace={selectedIssueWorkspace}
-                  workspaceCenterTab={workspaceCenterTab}
-                  workspaceTargetErrorMessage={
-                    issueDetailWorktreeState.errorMessage
-                  }
-                  workspaceTargetLoading={issueDetailWorktreeState.isLoading}
-                  workspaceTargetWorktrees={issueDetailWorktreeState.worktrees}
-                />
+                renderSelectedIssueWorkspaceDetail({
+                  onBack: () => handleShowIssuesList(),
+                })
               ) : (
                 <IssuesListView
                   activeTab={selectedIssuesListTab}
@@ -5198,13 +5349,6 @@ export function App() {
                   summaryText={issueSummaryText}
                 />
               )
-            ) : null}
-
-            {selectedScreen === "approvals" ? (
-              <RoutePlaceholder
-                body="Board approvals are no longer part of the core project and conversation workflow."
-                title="Approvals Removed"
-              />
             ) : null}
 
             {selectedScreen === "projects" ? (
@@ -5239,9 +5383,7 @@ export function App() {
             {selectedScreen === "companySettings" ? (
               <section className="route-scroll">
                 <div className="route-header compact">
-                  <DashboardBreadcrumbs
-                    items={[{ label: "Space settings" }]}
-                  />
+                  <DashboardBreadcrumbs items={[{ label: "Space settings" }]} />
                   <span className="route-kicker">Space settings</span>
                   <h1>{selectedCompany?.name ?? "Space settings"}</h1>
                   <p>
@@ -5479,7 +5621,10 @@ export function App() {
                         />
                       </div>
                       <div className="settings-shadcn-actions">
-                        <button className="settings-shadcn-button" type="submit">
+                        <button
+                          className="settings-shadcn-button"
+                          type="submit"
+                        >
                           Save device settings
                         </button>
                       </div>
@@ -5538,18 +5683,11 @@ export function App() {
         <CreateProjectDialogView
           derivedProjectName={projectDialogDerivedName}
           errorMessage={projectDialogError}
-          goals={boardGoals}
           isSaving={isProjectDialogSaving}
-          repoPath={projectDialogRepoPath}
-          selectedGoalId={projectDialogGoalId}
-          selectedStatus={projectDialogStatus}
-          targetDate={projectDialogTargetDate}
           onChooseFolder={() => void handleChooseProjectFolder()}
           onClose={handleCloseCreateProjectDialog}
           onCreate={() => void handleCreateProjectFromDialog()}
-          onGoalChange={setProjectDialogGoalId}
-          onStatusChange={setProjectDialogStatus}
-          onTargetDateChange={setProjectDialogTargetDate}
+          repoPath={projectDialogRepoPath}
         />
       ) : null}
 
@@ -5578,6 +5716,8 @@ export function App() {
           enableChrome={issueDialogEnableChrome}
           errorMessage={issueDialogError}
           isSaving={isIssueDialogSaving}
+          mode={issueDialogMode}
+          model={issueDialogModel}
           onAddAttachment={() => void handleAddIssueDialogAttachment()}
           onClose={handleCloseCreateIssueDialog}
           onCommandChange={setIssueDialogCommand}
@@ -5586,14 +5726,12 @@ export function App() {
           onEnableChromeChange={setIssueDialogEnableChrome}
           onModelChange={setIssueDialogModel}
           onPlanModeChange={setIssueDialogPlanMode}
-          mode={issueDialogMode}
           onProjectChange={handleIssueDialogProjectChange}
           onRemoveAttachment={handleRemoveIssueDialogAttachment}
           onSkipPermissionsChange={setIssueDialogSkipPermissions}
           onThinkingEffortChange={setIssueDialogThinkingEffort}
           onTitleChange={setIssueDialogTitle}
           onWorkspaceTargetChange={handleIssueDialogWorkspaceTargetChange}
-          model={issueDialogModel}
           parentConversationTitle={
             issueDialogParentIssueId
               ? issueParentLabel(boardIssues, issueDialogParentIssueId)
@@ -5602,11 +5740,11 @@ export function App() {
           planMode={issueDialogPlanMode}
           projects={boardProjects}
           selectedProjectId={issueDialogProjectId}
-          skipPermissions={issueDialogSkipPermissions}
           selectedWorkspaceTargetValue={issueWorkspaceTargetSelectValue(
             issueDialogWorkspaceTargetMode,
             issueDialogWorkspaceWorktreePath
           )}
+          skipPermissions={issueDialogSkipPermissions}
           thinkingEffort={issueDialogThinkingEffort}
           title={issueDialogTitle}
           workspaceTargetErrorMessage={issueDialogWorktreeState.errorMessage}
@@ -5614,7 +5752,6 @@ export function App() {
           workspaceTargetWorktrees={issueDialogWorktreeState.worktrees}
         />
       ) : null}
-
     </div>
   );
 }
@@ -5678,7 +5815,10 @@ function OrgRouteView({
     () => buildOrgHierarchy(agents, projects, ceoAgentId),
     [agents, projects, ceoAgentId]
   );
-  const flattenedHierarchy = useMemo(() => flattenOrgHierarchy(hierarchy), [hierarchy]);
+  const flattenedHierarchy = useMemo(
+    () => flattenOrgHierarchy(hierarchy),
+    [hierarchy]
+  );
   const managersCount = flattenedHierarchy.filter(
     (node) => node.reports.length > 0
   ).length;
@@ -5694,8 +5834,8 @@ function OrgRouteView({
         <span className="route-kicker">Agent org</span>
         <h1>{company?.name ? `${company.name} agent org` : "Agent org"}</h1>
         <p>
-          See the reporting hierarchy for agents across the space and jump
-          into any agent to inspect its configuration and runs.
+          See the reporting hierarchy for agents across the space and jump into
+          any agent to inspect its configuration and runs.
         </p>
       </div>
 
@@ -5711,8 +5851,8 @@ function OrgRouteView({
             <div>
               <h3>Agent hierarchy</h3>
               <p>
-                This chart shows how agents report across the space. Select
-                any node to jump into that agent&apos;s configuration and runs.
+                This chart shows how agents report across the space. Select any
+                node to jump into that agent&apos;s configuration and runs.
               </p>
             </div>
           </div>
@@ -6035,10 +6175,7 @@ function AgentsRouteView({
         <DashboardBreadcrumbs
           items={
             selectedAgent
-              ? [
-                  { label: "Agents" },
-                  { label: selectedAgent.name || "Agent" },
-                ]
+              ? [{ label: "Agents" }, { label: selectedAgent.name || "Agent" }]
               : [{ label: "Agents" }]
           }
         />
@@ -6089,9 +6226,9 @@ function AgentsRouteView({
             </div>
 
             <div
+              aria-label="Agent views"
               className="agents-tab-strip"
               role="tablist"
-              aria-label="Agent views"
             >
               {(
                 [
@@ -6126,9 +6263,9 @@ function AgentsRouteView({
 
             {mode === "configuration" ? (
               <AgentConfigurationTab
+                dependencyCheck={dependencyCheck}
                 draft={configurationDraft}
                 errorMessage={configurationError}
-                dependencyCheck={dependencyCheck}
                 isSaving={isSavingConfiguration}
                 onAddEnvVar={onAddEnvVar}
                 onChooseInstructionsFile={onChooseInstructionsFile}
@@ -6268,10 +6405,11 @@ function AgentConfigurationTab({
     draft.command
   );
   const modelOptions = buildAgentModelOptions(draft, dependencyCheck);
-  const thinkingEffortOptions = mergeIssueOptions(
-    ["auto", "low", "medium", "high"],
-    draft.thinkingEffort
+  const normalizedThinkingEffort = normalizeReasoningEffortForProvider(
+    draft.thinkingEffort,
+    provider
   );
+  const thinkingEffortOptions = buildReasoningEffortOptions(draft);
   const browserToggleLabel =
     provider === "codex" ? "Enable web search" : "Enable Chrome";
   const browserToggleDescription =
@@ -6439,17 +6577,17 @@ function AgentConfigurationTab({
           </AgentConfigField>
           <AgentConfigField
             htmlFor="agent-config-thinking-effort"
-            label="Thinking effort"
+            label="Reasoning effort"
           >
             <AgentConfigSelect
-              ariaLabel="Thinking effort"
+              ariaLabel="Reasoning effort"
               id="agent-config-thinking-effort"
               onChange={(value) => onDraftChange({ thinkingEffort: value })}
-              value={draft.thinkingEffort}
+              value={normalizedThinkingEffort}
             >
               {thinkingEffortOptions.map((option) => (
                 <option key={option} value={option}>
-                  {capitalize(option)}
+                  {reasoningEffortLabel(option)}
                 </option>
               ))}
             </AgentConfigSelect>
@@ -6646,7 +6784,9 @@ function AgentConfigField({
   return (
     <div
       className={
-        fullWidth ? "issue-dialog-field agent-config-field-full" : "issue-dialog-field"
+        fullWidth
+          ? "issue-dialog-field agent-config-field-full"
+          : "issue-dialog-field"
       }
     >
       <label className="issue-dialog-label" htmlFor={htmlFor}>
@@ -6741,7 +6881,9 @@ function AgentConfigPathField({
           placeholder={placeholder}
           value={value}
         />
-        <AgentConfigInlineButton onClick={onChoose}>Choose</AgentConfigInlineButton>
+        <AgentConfigInlineButton onClick={onChoose}>
+          Choose
+        </AgentConfigInlineButton>
       </div>
     </AgentConfigField>
   );
@@ -6764,16 +6906,7 @@ function AgentConfigToggleField({
         <strong>{label}</strong>
         <span>{description}</span>
       </div>
-      <button
-        aria-pressed={checked}
-        className={
-          checked ? "agent-config-toggle active" : "agent-config-toggle"
-        }
-        onClick={() => onChange(!checked)}
-        type="button"
-      >
-        <span />
-      </button>
+      <Switch aria-label={label} checked={checked} onCheckedChange={onChange} />
     </label>
   );
 }
@@ -6791,7 +6924,9 @@ function AgentRunEventDetails({ event }: { event: AgentRunEventRecord }) {
         <div className="agent-run-structured-card">
           <div className="agent-run-structured-header">
             <span className="agent-run-structured-kicker">Agent update</span>
-            <span className="agent-run-structured-state neutral">Completed</span>
+            <span className="agent-run-structured-state neutral">
+              Completed
+            </span>
           </div>
           <div className="agent-run-structured-copy">{text}</div>
         </div>
@@ -6821,7 +6956,9 @@ function AgentRunEventDetails({ event }: { event: AgentRunEventRecord }) {
         {command ? (
           <pre className="agent-run-structured-command">{command}</pre>
         ) : null}
-        {output ? <pre className="agent-run-structured-output">{output}</pre> : null}
+        {output ? (
+          <pre className="agent-run-structured-output">{output}</pre>
+        ) : null}
         {typeof exitCode === "number" ? (
           <div className="agent-run-structured-meta">
             <span>Exit code {exitCode}</span>
@@ -6840,7 +6977,9 @@ function AgentRunEventDetails({ event }: { event: AgentRunEventRecord }) {
           <span className="agent-run-structured-state neutral">Started</span>
         </div>
         <div className="agent-run-structured-copy">
-          {threadId ? `Codex resumed thread ${threadId}.` : "Codex thread started."}
+          {threadId
+            ? `Codex resumed thread ${threadId}.`
+            : "Codex thread started."}
         </div>
       </div>
     );
@@ -6869,7 +7008,9 @@ function AgentRunEventDetails({ event }: { event: AgentRunEventRecord }) {
       <div className="agent-run-structured-card subtle">
         <div className="agent-run-structured-header">
           <span className="agent-run-structured-kicker">Turn</span>
-          <span className="agent-run-structured-state succeeded">Completed</span>
+          <span className="agent-run-structured-state succeeded">
+            Completed
+          </span>
         </div>
         <div className="agent-run-structured-copy">
           Codex finished the turn.
@@ -6882,7 +7023,9 @@ function AgentRunEventDetails({ event }: { event: AgentRunEventRecord }) {
               <span>{formatAgentRunMetricLabel("Input", inputTokens)}</span>
             ) : null}
             {cachedInputTokens !== undefined ? (
-              <span>{formatAgentRunMetricLabel("Cached", cachedInputTokens)}</span>
+              <span>
+                {formatAgentRunMetricLabel("Cached", cachedInputTokens)}
+              </span>
             ) : null}
             {outputTokens !== undefined ? (
               <span>{formatAgentRunMetricLabel("Output", outputTokens)}</span>
@@ -6939,9 +7082,7 @@ function AgentRunEventDetails({ event }: { event: AgentRunEventRecord }) {
               success ? "completed" : event.event_type
             )}`}
           >
-            {agentRunEventStateLabel(
-              success ? "completed" : event.event_type
-            )}
+            {agentRunEventStateLabel(success ? "completed" : event.event_type)}
           </span>
         </div>
         <div className="agent-run-structured-copy">{message}</div>
@@ -6954,20 +7095,21 @@ function AgentRunEventDetails({ event }: { event: AgentRunEventRecord }) {
     );
   }
 
-  if (event.stream === "stderr" || event.event_type === "stderr") {
-    if (cleanMessage) {
-      return (
-        <div className="agent-run-structured-card warning">
-          <div className="agent-run-structured-header">
-            <span className="agent-run-structured-kicker">Warning</span>
-            <span className="agent-run-structured-state failed">
-              {event.level ? capitalize(event.level) : "Stderr"}
-            </span>
-          </div>
-          <pre className="agent-run-structured-output">{cleanMessage}</pre>
+  if (
+    (event.stream === "stderr" || event.event_type === "stderr") &&
+    cleanMessage
+  ) {
+    return (
+      <div className="agent-run-structured-card warning">
+        <div className="agent-run-structured-header">
+          <span className="agent-run-structured-kicker">Warning</span>
+          <span className="agent-run-structured-state failed">
+            {event.level ? capitalize(event.level) : "Stderr"}
+          </span>
         </div>
-      );
-    }
+        <pre className="agent-run-structured-output">{cleanMessage}</pre>
+      </div>
+    );
   }
 
   if (cleanMessage) {
@@ -6976,7 +7118,9 @@ function AgentRunEventDetails({ event }: { event: AgentRunEventRecord }) {
 
   if (event.payload !== undefined && event.payload !== null) {
     return (
-      <pre className="agent-run-json-block">{formatJsonBlock(event.payload)}</pre>
+      <pre className="agent-run-json-block">
+        {formatJsonBlock(event.payload)}
+      </pre>
     );
   }
 
@@ -7029,9 +7173,7 @@ function AgentRunsTabPanel({
         </button>
       </div>
 
-      {!selectedAgent ? (
-        <p>Select an agent to review its runs.</p>
-      ) : (
+      {selectedAgent ? (
         <div className="agents-runs-layout">
           <section className="surface-panel agents-runs-list-panel">
             <div className="surface-header">
@@ -7251,16 +7393,29 @@ function AgentRunsTabPanel({
             )}
           </section>
         </div>
+      ) : (
+        <p>Select an agent to review its runs.</p>
       )}
     </div>
   );
 }
 
 function RunStatusBadge({ status }: { status: string }) {
+  const tone = agentRunStatusTone(status);
+  const variant =
+    tone === "succeeded"
+      ? "success"
+      : tone === "failed"
+        ? "destructive"
+        : tone === "running"
+          ? "warning"
+          : tone === "queued"
+            ? "info"
+            : "secondary";
   return (
-    <span className={`agent-run-status-badge ${agentRunStatusTone(status)}`}>
+    <Badge className="agent-run-status-badge" variant={variant}>
       {agentRunStatusLabel(status)}
-    </span>
+    </Badge>
   );
 }
 
@@ -7275,7 +7430,11 @@ function AgentHeaderActionChip({
 }) {
   if (onClick) {
     return (
-      <button className="agent-page-header-action-chip" onClick={onClick} type="button">
+      <button
+        className="agent-page-header-action-chip"
+        onClick={onClick}
+        type="button"
+      >
         <span aria-hidden="true" className="agent-page-header-action-icon">
           {icon}
         </span>
@@ -7357,196 +7516,62 @@ function ShadcnSelect<T extends string>({
   options: Array<SelectOption<T>>;
   value: T;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const selectRef = useRef<HTMLDivElement | null>(null);
-  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const selectedIndex = Math.max(
-    options.findIndex((option) => option.value === value),
-    0
-  );
-  const selectedOption = options[selectedIndex] ?? options[0] ?? null;
-
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    const closeMenu = (event?: Event) => {
-      const target = event?.target as Node | null | undefined;
-      if (target && selectRef.current?.contains(target)) {
-        return;
-      }
-      setIsOpen(false);
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener("pointerdown", closeMenu);
-    document.addEventListener("scroll", closeMenu, true);
-    window.addEventListener("resize", closeMenu);
-    window.addEventListener("blur", closeMenu);
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("pointerdown", closeMenu);
-      document.removeEventListener("scroll", closeMenu, true);
-      window.removeEventListener("resize", closeMenu);
-      window.removeEventListener("blur", closeMenu);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    const frame = window.requestAnimationFrame(() => {
-      optionRefs.current[selectedIndex]?.focus();
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [isOpen, selectedIndex]);
-
-  const handleTriggerKeyDown = (
-    event: ReactKeyboardEvent<HTMLButtonElement>
-  ) => {
-    if (
-      event.key === "ArrowDown" ||
-      event.key === "ArrowUp" ||
-      event.key === "Enter" ||
-      event.key === " "
-    ) {
-      event.preventDefault();
-      setIsOpen(true);
-    }
-  };
-
-  const handleOptionKeyDown = (
-    event: ReactKeyboardEvent<HTMLButtonElement>,
-    index: number
-  ) => {
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      optionRefs.current[(index + 1) % options.length]?.focus();
-      return;
-    }
-
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      optionRefs.current[
-        (index - 1 + options.length) % options.length
-      ]?.focus();
-      return;
-    }
-
-    if (event.key === "Home") {
-      event.preventDefault();
-      optionRefs.current[0]?.focus();
-      return;
-    }
-
-    if (event.key === "End") {
-      event.preventDefault();
-      optionRefs.current[options.length - 1]?.focus();
-      return;
-    }
-
-    if (event.key === "Escape") {
-      event.preventDefault();
-      setIsOpen(false);
-    }
-  };
-
   return (
     <div
-      className={isOpen ? "shadcn-select open" : "shadcn-select"}
+      className="shadcn-select"
       onPointerDown={(event) => event.stopPropagation()}
-      ref={selectRef}
     >
-      <button
-        aria-expanded={isOpen}
-        aria-haspopup="listbox"
-        className="shadcn-select-trigger"
-        onClick={() => setIsOpen((current) => !current)}
-        onKeyDown={handleTriggerKeyDown}
-        type="button"
+      <Select
+        onValueChange={(newValue) => onChange(newValue as T)}
+        value={value}
       >
-        <span className="shadcn-select-value">
-          {selectedOption?.label ?? "Select option"}
-        </span>
-        <span aria-hidden="true" className="shadcn-select-icon">
-          <ChevronUpDownIcon />
-        </span>
-      </button>
-
-      {isOpen ? (
-        <div
-          aria-label={ariaLabel}
-          className="shadcn-select-content"
-          role="listbox"
-        >
-          {options.map((option, index) => {
-            const isSelected = option.value === selectedOption?.value;
-            return (
-              <button
-                aria-selected={isSelected}
-                className={
-                  isSelected
-                    ? "shadcn-select-item is-selected"
-                    : "shadcn-select-item"
-                }
-                key={option.value}
-                onClick={() => {
-                  onChange(option.value);
-                  setIsOpen(false);
-                }}
-                onKeyDown={(event) => handleOptionKeyDown(event, index)}
-                ref={(node) => {
-                  optionRefs.current[index] = node;
-                }}
-                role="option"
-                type="button"
-              >
-                <span>{option.label}</span>
-                <span
-                  aria-hidden="true"
-                  className="shadcn-select-item-indicator"
-                >
-                  {isSelected ? <CheckIcon /> : null}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
+        <SelectTrigger aria-label={ariaLabel} className="shadcn-select-trigger">
+          <SelectValue placeholder="Select option" />
+        </SelectTrigger>
+        <SelectContent className="shadcn-select-content">
+          {options.map((option) => (
+            <SelectItem
+              className="shadcn-select-item"
+              key={option.value}
+              value={option.value}
+            >
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }
 
 function DashboardBirdsEyeRouteView({
+  activeTabId,
   agents,
   chats,
   dependencyCheck,
+  issueDetailContent,
   isLoadingOverview,
   onClosePreview,
+  onCloseTab,
   onCreateProject,
   onCreateQuickChat,
   onOpenIssueDetail,
   onOpenIssuePreview,
+  onReorderTabs,
+  onSelectTab,
   previewIssue,
   projects,
+  tabs,
   workspaces,
 }: {
+  activeTabId: DashboardTabId;
   agents: AgentRecord[];
   chats: DashboardOverviewChatRecord[];
   dependencyCheck: RuntimeCapabilities | null;
+  issueDetailContent: ReactNode;
   isLoadingOverview: boolean;
   onClosePreview: () => void;
+  onCloseTab: (issueId: string) => void;
   onCreateProject: () => void;
   onCreateQuickChat: (
     title: string,
@@ -7554,8 +7579,11 @@ function DashboardBirdsEyeRouteView({
   ) => Promise<IssueRecord>;
   onOpenIssueDetail: (issueId: string) => void;
   onOpenIssuePreview: (issueId: string) => void;
+  onReorderTabs: (draggedIssueId: string, targetIssueId: string) => void;
+  onSelectTab: (tabId: DashboardTabId) => void;
   previewIssue: IssueRecord | null;
   projects: ProjectRecord[];
+  tabs: DashboardRouteTab[];
   workspaces: WorkspaceRecord[];
 }) {
   const [expandedRowIds, setExpandedRowIds] = useState<Record<string, boolean>>(
@@ -7601,15 +7629,27 @@ function DashboardBirdsEyeRouteView({
   );
   const [birdsEyeCanvasOffset, setBirdsEyeCanvasOffset] =
     useState<DashboardCanvasOffset>(defaultBirdsEyeCanvasOffset);
+  const [birdsEyeCanvasZoomIndex, setBirdsEyeCanvasZoomIndex] = useState(
+    defaultBirdsEyeCanvasZoomIndex
+  );
   const [isBirdsEyeCanvasDragging, setIsBirdsEyeCanvasDragging] =
     useState(false);
   const [isHelpMenuOpen, setIsHelpMenuOpen] = useState(false);
+  const [tabContextMenu, setTabContextMenu] = useState<{
+    issueId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [chatContextMenu, setChatContextMenu] = useState<{
+    issueId: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [commandPaletteQuery, setCommandPaletteQuery] = useState("");
   const [commandPaletteIndex, setCommandPaletteIndex] = useState(0);
-  const [quickCreateState, setQuickCreateState] = useState<BirdsEyeQuickCreateState>(
-    defaultQuickCreateState
-  );
+  const [quickCreateState, setQuickCreateState] =
+    useState<BirdsEyeQuickCreateState>(defaultQuickCreateState);
   const rowRefs = useRef(new Map<string, HTMLButtonElement | null>());
   const quickCreateInputRef = useRef<HTMLInputElement | null>(null);
   const commandPaletteInputRef = useRef<HTMLInputElement | null>(null);
@@ -7621,8 +7661,23 @@ function DashboardBirdsEyeRouteView({
     startX: number;
     startY: number;
   } | null>(null);
+  const birdsEyeCanvasWheelZoomRef = useRef<{
+    accumulatedDeltaY: number;
+    lastEventTime: number;
+  }>({
+    accumulatedDeltaY: 0,
+    lastEventTime: 0,
+  });
   const helpButtonRef = useRef<HTMLButtonElement | null>(null);
   const helpMenuRef = useRef<HTMLDivElement | null>(null);
+  const tabContextMenuRef = useRef<HTMLDivElement | null>(null);
+  const chatContextMenuRef = useRef<HTMLDivElement | null>(null);
+  const isOverviewTabActive = activeTabId === dashboardRootTabId;
+  const activeIssueTabId = issueIdForDashboardTab(activeTabId);
+  const [draggedTabIssueId, setDraggedTabIssueId] = useState<string | null>(null);
+  const [dragOverTabIssueId, setDragOverTabIssueId] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     setExpandedRowIds((current) => {
@@ -7672,7 +7727,7 @@ function DashboardBirdsEyeRouteView({
   );
   const focusedRow = visibleRows[focusedRowIndex] ?? null;
   const previewChat = previewIssue?.id
-    ? treeModel.chatByIssueId.get(previewIssue.id) ?? null
+    ? (treeModel.chatByIssueId.get(previewIssue.id) ?? null)
     : null;
   const recentChatRowId = useMemo(() => {
     return visibleRows
@@ -7705,6 +7760,8 @@ function DashboardBirdsEyeRouteView({
     return [...ids];
   }, [previewChat?.sessionId, visibleRows]);
   const codeImpactBySessionId = useBirdsEyeCodeImpact(impactSessionIds);
+  const birdsEyeCanvasZoomScale =
+    birdsEyeCanvasZoomLevels[birdsEyeCanvasZoomIndex] ?? 1;
   useEffect(() => {
     if (visibleRows.length === 0) {
       setFocusedRowId(null);
@@ -7720,7 +7777,9 @@ function DashboardBirdsEyeRouteView({
       return;
     }
 
-    if (!focusedRowId || !visibleRows.some((row) => row.rowId === focusedRowId)) {
+    if (
+      !(focusedRowId && visibleRows.some((row) => row.rowId === focusedRowId))
+    ) {
       setFocusedRowId(visibleRows[0]?.rowId ?? null);
     }
   }, [focusedRowId, pendingFocusRowId, visibleRows]);
@@ -7801,6 +7860,79 @@ function DashboardBirdsEyeRouteView({
     };
   }, [isHelpMenuOpen]);
 
+  useEffect(() => {
+    if (!tabContextMenu) {
+      return;
+    }
+
+    if (!tabs.some((tab) => tab.issueId === tabContextMenu.issueId)) {
+      setTabContextMenu(null);
+      return;
+    }
+
+    const closeMenu = (event?: Event) => {
+      const target = event?.target as Node | null | undefined;
+      if (target && tabContextMenuRef.current?.contains(target)) {
+        return;
+      }
+      setTabContextMenu(null);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setTabContextMenu(null);
+      }
+    };
+
+    document.addEventListener("pointerdown", closeMenu);
+    document.addEventListener("scroll", closeMenu, true);
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("blur", closeMenu);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu);
+      document.removeEventListener("scroll", closeMenu, true);
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("blur", closeMenu);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [tabContextMenu, tabs]);
+
+  useEffect(() => {
+    if (!chatContextMenu) {
+      return;
+    }
+
+    const closeMenu = (event?: Event) => {
+      const target = event?.target as Node | null | undefined;
+      if (target && chatContextMenuRef.current?.contains(target)) {
+        return;
+      }
+      setChatContextMenu(null);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setChatContextMenu(null);
+      }
+    };
+
+    document.addEventListener("pointerdown", closeMenu);
+    document.addEventListener("scroll", closeMenu, true);
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("blur", closeMenu);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu);
+      document.removeEventListener("scroll", closeMenu, true);
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("blur", closeMenu);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [chatContextMenu]);
+
   const toggleRowExpansion = (rowId: string, nextValue?: boolean) => {
     setExpandedRowIds((current) => ({
       ...current,
@@ -7818,7 +7950,8 @@ function DashboardBirdsEyeRouteView({
 
     while (currentParentId) {
       parents.push(currentParentId);
-      currentParentId = visibleRowLookup.get(currentParentId)?.parentRowId ?? null;
+      currentParentId =
+        visibleRowLookup.get(currentParentId)?.parentRowId ?? null;
     }
 
     if (parents.length === 0) {
@@ -7854,9 +7987,7 @@ function DashboardBirdsEyeRouteView({
       return [];
     }
 
-    return visibleRows.filter(
-      (entry) => entry.parentRowId === row.parentRowId
-    );
+    return visibleRows.filter((entry) => entry.parentRowId === row.parentRowId);
   };
 
   const focusSiblingRow = (
@@ -7893,7 +8024,7 @@ function DashboardBirdsEyeRouteView({
   };
 
   const firstChildRowIdForRow = (row: BirdsEyeVisibleRow | null) => {
-    if (!row || !row.hasChildren) {
+    if (!(row && row.hasChildren)) {
       return null;
     }
 
@@ -7914,10 +8045,6 @@ function DashboardBirdsEyeRouteView({
     }
 
     if (row.node.kind === "chat") {
-      if (previewIssue?.id === row.node.chat.id) {
-        onOpenIssueDetail(row.node.chat.id);
-        return;
-      }
       onOpenIssuePreview(row.node.chat.id);
       return;
     }
@@ -7980,7 +8107,9 @@ function DashboardBirdsEyeRouteView({
     );
   };
 
-  const ensureQuickCreateFolderExpanded = (folder: BirdsEyeFolderNode | null) => {
+  const ensureQuickCreateFolderExpanded = (
+    folder: BirdsEyeFolderNode | null
+  ) => {
     if (!folder) {
       return;
     }
@@ -8103,8 +8232,92 @@ function DashboardBirdsEyeRouteView({
   const closeQuickCreate = () => {
     setQuickCreateState(defaultQuickCreateState);
     setFocusedRowId(
-      quickCreateState.sourceRowId ?? quickCreateState.folderRowId ?? focusedRow?.rowId ?? null
+      quickCreateState.sourceRowId ??
+        quickCreateState.folderRowId ??
+        focusedRow?.rowId ??
+        null
     );
+  };
+
+  const handleOpenChatContextMenu = (
+    event: MouseEvent<HTMLButtonElement>,
+    issueId: string
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const menuWidth = 220;
+    const menuHeight = 52;
+    const x = Math.min(event.clientX, window.innerWidth - menuWidth - 12);
+    const y = Math.min(event.clientY, window.innerHeight - menuHeight - 12);
+
+    setChatContextMenu({
+      issueId,
+      x: Math.max(12, x),
+      y: Math.max(12, y),
+    });
+  };
+
+  const handleOpenTabContextMenu = (
+    event: MouseEvent<HTMLDivElement>,
+    issueId: string
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const menuWidth = 200;
+    const menuHeight = 52;
+    const x = Math.min(event.clientX, window.innerWidth - menuWidth - 12);
+    const y = Math.min(event.clientY, window.innerHeight - menuHeight - 12);
+
+    setTabContextMenu({
+      issueId,
+      x: Math.max(12, x),
+      y: Math.max(12, y),
+    });
+  };
+
+  const handleDragDashboardTabStart = (
+    event: DragEvent<HTMLDivElement>,
+    issueId: string
+  ) => {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", issueId);
+    setDraggedTabIssueId(issueId);
+    setDragOverTabIssueId(null);
+    setTabContextMenu(null);
+  };
+
+  const handleDragDashboardTabOver = (
+    event: DragEvent<HTMLDivElement>,
+    issueId: string
+  ) => {
+    if (!draggedTabIssueId || draggedTabIssueId === issueId) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setDragOverTabIssueId(issueId);
+  };
+
+  const handleDropDashboardTab = (
+    event: DragEvent<HTMLDivElement>,
+    issueId: string
+  ) => {
+    if (!draggedTabIssueId || draggedTabIssueId === issueId) {
+      return;
+    }
+
+    event.preventDefault();
+    onReorderTabs(draggedTabIssueId, issueId);
+    setDraggedTabIssueId(null);
+    setDragOverTabIssueId(null);
+  };
+
+  const handleEndDashboardTabDrag = () => {
+    setDraggedTabIssueId(null);
+    setDragOverTabIssueId(null);
   };
 
   const handleBirdsEyeCanvasPointerDown = (
@@ -8164,6 +8377,65 @@ function DashboardBirdsEyeRouteView({
     }
   };
 
+  const setBirdsEyeCanvasZoom = (
+    nextZoomIndex: number | ((currentZoomIndex: number) => number),
+    anchor?: DashboardCanvasOffset
+  ) => {
+    const viewport = canvasViewportRef.current;
+    if (!viewport) {
+      setBirdsEyeCanvasZoomIndex((currentZoomIndex) =>
+        clampNumber(
+          typeof nextZoomIndex === "function"
+            ? nextZoomIndex(currentZoomIndex)
+            : nextZoomIndex,
+          0,
+          birdsEyeCanvasZoomLevels.length - 1
+        )
+      );
+      return;
+    }
+
+    setBirdsEyeCanvasZoomIndex((currentZoomIndex) => {
+      const safeZoomIndex = clampNumber(
+        typeof nextZoomIndex === "function"
+          ? nextZoomIndex(currentZoomIndex)
+          : nextZoomIndex,
+        0,
+        birdsEyeCanvasZoomLevels.length - 1
+      );
+      if (safeZoomIndex === currentZoomIndex) {
+        return currentZoomIndex;
+      }
+
+      const currentZoomScale = birdsEyeCanvasZoomLevels[currentZoomIndex] ?? 1;
+      const nextZoomScale = birdsEyeCanvasZoomLevels[safeZoomIndex] ?? 1;
+      const anchorX = anchor?.x ?? viewport.clientWidth / 2;
+      const anchorY = anchor?.y ?? viewport.clientHeight / 2;
+
+      setBirdsEyeCanvasOffset((currentOffset) => {
+        const worldX = (anchorX - currentOffset.x) / currentZoomScale;
+        const worldY = (anchorY - currentOffset.y) / currentZoomScale;
+
+        return {
+          x: anchorX - worldX * nextZoomScale,
+          y: anchorY - worldY * nextZoomScale,
+        };
+      });
+
+      return safeZoomIndex;
+    });
+  };
+
+  const nudgeBirdsEyeCanvasZoom = (
+    delta: number,
+    anchor?: DashboardCanvasOffset
+  ) => {
+    setBirdsEyeCanvasZoom(
+      (currentZoomIndex) => currentZoomIndex + delta,
+      anchor
+    );
+  };
+
   const handleBirdsEyeCanvasWheel = (event: WheelEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement | null;
     if (
@@ -8175,10 +8447,29 @@ function DashboardBirdsEyeRouteView({
     }
 
     event.preventDefault();
-    setBirdsEyeCanvasOffset((current) => ({
-      x: current.x - event.deltaX,
-      y: current.y - event.deltaY,
-    }));
+    const wheelZoomState = birdsEyeCanvasWheelZoomRef.current;
+    const resetThresholdMs = 180;
+    if (event.timeStamp - wheelZoomState.lastEventTime > resetThresholdMs) {
+      wheelZoomState.accumulatedDeltaY = 0;
+    }
+
+    wheelZoomState.lastEventTime = event.timeStamp;
+    wheelZoomState.accumulatedDeltaY += event.deltaY;
+
+    const isTrackpadPinch = event.ctrlKey;
+    const threshold = event.deltaMode === 1 ? 1 : isTrackpadPinch ? 6 : 16;
+    if (Math.abs(wheelZoomState.accumulatedDeltaY) < threshold) {
+      return;
+    }
+
+    const zoomDelta = wheelZoomState.accumulatedDeltaY < 0 ? 1 : -1;
+    wheelZoomState.accumulatedDeltaY = 0;
+    const viewportRect = event.currentTarget.getBoundingClientRect();
+
+    nudgeBirdsEyeCanvasZoom(zoomDelta, {
+      x: event.clientX - viewportRect.left,
+      y: event.clientY - viewportRect.top,
+    });
   };
 
   const handleOpenBirdsEyeCommandPalette = () => {
@@ -8190,6 +8481,7 @@ function DashboardBirdsEyeRouteView({
   const handleResetBirdsEyeCanvas = () => {
     setIsHelpMenuOpen(false);
     setBirdsEyeCanvasOffset(defaultBirdsEyeCanvasOffset);
+    setBirdsEyeCanvasZoomIndex(defaultBirdsEyeCanvasZoomIndex);
   };
 
   const commandActions = useMemo(() => {
@@ -8229,14 +8521,11 @@ function DashboardBirdsEyeRouteView({
       actions.push({
         description:
           previewIssue?.id === focusedRow.node.chat.id
-            ? "Open the full conversation detail."
+            ? "Refresh the lightweight preview."
             : "Preview the focused chat.",
         id: "preview-chat",
         keywords: "preview inspect chat",
-        label:
-          previewIssue?.id === focusedRow.node.chat.id
-            ? "Open chat detail"
-            : "Preview chat",
+        label: "Preview chat",
         run: () => openRow(focusedRow),
       });
     }
@@ -8251,7 +8540,7 @@ function DashboardBirdsEyeRouteView({
       });
     }
 
-    actions.push(
+      actions.push(
       {
         description: "Jump to the top of the list.",
         id: "jump-top",
@@ -8279,10 +8568,10 @@ function DashboardBirdsEyeRouteView({
         },
       },
       {
-        description: "Create a new project.",
+        description: "Create a new repository.",
         id: "new-project",
-        keywords: "new project create",
-        label: "New project",
+        keywords: "new repository create new project",
+        label: "New repository",
         run: onCreateProject,
       }
     );
@@ -8398,6 +8687,10 @@ function DashboardBirdsEyeRouteView({
         return;
       }
 
+      if (!isOverviewTabActive) {
+        return;
+      }
+
       if (isPrimaryModifier && event.key === "ArrowUp") {
         event.preventDefault();
         focusRowByIndex(0);
@@ -8414,7 +8707,11 @@ function DashboardBirdsEyeRouteView({
         return;
       }
 
-      if (event.key.toLowerCase() === "n" && !event.altKey && !isPrimaryModifier) {
+      if (
+        event.key.toLowerCase() === "n" &&
+        !event.altKey &&
+        !isPrimaryModifier
+      ) {
         event.preventDefault();
         openQuickCreate();
         return;
@@ -8460,6 +8757,7 @@ function DashboardBirdsEyeRouteView({
     focusedRow,
     focusedRowIndex,
     isCommandPaletteOpen,
+    isOverviewTabActive,
     onClosePreview,
     previewIssue,
     quickCreateState.isOpen,
@@ -8472,7 +8770,9 @@ function DashboardBirdsEyeRouteView({
     const folderNode =
       quickCreateState.folderRowId &&
       treeModel.rowById.get(quickCreateState.folderRowId)?.kind === "folder"
-        ? (treeModel.rowById.get(quickCreateState.folderRowId) as BirdsEyeFolderNode)
+        ? (treeModel.rowById.get(
+            quickCreateState.folderRowId
+          ) as BirdsEyeFolderNode)
         : null;
 
     if (!folderNode) {
@@ -8502,35 +8802,43 @@ function DashboardBirdsEyeRouteView({
     }
   };
 
-  const renderBirdsEyeRowButton = (row: BirdsEyeVisibleRow) => (
-    <BirdsEyeRow
-      buttonRef={(element) => {
-        rowRefs.current.set(row.rowId, element);
-      }}
-      codeImpact={
-        row.node.kind === "chat" && row.node.sessionId
-          ? codeImpactBySessionId[row.node.sessionId] ?? null
-          : null
-      }
-      isFocused={row.rowId === focusedRow?.rowId}
-      isPreviewing={
-        row.node.kind === "chat" && previewIssue?.id === row.node.chat.id
-      }
-      onClick={() => {
-        setFocusedRowId(row.rowId);
-        if (row.node.kind === "chat") {
-          onOpenIssuePreview(row.node.chat.id);
+  const renderBirdsEyeRowButton = (row: BirdsEyeVisibleRow) => {
+    const chatIssueId = row.node.kind === "chat" ? row.node.chat.id : null;
+
+    return (
+      <BirdsEyeRow
+        buttonRef={(element) => {
+          rowRefs.current.set(row.rowId, element);
+        }}
+        codeImpact={
+          row.node.kind === "chat" && row.node.sessionId
+            ? (codeImpactBySessionId[row.node.sessionId] ?? null)
+            : null
         }
-      }}
-      onDoubleClick={() => {
-        if (row.node.kind === "chat") {
-          onOpenIssueDetail(row.node.chat.id);
+        isFocused={row.rowId === focusedRow?.rowId}
+        isPreviewing={chatIssueId != null && previewIssue?.id === chatIssueId}
+        onClick={() => {
+          setFocusedRowId(row.rowId);
+        }}
+        onContextMenu={
+          chatIssueId
+            ? (event) => {
+                setFocusedRowId(row.rowId);
+                handleOpenChatContextMenu(event, chatIssueId);
+              }
+            : undefined
         }
-      }}
-      onToggleExpand={() => toggleRowExpansion(row.rowId)}
-      row={row}
-    />
-  );
+        onDoubleClick={() => {
+          if (chatIssueId) {
+            setChatContextMenu(null);
+            onOpenIssueDetail(chatIssueId);
+          }
+        }}
+        onToggleExpand={() => toggleRowExpansion(row.rowId)}
+        row={row}
+      />
+    );
+  };
 
   const renderBirdsEyeFolderGroup = (folder: BirdsEyeFolderNode) => {
     const folderRow = visibleRowLookup.get(folder.rowId);
@@ -8543,10 +8851,16 @@ function DashboardBirdsEyeRouteView({
       quickCreateState.isOpen && quickCreateState.folderRowId === folder.rowId;
 
     return (
-      <section className="birds-eye-group birds-eye-folder-group" key={folder.rowId}>
+      <section
+        className="birds-eye-group birds-eye-folder-group"
+        key={folder.rowId}
+      >
         {renderBirdsEyeRowButton(folderRow)}
         {isFolderExpanded ? (
-          <div className="birds-eye-group-body birds-eye-folder-group-body" role="group">
+          <div
+            className="birds-eye-group-body birds-eye-folder-group-body"
+            role="group"
+          >
             {isInlineDraftOpen ? (
               <BirdsEyeQuickCreateRow
                 dependencyCheck={dependencyCheck}
@@ -8578,9 +8892,10 @@ function DashboardBirdsEyeRouteView({
                 }
                 sourceNode={
                   quickCreateState.sourceRowId
-                    ? visibleRowLookup.get(quickCreateState.sourceRowId)?.node ??
+                    ? (visibleRowLookup.get(quickCreateState.sourceRowId)
+                        ?.node ??
                       treeModel.rowById.get(quickCreateState.sourceRowId) ??
-                      null
+                      null)
                     : null
                 }
                 title={quickCreateState.title}
@@ -8619,7 +8934,10 @@ function DashboardBirdsEyeRouteView({
       >
         {renderBirdsEyeRowButton(projectRow)}
         {isProjectExpanded ? (
-          <div className="birds-eye-group-body birds-eye-project-group-body" role="group">
+          <div
+            className="birds-eye-group-body birds-eye-project-group-body"
+            role="group"
+          >
             {project.folders.map((folder) => renderBirdsEyeFolderGroup(folder))}
           </div>
         ) : null}
@@ -8627,11 +8945,92 @@ function DashboardBirdsEyeRouteView({
     );
   };
 
+  const renderBirdsEyeAddProjectSlot = () => {
+    return (
+      <div className="birds-eye-project-create-slot-shell" role="presentation">
+        <button
+          className="birds-eye-project-create-slot"
+          onClick={onCreateProject}
+          type="button"
+        >
+          <span
+            aria-hidden="true"
+            className="birds-eye-project-create-slot-icon"
+          >
+            <AgentHeaderPlusIcon />
+          </span>
+          <span className="birds-eye-project-create-slot-copy">
+            <strong>Add repository</strong>
+            <span>
+              Open the repository setup flow and add another repository to this
+              dashboard.
+            </span>
+          </span>
+        </button>
+      </div>
+    );
+  };
+
   return (
     <section className="birds-eye-route">
       <div className="birds-eye-route-header">
         <div className="birds-eye-route-header-inner">
-          <DashboardBreadcrumbs items={[{ label: "Dashboard" }]} />
+          <div
+            aria-label="Dashboard tabs"
+            className="birds-eye-route-tab-strip"
+            role="tablist"
+          >
+            {tabs.map((tab) => (
+              <DashboardRouteTabButton
+                active={tab.id === activeTabId}
+                dragState={
+                  tab.issueId && dragOverTabIssueId === tab.issueId
+                    ? "drop-target"
+                    : tab.issueId && draggedTabIssueId === tab.issueId
+                      ? "dragging"
+                      : "idle"
+                }
+                draggable={Boolean(tab.issueId)}
+                key={tab.id}
+                label={tab.label}
+                onClick={() => {
+                  setTabContextMenu(null);
+                  onSelectTab(tab.id);
+                }}
+                onClose={
+                  tab.issueId ? () => onCloseTab(tab.issueId as string) : undefined
+                }
+                onContextMenu={
+                  tab.issueId
+                    ? (event) =>
+                        handleOpenTabContextMenu(event, tab.issueId as string)
+                    : undefined
+                }
+                onDragEnd={handleEndDashboardTabDrag}
+                onDragOver={
+                  tab.issueId
+                    ? (event) =>
+                        handleDragDashboardTabOver(event, tab.issueId as string)
+                    : undefined
+                }
+                onDragStart={
+                  tab.issueId
+                    ? (event) =>
+                        handleDragDashboardTabStart(
+                          event,
+                          tab.issueId as string
+                        )
+                    : undefined
+                }
+                onDrop={
+                  tab.issueId
+                    ? (event) =>
+                        handleDropDashboardTab(event, tab.issueId as string)
+                    : undefined
+                }
+              />
+            ))}
+          </div>
           <div className="birds-eye-route-actions">
             <div className="birds-eye-help-shell">
               <button
@@ -8681,77 +9080,174 @@ function DashboardBirdsEyeRouteView({
           </div>
         </div>
       </div>
-      {projects.length ? (
-        <div className="birds-eye-layout">
-          <div className="birds-eye-tree-panel">
-            <div
-              className={
-                isBirdsEyeCanvasDragging
-                  ? "birds-eye-canvas-viewport is-dragging"
-                  : "birds-eye-canvas-viewport"
-              }
-              onPointerCancel={handleBirdsEyeCanvasPointerEnd}
-              onPointerDown={handleBirdsEyeCanvasPointerDown}
-              onPointerMove={handleBirdsEyeCanvasPointerMove}
-              onPointerUp={handleBirdsEyeCanvasPointerEnd}
-              onWheel={handleBirdsEyeCanvasWheel}
-              ref={canvasViewportRef}
-            >
-              <div className="birds-eye-canvas-grid" />
+      {isOverviewTabActive ? (
+        <>
+          {projects.length ? (
+            <div className="birds-eye-layout">
+              <div className="birds-eye-tree-panel">
+                <div
+                  className={
+                    isBirdsEyeCanvasDragging
+                      ? "birds-eye-canvas-viewport is-dragging"
+                      : "birds-eye-canvas-viewport"
+                  }
+                  onPointerCancel={handleBirdsEyeCanvasPointerEnd}
+                  onPointerDown={handleBirdsEyeCanvasPointerDown}
+                  onPointerMove={handleBirdsEyeCanvasPointerMove}
+                  onPointerUp={handleBirdsEyeCanvasPointerEnd}
+                  onWheel={handleBirdsEyeCanvasWheel}
+                  ref={canvasViewportRef}
+                >
+                  <div className="birds-eye-canvas-grid" />
+                  <div
+                    className="birds-eye-canvas-stage"
+                    style={{
+                      transform: `translate(${birdsEyeCanvasOffset.x}px, ${birdsEyeCanvasOffset.y}px) scale(${birdsEyeCanvasZoomScale})`,
+                    }}
+                  >
+                    <div className="birds-eye-tree" role="tree">
+                      {treeModel.projects.map((project) =>
+                        renderBirdsEyeProjectGroup(project)
+                      )}
+                      {renderBirdsEyeAddProjectSlot()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : isLoadingOverview ? (
+            <div className="dashboard-canvas-empty-wrap birds-eye-empty-wrap">
+              <div className="dashboard-canvas-empty-card birds-eye-empty-card">
+                <div className="dashboard-canvas-empty-copy">
+                  <span className="dashboard-canvas-empty-badge">
+                    Loading overview
+                  </span>
+                  <h2>Fetching repositories, folders, and chats</h2>
+                  <p>
+                    The Birds Eye dashboard loads a compact overview first, then
+                    fills in worktrees and previews only when you open them.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="dashboard-canvas-empty-wrap birds-eye-empty-wrap">
+              <div className="dashboard-canvas-empty-card birds-eye-empty-card">
+                <div className="dashboard-canvas-empty-copy">
+                  <span className="dashboard-canvas-empty-badge">
+                    Repositories required
+                  </span>
+                  <h2>Create a repository first</h2>
+                  <p>
+                    This Birds Eye view groups chat activity by repository and
+                    working folder. Add a repository with a local folder anchor
+                    to start routing chats into repo root and worktree contexts.
+                  </p>
+                </div>
+                <button
+                  className="primary-button"
+                  onClick={onCreateProject}
+                  type="button"
+                >
+                  Create repository
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="dashboard-canvas-route-footer">
+            <div className="dashboard-canvas-route-footer-inner">
               <div
-                className="birds-eye-canvas-stage"
-                style={{
-                  transform: `translate(${birdsEyeCanvasOffset.x}px, ${birdsEyeCanvasOffset.y}px)`,
-                }}
+                aria-label="Birds eye zoom"
+                className="dashboard-canvas-zoom-control"
+                role="group"
               >
-                <div className="birds-eye-tree" role="tree">
-                  {treeModel.projects.map((project) =>
-                    renderBirdsEyeProjectGroup(project)
-                  )}
+                <span className="dashboard-canvas-zoom-label">Zoom</span>
+                <div className="dashboard-canvas-zoom-steps">
+                  {birdsEyeCanvasZoomLevels.map((zoomLevel, index) => (
+                    <button
+                      aria-pressed={index === birdsEyeCanvasZoomIndex}
+                      className={
+                        index === birdsEyeCanvasZoomIndex
+                          ? "dashboard-canvas-zoom-step is-active"
+                          : "dashboard-canvas-zoom-step"
+                      }
+                      key={zoomLevel}
+                      onClick={() => setBirdsEyeCanvasZoom(index)}
+                      type="button"
+                    >
+                      {dashboardCanvasZoomLabel(zoomLevel)}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      ) : isLoadingOverview ? (
-        <div className="dashboard-canvas-empty-wrap birds-eye-empty-wrap">
-          <div className="dashboard-canvas-empty-card birds-eye-empty-card">
-            <div className="dashboard-canvas-empty-copy">
-              <span className="dashboard-canvas-empty-badge">
-                Loading overview
-              </span>
-              <h2>Fetching projects, folders, and chats</h2>
-              <p>
-                The Birds Eye dashboard loads a compact overview first, then
-                fills in worktrees and previews only when you open them.
-              </p>
-            </div>
-          </div>
-        </div>
+        </>
+      ) : issueDetailContent ? (
+        issueDetailContent
       ) : (
         <div className="dashboard-canvas-empty-wrap birds-eye-empty-wrap">
           <div className="dashboard-canvas-empty-card birds-eye-empty-card">
             <div className="dashboard-canvas-empty-copy">
               <span className="dashboard-canvas-empty-badge">
-                Projects required
+                Loading conversation
               </span>
-              <h2>Create a project first</h2>
+              <h2>Preparing the selected issue</h2>
               <p>
-                This Birds Eye view groups chat activity by project and working
-                folder. Add a project with a repository anchor to start routing
-                chats into repo root and worktree contexts.
+                Opening {activeIssueTabId ? "the selected tab" : "this issue"}{" "}
+                with the full issue workspace and conversation detail.
               </p>
             </div>
-            <button
-              className="primary-button"
-              onClick={onCreateProject}
-              type="button"
-            >
-              Create project
-            </button>
           </div>
         </div>
       )}
+
+      {tabContextMenu ? (
+        <div
+          className="birds-eye-tab-context-menu"
+          onClick={(event) => event.stopPropagation()}
+          onContextMenu={(event) => event.preventDefault()}
+          ref={tabContextMenuRef}
+          role="menu"
+          style={{ left: tabContextMenu.x, top: tabContextMenu.y }}
+        >
+          <button
+            className="birds-eye-tab-context-menu-item"
+            onClick={() => {
+              setTabContextMenu(null);
+              onCloseTab(tabContextMenu.issueId);
+            }}
+            role="menuitem"
+            type="button"
+          >
+            Close tab
+          </button>
+        </div>
+      ) : null}
+
+      {chatContextMenu ? (
+        <div
+          className="birds-eye-chat-context-menu"
+          onClick={(event) => event.stopPropagation()}
+          onContextMenu={(event) => event.preventDefault()}
+          ref={chatContextMenuRef}
+          role="menu"
+          style={{ left: chatContextMenu.x, top: chatContextMenu.y }}
+        >
+          <button
+            className="birds-eye-chat-context-menu-item"
+            onClick={() => {
+              setChatContextMenu(null);
+              onOpenIssueDetail(chatContextMenu.issueId);
+            }}
+            role="menuitem"
+            type="button"
+          >
+            Open chat in new tab
+          </button>
+        </div>
+      ) : null}
 
       <BirdsEyeCommandPalette
         actions={filteredCommandActions}
@@ -8793,7 +9289,11 @@ function BirdsEyeCommandPalette({
   }
 
   return (
-    <div className="birds-eye-command-backdrop" onClick={onClose} role="presentation">
+    <div
+      className="birds-eye-command-backdrop"
+      onClick={onClose}
+      role="presentation"
+    >
       <div
         className="birds-eye-command-palette"
         onClick={(event) => event.stopPropagation()}
@@ -8840,6 +9340,7 @@ function BirdsEyeRow({
   isFocused,
   isPreviewing,
   onClick,
+  onContextMenu,
   onDoubleClick,
   onToggleExpand,
   row,
@@ -8849,6 +9350,7 @@ function BirdsEyeRow({
   isFocused: boolean;
   isPreviewing: boolean;
   onClick: () => void;
+  onContextMenu?: (event: MouseEvent<HTMLButtonElement>) => void;
   onDoubleClick: () => void;
   onToggleExpand: () => void;
   row: BirdsEyeVisibleRow;
@@ -8872,6 +9374,7 @@ function BirdsEyeRow({
         .filter(Boolean)
         .join(" ")}
       onClick={onClick}
+      onContextMenu={onContextMenu}
       onDoubleClick={onDoubleClick}
       ref={buttonRef}
       tabIndex={isFocused ? 0 : -1}
@@ -8898,13 +9401,9 @@ function BirdsEyeRow({
       </div>
 
       <div className="birds-eye-row-main">
-        {node.kind === "project" ? (
-          <strong>{node.label}</strong>
-        ) : null}
+        {node.kind === "project" ? <strong>{node.label}</strong> : null}
 
-        {node.kind === "folder" ? (
-          <strong>{node.label}</strong>
-        ) : null}
+        {node.kind === "folder" ? <strong>{node.label}</strong> : null}
 
         {node.kind === "chat" ? (
           <>
@@ -8917,9 +9416,7 @@ function BirdsEyeRow({
             <span>
               {[
                 node.agentLabel,
-                node.runStatus
-                  ? agentRunStatusLabel(node.runStatus)
-                  : null,
+                node.runStatus ? agentRunStatusLabel(node.runStatus) : null,
                 node.runSummary,
               ]
                 .filter(Boolean)
@@ -8998,10 +9495,11 @@ export function BirdsEyeQuickCreateRow({
     { command: draft.command, model: draft.model },
     dependencyCheck
   );
-  const runtimeThinkingEffortOptions = mergeIssueOptions(
-    ["auto", "low", "medium", "high"],
-    draft.thinkingEffort
+  const normalizedThinkingEffort = normalizeReasoningEffortForProvider(
+    draft.thinkingEffort,
+    runtimeProvider
   );
+  const runtimeThinkingEffortOptions = buildReasoningEffortOptions(draft);
   const sourceLabel =
     sourceNode?.kind === "chat"
       ? `Prefilled from ${sourceNode.title}`
@@ -9070,16 +9568,16 @@ export function BirdsEyeQuickCreateRow({
             </label>
 
             <label className="birds-eye-draft-field">
-              <span>Thinking</span>
+              <span>Reasoning effort</span>
               <IssueDialogInlineSelect
-                ariaLabel="New chat thinking effort"
+                ariaLabel="New chat reasoning effort"
                 className="birds-eye-draft-select"
                 onChange={(value) => onDraftChange({ thinkingEffort: value })}
-                value={draft.thinkingEffort}
+                value={normalizedThinkingEffort}
               >
                 {runtimeThinkingEffortOptions.map((option) => (
                   <option key={option} value={option}>
-                    {capitalize(option)}
+                    {reasoningEffortLabel(option)}
                   </option>
                 ))}
               </IssueDialogInlineSelect>
@@ -9091,7 +9589,9 @@ export function BirdsEyeQuickCreateRow({
                 aria-label="Toggle plan mode"
                 aria-pressed={draft.planMode}
                 className={
-                  draft.planMode ? "agent-config-toggle active" : "agent-config-toggle"
+                  draft.planMode
+                    ? "agent-config-toggle active"
+                    : "agent-config-toggle"
                 }
                 disabled={runtimeProvider !== "claude"}
                 onClick={() => onDraftChange({ planMode: !draft.planMode })}
@@ -9103,7 +9603,9 @@ export function BirdsEyeQuickCreateRow({
           </div>
 
           {errorMessage ? (
-            <span className="project-kanban-add-card-error">{errorMessage}</span>
+            <span className="project-kanban-add-card-error">
+              {errorMessage}
+            </span>
           ) : null}
         </div>
 
@@ -9181,13 +9683,19 @@ function BirdsEyePreviewPanel({
           </div>
 
           <div className="birds-eye-preview-summary">
-            <SummaryPill label="Status" value={issueStatusLabel(issue.status)} />
+            <SummaryPill
+              label="Status"
+              value={issueStatusLabel(issue.status)}
+            />
             <SummaryPill label="Agent" value={issueModelLabel(issue, agents)} />
             <SummaryPill
               label="Last activity"
               value={formatRelativeIssueDate(issue.updated_at)}
             />
-            <SummaryPill label="Code impact" value={birdsEyeImpactLabel(codeImpact)} />
+            <SummaryPill
+              label="Code impact"
+              value={birdsEyeImpactLabel(codeImpact)}
+            />
             <SummaryPill label="Queued" value={subissueCount} />
           </div>
 
@@ -9198,11 +9706,15 @@ function BirdsEyePreviewPanel({
                 <RunStatusBadge status={runCardUpdate.run_status} />
               </div>
               <p>{issueRunCardUpdateSummary(runCardUpdate)}</p>
-              <span>{formatRelativeIssueDate(runCardUpdate.last_activity_at)}</span>
+              <span>
+                {formatRelativeIssueDate(runCardUpdate.last_activity_at)}
+              </span>
             </section>
           ) : null}
 
-          {errorMessage ? <div className="issue-dialog-alert">{errorMessage}</div> : null}
+          {errorMessage ? (
+            <div className="issue-dialog-alert">{errorMessage}</div>
+          ) : null}
           {isLoading ? (
             <p className="issues-detail-copy muted">
               Loading the latest conversation state...
@@ -9268,7 +9780,7 @@ function BirdsEyePreviewPanel({
               onClick={() => onOpenIssue(issue.id)}
               type="button"
             >
-              Open conversation
+              Open in tab
             </button>
           </div>
         </>
@@ -9277,9 +9789,8 @@ function BirdsEyePreviewPanel({
           <span className="route-kicker">Preview</span>
           <h2>Focus a chat to inspect it lightly</h2>
           <p>
-            Right or Enter previews the focused chat. Escape closes the preview,
-            and Enter again opens the full conversation detail only when you
-            actually need it.
+            Enter previews the focused chat. Escape closes the preview, and
+            double click opens the full conversation in a tab.
           </p>
         </div>
       )}
@@ -9440,7 +9951,8 @@ function DashboardCanvasRouteView({
               }}
             >
               {projectColumns.map((projectColumn) => {
-                const isSelected = selectedProjectId === projectColumn.project.id;
+                const isSelected =
+                  selectedProjectId === projectColumn.project.id;
                 const isCreatingProjectView =
                   creatingProjectId === projectColumn.project.id;
                 const isSavingProjectView =
@@ -9480,18 +9992,18 @@ function DashboardCanvasRouteView({
                             <h2>
                               {projectBoard.project.name ??
                                 projectBoard.project.title ??
-                                "Untitled project"}
+                                "Untitled repository"}
                             </h2>
                             <p className="project-kanban-board-path">
                               {projectBoard.project.primary_workspace?.cwd ??
-                                "Choose a repository to anchor this project."}
+                                "Choose a local folder to anchor this repository."}
                             </p>
                           </div>
                           <div className="project-kanban-board-side">
                             <label className="project-kanban-board-grouping">
                               <span>Group by</span>
                               <ShadcnSelect
-                                ariaLabel={`Group ${projectBoard.project.name ?? projectBoard.project.title ?? "project"} ${projectBoard.viewName} by`}
+                                ariaLabel={`Group ${projectBoard.project.name ?? projectBoard.project.title ?? "repository"} ${projectBoard.viewName} by`}
                                 onChange={(nextValue) =>
                                   onProjectGroupingChange(
                                     projectColumn.project.id,
@@ -9505,7 +10017,9 @@ function DashboardCanvasRouteView({
                             </label>
 
                             <div className="project-kanban-board-meta">
-                              <span>{projectBoard.issueCount} conversations</span>
+                              <span>
+                                {projectBoard.issueCount} conversations
+                              </span>
                               <span>
                                 {projectBoard.project.target_date
                                   ? `Target ${formatShortDate(projectBoard.project.target_date)}`
@@ -9535,8 +10049,8 @@ function DashboardCanvasRouteView({
                                 type="button"
                               >
                                 <span
-                                  className="project-kanban-column-create-icon"
                                   aria-hidden="true"
+                                  className="project-kanban-column-create-icon"
                                 >
                                   +
                                 </span>
@@ -9567,10 +10081,14 @@ function DashboardCanvasRouteView({
                                             issue.id
                                           ] ?? null;
                                         const cardUpdateSummary = cardUpdate
-                                          ? issueRunCardUpdateSummary(cardUpdate)
+                                          ? issueRunCardUpdateSummary(
+                                              cardUpdate
+                                            )
                                           : null;
-                                        const issueAgentLabel =
-                                          issueModelLabel(issue, agents);
+                                        const issueAgentLabel = issueModelLabel(
+                                          issue,
+                                          agents
+                                        );
                                         const hasAssignedAgent =
                                           Boolean(issue.assignee_agent_id) ||
                                           Object.keys(
@@ -9583,7 +10101,9 @@ function DashboardCanvasRouteView({
                                           <button
                                             className="project-kanban-card"
                                             key={issue.id}
-                                            onClick={() => onOpenIssue(issue.id)}
+                                            onClick={() =>
+                                              onOpenIssue(issue.id)
+                                            }
                                             type="button"
                                           >
                                             <div className="project-kanban-card-header">
@@ -9618,7 +10138,10 @@ function DashboardCanvasRouteView({
                                                 </span>
                                                 <span
                                                   className="project-kanban-card-update-copy"
-                                                  title={cardUpdateSummary ?? undefined}
+                                                  title={
+                                                    cardUpdateSummary ??
+                                                    undefined
+                                                  }
                                                 >
                                                   {cardUpdateSummary}
                                                 </span>
@@ -9649,8 +10172,8 @@ function DashboardCanvasRouteView({
                           <div className="project-kanban-add-card-copy">
                             <strong>Save another view</strong>
                             <p>
-                              Keep alternate groupings for this project in the
-                              same dashboard column.
+                              Keep alternate groupings for this repository in
+                              the same dashboard column.
                             </p>
                             {projectViewError ? (
                               <span className="project-kanban-add-card-error">
@@ -9669,7 +10192,7 @@ function DashboardCanvasRouteView({
                             />
                             <div className="project-kanban-add-grouping">
                               <ShadcnSelect
-                                ariaLabel="Choose grouping for saved project view"
+                                ariaLabel="Choose grouping for saved repository view"
                                 onChange={setNewProjectViewGrouping}
                                 options={dashboardProjectGroupingSelectOptions}
                                 value={newProjectViewGrouping}
@@ -9688,11 +10211,15 @@ function DashboardCanvasRouteView({
                                 className="primary-button compact-button"
                                 disabled={isSavingProjectView}
                                 onClick={() =>
-                                  void handleSaveProjectView(projectColumn.project.id)
+                                  void handleSaveProjectView(
+                                    projectColumn.project.id
+                                  )
                                 }
                                 type="button"
                               >
-                                {isSavingProjectView ? "Saving..." : "Save view"}
+                                {isSavingProjectView
+                                  ? "Saving..."
+                                  : "Save view"}
                               </button>
                             </div>
                           </div>
@@ -9700,7 +10227,9 @@ function DashboardCanvasRouteView({
                       ) : (
                         <button
                           className="project-kanban-add-button"
-                          onClick={() => handleOpenProjectViewComposer(projectColumn)}
+                          onClick={() =>
+                            handleOpenProjectViewComposer(projectColumn)
+                          }
                           type="button"
                         >
                           <span
@@ -9713,7 +10242,7 @@ function DashboardCanvasRouteView({
                             <strong>Save another view</strong>
                             <small>
                               Add a dimmed secondary kanban variant for this
-                              project column.
+                              repository column.
                             </small>
                           </span>
                         </button>
@@ -9728,7 +10257,7 @@ function DashboardCanvasRouteView({
       ) : (
         <div className="dashboard-canvas-empty-wrap">
           <div className="dashboard-canvas-empty-card">
-            <div className="dashboard-canvas-empty-icon" aria-hidden="true">
+            <div aria-hidden="true" className="dashboard-canvas-empty-icon">
               <svg fill="none" viewBox="0 0 48 48">
                 <path
                   d="M10 13.5h28A3.5 3.5 0 0 1 41.5 17v18A3.5 3.5 0 0 1 38 38.5H10A3.5 3.5 0 0 1 6.5 35V17A3.5 3.5 0 0 1 10 13.5Z"
@@ -9745,12 +10274,13 @@ function DashboardCanvasRouteView({
             </div>
             <div className="dashboard-canvas-empty-copy">
               <span className="dashboard-canvas-empty-badge">
-                Projects required
+                Repositories required
               </span>
-              <h2>Create a project first</h2>
+              <h2>Create a repository first</h2>
               <p>
-                Each project gets its own kanban board on this canvas. Add a
-                project with a repository anchor to start laying out your board.
+                Each repository gets its own kanban board on this canvas. Add a
+                repository with a local folder anchor to start laying out your
+                board.
               </p>
             </div>
             <button
@@ -9758,7 +10288,7 @@ function DashboardCanvasRouteView({
               onClick={onCreateProject}
               type="button"
             >
-              Create project
+              Create repository
             </button>
           </div>
         </div>
@@ -9822,13 +10352,16 @@ function StatsRouteView({
     [issues]
   );
   const visibleConversations = useMemo(
-    () => issues.filter((issue) => !issue.hidden_at && isRootConversationIssue(issue)),
+    () =>
+      issues.filter(
+        (issue) => !issue.hidden_at && isRootConversationIssue(issue)
+      ),
     [issues]
   );
   const queuedMessages = useMemo(
     () =>
       issues.filter(
-        (issue) => !issue.hidden_at && !isRootConversationIssue(issue)
+        (issue) => !(issue.hidden_at || isRootConversationIssue(issue))
       ),
     [issues]
   );
@@ -9860,20 +10393,28 @@ function StatsRouteView({
     };
 
     for (const issue of visibleConversations) {
-      ensureSummary(issueModelLabel(issue, agents)).conversationIds.add(issue.id);
+      ensureSummary(issueModelLabel(issue, agents)).conversationIds.add(
+        issue.id
+      );
     }
 
     for (const workspace of workspaces) {
-      const issue = workspace.issue_id ? issueById.get(workspace.issue_id) : null;
+      const issue = workspace.issue_id
+        ? issueById.get(workspace.issue_id)
+        : null;
       ensureSummary(
-        issue ? issueModelLabel(issue, agents) : agentModelLabelById(agents, workspace.agent_id)
+        issue
+          ? issueModelLabel(issue, agents)
+          : agentModelLabelById(agents, workspace.agent_id)
       ).workspaceCount += 1;
     }
 
     for (const update of Object.values(issueRunCardUpdatesByIssueId)) {
       const issue = issueById.get(update.issue_id);
       const summary = ensureSummary(
-        issue ? issueModelLabel(issue, agents) : agentModelLabelById(agents, update.agent_id)
+        issue
+          ? issueModelLabel(issue, agents)
+          : agentModelLabelById(agents, update.agent_id)
       );
       summary.conversationIds.add(update.issue_id);
       if (update.run_status === "queued" || update.run_status === "running") {
@@ -9909,7 +10450,13 @@ function StatsRouteView({
         }
         return left.label.localeCompare(right.label);
       });
-  }, [agents, issueById, issueRunCardUpdatesByIssueId, visibleConversations, workspaces]);
+  }, [
+    agents,
+    issueById,
+    issueRunCardUpdatesByIssueId,
+    visibleConversations,
+    workspaces,
+  ]);
   const recentModelUpdates = useMemo(() => {
     return Object.values(issueRunCardUpdatesByIssueId)
       .map((update) => ({
@@ -9923,7 +10470,8 @@ function StatsRouteView({
           entry.issue !== null && entry.issue.hidden_at == null
       )
       .sort((left, right) => {
-        const leftDate = parseIssueDate(left.update.last_activity_at)?.getTime() ?? 0;
+        const leftDate =
+          parseIssueDate(left.update.last_activity_at)?.getTime() ?? 0;
         const rightDate =
           parseIssueDate(right.update.last_activity_at)?.getTime() ?? 0;
         return rightDate - leftDate;
@@ -9951,12 +10499,15 @@ function StatsRouteView({
         <MetricCard label="Queued Messages" value={queuedMessages.length} />
         <MetricCard label="Models" value={modelSummaries.length} />
         <MetricCard label="Active Models" value={activeModelCount} />
-        <MetricCard label="Projects" value={snapshot?.projects.length ?? 0} />
+        <MetricCard
+          label="Repositories"
+          value={snapshot?.projects.length ?? 0}
+        />
         <MetricCard
           label="Worktrees"
           value={snapshot?.workspaces.length ?? 0}
         />
-        <MetricCard label="Repositories" value={repositoriesCount} />
+        <MetricCard label="Tracked Repositories" value={repositoriesCount} />
       </div>
 
       <div className="surface-grid">
@@ -10014,13 +10565,13 @@ function StatsRouteView({
         </section>
 
         <section className="surface-panel">
-          <h3>Projects</h3>
+          <h3>Repositories</h3>
           {(snapshot?.projects ?? []).length ? (
             <div className="surface-list">
               {(snapshot?.projects ?? []).slice(0, 5).map((project) => (
                 <div className="surface-list-row" key={project.id}>
                   <strong>
-                    {project.name ?? project.title ?? "Untitled project"}
+                    {project.name ?? project.title ?? "Untitled repository"}
                   </strong>
                   <span>
                     {project.primary_workspace?.cwd ??
@@ -10032,7 +10583,7 @@ function StatsRouteView({
             </div>
           ) : (
             <p className="surface-empty-copy">
-              Projects define the main repo path for worktrees.
+              Repositories define the main repo path for worktrees.
             </p>
           )}
         </section>
@@ -10085,7 +10636,9 @@ function StatsRouteView({
                       {issueRunCardUpdateSummary(update)}
                     </span>
                   </div>
-                  <span>{formatCompactIssueTimestamp(update.last_activity_at)}</span>
+                  <span>
+                    {formatCompactIssueTimestamp(update.last_activity_at)}
+                  </span>
                 </div>
               ))}
             </div>
@@ -10107,7 +10660,9 @@ function StatsRouteView({
                   onClick={() => onOpenWorkspace(workspace)}
                   type="button"
                 >
-                  <strong>{workspace.issue_identifier ?? workspace.title}</strong>
+                  <strong>
+                    {workspace.issue_identifier ?? workspace.title}
+                  </strong>
                   <span>
                     {[
                       workspace.issue_title,
@@ -10151,7 +10706,7 @@ function DependencyToolRow({
         <strong>{label}</strong>
         <span>
           {capability.installed
-            ? capability.path ?? "Installed and ready"
+            ? (capability.path ?? "Installed and ready")
             : "Not detected in PATH"}
         </span>
       </div>
@@ -10264,8 +10819,8 @@ function IssuesListView({
           <div className="issues-empty-state">
             <h2>{emptyTitle}</h2>
             <p>
-              Conversations hold the context, and model worktrees spin up when
-              a run starts.
+              Conversations hold the context, and model worktrees spin up when a
+              run starts.
             </p>
           </div>
         )}
@@ -10398,10 +10953,11 @@ function IssueDetailView({
     issueDraft,
     dependencyCheck
   );
-  const runtimeThinkingEffortOptions = mergeIssueOptions(
-    ["auto", "low", "medium", "high"],
-    issueDraft.thinkingEffort
+  const normalizedIssueThinkingEffort = normalizeReasoningEffortForProvider(
+    issueDraft.thinkingEffort,
+    runtimeProvider
   );
+  const runtimeThinkingEffortOptions = buildReasoningEffortOptions(issueDraft);
   const runtimeProviderOptions = buildIssueRuntimeProviderOptions(
     dependencyCheck,
     issueDraft.command,
@@ -10699,9 +11255,9 @@ function IssueDetailView({
 
           <section className="issues-detail-section">
             <div
+              aria-label="Conversation details sections"
               className="issues-detail-tabs"
               role="tablist"
-              aria-label="Conversation details sections"
             >
               <button
                 aria-selected={activeTab === "conversation"}
@@ -10922,11 +11478,11 @@ function IssueDetailView({
                         </button>
                       ))}
                     </div>
-                  ) : !isLoadingLinkedRuns && !linkedRunsError ? (
+                  ) : isLoadingLinkedRuns || linkedRunsError ? null : (
                     <p className="issues-detail-copy muted">
                       No model runs linked to this conversation yet.
                     </p>
-                  ) : null}
+                  )}
                 </>
               ) : null}
 
@@ -11015,12 +11571,12 @@ function IssueDetailView({
                   <IssuePropertySelectRow
                     disabled={isSavingIssue}
                     label="Status"
-                    tone={normalizeBoardIssueValue(issueDraft.status)}
                     onChange={(value) =>
                       commitPropertyPatch({
                         status: value,
                       })
                     }
+                    tone={normalizeBoardIssueValue(issueDraft.status)}
                     value={issueDraft.status}
                   >
                     {availableStatusOptions.map((status) => (
@@ -11032,8 +11588,7 @@ function IssueDetailView({
 
                   <IssuePropertySelectRow
                     disabled={isSavingIssue}
-                    label="Project"
-                    tone="project"
+                    label="Repository"
                     onChange={(value) =>
                       commitPropertyPatch({
                         projectId: value,
@@ -11043,10 +11598,13 @@ function IssueDetailView({
                         workspaceWorktreeName: "",
                       })
                     }
+                    tone="project"
                     value={issueDraft.projectId}
                   >
                     <option disabled value="">
-                      {projects.length ? "Select project" : "Create project"}
+                      {projects.length
+                        ? "Select repository"
+                        : "Create repository"}
                     </option>
                     {projects.map((project) => (
                       <option key={project.id} value={project.id}>
@@ -11059,7 +11617,6 @@ function IssueDetailView({
                     disabled={isSavingIssue || !selectedProjectRepoPath}
                     hint={workspaceTargetHint}
                     label="Worktree target"
-                    tone="neutral"
                     onChange={(value) =>
                       commitPropertyPatch(
                         issueWorkspaceDraftPatchFromSelection(
@@ -11069,6 +11626,7 @@ function IssueDetailView({
                         )
                       )
                     }
+                    tone="neutral"
                     value={selectedWorkspaceTargetValue}
                   >
                     <option value="main">Repo root</option>
@@ -11097,12 +11655,12 @@ function IssueDetailView({
                   <IssuePropertySelectRow
                     disabled={isSavingIssue}
                     label="Parent Conversation"
-                    tone="neutral"
                     onChange={(value) =>
                       commitPropertyPatch({
                         parentId: value,
                       })
                     }
+                    tone="neutral"
                     value={issueDraft.parentId}
                   >
                     <option value="">No parent conversation</option>
@@ -11165,21 +11723,21 @@ function IssueDetailView({
                       </AgentConfigSelect>
                     </AgentConfigField>
 
-                    <AgentConfigField
-                      htmlFor="issue-detail-thinking"
-                      label="Thinking effort"
-                    >
-                      <AgentConfigSelect
-                        ariaLabel="Conversation thinking effort"
+                <AgentConfigField
+                  htmlFor="issue-detail-thinking"
+                  label="Reasoning effort"
+                >
+                  <AgentConfigSelect
+                        ariaLabel="Conversation reasoning effort"
                         id="issue-detail-thinking"
                         onChange={(value) =>
                           commitPropertyPatch({ thinkingEffort: value })
                         }
-                        value={issueDraft.thinkingEffort}
+                        value={normalizedIssueThinkingEffort}
                       >
                         {runtimeThinkingEffortOptions.map((option) => (
                           <option key={option} value={option}>
-                            {capitalize(option)}
+                            {reasoningEffortLabel(option)}
                           </option>
                         ))}
                       </AgentConfigSelect>
@@ -11402,10 +11960,11 @@ function ConversationIssueDetailView({
     issueDraft,
     dependencyCheck
   );
-  const runtimeThinkingEffortOptions = mergeIssueOptions(
-    ["auto", "low", "medium", "high"],
-    issueDraft.thinkingEffort
+  const normalizedIssueThinkingEffort = normalizeReasoningEffortForProvider(
+    issueDraft.thinkingEffort,
+    runtimeProvider
   );
+  const runtimeThinkingEffortOptions = buildReasoningEffortOptions(issueDraft);
   const runtimeProviderOptions = buildIssueRuntimeProviderOptions(
     dependencyCheck,
     issueDraft.command,
@@ -11698,7 +12257,10 @@ function ConversationIssueDetailView({
 
             <div className="conversation-detail-summary-grid">
               <SummaryPill label="Status" value={statusLabel(issue.status)} />
-              <SummaryPill label="Project" value={projectLabel(issue.project_id)} />
+              <SummaryPill
+                label="Repository"
+                value={projectLabel(issue.project_id)}
+              />
               <SummaryPill label="Agent" value={providerLabel} />
               <SummaryPill label="Runtime" value={runtimeStatusLabel} />
               <SummaryPill label="Attachments" value={attachments.length} />
@@ -11716,7 +12278,8 @@ function ConversationIssueDetailView({
                 <div>
                   <h3>Attached context</h3>
                   <p className="issues-detail-copy muted">
-                    Files stored with the board issue and available to future runs.
+                    Files stored with the board issue and available to future
+                    runs.
                   </p>
                 </div>
                 <button
@@ -11750,9 +12313,7 @@ function ConversationIssueDetailView({
                   ))}
                 </div>
               ) : (
-                <p className="issues-detail-copy muted">
-                  No attachments yet.
-                </p>
+                <p className="issues-detail-copy muted">No attachments yet.</p>
               )}
             </section>
 
@@ -11761,7 +12322,8 @@ function ConversationIssueDetailView({
                 <div>
                   <h3>Queued follow-ups</h3>
                   <p className="issues-detail-copy muted">
-                    Lightweight child conversations that are still attached here.
+                    Lightweight child conversations that are still attached
+                    here.
                   </p>
                 </div>
                 <button
@@ -11819,27 +12381,35 @@ function ConversationIssueDetailView({
             {isConversationLoading ? (
               <div className="conversation-empty-state">
                 <h3>Loading daemon conversation…</h3>
-                <p>The issue already has a workspace session. The transcript will appear once the session state finishes hydrating.</p>
+                <p>
+                  The issue already has a workspace session. The transcript will
+                  appear once the session state finishes hydrating.
+                </p>
               </div>
-            ) : !hasWorkspaceSession ? (
+            ) : hasWorkspaceSession ? (
+              conversationRows.length ? (
+                <div className="conversation-timeline-scroll">
+                  <ConversationTimeline
+                    onRespondToQuestion={onRespondToQuestion}
+                    rows={conversationRows}
+                  />
+                </div>
+              ) : (
+                <div className="conversation-empty-state">
+                  <h3>No daemon messages yet</h3>
+                  <p>
+                    Send the first prompt below to start the workspace
+                    transcript for this conversation.
+                  </p>
+                </div>
+              )
+            ) : (
               <div className="conversation-empty-state">
                 <h3>No workspace session</h3>
                 <p>
-                  This issue does not have a checked-out daemon workspace, so there is no live transcript, file tree, or git history to show yet.
-                </p>
-              </div>
-            ) : conversationRows.length ? (
-              <div className="conversation-timeline-scroll">
-                <ConversationTimeline
-                  onRespondToQuestion={onRespondToQuestion}
-                  rows={conversationRows}
-                />
-              </div>
-            ) : (
-              <div className="conversation-empty-state">
-                <h3>No daemon messages yet</h3>
-                <p>
-                  Send the first prompt below to start the workspace transcript for this conversation.
+                  This issue does not have a checked-out daemon workspace, so
+                  there is no live transcript, file tree, or git history to show
+                  yet.
                 </p>
               </div>
             )}
@@ -11859,7 +12429,8 @@ function ConversationIssueDetailView({
                 />
                 <div className="conversation-composer-footer">
                   <span className="issues-detail-copy muted">
-                    Replies, tool calls, sub-agents, and code changes stream from the daemon session.
+                    Replies, tool calls, sub-agents, and code changes stream
+                    from the daemon session.
                   </span>
                   <button
                     className="primary-button"
@@ -11881,15 +12452,13 @@ function ConversationIssueDetailView({
             <section className="inspector-panel workspace-details-panel">
               <h3>Workspace Inspector</h3>
               <p className="issues-detail-copy muted">
-                Changes, files, and commits appear here once this conversation has an attached daemon workspace.
+                Changes, files, and commits appear here once this conversation
+                has an attached daemon workspace.
               </p>
               <div className="workspace-detail-grid">
+                <DetailRow label="Status" value={statusLabel(issue.status)} />
                 <DetailRow
-                  label="Status"
-                  value={statusLabel(issue.status)}
-                />
-                <DetailRow
-                  label="Project"
+                  label="Repository"
                   value={projectLabel(issue.project_id)}
                 />
                 <DetailRow
@@ -11941,12 +12510,12 @@ function ConversationIssueDetailView({
                   <IssuePropertySelectRow
                     disabled={isSavingIssue}
                     label="Status"
-                    tone={normalizeBoardIssueValue(issueDraft.status)}
                     onChange={(value) =>
                       commitPropertyPatch({
                         status: value,
                       })
                     }
+                    tone={normalizeBoardIssueValue(issueDraft.status)}
                     value={issueDraft.status}
                   >
                     {availableStatusOptions.map((status) => (
@@ -11958,8 +12527,7 @@ function ConversationIssueDetailView({
 
                   <IssuePropertySelectRow
                     disabled={isSavingIssue}
-                    label="Project"
-                    tone="project"
+                    label="Repository"
                     onChange={(value) =>
                       commitPropertyPatch({
                         projectId: value,
@@ -11969,10 +12537,13 @@ function ConversationIssueDetailView({
                         workspaceWorktreeName: "",
                       })
                     }
+                    tone="project"
                     value={issueDraft.projectId}
                   >
                     <option disabled value="">
-                      {projects.length ? "Select project" : "Create project"}
+                      {projects.length
+                        ? "Select repository"
+                        : "Create repository"}
                     </option>
                     {projects.map((project) => (
                       <option key={project.id} value={project.id}>
@@ -11985,7 +12556,6 @@ function ConversationIssueDetailView({
                     disabled={isSavingIssue || !selectedProjectRepoPath}
                     hint={workspaceTargetHint}
                     label="Worktree target"
-                    tone="neutral"
                     onChange={(value) =>
                       commitPropertyPatch(
                         issueWorkspaceDraftPatchFromSelection(
@@ -11995,6 +12565,7 @@ function ConversationIssueDetailView({
                         )
                       )
                     }
+                    tone="neutral"
                     value={selectedWorkspaceTargetValue}
                   >
                     <option value="main">Repo root</option>
@@ -12023,12 +12594,12 @@ function ConversationIssueDetailView({
                   <IssuePropertySelectRow
                     disabled={isSavingIssue}
                     label="Parent Conversation"
-                    tone="neutral"
                     onChange={(value) =>
                       commitPropertyPatch({
                         parentId: value,
                       })
                     }
+                    tone="neutral"
                     value={issueDraft.parentId}
                   >
                     <option value="">No parent conversation</option>
@@ -12091,21 +12662,21 @@ function ConversationIssueDetailView({
                       </AgentConfigSelect>
                     </AgentConfigField>
 
-                    <AgentConfigField
-                      htmlFor="issue-detail-thinking"
-                      label="Thinking effort"
-                    >
-                      <AgentConfigSelect
-                        ariaLabel="Conversation thinking effort"
+                <AgentConfigField
+                  htmlFor="issue-detail-thinking"
+                  label="Reasoning effort"
+                >
+                  <AgentConfigSelect
+                        ariaLabel="Conversation reasoning effort"
                         id="issue-detail-thinking"
                         onChange={(value) =>
                           commitPropertyPatch({ thinkingEffort: value })
                         }
-                        value={issueDraft.thinkingEffort}
+                        value={normalizedIssueThinkingEffort}
                       >
                         {runtimeThinkingEffortOptions.map((option) => (
                           <option key={option} value={option}>
-                            {capitalize(option)}
+                            {reasoningEffortLabel(option)}
                           </option>
                         ))}
                       </AgentConfigSelect>
@@ -12195,10 +12766,11 @@ function ConversationIssueDetailView({
   );
 }
 
-function IssueWorkspaceDetailView({
+export function IssueWorkspaceDetailView({
   agents,
   availableStatusOptions,
   dependencyCheck,
+  embeddedInDashboard = false,
   issue,
   issueDraft,
   issueEditorError,
@@ -12245,6 +12817,7 @@ function IssueWorkspaceDetailView({
   agents: AgentRecord[];
   availableStatusOptions: string[];
   dependencyCheck: RuntimeCapabilities | null;
+  embeddedInDashboard?: boolean;
   issue: IssueRecord;
   issueDraft: IssueEditDraft;
   issueEditorError: string | null;
@@ -12288,11 +12861,14 @@ function IssueWorkspaceDetailView({
   workspaceTargetLoading: boolean;
   workspaceTargetWorktrees: GitWorktreeRecord[];
 }) {
-  const issueProjectName = projectLabel(issueDraft.projectId || issue.project_id);
+  const issueProjectName = projectLabel(
+    issueDraft.projectId || issue.project_id
+  );
   const issueBreadcrumbTitle = issueDraft.title.trim() || issue.title;
   const hasWorkspaceSession = Boolean(workspace?.session_id);
   const isConversationLoading =
-    sessionLoading || (hasWorkspaceSession && session == null && sessionRows.length === 0);
+    sessionLoading ||
+    (hasWorkspaceSession && session == null && sessionRows.length === 0);
   const composerDisabled = !session;
   const effectiveWorkspaceCenterTab =
     workspaceCenterTab === "runs" ? "conversation" : workspaceCenterTab;
@@ -12305,14 +12881,29 @@ function IssueWorkspaceDetailView({
     issueDraft.command,
     issueDraft.model
   );
-  const runtimeModelOptions = buildAgentModelOptions(issueDraft, dependencyCheck);
-  const runtimeThinkingEffortOptions = mergeIssueOptions(
-    ["auto", "low", "medium", "high"],
-    issueDraft.thinkingEffort
+  const runtimeModelOptions = buildAgentModelOptions(
+    issueDraft,
+    dependencyCheck
   );
+  const normalizedIssueThinkingEffort = normalizeReasoningEffortForProvider(
+    issueDraft.thinkingEffort,
+    runtimeProvider
+  );
+  const runtimeThinkingEffortOptions = buildReasoningEffortOptions(issueDraft);
   const isSessionStreaming =
     runtimeStatusValue === "running" || runtimeStatusValue === "waiting";
-  const runtimeTone = workspaceRuntimeTone(runtimeStatusValue, sessionErrorMessage);
+  const runtimeTone = workspaceRuntimeTone(
+    runtimeStatusValue,
+    sessionErrorMessage
+  );
+  const isCompactInspector = useMediaQuery("(max-width: 1280px)");
+  const [isInspectorSheetOpen, setIsInspectorSheetOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isCompactInspector) {
+      setIsInspectorSheetOpen(false);
+    }
+  }, [isCompactInspector]);
 
   const commitRuntimePatch = (patch: Partial<IssueEditDraft>) => {
     onIssueDraftChange(patch);
@@ -12326,211 +12917,331 @@ function IssueWorkspaceDetailView({
     onSendPrompt(prompt);
   };
 
-  return (
-    <section className="route-scroll issues-detail-route conversation-detail-route">
-      <DashboardBreadcrumbs
-        items={[
-          { label: "Conversations", onClick: onBack },
-          { label: issueBreadcrumbTitle },
-        ]}
-      />
+  const inlineWorkspaceInspector = issueWorkspaceSidebar ?? (
+    <WorkspaceInspectorEmptyState />
+  );
+  const sheetWorkspaceInspector = issueWorkspaceSidebar ?? (
+    <WorkspaceInspectorEmptyState inSheet />
+  );
 
-      <div className="conversation-detail-shell workspace-issue-detail-shell">
-        <main className="workspace-center">
-          {workspace ? (
-            <>
-              <div className="workspace-center-header">
-                <div className="workspace-tab-strip">
-                  <WorkspaceCenterTabButton
-                    active={effectiveWorkspaceCenterTab === "conversation"}
-                    label={session?.title ?? (issueDraft.title.trim() || issue.title)}
-                    onClick={() => onSelectWorkspaceCenterTab("conversation")}
-                  />
-                  <WorkspaceCenterTabButton
-                    active={effectiveWorkspaceCenterTab === "terminal"}
-                    label="Terminal"
-                    onClick={() => onSelectWorkspaceCenterTab("terminal")}
-                  />
-                  {selectedFilePath ? (
+  return (
+    <section
+      className={
+        embeddedInDashboard
+          ? "route-scroll issues-detail-route conversation-detail-route workspace-conversation-detail-route issue-workspace-detail-embedded-route"
+          : "route-scroll issues-detail-route conversation-detail-route workspace-conversation-detail-route"
+      }
+    >
+      {embeddedInDashboard ? null : (
+        <DashboardBreadcrumbs
+          items={[
+            { label: "Conversations", onClick: onBack },
+            { label: issueBreadcrumbTitle },
+          ]}
+        />
+      )}
+
+      <Sheet
+        open={isCompactInspector ? isInspectorSheetOpen : false}
+        onOpenChange={setIsInspectorSheetOpen}
+      >
+        <div className="conversation-detail-shell workspace-issue-detail-shell">
+          <main className="workspace-center">
+            {workspace ? (
+              <>
+                <div className="workspace-center-header">
+                  <div className="workspace-tab-strip">
                     <WorkspaceCenterTabButton
-                      active={effectiveWorkspaceCenterTab === "preview"}
-                      label={previewTabLabel}
-                      onClick={() => onSelectWorkspaceCenterTab("preview")}
+                      active={effectiveWorkspaceCenterTab === "conversation"}
+                      label={
+                        session?.title ??
+                        (issueDraft.title.trim() || issue.title)
+                      }
+                      onClick={() => onSelectWorkspaceCenterTab("conversation")}
                     />
+                    <WorkspaceCenterTabButton
+                      active={effectiveWorkspaceCenterTab === "terminal"}
+                      label="Terminal"
+                      onClick={() => onSelectWorkspaceCenterTab("terminal")}
+                    />
+                    {selectedFilePath ? (
+                      <WorkspaceCenterTabButton
+                        active={effectiveWorkspaceCenterTab === "preview"}
+                        label={previewTabLabel}
+                        onClick={() => onSelectWorkspaceCenterTab("preview")}
+                      />
+                    ) : null}
+                  </div>
+
+                  {isCompactInspector ? (
+                    <div className="workspace-header-actions workspace-center-header-actions">
+                      <SheetTrigger asChild>
+                        <button
+                          aria-label="Open workspace inspector"
+                          className="workspace-inspector-sheet-trigger"
+                          type="button"
+                        >
+                          <WorkspaceInspectorToggleIcon />
+                          <span className="sr-only">Open workspace inspector</span>
+                        </button>
+                      </SheetTrigger>
+                    </div>
                   ) : null}
                 </div>
-              </div>
 
-              {effectiveWorkspaceCenterTab === "conversation" ? (
-                <section className="workspace-panel workspace-chat-panel workspace-conversation-panel">
-                  <WorkspaceSessionHeaderCard
-                    agentLabel={
-                      issueAssigneeLabel(
-                        agents,
-                        issueDraft.assigneeAgentId || issue.assignee_agent_id
-                      ) || providerLabelForRuntimeConfig(issueDraft.command, issueDraft.model)
-                    }
-                    issueLabel={issueDraft.title.trim() || issue.title}
-                    renderedCount={sessionRows.length}
-                    sessionId={session?.id ?? null}
-                    title={session?.title ?? (issueDraft.title.trim() || issue.title)}
-                  />
-
-                  {isConversationLoading ? (
-                    <div className="conversation-empty-state">
-                      <h3>Loading conversation…</h3>
-                      <p>The daemon session is hydrating its transcript.</p>
+                {effectiveWorkspaceCenterTab === "conversation" ? (
+                  <section className="workspace-panel workspace-chat-panel workspace-conversation-panel">
+                    <div className="workspace-conversation-feed">
+                      {isConversationLoading ? (
+                        <div className="conversation-empty-state">
+                          <h3>Loading conversation…</h3>
+                          <p>The daemon session is hydrating its transcript.</p>
+                        </div>
+                      ) : sessionRows.length ? (
+                        <div className="conversation-timeline-scroll">
+                          <SessionConversationTimeline
+                            onRespondToQuestion={onRespondToQuestion}
+                            rows={sessionRows}
+                          />
+                        </div>
+                      ) : (
+                        <div className="conversation-empty-state">
+                          <h3>No daemon messages yet</h3>
+                          <p>
+                            Send the first prompt below to start the workspace
+                            transcript.
+                          </p>
+                        </div>
+                      )}
                     </div>
-                  ) : sessionRows.length ? (
-                    <div className="conversation-timeline-scroll">
-                      <SessionConversationTimeline
-                        onRespondToQuestion={onRespondToQuestion}
-                        rows={sessionRows}
+
+                    <div className="workspace-conversation-footer">
+                      <WorkspaceRuntimeStatusLine
+                        detail={sessionErrorMessage}
+                        status={runtimeStatusValue}
+                        tone={runtimeTone}
+                      />
+
+                      <WorkspaceChatComposer
+                        disabled={composerDisabled}
+                        isPlanMode={issueDraft.planMode}
+                        isStreaming={isSessionStreaming}
+                        latestCompletionSummary={latestCompletionSummary}
+                        modelOptions={runtimeModelOptions}
+                        onAddAttachment={onAddAttachment}
+                        onCancel={session ? onStopSession : undefined}
+                        onChange={onPromptChange}
+                        onModelChange={(value) =>
+                          commitRuntimePatch({ model: value })
+                        }
+                        onPlanModeChange={(value) =>
+                          commitRuntimePatch({
+                            planMode:
+                              runtimeProvider === "claude" ? value : false,
+                          })
+                        }
+                        onProviderChange={(value) =>
+                          commitRuntimePatch(
+                            runtimeDraftPatchForProviderSelection(
+                              value,
+                              issueDraft,
+                              dependencyCheck
+                            )
+                          )
+                        }
+                        onSend={handleSendPromptFromComposer}
+                        onThinkingEffortChange={(value) =>
+                          commitRuntimePatch({ thinkingEffort: value })
+                        }
+                        providerOptions={runtimeProviderOptions}
+                        selectedModel={issueDraft.model}
+                        selectedProvider={issueDraft.command}
+                        selectedThinkingEffort={normalizedIssueThinkingEffort}
+                        thinkingEffortOptions={runtimeThinkingEffortOptions}
+                        value={prompt}
                       />
                     </div>
-                  ) : (
-                    <div className="conversation-empty-state">
-                      <h3>No daemon messages yet</h3>
-                      <p>Send the first prompt below to start the workspace transcript.</p>
+                  </section>
+                ) : null}
+
+                {effectiveWorkspaceCenterTab === "terminal" ? (
+                  <section className="workspace-panel workspace-chat-panel">
+                    <div className="workspace-panel-header">
+                      <h3>Terminal</h3>
+                      <button
+                        className="secondary-button"
+                        onClick={onStopTerminal}
+                        type="button"
+                      >
+                        Stop
+                      </button>
                     </div>
-                  )}
-
-                  <WorkspaceRuntimeStatusLine
-                    detail={sessionErrorMessage}
-                    status={runtimeStatusValue}
-                    tone={runtimeTone}
-                  />
-
-                  <WorkspaceChatComposer
-                    disabled={composerDisabled}
-                    isPlanMode={issueDraft.planMode}
-                    isStreaming={isSessionStreaming}
-                    latestCompletionSummary={latestCompletionSummary}
-                    modelOptions={runtimeModelOptions}
-                    onChange={onPromptChange}
-                    onAddAttachment={onAddAttachment}
-                    onCancel={session ? onStopSession : undefined}
-                    onModelChange={(value) => commitRuntimePatch({ model: value })}
-                    onPlanModeChange={(value) =>
-                      commitRuntimePatch({
-                        planMode:
-                          runtimeProvider === "claude" ? value : false,
-                      })
-                    }
-                    onProviderChange={(value) =>
-                      commitRuntimePatch(
-                        runtimeDraftPatchForProviderSelection(
-                          value,
-                          issueDraft,
-                          dependencyCheck
-                        )
-                      )
-                    }
-                    onSend={handleSendPromptFromComposer}
-                    onThinkingEffortChange={(value) =>
-                      commitRuntimePatch({ thinkingEffort: value })
-                    }
-                    providerOptions={runtimeProviderOptions}
-                    selectedModel={issueDraft.model}
-                    selectedProvider={issueDraft.command}
-                    selectedThinkingEffort={issueDraft.thinkingEffort}
-                    thinkingEffortOptions={runtimeThinkingEffortOptions}
-                    value={prompt}
-                  />
-                </section>
-              ) : null}
-
-              {effectiveWorkspaceCenterTab === "terminal" ? (
-                <section className="workspace-panel workspace-chat-panel">
-                  <div className="workspace-panel-header">
-                    <h3>Terminal</h3>
-                    <button
-                      className="secondary-button"
-                      onClick={onStopTerminal}
-                      type="button"
-                    >
-                      Stop
-                    </button>
-                  </div>
-                  <div className="terminal-frame" ref={terminalContainerRef} />
-                  <form className="workspace-terminal-form" onSubmit={onRunTerminal}>
-                    <input
-                      onChange={(event) =>
-                        onTerminalCommandChange(event.target.value)
-                      }
-                      placeholder="Run a shell command in the selected session"
-                      value={terminalCommand}
+                    <div
+                      className="terminal-frame"
+                      ref={terminalContainerRef}
                     />
-                    <button
-                      className="primary-button"
-                      disabled={isWorking}
-                      type="submit"
+                    <form
+                      className="workspace-terminal-form"
+                      onSubmit={onRunTerminal}
                     >
-                      Run
-                    </button>
-                  </form>
-                </section>
-              ) : null}
+                      <input
+                        onChange={(event) =>
+                          onTerminalCommandChange(event.target.value)
+                        }
+                        placeholder="Run a shell command in the selected session"
+                        value={terminalCommand}
+                      />
+                      <button
+                        className="primary-button"
+                        disabled={isWorking}
+                        type="submit"
+                      >
+                        Run
+                      </button>
+                    </form>
+                  </section>
+                ) : null}
 
-              {effectiveWorkspaceCenterTab === "preview" ? (
-                <section className="workspace-panel workspace-chat-panel">
-                  <div className="workspace-panel-header">
-                    <div>
-                      <span className="route-kicker">
-                        {selectedDiff ? "Diff preview" : "File preview"}
-                      </span>
-                      <h1>{selectedFilePath ?? "Preview"}</h1>
-                    </div>
-                  </div>
-                  {selectedDiff ? (
-                    <div className="workspace-preview">
-                      <div className="summary-grid">
-                        <SummaryPill label="Added" value={selectedDiff.additions} />
-                        <SummaryPill label="Deleted" value={selectedDiff.deletions} />
-                        <SummaryPill
-                          label="Binary"
-                          value={selectedDiff.is_binary ? "yes" : "no"}
-                        />
+                {effectiveWorkspaceCenterTab === "preview" ? (
+                  <section className="workspace-panel workspace-chat-panel">
+                    <div className="workspace-panel-header">
+                      <div>
+                        <span className="route-kicker">
+                          {selectedDiff ? "Diff preview" : "File preview"}
+                        </span>
+                        <h1>{selectedFilePath ?? "Preview"}</h1>
                       </div>
-                      <pre>{selectedDiff.diff}</pre>
                     </div>
-                  ) : selectedFile ? (
-                    <div className="workspace-preview">
-                      <pre>{selectedFile.content}</pre>
-                    </div>
-                  ) : (
-                    <p>Select a file or change to preview it here.</p>
-                  )}
-                </section>
-              ) : null}
-            </>
-          ) : (
-            <section className="workspace-empty-state workspace-center-empty">
-              <h3>Creating workspace…</h3>
-              <p>
-                This issue always runs from a workspace. The daemon is still attaching
-                the repo root or git worktree for this issue.
-              </p>
-            </section>
-          )}
-        </main>
+                    {selectedDiff ? (
+                      <div className="workspace-preview">
+                        <div className="summary-grid">
+                          <SummaryPill
+                            label="Added"
+                            value={selectedDiff.additions}
+                          />
+                          <SummaryPill
+                            label="Deleted"
+                            value={selectedDiff.deletions}
+                          />
+                          <SummaryPill
+                            label="Binary"
+                            value={selectedDiff.is_binary ? "yes" : "no"}
+                          />
+                        </div>
+                        <pre>{selectedDiff.diff}</pre>
+                      </div>
+                    ) : selectedFile ? (
+                      <div className="workspace-preview">
+                        <pre>{selectedFile.content}</pre>
+                      </div>
+                    ) : (
+                      <p>Select a file or change to preview it here.</p>
+                    )}
+                  </section>
+                ) : null}
+              </>
+            ) : (
+              <section className="workspace-empty-state workspace-center-empty">
+                <h3>Creating workspace…</h3>
+                <p>
+                  This issue always runs from a workspace. The daemon is still
+                  attaching the repo root or git worktree for this issue.
+                </p>
+              </section>
+            )}
+          </main>
 
-        {issueWorkspaceSidebar ? (
-          issueWorkspaceSidebar
-        ) : (
-          <aside className="conversation-detail-empty-sidebar">
-            <section className="inspector-panel workspace-details-panel">
-              <h3>Workspace Inspector</h3>
-              <p className="issues-detail-copy muted">
-                The issue workspace sidebar appears once the daemon attaches the
-                worktree.
-              </p>
-            </section>
-          </aside>
-        )}
-      </div>
+          {isCompactInspector ? null : inlineWorkspaceInspector}
+        </div>
+
+        {isCompactInspector ? (
+          <SheetContent
+            aria-describedby={undefined}
+            className="workspace-inspector-sheet-panel"
+            showClose={false}
+            side="right"
+          >
+            <SheetHeader className="workspace-inspector-sheet-header">
+              <SheetTitle>Workspace Inspector</SheetTitle>
+              <SheetClose asChild>
+                <button
+                  aria-label="Close workspace inspector"
+                  className="workspace-inspector-sheet-close"
+                  type="button"
+                >
+                  X
+                </button>
+              </SheetClose>
+            </SheetHeader>
+            <div className="workspace-inspector-sheet-body">
+              {sheetWorkspaceInspector}
+            </div>
+          </SheetContent>
+        ) : null}
+      </Sheet>
     </section>
   );
+}
+
+function WorkspaceInspectorEmptyState({
+  inSheet = false,
+}: {
+  inSheet?: boolean;
+}) {
+  const content = (
+    <section className="inspector-panel workspace-details-panel">
+      <h3>Workspace Inspector</h3>
+      <p className="issues-detail-copy muted">
+        The issue workspace sidebar appears once the daemon attaches the
+        worktree.
+      </p>
+    </section>
+  );
+
+  if (inSheet) {
+    return <div className="workspace-inspector-sheet-fallback">{content}</div>;
+  }
+
+  return <aside className="conversation-detail-empty-sidebar">{content}</aside>;
+}
+
+function useMediaQuery(query: string) {
+  const getMatches = () => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return false;
+    }
+
+    return window.matchMedia(query).matches;
+  };
+
+  const [matches, setMatches] = useState(getMatches);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return;
+    }
+
+    const mediaQueryList = window.matchMedia(query);
+    const updateMatches = (event?: MediaQueryListEvent) => {
+      setMatches(event?.matches ?? mediaQueryList.matches);
+    };
+
+    updateMatches();
+
+    if (typeof mediaQueryList.addEventListener === "function") {
+      mediaQueryList.addEventListener("change", updateMatches);
+      return () => {
+        mediaQueryList.removeEventListener("change", updateMatches);
+      };
+    }
+
+    mediaQueryList.addListener(updateMatches);
+    return () => {
+      mediaQueryList.removeListener(updateMatches);
+    };
+  }, [query]);
+
+  return matches;
 }
 
 function SessionConversationTimeline({
@@ -12575,7 +13286,9 @@ function SessionConversationRowView({
       <div className="conversation-row-content">
         {row.blocks.map((block) => {
           if (block.kind === "text") {
-            return <ConversationTextBlockView key={block.id} text={block.text} />;
+            return (
+              <ConversationTextBlockView key={block.id} text={block.text} />
+            );
           }
           if (block.kind === "error") {
             return (
@@ -12614,10 +13327,7 @@ function SessionConversationRowView({
           }
           if (block.kind === "command") {
             return (
-              <SessionConversationCommandCard
-                block={block}
-                key={block.id}
-              />
+              <SessionConversationCommandCard block={block} key={block.id} />
             );
           }
           if (block.kind === "note") {
@@ -12657,78 +13367,6 @@ function SessionConversationRowView({
         })}
       </div>
     </article>
-  );
-}
-
-export function WorkspaceSessionHeaderCard({
-  agentLabel,
-  issueLabel,
-  onPrimaryAction,
-  onRevealRepo,
-  onStopSession,
-  primaryActionLabel,
-  renderedCount,
-  sessionId,
-  title,
-}: {
-  agentLabel: string;
-  issueLabel: string;
-  onPrimaryAction?: (() => void) | undefined;
-  onRevealRepo?: (() => void) | undefined;
-  onStopSession?: (() => void) | undefined;
-  primaryActionLabel?: string | undefined;
-  renderedCount: number;
-  sessionId: string | null;
-  title: string;
-}) {
-  return (
-    <div className="workspace-session-header-card">
-      <div className="workspace-session-header-copy">
-        <strong>{title}</strong>
-        {agentLabel ? (
-          <span className="workspace-session-header-meta">{agentLabel}</span>
-        ) : null}
-        {issueLabel && issueLabel !== title ? (
-          <span className="workspace-session-header-meta">{issueLabel}</span>
-        ) : null}
-        {sessionId ? (
-          <span className="workspace-session-header-id">{sessionId}</span>
-        ) : null}
-      </div>
-
-      <div className="workspace-session-header-actions">
-        {onPrimaryAction && primaryActionLabel ? (
-          <button
-            className="secondary-button compact-button"
-            onClick={onPrimaryAction}
-            type="button"
-          >
-            {primaryActionLabel}
-          </button>
-        ) : onStopSession ? (
-          <button
-            className="secondary-button compact-button"
-            onClick={onStopSession}
-            type="button"
-          >
-            Stop
-          </button>
-        ) : null}
-        {onRevealRepo ? (
-          <button
-            className="secondary-button compact-button"
-            onClick={onRevealRepo}
-            type="button"
-          >
-            Reveal repo
-          </button>
-        ) : null}
-        <div className="workspace-session-header-count">
-          <span>Rendered</span>
-          <strong>{renderedCount}</strong>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -12849,7 +13487,7 @@ export function WorkspaceChatComposer({
       const activeElement = document.activeElement;
       if (
         trimmedValue.length === 0 &&
-        (!activeElement || !composerRef.current?.contains(activeElement))
+        !(activeElement && composerRef.current?.contains(activeElement))
       ) {
         setIsExpanded(false);
         setIsMenuOpen(false);
@@ -12877,7 +13515,7 @@ export function WorkspaceChatComposer({
   ) => {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
       event.preventDefault();
-      if (!disabled && !isStreaming && trimmedValue.length > 0) {
+      if (!(disabled || isStreaming) && trimmedValue.length > 0) {
         onSend();
       }
       return;
@@ -12911,11 +13549,17 @@ export function WorkspaceChatComposer({
       {!isCompact && isPlanMode ? (
         <div className="workspace-chat-composer-plan">
           <span className="workspace-chat-composer-plan-icon">⌘</span>
-          <span>Plan mode — Claude will create a plan before making changes</span>
+          <span>
+            Plan mode — Claude will create a plan before making changes
+          </span>
         </div>
       ) : null}
 
-      {!isCompact ? (
+      {isCompact ? (
+        <div className="workspace-chat-composer-compact-copy">
+          What do you want to build?
+        </div>
+      ) : (
         <textarea
           className="workspace-chat-composer-input"
           disabled={disabled}
@@ -12928,22 +13572,22 @@ export function WorkspaceChatComposer({
           rows={3}
           value={value}
         />
-      ) : (
-        <div className="workspace-chat-composer-compact-copy">
-          What do you want to build?
-        </div>
       )}
 
       <div className="workspace-chat-composer-toolbar">
         <div className="workspace-chat-composer-controls">
-          {!isCompact ? (
+          {isCompact ? (
+            <span className="workspace-chat-composer-compact-spacer" />
+          ) : (
             <>
               {providerOptions.length > 0 && onProviderChange ? (
                 <WorkspaceChatComposerSelect
                   ariaLabel="Conversation provider"
                   disabled={disabled}
                   onChange={onProviderChange}
-                  value={selectedProvider ?? providerOptions[0]?.value ?? "claude"}
+                  value={
+                    selectedProvider ?? providerOptions[0]?.value ?? "claude"
+                  }
                 >
                   {providerOptions.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -12967,14 +13611,14 @@ export function WorkspaceChatComposer({
               </WorkspaceChatComposerSelect>
 
               <WorkspaceChatComposerSelect
-                ariaLabel="Conversation thinking effort"
+                ariaLabel="Conversation reasoning effort"
                 disabled={disabled}
                 onChange={onThinkingEffortChange}
                 value={selectedThinkingEffort}
               >
                 {thinkingEffortOptions.map((option) => (
                   <option key={option} value={option}>
-                    {capitalize(option)}
+                    {reasoningEffortLabel(option)}
                   </option>
                 ))}
               </WorkspaceChatComposerSelect>
@@ -13054,8 +13698,6 @@ export function WorkspaceChatComposer({
                 </span>
               </div>
             </>
-          ) : (
-            <span className="workspace-chat-composer-compact-spacer" />
           )}
         </div>
         <button
@@ -13163,8 +13805,8 @@ function compactMetricNumber(value: number) {
   if (value >= 1_000_000) {
     return `${(value / 1_000_000).toFixed(1)}m`;
   }
-  if (value >= 1_000) {
-    return `${(value / 1_000).toFixed(1)}k`;
+  if (value >= 1000) {
+    return `${(value / 1000).toFixed(1)}k`;
   }
   return `${value}`;
 }
@@ -13189,7 +13831,9 @@ function SessionConversationCommandCard({
         <pre className="conversation-command-output">{block.output}</pre>
       ) : null}
       {typeof block.exitCode === "number" ? (
-        <div className="conversation-command-meta">Exit code {block.exitCode}</div>
+        <div className="conversation-command-meta">
+          Exit code {block.exitCode}
+        </div>
       ) : null}
     </div>
   );
@@ -13205,7 +13849,9 @@ function SessionConversationNoteCard({
       <div className="conversation-note-header">
         <span className="conversation-note-kicker">{block.kicker}</span>
         {block.meta.length ? (
-          <span className="conversation-note-meta">{block.meta.join(" · ")}</span>
+          <span className="conversation-note-meta">
+            {block.meta.join(" · ")}
+          </span>
         ) : null}
       </div>
       <div className="conversation-note-copy">{block.text}</div>
@@ -13261,7 +13907,9 @@ function ConversationTimelineRowView({
       <div className="conversation-row-content">
         {row.blocks.map((block) => {
           if (block.kind === "text") {
-            return <ConversationTextBlockView key={block.id} text={block.text} />;
+            return (
+              <ConversationTextBlockView key={block.id} text={block.text} />
+            );
           }
           if (block.kind === "error") {
             return (
@@ -13330,7 +13978,11 @@ function ConversationTextBlockView({ text }: { text: string }) {
   );
 }
 
-function ConversationTodoListCard({ items }: { items: ConversationTodoItem[] }) {
+function ConversationTodoListCard({
+  items,
+}: {
+  items: ConversationTodoItem[];
+}) {
   return (
     <div className="conversation-todo-card">
       {items.map((item) => (
@@ -13420,7 +14072,9 @@ function ConversationQuestionCard({
                 type="button"
               >
                 <span>{option.label}</span>
-                {option.description ? <small>{option.description}</small> : null}
+                {option.description ? (
+                  <small>{option.description}</small>
+                ) : null}
               </button>
             );
           })}
@@ -13496,10 +14150,7 @@ function ConversationToolCard({
           </div>
         </div>
         <div className="conversation-tool-status-shell">
-          <span
-            className="conversation-tool-status"
-            data-status={tool.status}
-          >
+          <span className="conversation-tool-status" data-status={tool.status}>
             {capitalize(tool.status.replace("_", " "))}
           </span>
           {hasDetail ? (
@@ -13544,7 +14195,9 @@ function ConversationSubAgentCard({
           </span>
           <div>
             <strong>{conversationSubAgentLabel(activity.subagentType)}</strong>
-            {activity.description ? <small>{activity.description}</small> : null}
+            {activity.description ? (
+              <small>{activity.description}</small>
+            ) : null}
           </div>
         </div>
         <div className="conversation-tool-status-shell">
@@ -13590,7 +14243,9 @@ type ConversationTextSegment = {
   language: string | null;
 };
 
-function splitConversationTextSegments(text: string): ConversationTextSegment[] {
+function splitConversationTextSegments(
+  text: string
+): ConversationTextSegment[] {
   const source = text.trim();
   if (!source.includes("```")) {
     return [
@@ -13893,7 +14548,10 @@ function DashboardIssuePreviewDialogView({
 
             <div className="dashboard-issue-preview-summary">
               <SummaryPill label="Status" value={statusLabel(issue.status)} />
-              <SummaryPill label="Project" value={projectLabel(issue.project_id)} />
+              <SummaryPill
+                label="Repository"
+                value={projectLabel(issue.project_id)}
+              />
               <SummaryPill label="Messages" value={comments.length} />
               <SummaryPill label="Attachments" value={attachments.length} />
               <SummaryPill label="Queued" value={subissueCount} />
@@ -13910,7 +14568,8 @@ function DashboardIssuePreviewDialogView({
                   {issueRunCardUpdateSummary(runCardUpdate)}
                 </p>
                 <span>
-                  Last activity {formatRelativeIssueDate(runCardUpdate.last_activity_at)}
+                  Last activity{" "}
+                  {formatRelativeIssueDate(runCardUpdate.last_activity_at)}
                 </span>
               </section>
             ) : null}
@@ -13949,9 +14608,7 @@ function DashboardIssuePreviewDialogView({
                     ))}
                   </div>
                 ) : (
-                  <p className="issues-detail-copy muted">
-                    No messages yet.
-                  </p>
+                  <p className="issues-detail-copy muted">No messages yet.</p>
                 )}
               </section>
 
@@ -13999,7 +14656,7 @@ function DashboardIssuePreviewDialogView({
                 value={statusLabel(issue.status)}
               />
               <IssuePropertyStaticRow
-                label="Project"
+                label="Repository"
                 tone="project"
                 value={projectLabel(issue.project_id)}
               />
@@ -14312,443 +14969,16 @@ function IssueListStatusIcon({ status }: { status: string }) {
     default:
       return (
         <svg aria-hidden="true" fill="none" viewBox="0 0 16 16">
-          <circle cx="8" cy="8" r="5.25" stroke="currentColor" strokeWidth="1.8" />
+          <circle
+            cx="8"
+            cy="8"
+            r="5.25"
+            stroke="currentColor"
+            strokeWidth="1.8"
+          />
         </svg>
       );
   }
-}
-
-function ApprovalsRouteView({
-  approvals,
-  currentApproval,
-  isWorking,
-  onSelectApproval,
-  onApprove,
-}: {
-  approvals: ApprovalRecord[];
-  currentApproval: ApprovalRecord | null;
-  isWorking: boolean;
-  onSelectApproval: (approvalId: string) => void;
-  onApprove: (approvalId: string, decisionNote?: string) => void;
-}) {
-  const decisionQuestions = useMemo(
-    () => extractApprovalDecisionQuestions(currentApproval),
-    [currentApproval]
-  );
-  const [decisionAnswers, setDecisionAnswers] = useState<Record<string, string>>(
-    {}
-  );
-  const [additionalDecisionContext, setAdditionalDecisionContext] = useState("");
-
-  useEffect(() => {
-    setDecisionAnswers({});
-    setAdditionalDecisionContext("");
-  }, [currentApproval?.id]);
-
-  const decisionNote = useMemo(
-    () =>
-      composeApprovalDecisionNote(
-        decisionQuestions,
-        decisionAnswers,
-        additionalDecisionContext
-      ),
-    [additionalDecisionContext, decisionAnswers, decisionQuestions]
-  );
-  const decisionValidationError = useMemo(
-    () =>
-      validateApprovalDecision(
-        currentApproval,
-        decisionQuestions,
-        decisionAnswers,
-        additionalDecisionContext
-      ),
-    [
-      additionalDecisionContext,
-      currentApproval,
-      decisionAnswers,
-      decisionQuestions,
-    ]
-  );
-
-  return (
-    <section className="route-scroll">
-      <div className="route-header compact">
-        <DashboardBreadcrumbs
-          items={
-            currentApproval
-              ? [
-                  { label: "Approvals" },
-                  { label: currentApproval.approval_type ?? "Decision queue" },
-                ]
-              : [{ label: "Approvals" }]
-          }
-        />
-        <h1>Decision queue</h1>
-      </div>
-
-      <div className="surface-grid single">
-        <section className="surface-panel approvals-panel">
-          <div className="surface-header">
-            <h3>Approvals</h3>
-          </div>
-          {approvals.length ? (
-            <div className="surface-list">
-              {approvals.map((approval) => (
-                <ApprovalQueueRow
-                  approval={approval}
-                  isSelected={currentApproval?.id === approval.id}
-                  onClick={() => onSelectApproval(approval.id)}
-                />
-              ))}
-            </div>
-          ) : (
-            <p className="approvals-empty-text">
-              Hire approvals and issue-linked approvals will appear here.
-            </p>
-          )}
-        </section>
-
-        {currentApproval ? (
-          <section className="surface-panel approvals-panel">
-            <div className="surface-header">
-              <h3>Approval Details</h3>
-            </div>
-
-            <div className="approvals-detail-stack">
-              <div className="approvals-detail-header">
-                <div>
-                  <h2>{currentApproval.approval_type ?? "approval"}</h2>
-                  <p>Status: {currentApproval.status ?? "pending"}</p>
-                </div>
-
-                {currentApproval.status === "pending" ? (
-                  <button
-                    className="primary-button"
-                    disabled={isWorking || Boolean(decisionValidationError)}
-                    onClick={() => onApprove(currentApproval.id, decisionNote)}
-                    type="button"
-                  >
-                    Approve
-                  </button>
-                ) : null}
-              </div>
-
-              <div className="approvals-detail-grid">
-                <DetailRow
-                  label="Requested By Agent"
-                  value={currentApproval.requested_by_agent_id ?? "System"}
-                />
-                <DetailRow
-                  label="Requested By User"
-                  value={currentApproval.requested_by_user_id ?? "Local Board"}
-                />
-                <DetailRow
-                  label="Decided By"
-                  value={currentApproval.decided_by_user_id ?? "Pending"}
-                />
-                <DetailRow
-                  label="Created"
-                  value={formatBoardDate(currentApproval.created_at)}
-                />
-                <DetailRow
-                  label="Updated"
-                  value={formatBoardDate(currentApproval.updated_at)}
-                />
-              </div>
-
-              {decisionQuestions.length ? (
-                <section className="approvals-decision-section">
-                  <div className="approvals-decision-header">
-                    <h3>Requested Decision</h3>
-                    <p>
-                      Answering this approval will resume the linked agent run
-                      with your decision.
-                    </p>
-                  </div>
-                  <div className="approvals-decision-stack">
-                    {decisionQuestions.map((question, index) => {
-                      const answerKey = approvalDecisionAnswerKey(question, index);
-                      const selectedAnswer = decisionAnswers[answerKey] ?? "";
-                      return (
-                        <div
-                          className="approvals-decision-card"
-                          key={answerKey}
-                        >
-                          <div className="approvals-decision-card-copy">
-                            {question.header ? (
-                              <span className="approvals-decision-chip">
-                                {question.header}
-                              </span>
-                            ) : null}
-                            <strong>{question.question}</strong>
-                          </div>
-                          {question.options.length ? (
-                            <div className="approvals-decision-options">
-                              {question.options.map((option) => {
-                                const isSelected =
-                                  selectedAnswer === option.label;
-                                return (
-                                  <button
-                                    className={
-                                      isSelected
-                                        ? "approvals-decision-option active"
-                                        : "approvals-decision-option"
-                                    }
-                                    key={option.label}
-                                    onClick={() =>
-                                      setDecisionAnswers((previous) => ({
-                                        ...previous,
-                                        [answerKey]: option.label,
-                                      }))
-                                    }
-                                    type="button"
-                                  >
-                                    <span>{option.label}</span>
-                                    {option.description ? (
-                                      <small>{option.description}</small>
-                                    ) : null}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <textarea
-                              className="approvals-decision-textarea"
-                              onChange={(event) =>
-                                setDecisionAnswers((previous) => ({
-                                  ...previous,
-                                  [answerKey]: event.target.value,
-                                }))
-                              }
-                              placeholder="Add the board's answer..."
-                              rows={3}
-                              value={selectedAnswer}
-                            />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {currentApproval.status === "pending" ? (
-                    <label className="approvals-decision-note-field">
-                      <span>Additional Context</span>
-                      <textarea
-                        className="approvals-decision-textarea"
-                        onChange={(event) =>
-                          setAdditionalDecisionContext(event.target.value)
-                        }
-                        placeholder="Optional details for the agent..."
-                        rows={3}
-                        value={additionalDecisionContext}
-                      />
-                    </label>
-                  ) : null}
-
-                  {decisionValidationError ? (
-                    <p className="approvals-decision-error">
-                      {decisionValidationError}
-                    </p>
-                  ) : null}
-                </section>
-              ) : null}
-
-              {currentApproval.decision_note ? (
-                <section className="approvals-answer-section">
-                  <h3>Decision Note</h3>
-                  <pre>{currentApproval.decision_note}</pre>
-                </section>
-              ) : null}
-
-              {currentApproval.payload &&
-              Object.keys(currentApproval.payload).length > 0 ? (
-                <section className="approvals-payload-section">
-                  <h3>Payload</h3>
-                  <pre>{formatApprovalPayload(currentApproval.payload)}</pre>
-                </section>
-              ) : null}
-            </div>
-          </section>
-        ) : (
-          <section className="surface-panel approvals-panel">
-            <div className="surface-header">
-              <h3>Approval Details</h3>
-            </div>
-            <div className="workspace-empty-state approvals-empty-state">
-              <h3>Select an approval</h3>
-              <p>Approval payloads and decisions show here.</p>
-            </div>
-          </section>
-        )}
-      </div>
-    </section>
-  );
-}
-
-type ApprovalDecisionOption = {
-  label: string;
-  description: string | null;
-};
-
-type ApprovalDecisionQuestion = {
-  id: string | null;
-  header: string | null;
-  question: string;
-  options: ApprovalDecisionOption[];
-};
-
-function extractApprovalDecisionQuestions(
-  approval: ApprovalRecord | null
-): ApprovalDecisionQuestion[] {
-  const payload = approval?.payload;
-  if (!payload || typeof payload !== "object") {
-    return [];
-  }
-
-  const rawQuestions = Array.isArray(payload.questions)
-    ? payload.questions
-    : typeof payload.question === "string" && payload.question.trim()
-      ? [
-          {
-            question: payload.question,
-            options: Array.isArray(payload.options) ? payload.options : [],
-          },
-        ]
-      : [];
-
-  return rawQuestions
-    .map((value) => parseApprovalDecisionQuestion(value))
-    .filter((value): value is ApprovalDecisionQuestion => value !== null);
-}
-
-function parseApprovalDecisionQuestion(
-  value: unknown
-): ApprovalDecisionQuestion | null {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-  const record = value as Record<string, unknown>;
-
-  const questionValue =
-    typeof record.question === "string"
-      ? record.question.trim()
-      : typeof record.prompt === "string"
-        ? record.prompt.trim()
-        : "";
-  if (!questionValue) {
-    return null;
-  }
-
-  const idValue =
-    typeof record.id === "string" && record.id.trim() ? record.id.trim() : null;
-  const headerValue =
-    typeof record.header === "string" && record.header.trim()
-      ? record.header.trim()
-      : typeof record.label === "string" && record.label.trim()
-        ? record.label.trim()
-        : null;
-
-  return {
-    id: idValue,
-    header: headerValue,
-    question: questionValue,
-    options: parseApprovalDecisionOptions(record.options),
-  };
-}
-
-function parseApprovalDecisionOptions(value: unknown): ApprovalDecisionOption[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((entry) => {
-      if (typeof entry === "string") {
-        const label = entry.trim();
-        return label ? { label, description: null } : null;
-      }
-      if (!entry || typeof entry !== "object") {
-        return null;
-      }
-      const record = entry as Record<string, unknown>;
-
-      const label =
-        typeof record.label === "string" && record.label.trim()
-          ? record.label.trim()
-          : typeof record.title === "string" && record.title.trim()
-            ? record.title.trim()
-            : null;
-      if (!label) {
-        return null;
-      }
-
-      const description =
-        typeof record.description === "string" && record.description.trim()
-          ? record.description.trim()
-          : null;
-      return { label, description };
-    })
-    .filter((entry): entry is ApprovalDecisionOption => entry !== null);
-}
-
-function approvalDecisionAnswerKey(
-  question: ApprovalDecisionQuestion,
-  index: number
-) {
-  return question.id ?? `question-${index}`;
-}
-
-function composeApprovalDecisionNote(
-  questions: ApprovalDecisionQuestion[],
-  answers: Record<string, string>,
-  additionalContext: string
-) {
-  const sections = questions
-    .map((question, index) => {
-      const answer = answers[approvalDecisionAnswerKey(question, index)]?.trim();
-      if (!answer) {
-        return null;
-      }
-      const label = question.header ?? question.question;
-      return `${label}: ${answer}`;
-    })
-    .filter((value): value is string => Boolean(value));
-
-  const trimmedContext = additionalContext.trim();
-  if (trimmedContext) {
-    sections.push(`Additional context:\n${trimmedContext}`);
-  }
-
-  return sections.join("\n\n").trim();
-}
-
-function validateApprovalDecision(
-  approval: ApprovalRecord | null,
-  questions: ApprovalDecisionQuestion[],
-  answers: Record<string, string>,
-  additionalContext: string
-) {
-  if (approval?.status !== "pending" || approval.approval_type !== "agent_decision") {
-    return null;
-  }
-
-  if (!questions.length) {
-    return additionalContext.trim()
-      ? null
-      : "Add the board's decision before approving.";
-  }
-
-  for (let index = 0; index < questions.length; index += 1) {
-    const question = questions[index];
-    const answer = answers[approvalDecisionAnswerKey(question, index)]?.trim();
-    if (!answer) {
-      return question.options.length
-        ? `Choose an option for "${question.question}".`
-        : `Add an answer for "${question.question}".`;
-    }
-  }
-
-  return null;
 }
 
 function ActivityRouteView({
@@ -15068,9 +15298,9 @@ function ProjectsRouteView({
   const [isDeletingProject, setIsDeletingProject] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isSavingProjectSettings, setIsSavingProjectSettings] = useState(false);
-  const [projectSettingsError, setProjectSettingsError] = useState<string | null>(
-    null
-  );
+  const [projectSettingsError, setProjectSettingsError] = useState<
+    string | null
+  >(null);
   const [projectDefaultNewChatAreaDraft, setProjectDefaultNewChatAreaDraft] =
     useState<ProjectDefaultNewChatArea>("repo_root");
 
@@ -15080,8 +15310,14 @@ function ProjectsRouteView({
     setDeleteError(null);
     setIsSavingProjectSettings(false);
     setProjectSettingsError(null);
-    setProjectDefaultNewChatAreaDraft(projectDefaultNewChatArea(currentProject));
-  }, [currentProject?.execution_workspace_policy, currentProject?.id, currentProject?.updated_at]);
+    setProjectDefaultNewChatAreaDraft(
+      projectDefaultNewChatArea(currentProject)
+    );
+  }, [
+    currentProject?.execution_workspace_policy,
+    currentProject?.id,
+    currentProject?.updated_at,
+  ]);
 
   const handleConfirmProjectDelete = async () => {
     if (!currentProject || isDeletingProject) {
@@ -15136,19 +15372,19 @@ function ProjectsRouteView({
               items={
                 currentProject
                   ? [
-                      { label: "Projects" },
+                      { label: "Repositories" },
                       {
                         label:
                           currentProject.name ??
                           currentProject.title ??
-                          "Project",
+                          "Repository",
                       },
                     ]
-                  : [{ label: "Projects" }]
+                  : [{ label: "Repositories" }]
               }
             />
-            <span className="route-kicker">Projects</span>
-            <h1>Repo anchors and ownership</h1>
+            <span className="route-kicker">Repositories</span>
+            <h1>Repository anchors and ownership</h1>
           </div>
 
           <button
@@ -15156,20 +15392,20 @@ function ProjectsRouteView({
             onClick={onOpenCreateProject}
             type="button"
           >
-            New Project
+            New Repository
           </button>
         </div>
 
         <section className="surface-panel projects-panel">
           <div className="surface-header projects-detail-header">
-            <h3>Project Details</h3>
+            <h3>Repository Details</h3>
             {currentProject ? (
               <button
                 className="secondary-button compact-button destructive-button"
                 onClick={() => setIsDeleteDialogOpen(true)}
                 type="button"
               >
-                Delete Project
+                Delete Repository
               </button>
             ) : null}
           </div>
@@ -15216,17 +15452,19 @@ function ProjectsRouteView({
               </div>
 
               <section className="projects-detail-section">
-                <h3>Project Settings</h3>
+                <h3>Repository Settings</h3>
                 {projectSettingsError ? (
-                  <div className="issue-dialog-alert">{projectSettingsError}</div>
+                  <div className="issue-dialog-alert">
+                    {projectSettingsError}
+                  </div>
                 ) : null}
                 <div className="settings-shadcn-form">
                   <div className="settings-shadcn-field settings-shadcn-field-select">
                     <div className="settings-shadcn-field-copy">
                       <strong>Default new chat area</strong>
                       <p>
-                        Choose whether new chats for this project start in the repo
-                        root or spin up a fresh worktree by default.
+                        Choose whether new chats for this repository start in
+                        the repo root or spin up a fresh worktree by default.
                       </p>
                     </div>
                     <div className="settings-shadcn-field-control">
@@ -15264,12 +15502,11 @@ function ProjectsRouteView({
             </div>
           ) : (
             <div className="workspace-empty-state projects-empty-state-panel">
-              <h3>Select a project</h3>
-              <p>Project repo-anchor configuration appears here.</p>
+              <h3>Select a repository</h3>
+              <p>Repository anchor configuration appears here.</p>
             </div>
           )}
         </section>
-
       </section>
 
       {isDeleteDialogOpen && currentProject ? (
@@ -15329,15 +15566,16 @@ function DeleteProjectDialogView({
         <div className="project-dialog-header">
           <div className="project-dialog-title-block">
             <h2 id="delete-project-dialog-title">
-              Delete {project.name ?? project.title ?? "project"}?
+              Delete {project.name ?? project.title ?? "repository"}?
             </h2>
             <p id="delete-project-dialog-description">
-              This will permanently delete this project, all related conversations, and
-              all related worktrees. This action cannot be undone.
+              This will permanently delete this repository, all related
+              conversations, and all related worktrees. This action cannot be
+              undone.
             </p>
           </div>
           <button
-            aria-label="Close delete project dialog"
+            aria-label="Close delete repository dialog"
             className="project-dialog-close"
             disabled={isDeleting}
             onClick={onClose}
@@ -15366,8 +15604,8 @@ function DeleteProjectDialogView({
           </div>
 
           <p className="project-delete-warning">
-            Repository records stay intact, but every board conversation and worktree
-            anchored to this project will be removed.
+            Repository records stay intact, but every board conversation and
+            worktree anchored to this repository will be removed.
           </p>
         </div>
 
@@ -15386,7 +15624,7 @@ function DeleteProjectDialogView({
             onClick={onConfirm}
             type="button"
           >
-            {isDeleting ? "Deleting..." : "Delete Project"}
+            {isDeleting ? "Deleting..." : "Delete Repository"}
           </button>
         </div>
       </div>
@@ -15397,31 +15635,17 @@ function DeleteProjectDialogView({
 function CreateProjectDialogView({
   repoPath,
   derivedProjectName,
-  selectedStatus,
-  selectedGoalId,
-  targetDate,
-  goals,
   isSaving,
   errorMessage,
   onChooseFolder,
-  onStatusChange,
-  onGoalChange,
-  onTargetDateChange,
   onCreate,
   onClose,
 }: {
   repoPath: string;
   derivedProjectName: string;
-  selectedStatus: string;
-  selectedGoalId: string;
-  targetDate: string;
-  goals: GoalRecord[];
   isSaving: boolean;
   errorMessage: string | null;
   onChooseFolder: () => void;
-  onStatusChange: (value: string) => void;
-  onGoalChange: (value: string) => void;
-  onTargetDateChange: (value: string) => void;
   onCreate: () => void;
   onClose: () => void;
 }) {
@@ -15430,23 +15654,22 @@ function CreateProjectDialogView({
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
       <div
-        aria-modal="true"
         aria-labelledby="create-project-dialog-title"
+        aria-modal="true"
         className="project-dialog"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
       >
         <div className="project-dialog-header">
           <div className="project-dialog-title-block">
-            <h2 id="create-project-dialog-title">New project</h2>
+            <h2 id="create-project-dialog-title">New repository</h2>
             <p>
-              Create a project from a repository folder and set its default
-              board context.
+              Create a repository from a local folder.
             </p>
           </div>
 
           <button
-            aria-label="Close create project dialog"
+            aria-label="Close create repository dialog"
             className="project-dialog-close"
             onClick={onClose}
             type="button"
@@ -15468,11 +15691,11 @@ function CreateProjectDialogView({
               <div className="project-folder-row">
                 <div className="project-dialog-value-shell">
                   <span
-                    className={
+                  className={
                       repoPath ? undefined : "project-dialog-value-placeholder"
                     }
                   >
-                    {repoPath || "Choose a project folder"}
+                    {repoPath || "Choose a repository folder"}
                   </span>
                 </div>
 
@@ -15485,13 +15708,13 @@ function CreateProjectDialogView({
                 </button>
               </div>
               <small className="issue-dialog-hint">
-                We&apos;ll use the selected folder name as the initial project
-                title.
+                We&apos;ll use the selected folder name as the initial
+                repository title.
               </small>
             </div>
 
             <div className="project-dialog-field project-dialog-field-full">
-              <span className="issue-dialog-label">Project name</span>
+              <span className="issue-dialog-label">Repository name</span>
               <div className="project-dialog-value-shell">
                 <span
                   className={
@@ -15504,50 +15727,9 @@ function CreateProjectDialogView({
                 </span>
               </div>
               <small className="issue-dialog-hint">
-                You can rename the project later from the project detail page.
+                You can rename the repository later from the repository detail
+                page.
               </small>
-            </div>
-
-            <div className="project-dialog-grid">
-              <ProjectDialogSelectField
-                hint="Sets the default board status when the project is created."
-                label="Status"
-                onChange={onStatusChange}
-                value={selectedStatus}
-              >
-                {["planned", "active", "completed"].map((status) => (
-                  <option key={status} value={status}>
-                    {humanizeIssueValue(status)}
-                  </option>
-                ))}
-              </ProjectDialogSelectField>
-
-              <ProjectDialogSelectField
-                hint="Optionally connect the project to a larger goal."
-                label="Goal"
-                onChange={onGoalChange}
-                value={selectedGoalId}
-              >
-                <option value="">No goal</option>
-                {goals.map((goal) => (
-                  <option key={goal.id} value={goal.id}>
-                    {goal.title}
-                  </option>
-                ))}
-              </ProjectDialogSelectField>
-
-              <label className="project-dialog-field">
-                <span className="issue-dialog-label">Target date</span>
-                <input
-                  className="issue-dialog-input"
-                  onChange={(event) => onTargetDateChange(event.target.value)}
-                  type="date"
-                  value={targetDate}
-                />
-                <small className="issue-dialog-hint">
-                  Optional milestone date for planning and review.
-                </small>
-              </label>
             </div>
           </div>
         </div>
@@ -15567,7 +15749,7 @@ function CreateProjectDialogView({
             onClick={onCreate}
             type="button"
           >
-            {isSaving ? "Creating project..." : "Create project"}
+            {isSaving ? "Creating repository..." : "Create repository"}
           </button>
         </div>
       </div>
@@ -15603,8 +15785,8 @@ function CreateCompanyDialogView({
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
       <div
-        aria-modal="true"
         aria-labelledby="create-company-dialog-title"
+        aria-modal="true"
         className="project-dialog"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
@@ -15613,7 +15795,7 @@ function CreateCompanyDialogView({
           <div className="project-dialog-title-block">
             <h2 id="create-company-dialog-title">New space</h2>
             <p>
-              Create a space for projects and conversations. A default local
+              Create a space for repositories and conversations. A default local
               executor will be prepared automatically.
             </p>
           </div>
@@ -15660,8 +15842,7 @@ function CreateCompanyDialogView({
                 value={description}
               />
               <small className="issue-dialog-hint">
-                Optional setup context you can refine later from space
-                settings.
+                Optional setup context you can refine later from space settings.
               </small>
             </label>
 
@@ -15701,39 +15882,6 @@ function CreateCompanyDialogView({
         </div>
       </div>
     </div>
-  );
-}
-
-function ProjectDialogSelectField({
-  children,
-  hint,
-  label,
-  onChange,
-  value,
-}: {
-  children: ReactNode;
-  hint: string;
-  label: string;
-  onChange: (value: string) => void;
-  value: string;
-}) {
-  return (
-    <label className="project-dialog-field">
-      <span className="issue-dialog-label">{label}</span>
-      <div className="issue-dialog-select-shell">
-        <select
-          className="issue-dialog-select"
-          onChange={(event) => onChange(event.target.value)}
-          value={value}
-        >
-          {children}
-        </select>
-        <span aria-hidden="true" className="issue-dialog-select-arrow">
-          v
-        </span>
-      </div>
-      <small className="issue-dialog-hint">{hint}</small>
-    </label>
   );
 }
 
@@ -15816,7 +15964,10 @@ function CreateIssueDialogView({
   const issueCommand = stringFromUnknown(command, "claude");
   const issueModel = stringFromUnknown(model, "default");
   const issueProjectId = stringFromUnknown(selectedProjectId);
-  const issueThinkingEffort = stringFromUnknown(thinkingEffort, "auto");
+  const issueThinkingEffort = stringFromUnknown(
+    thinkingEffort,
+    defaultReasoningEffortForProvider("claude")
+  );
   const issueWorkspaceTargetValue = stringFromUnknown(
     selectedWorkspaceTargetValue,
     "main"
@@ -15844,18 +15995,17 @@ function CreateIssueDialogView({
       typeof project === "object" &&
       typeof (project as ProjectRecord).id === "string"
   );
-  const worktreeOptions = normalizeGitWorktreeRecords(
-    workspaceTargetWorktrees
-  );
+  const worktreeOptions = normalizeGitWorktreeRecords(workspaceTargetWorktrees);
   const dialogTitle =
     mode === "queuedMessage" ? "Queue message" : "New conversation";
   const issueProjectValidationMessage =
     projectOptions.length === 0
       ? mode === "queuedMessage"
-        ? "Create a project before queueing messages."
-        : "Create a project before creating a conversation."
+        ? "Create a repository before queueing messages."
+        : "Create a repository before creating a conversation."
       : null;
-  const visibleIssueErrorMessage = issueErrorMessage ?? issueProjectValidationMessage;
+  const visibleIssueErrorMessage =
+    issueErrorMessage ?? issueProjectValidationMessage;
   const canCreate =
     !isSavingIssue &&
     issueTitle.trim().length > 0 &&
@@ -15870,8 +16020,7 @@ function CreateIssueDialogView({
     issueWorkspaceTargetValue.startsWith("existing:") &&
     !worktreeOptions.some(
       (worktree) =>
-        existingWorktreeTargetValue(worktree.path) ===
-        issueWorkspaceTargetValue
+        existingWorktreeTargetValue(worktree.path) === issueWorkspaceTargetValue
     )
       ? {
           name: fileName(issueWorkspaceTargetValue.slice("existing:".length)),
@@ -15890,10 +16039,15 @@ function CreateIssueDialogView({
     { command: issueCommand, model: issueModel },
     dependencyCheck
   );
-  const runtimeThinkingEffortOptions = mergeIssueOptions(
-    ["auto", "low", "medium", "high"],
-    issueThinkingEffort
+  const normalizedIssueThinkingEffort = normalizeReasoningEffortForProvider(
+    issueThinkingEffort,
+    runtimeProvider
   );
+  const runtimeThinkingEffortOptions = buildReasoningEffortOptions({
+    command: issueCommand,
+    model: issueModel,
+    thinkingEffort: issueThinkingEffort,
+  });
   const runtimeProviderOptions = buildIssueRuntimeProviderOptions(
     dependencyCheck,
     issueCommand,
@@ -15909,8 +16063,8 @@ function CreateIssueDialogView({
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
       <div
-        aria-modal="true"
         aria-labelledby="create-issue-dialog-title"
+        aria-modal="true"
         className="issue-dialog"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
@@ -15941,9 +16095,7 @@ function CreateIssueDialogView({
 
         <div className="issue-dialog-body">
           {visibleIssueErrorMessage ? (
-            <div className="issue-dialog-alert">
-              {visibleIssueErrorMessage}
-            </div>
+            <div className="issue-dialog-alert">{visibleIssueErrorMessage}</div>
           ) : null}
 
           <div className="issue-dialog-composer">
@@ -15962,19 +16114,21 @@ function CreateIssueDialogView({
             <p className="issue-dialog-inline-hint">
               {mode === "queuedMessage"
                 ? `This follow-up will stay attached to ${parentConversationTitle ?? "the parent conversation"} until you open it.`
-                : "Keep it lightweight: capture the context, attach files, and point the conversation at a project."}
+                : "Keep it lightweight: capture the context, attach files, and point the conversation at a repository."}
             </p>
 
             <div className="issue-dialog-inline-row">
-              <span className="issue-dialog-inline-copy">Project</span>
+              <span className="issue-dialog-inline-copy">Repository</span>
               <IssueDialogInlineSelect
-                ariaLabel="Select project"
+                ariaLabel="Select repository"
                 className="issue-dialog-inline-select-project"
                 onChange={onProjectChange}
                 value={issueProjectId}
               >
                 <option disabled value="">
-                  {projectOptions.length ? "Select project" : "Create project"}
+                  {projectOptions.length
+                    ? "Select repository"
+                    : "Create repository"}
                 </option>
                 {projectOptions.map((project) => (
                   <option key={project.id} value={project.id}>
@@ -16034,8 +16188,8 @@ function CreateIssueDialogView({
                 <div>
                   <h3>Model configuration</h3>
                   <p className="issue-dialog-inline-hint">
-                    Choose which local model runs this conversation and how
-                    much autonomy it gets.
+                    Choose which local model runs this conversation and how much
+                    autonomy it gets.
                   </p>
                 </div>
               </div>
@@ -16050,11 +16204,16 @@ function CreateIssueDialogView({
                     onChange={(value) => {
                       const patch = runtimeDraftPatchForProviderSelection(
                         value,
-                        { model: issueModel, planMode: isPlanMode },
+                        {
+                          model: issueModel,
+                          planMode: isPlanMode,
+                          thinkingEffort: issueThinkingEffort,
+                        },
                         dependencyCheck
                       );
                       onCommandChange(patch.command);
                       onModelChange(patch.model);
+                      onThinkingEffortChange(patch.thinkingEffort);
                       onPlanModeChange(patch.planMode);
                     }}
                     value={issueCommand}
@@ -16067,10 +16226,7 @@ function CreateIssueDialogView({
                   </AgentConfigSelect>
                 </AgentConfigField>
 
-                <AgentConfigField
-                  htmlFor="issue-dialog-model"
-                  label="Model"
-                >
+                <AgentConfigField htmlFor="issue-dialog-model" label="Model">
                   <AgentConfigSelect
                     ariaLabel="Conversation model"
                     id="issue-dialog-model"
@@ -16087,17 +16243,17 @@ function CreateIssueDialogView({
 
                 <AgentConfigField
                   htmlFor="issue-dialog-thinking"
-                  label="Thinking effort"
+                  label="Reasoning effort"
                 >
                   <AgentConfigSelect
-                    ariaLabel="Conversation thinking effort"
+                    ariaLabel="Conversation reasoning effort"
                     id="issue-dialog-thinking"
                     onChange={onThinkingEffortChange}
-                    value={issueThinkingEffort}
+                    value={normalizedIssueThinkingEffort}
                   >
                     {runtimeThinkingEffortOptions.map((option) => (
                       <option key={option} value={option}>
-                        {capitalize(option)}
+                        {reasoningEffortLabel(option)}
                       </option>
                     ))}
                   </AgentConfigSelect>
@@ -16114,7 +16270,10 @@ function CreateIssueDialogView({
                     value={isPlanMode ? "plan" : "default"}
                   >
                     <option value="default">Off</option>
-                    <option disabled={runtimeProvider !== "claude"} value="plan">
+                    <option
+                      disabled={runtimeProvider !== "claude"}
+                      value="plan"
+                    >
                       Claude plan mode
                     </option>
                   </AgentConfigSelect>
@@ -16306,34 +16465,6 @@ function IssueDialogSelectField({
   );
 }
 
-function ApprovalQueueRow({
-  approval,
-  isSelected,
-  onClick,
-}: {
-  approval: ApprovalRecord;
-  isSelected: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      className={
-        isSelected ? "approval-queue-row active" : "approval-queue-row"
-      }
-      onClick={onClick}
-      type="button"
-    >
-      <div className="approval-queue-row-main">
-        <strong>{approval.approval_type ?? "approval"}</strong>
-        <span>{formatBoardDate(approval.created_at)}</span>
-      </div>
-      <span className="approval-queue-row-trailing">
-        {approval.status ?? "pending"}
-      </span>
-    </button>
-  );
-}
-
 function DashboardBreadcrumbs({ items }: { items: DashboardBreadcrumbItem[] }) {
   return (
     <nav aria-label="Breadcrumb" className="dashboard-breadcrumbs">
@@ -16365,14 +16496,14 @@ function DashboardBreadcrumbs({ items }: { items: DashboardBreadcrumbItem[] }) {
               </span>
             )}
 
-            {!isCurrent ? (
+            {isCurrent ? null : (
               <span
                 aria-hidden="true"
                 className="dashboard-breadcrumb-separator"
               >
                 ›
               </span>
-            ) : null}
+            )}
           </div>
         );
       })}
@@ -16524,18 +16655,7 @@ function SettingsToggleField({
         <strong>{label}</strong>
         <p>{description}</p>
       </div>
-      <button
-        aria-checked={checked}
-        aria-label={label}
-        className={
-          checked ? "settings-shadcn-switch active" : "settings-shadcn-switch"
-        }
-        onClick={() => onChange(checked ? false : true)}
-        role="switch"
-        type="button"
-      >
-        <span />
-      </button>
+      <Switch aria-label={label} checked={checked} onCheckedChange={onChange} />
     </div>
   );
 }
@@ -16600,12 +16720,14 @@ function ThemeModeCard({
         <span className="theme-card-icon">{themeModeSymbol(mode)}</span>
         <span>{capitalize(mode)}</span>
       </div>
-      {!isAvailable ? (
-        <small className="theme-card-meta">Coming soon</small>
-      ) : isSelected ? (
-        <span className="theme-card-check">✓</span>
+      {isAvailable ? (
+        isSelected ? (
+          <span className="theme-card-check">✓</span>
+        ) : (
+          <span className="theme-card-empty" />
+        )
       ) : (
-        <span className="theme-card-empty" />
+        <small className="theme-card-meta">Coming soon</small>
       )}
     </button>
   );
@@ -16774,6 +16896,101 @@ function WorkspaceCenterTabButton({
   );
 }
 
+function WorkspaceInspectorToggleIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="workspace-inspector-toggle-icon"
+      fill="none"
+      viewBox="0 0 16 16"
+    >
+      <rect
+        height="11"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        width="11"
+        x="2.5"
+        y="2.5"
+      />
+      <path
+        d="M9.5 2.75v10.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.3"
+      />
+    </svg>
+  );
+}
+
+function DashboardRouteTabButton({
+  active,
+  dragState,
+  draggable,
+  label,
+  onClick,
+  onClose,
+  onContextMenu,
+  onDragEnd,
+  onDragOver,
+  onDragStart,
+  onDrop,
+}: {
+  active: boolean;
+  dragState: "dragging" | "drop-target" | "idle";
+  draggable: boolean;
+  label: string;
+  onClick: () => void;
+  onClose?: () => void;
+  onContextMenu?: (event: MouseEvent<HTMLDivElement>) => void;
+  onDragEnd?: (event: DragEvent<HTMLDivElement>) => void;
+  onDragOver?: (event: DragEvent<HTMLDivElement>) => void;
+  onDragStart?: (event: DragEvent<HTMLDivElement>) => void;
+  onDrop?: (event: DragEvent<HTMLDivElement>) => void;
+}) {
+  return (
+    <div
+      className={[
+        "dashboard-route-tab",
+        active ? "is-active" : "",
+        dragState === "dragging" ? "is-dragging" : "",
+        dragState === "drop-target" ? "is-drop-target" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      draggable={draggable}
+      onContextMenu={onContextMenu}
+      onDragEnd={onDragEnd}
+      onDragOver={onDragOver}
+      onDragStart={onDragStart}
+      onDrop={onDrop}
+    >
+      <button
+        aria-selected={active}
+        className="dashboard-route-tab-trigger"
+        onClick={onClick}
+        role="tab"
+        type="button"
+      >
+        <span className="dashboard-route-tab-label">{label}</span>
+      </button>
+      {onClose ? (
+        <button
+          aria-label={`Close ${label}`}
+          className="dashboard-route-tab-close"
+          onClick={(event) => {
+            event.stopPropagation();
+            onClose();
+          }}
+          type="button"
+        >
+          <CloseIcon />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function IssueWorkspaceInspectorMeta({
   agents,
   availableStatusOptions,
@@ -16862,8 +17079,8 @@ function IssueWorkspaceInspectorMeta({
         <IssuePropertySelectRow
           disabled={isSavingIssue}
           label="Status"
-          tone={normalizeBoardIssueValue(issueDraft.status)}
           onChange={(value) => commitPropertyPatch({ status: value })}
+          tone={normalizeBoardIssueValue(issueDraft.status)}
           value={issueDraft.status}
         >
           {availableStatusOptions.map((status) => (
@@ -16876,12 +17093,12 @@ function IssueWorkspaceInspectorMeta({
         <IssuePropertySelectRow
           disabled={isSavingIssue}
           label="Assignee"
-          tone="neutral"
           onChange={(value) =>
             commitPropertyPatch({
               assigneeAgentId: value,
             })
           }
+          tone="neutral"
           value={issueDraft.assigneeAgentId}
         >
           <option value="">Unassigned</option>
@@ -16894,8 +17111,7 @@ function IssueWorkspaceInspectorMeta({
 
         <IssuePropertySelectRow
           disabled={isSavingIssue}
-          label="Project"
-          tone="project"
+          label="Repository"
           onChange={(value) =>
             commitPropertyPatch({
               projectId: value,
@@ -16905,10 +17121,11 @@ function IssueWorkspaceInspectorMeta({
               workspaceWorktreeName: "",
             })
           }
+          tone="project"
           value={issueDraft.projectId}
         >
           <option disabled value="">
-            {projects.length ? "Select project" : "Create project"}
+            {projects.length ? "Select repository" : "Create repository"}
           </option>
           {projects.map((project) => (
             <option key={project.id} value={project.id}>
@@ -16921,7 +17138,6 @@ function IssueWorkspaceInspectorMeta({
           disabled={isSavingIssue || !selectedProjectRepoPath}
           hint={workspaceTargetHint}
           label="Worktree target"
-          tone="neutral"
           onChange={(value) =>
             commitPropertyPatch(
               issueWorkspaceDraftPatchFromSelection(
@@ -16931,6 +17147,7 @@ function IssueWorkspaceInspectorMeta({
               )
             )
           }
+          tone="neutral"
           value={selectedWorkspaceTargetValue}
         >
           <option value="main">Repo root</option>
@@ -16957,8 +17174,8 @@ function IssueWorkspaceInspectorMeta({
         <IssuePropertySelectRow
           disabled={isSavingIssue}
           label="Parent"
-          tone="neutral"
           onChange={(value) => commitPropertyPatch({ parentId: value })}
+          tone="neutral"
           value={issueDraft.parentId}
         >
           <option value="">No parent conversation</option>
@@ -16973,7 +17190,10 @@ function IssueWorkspaceInspectorMeta({
       <section className="workspace-issue-sidebar-section">
         <IssuePropertyStaticRow
           label="Provider"
-          value={providerLabelForRuntimeConfig(issueDraft.command, issueDraft.model)}
+          value={providerLabelForRuntimeConfig(
+            issueDraft.command,
+            issueDraft.model
+          )}
         />
         <IssuePropertyStaticRow
           label="Model"
@@ -17025,13 +17245,16 @@ function IssueWorkspaceSummaryMeta({
           <h3>{issue.identifier ?? issue.id}</h3>
           <p>{issue.title}</p>
         </div>
-        <IssuePropertyStaticRow label="Status" value={statusLabel(issue.status)} />
+        <IssuePropertyStaticRow
+          label="Status"
+          value={statusLabel(issue.status)}
+        />
         <IssuePropertyStaticRow
           label="Assignee"
           value={issueAssigneeLabel(agents, issue.assignee_agent_id)}
         />
         <IssuePropertyStaticRow
-          label="Project"
+          label="Repository"
           value={issueProjectLabel(projects, issue.project_id)}
         />
         <IssuePropertyStaticRow
@@ -17047,32 +17270,147 @@ function WorkspaceSidebarTabButton({
   active,
   count,
   label,
+  tab,
   onClick,
 }: {
   active: boolean;
   count?: number;
   label: string;
+  tab: WorkspaceSidebarTab;
   onClick: () => void;
 }) {
   return (
     <button
       className={
-        active ? "workspace-sidebar-tab active" : "workspace-sidebar-tab"
+        active
+          ? "workspace-sidebar-git-tab active"
+          : "workspace-sidebar-git-tab"
       }
       onClick={onClick}
       type="button"
     >
+      <WorkspaceSidebarTabIcon tab={tab} />
       <span>{label}</span>
-      {count ? <small>{count}</small> : null}
+      {count ? (
+        <small
+          className={
+            active
+              ? "workspace-sidebar-git-tab-count active"
+              : "workspace-sidebar-git-tab-count"
+          }
+        >
+          {count}
+        </small>
+      ) : null}
     </button>
+  );
+}
+
+function WorkspaceSidebarTabIcon({ tab }: { tab: WorkspaceSidebarTab }) {
+  switch (tab) {
+    case "changes":
+      return (
+        <svg
+          aria-hidden="true"
+          className="workspace-sidebar-git-tab-icon"
+          fill="none"
+          viewBox="0 0 16 16"
+        >
+          <path
+            d="M5 3.25a1.75 1.75 0 1 1 0 3.5a1.75 1.75 0 0 1 0-3.5ZM11 9.25a1.75 1.75 0 1 1 0 3.5a1.75 1.75 0 0 1 0-3.5Z"
+            stroke="currentColor"
+            strokeWidth="1.3"
+          />
+          <path
+            d="M6.25 5h2.5a2.25 2.25 0 0 1 2.25 2.25v2"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.3"
+          />
+        </svg>
+      );
+    case "files":
+      return (
+        <svg
+          aria-hidden="true"
+          className="workspace-sidebar-git-tab-icon"
+          fill="none"
+          viewBox="0 0 16 16"
+        >
+          <path
+            d="M2.75 4.25A1.5 1.5 0 0 1 4.25 2.75h2.2l1.1 1.5h4.2A1.5 1.5 0 0 1 13.25 5.75v5.5a1.5 1.5 0 0 1-1.5 1.5h-7.5a1.5 1.5 0 0 1-1.5-1.5Z"
+            stroke="currentColor"
+            strokeLinejoin="round"
+            strokeWidth="1.3"
+          />
+        </svg>
+      );
+    case "commits":
+      return (
+        <svg
+          aria-hidden="true"
+          className="workspace-sidebar-git-tab-icon"
+          fill="none"
+          viewBox="0 0 16 16"
+        >
+          <path
+            d="M8 3v2.5M8 8v5M3 8h2.5M10.5 8H13"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="1.3"
+          />
+          <circle cx="8" cy="8" r="2.25" stroke="currentColor" strokeWidth="1.3" />
+        </svg>
+      );
+    case "issue":
+      return (
+        <svg
+          aria-hidden="true"
+          className="workspace-sidebar-git-tab-icon"
+          fill="none"
+          viewBox="0 0 16 16"
+        >
+          <path
+            d="M4 3.25h8A1.75 1.75 0 0 1 13.75 5v6A1.75 1.75 0 0 1 12 12.75H4A1.75 1.75 0 0 1 2.25 11V5A1.75 1.75 0 0 1 4 3.25Z"
+            stroke="currentColor"
+            strokeWidth="1.3"
+          />
+          <path
+            d="M5.25 6h5.5M5.25 8.5h5.5M5.25 11h3"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="1.3"
+          />
+        </svg>
+      );
+  }
+}
+
+function WorkspaceSidebarRefreshIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="workspace-sidebar-git-refresh-icon"
+      fill="none"
+      viewBox="0 0 16 16"
+    >
+      <path
+        d="M12.25 5.75V3.5m0 0H10m2.25 0A5.25 5.25 0 1 0 13.25 8"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.3"
+      />
+    </svg>
   );
 }
 
 export function WorkspaceInspectorSidebar({
   currentBranch,
   currentBranchName,
-  currentDirectory,
   fileEntries,
+  fileTreeCacheKey,
   gitCommitMessage,
   gitHistory,
   gitState,
@@ -17084,21 +17422,19 @@ export function WorkspaceInspectorSidebar({
   selectedFilePath,
   workspace,
   workspaceSidebarTab,
-  onDiscardFile,
   onGitCommit,
   onGitCommitMessageChange,
   onGitPush,
   onOpenDiff,
-  onOpenDirectory,
+  onLoadDirectoryChildren,
   onOpenFile,
+  onRefreshSidebar,
   onSelectSidebarTab,
-  onStageFile,
-  onUnstageFile,
 }: {
   currentBranch: GitBranchesResult["local"][number] | null;
   currentBranchName: string;
-  currentDirectory: string | null;
   fileEntries: FileEntry[];
+  fileTreeCacheKey: string | null;
   gitCommitMessage: string;
   gitHistory: GitLogResult | null;
   gitState: GitStatusResult | null;
@@ -17110,16 +17446,14 @@ export function WorkspaceInspectorSidebar({
   selectedFilePath: string | null;
   workspace: WorkspaceRecord | null;
   workspaceSidebarTab: WorkspaceSidebarTab;
-  onDiscardFile: (file: GitStatusFile) => void;
   onGitCommit: (push: boolean) => void;
   onGitCommitMessageChange: (value: string) => void;
   onGitPush: () => void;
   onOpenDiff: (path: string) => void;
-  onOpenDirectory: (path: string) => void;
+  onLoadDirectoryChildren: (path: string) => Promise<FileEntry[]>;
   onOpenFile: (path: string) => void;
+  onRefreshSidebar: () => void;
   onSelectSidebarTab: (tab: WorkspaceSidebarTab) => void;
-  onStageFile: (file: GitStatusFile) => void;
-  onUnstageFile: (file: GitStatusFile) => void;
 }) {
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
   const showWorkspaceDetails = Boolean(workspace && !issueMeta);
@@ -17129,7 +17463,9 @@ export function WorkspaceInspectorSidebar({
     : hasUnpushedCommits
       ? ("push" as const)
       : ("disabledCommit" as const);
-  const canCommit = !isWorking && gitCommitMessage.trim().length > 0;
+  const hasCommitMessage = gitCommitMessage.trim().length > 0;
+  const canCommit = !isWorking && hasCommitMessage;
+  const canOpenCommitMenu = !isWorking;
   const canPush = !isWorking && hasUnpushedCommits;
 
   useEffect(() => {
@@ -17174,7 +17510,7 @@ export function WorkspaceInspectorSidebar({
               }
             />
             <DetailRow
-              label="Project"
+              label="Repository"
               value={
                 workspaceDetails.project_name ??
                 workspaceDetails.project_id ??
@@ -17216,15 +17552,22 @@ export function WorkspaceInspectorSidebar({
               <div className="git-header-split-button-shell">
                 <div
                   className={
-                    canCommit
+                    canOpenCommitMenu
                       ? "git-header-split-button"
                       : "git-header-split-button disabled"
                   }
                 >
                   <button
                     className="git-header-split-button-primary"
-                    disabled={!canCommit}
-                    onClick={() => onGitCommit(false)}
+                    disabled={!canOpenCommitMenu}
+                    onClick={() => {
+                      if (canCommit) {
+                        onGitCommit(false);
+                        return;
+                      }
+
+                      setIsActionMenuOpen(true);
+                    }}
                     type="button"
                   >
                     Commit
@@ -17233,7 +17576,7 @@ export function WorkspaceInspectorSidebar({
                     aria-expanded={isActionMenuOpen}
                     aria-label="Commit actions"
                     className="git-header-split-button-toggle"
-                    disabled={!canCommit}
+                    disabled={!canOpenCommitMenu}
                     onClick={() => setIsActionMenuOpen((current) => !current)}
                     type="button"
                   >
@@ -17241,7 +17584,29 @@ export function WorkspaceInspectorSidebar({
                   </button>
                 </div>
                 {isActionMenuOpen ? (
-                  <div className="git-header-dropdown-menu">
+                  <div className="git-header-dropdown-menu git-header-commit-menu">
+                    <label className="git-header-commit-field-inline">
+                      <span>Commit message</span>
+                      <input
+                        autoFocus
+                        onChange={(event) =>
+                          onGitCommitMessageChange(event.target.value)
+                        }
+                        placeholder="Describe this change"
+                        value={gitCommitMessage}
+                      />
+                    </label>
+                    <button
+                      className="git-header-dropdown-item"
+                      disabled={!canCommit}
+                      onClick={() => {
+                        setIsActionMenuOpen(false);
+                        onGitCommit(false);
+                      }}
+                      type="button"
+                    >
+                      Commit
+                    </button>
                     <button
                       className="git-header-dropdown-item"
                       disabled={!canCommit}
@@ -17257,12 +17622,12 @@ export function WorkspaceInspectorSidebar({
                 ) : null}
               </div>
             ) : headerActionMode === "push" ? (
-                <button
-                  aria-label="Push changes"
-                  className="git-header-push-button"
-                  disabled={!canPush}
-                  onClick={onGitPush}
-                  type="button"
+              <button
+                aria-label="Push changes"
+                className="git-header-push-button"
+                disabled={!canPush}
+                onClick={onGitPush}
+                type="button"
               >
                 Push
               </button>
@@ -17287,125 +17652,71 @@ export function WorkspaceInspectorSidebar({
           </div>
         </div>
 
-        <div className="workspace-sidebar-tabs">
-          <WorkspaceSidebarTabButton
-            active={workspaceSidebarTab === "changes"}
-            count={gitState?.files.length ?? 0}
-            label="Changes"
-            onClick={() => onSelectSidebarTab("changes")}
-          />
-          <WorkspaceSidebarTabButton
-            active={workspaceSidebarTab === "files"}
-            label="Files"
-            onClick={() => onSelectSidebarTab("files")}
-          />
-          <WorkspaceSidebarTabButton
-            active={workspaceSidebarTab === "commits"}
-            label="Commits"
-            onClick={() => onSelectSidebarTab("commits")}
-          />
-          {issueMeta ? (
+        <div className="workspace-sidebar-tabs workspace-sidebar-git-tabs">
+          <div className="workspace-sidebar-git-tab-list">
             <WorkspaceSidebarTabButton
-              active={workspaceSidebarTab === "issue"}
-              label="Issue"
-              onClick={() => onSelectSidebarTab("issue")}
+              active={workspaceSidebarTab === "changes"}
+              count={gitState?.files.length ?? 0}
+              label="Changes"
+              onClick={() => onSelectSidebarTab("changes")}
+              tab="changes"
             />
-          ) : null}
+            <WorkspaceSidebarTabButton
+              active={workspaceSidebarTab === "files"}
+              label="Files"
+              onClick={() => onSelectSidebarTab("files")}
+              tab="files"
+            />
+            <WorkspaceSidebarTabButton
+              active={workspaceSidebarTab === "commits"}
+              label="Commits"
+              onClick={() => onSelectSidebarTab("commits")}
+              tab="commits"
+            />
+            {issueMeta ? (
+              <WorkspaceSidebarTabButton
+                active={workspaceSidebarTab === "issue"}
+                label="Issue"
+                onClick={() => onSelectSidebarTab("issue")}
+                tab="issue"
+              />
+            ) : null}
+          </div>
+          <button
+            aria-label="Refresh repository panel"
+            className="workspace-sidebar-git-refresh"
+            onClick={onRefreshSidebar}
+            type="button"
+          >
+            <WorkspaceSidebarRefreshIcon />
+          </button>
         </div>
 
         {workspaceSidebarTab === "changes" ? (
-          <div className="workspace-sidebar-content">
-            <label className="git-commit-field">
-              <span>Commit message</span>
-              <input
-                onChange={(event) => onGitCommitMessageChange(event.target.value)}
-                placeholder="Describe this change"
-                value={gitCommitMessage}
-              />
-            </label>
-
-            <GitChangeSection
+          <div className="workspace-sidebar-content workspace-sidebar-changes-content">
+            <WorkspaceGitChangesList
               activePath={selectedDiff ? selectedFilePath : null}
-              files={(gitState?.files ?? []).filter((file) => file.staged)}
-              onDiscard={(file) => onDiscardFile(file)}
-              onOpen={(file) => onOpenDiff(file.path)}
-              onPrimaryAction={(file) => onUnstageFile(file)}
-              primaryActionLabel="Unstage"
-              title="Staged"
-            />
-            <GitChangeSection
-              activePath={selectedDiff ? selectedFilePath : null}
-              files={(gitState?.files ?? []).filter((file) => !file.staged)}
-              onDiscard={(file) => onDiscardFile(file)}
-              onOpen={(file) => onOpenDiff(file.path)}
-              onPrimaryAction={(file) => onStageFile(file)}
-              primaryActionLabel="Stage"
-              title="Working Tree"
+              files={gitState?.files ?? []}
+              onOpenDiff={onOpenDiff}
             />
           </div>
         ) : null}
 
         {workspaceSidebarTab === "files" ? (
-          <div className="workspace-sidebar-content">
-            <div className="inspector-header">
-              <h3>Repository Files</h3>
-              {currentDirectory ? (
-                <button
-                  className="secondary-button compact-button"
-                  onClick={() => {
-                    const parent = currentDirectory
-                      .split("/")
-                      .slice(0, -1)
-                      .join("/");
-                    onOpenDirectory(parent);
-                  }}
-                  type="button"
-                >
-                  Up
-                </button>
-              ) : null}
-            </div>
-            <div className="surface-list dense">
-              {fileEntries.map((entry) => (
-                <button
-                  className="file-list-button"
-                  key={entry.path}
-                  onClick={() =>
-                    entry.is_dir ? onOpenDirectory(entry.path) : onOpenFile(entry.path)
-                  }
-                  type="button"
-                >
-                  <strong>{entry.is_dir ? `${entry.name}/` : entry.name}</strong>
-                  <span>{entry.path}</span>
-                </button>
-              ))}
-            </div>
+          <div className="workspace-sidebar-content workspace-sidebar-files-content">
+            <WorkspaceFileTree
+              cacheKey={fileTreeCacheKey}
+              entries={fileEntries}
+              onLoadDirectoryChildren={onLoadDirectoryChildren}
+              onOpenFile={onOpenFile}
+              selectedFilePath={selectedFilePath}
+            />
           </div>
         ) : null}
 
         {workspaceSidebarTab === "commits" ? (
-          <div className="workspace-sidebar-content">
-            <div className="summary-grid">
-              <SummaryPill label="Branch" value={currentBranchName} />
-              <SummaryPill label="Changed" value={gitState?.files.length ?? 0} />
-              <SummaryPill
-                label="Clean"
-                value={gitState?.is_clean ? "yes" : "no"}
-              />
-            </div>
-            <div className="surface-list dense">
-              {(gitHistory?.commits ?? []).map((commit) => (
-                <article className="commit-row" key={commit.oid}>
-                  <div>
-                    <strong>{commit.summary}</strong>
-                    <span>
-                      {commit.short_oid} · {commit.author_name} ·{" "}
-                      {formatRelativeTimestamp(commit.author_time)}
-                    </span>
-                  </div>
-                </article>
-              ))}
-            </div>
+          <div className="workspace-sidebar-content workspace-sidebar-commits-content">
+            <WorkspaceCommitHistoryList commits={gitHistory?.commits ?? []} />
           </div>
         ) : null}
 
@@ -17416,6 +17727,325 @@ export function WorkspaceInspectorSidebar({
         ) : null}
       </section>
     </aside>
+  );
+}
+
+function WorkspaceFileTree({
+  cacheKey,
+  entries,
+  onLoadDirectoryChildren,
+  onOpenFile,
+  selectedFilePath,
+}: {
+  cacheKey: string | null;
+  entries: FileEntry[];
+  onLoadDirectoryChildren: (path: string) => Promise<FileEntry[]>;
+  onOpenFile: (path: string) => void;
+  selectedFilePath: string | null;
+}) {
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [childEntriesByPath, setChildEntriesByPath] = useState<
+    Record<string, FileEntry[]>
+  >({});
+  const [loadingPaths, setLoadingPaths] = useState<Record<string, boolean>>({});
+  const [loadErrors, setLoadErrors] = useState<Record<string, string>>({});
+  const rootEntries = useMemo(
+    () => sortWorkspaceFileTreeEntries(entries),
+    [entries]
+  );
+
+  useEffect(() => {
+    setExpandedPaths(new Set());
+    setChildEntriesByPath({});
+    setLoadingPaths({});
+    setLoadErrors({});
+  }, [cacheKey]);
+
+  const handleToggleDirectory = async (entry: FileEntry) => {
+    const isExpanded = expandedPaths.has(entry.path);
+
+    setExpandedPaths((current) => {
+      const next = new Set(current);
+      if (isExpanded) {
+        next.delete(entry.path);
+      } else {
+        next.add(entry.path);
+      }
+      return next;
+    });
+
+    if (
+      isExpanded ||
+      !entry.has_children ||
+      childEntriesByPath[entry.path] ||
+      loadingPaths[entry.path]
+    ) {
+      return;
+    }
+
+    setLoadingPaths((current) => ({
+      ...current,
+      [entry.path]: true,
+    }));
+    setLoadErrors((current) => {
+      const next = { ...current };
+      delete next[entry.path];
+      return next;
+    });
+
+    try {
+      const nextEntries = await onLoadDirectoryChildren(entry.path);
+      setChildEntriesByPath((current) => ({
+        ...current,
+        [entry.path]: sortWorkspaceFileTreeEntries(nextEntries),
+      }));
+    } catch (error) {
+      setLoadErrors((current) => ({
+        ...current,
+        [entry.path]: error instanceof Error ? error.message : String(error),
+      }));
+    } finally {
+      setLoadingPaths((current) => {
+        const next = { ...current };
+        delete next[entry.path];
+        return next;
+      });
+    }
+  };
+
+  const renderEntries = (treeEntries: FileEntry[], depth: number): ReactNode => {
+    const directories = treeEntries.filter((entry) => entry.is_dir);
+    const files = treeEntries.filter((entry) => !entry.is_dir);
+    const renderedEntries: ReactNode[] = [];
+
+    const renderRow = (entry: FileEntry) => {
+      const isDirectory = entry.is_dir;
+      const isExpanded = expandedPaths.has(entry.path);
+      const isLoading = Boolean(loadingPaths[entry.path]);
+      const loadError = loadErrors[entry.path];
+      const isMuted = isWorkspaceFileTreeMuted(entry);
+      const isSelected = !isDirectory && selectedFilePath === entry.path;
+      const childEntries = childEntriesByPath[entry.path] ?? [];
+
+      renderedEntries.push(
+        <button
+          className={[
+            "workspace-file-tree-row",
+            isDirectory ? "is-directory" : "is-file",
+            isExpanded ? "is-expanded" : "",
+            isSelected ? "is-selected" : "",
+            isMuted ? "is-muted" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          key={entry.path}
+          onClick={() => {
+            if (isDirectory) {
+              void handleToggleDirectory(entry);
+              return;
+            }
+
+            onOpenFile(entry.path);
+          }}
+          style={{
+            paddingLeft: `${16 + depth * 16}px`,
+            paddingRight: "16px",
+          }}
+          title={entry.path}
+          type="button"
+        >
+          {isDirectory && entry.has_children ? (
+            <WorkspaceFileTreeChevronIcon expanded={isExpanded} />
+          ) : (
+            <span className="workspace-file-tree-spacer" />
+          )}
+          {isDirectory ? (
+            <WorkspaceFileTreeFolderIcon expanded={isExpanded} muted={isMuted} />
+          ) : (
+            <WorkspaceFileTreeFileIcon />
+          )}
+          <span className="workspace-file-tree-label">{entry.name}</span>
+        </button>
+      );
+
+      if (isDirectory && isExpanded) {
+        if (isLoading) {
+          renderedEntries.push(
+            <div
+              className="workspace-file-tree-feedback"
+              key={`${entry.path}:loading`}
+              style={{
+                paddingLeft: `${48 + depth * 16}px`,
+                paddingRight: "16px",
+              }}
+            >
+              Loading…
+            </div>
+          );
+        } else if (loadError) {
+          renderedEntries.push(
+            <div
+              className="workspace-file-tree-feedback is-error"
+              key={`${entry.path}:error`}
+              style={{
+                paddingLeft: `${48 + depth * 16}px`,
+                paddingRight: "16px",
+              }}
+            >
+              {loadError}
+            </div>
+          );
+        } else if (childEntries.length > 0) {
+          renderedEntries.push(
+            <div
+              className="workspace-file-tree-group"
+              key={`${entry.path}:children`}
+            >
+              {renderEntries(childEntries, depth + 1)}
+            </div>
+          );
+        }
+      }
+    };
+
+    directories.forEach(renderRow);
+
+    if (depth === 0 && directories.length > 0 && files.length > 0) {
+      renderedEntries.push(
+        <div
+          aria-hidden="true"
+          className="workspace-file-tree-separator"
+          key={`separator:${depth}`}
+        />
+      );
+    }
+
+    files.forEach(renderRow);
+
+    return renderedEntries;
+  };
+
+  if (rootEntries.length === 0) {
+    return <p className="workspace-file-tree-empty">No repository files yet.</p>;
+  }
+
+  return <div className="workspace-file-tree">{renderEntries(rootEntries, 0)}</div>;
+}
+
+function sortWorkspaceFileTreeEntries(entries: FileEntry[]) {
+  return [...entries].sort((left, right) => {
+    const rankDifference =
+      workspaceFileTreeSortRank(left) - workspaceFileTreeSortRank(right);
+    if (rankDifference !== 0) {
+      return rankDifference;
+    }
+
+    return left.name.localeCompare(right.name, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+  });
+}
+
+function workspaceFileTreeSortRank(entry: FileEntry) {
+  if (entry.is_dir) {
+    return isWorkspaceFileTreeMuted(entry) ? 1 : 0;
+  }
+
+  return 2;
+}
+
+function isWorkspaceFileTreeMuted(entry: FileEntry) {
+  return entry.is_dir && entry.name === "node_modules";
+}
+
+function WorkspaceFileTreeChevronIcon({
+  expanded,
+}: {
+  expanded: boolean;
+}) {
+  return (
+    <svg
+      aria-hidden="true"
+      className="workspace-file-tree-chevron"
+      fill="none"
+      viewBox="0 0 16 16"
+    >
+      <path
+        d={
+          expanded ? "M4.75 6.5L8 9.75L11.25 6.5" : "M6.25 4.75L9.5 8L6.25 11.25"
+        }
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.3"
+      />
+    </svg>
+  );
+}
+
+function WorkspaceFileTreeFolderIcon({
+  expanded,
+  muted,
+}: {
+  expanded: boolean;
+  muted: boolean;
+}) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={
+        muted
+          ? "workspace-file-tree-icon is-folder is-muted"
+          : expanded
+            ? "workspace-file-tree-icon is-folder is-expanded"
+            : "workspace-file-tree-icon is-folder"
+      }
+      fill="none"
+      viewBox="0 0 16 16"
+    >
+      {expanded ? (
+        <path
+          d="M1.75 5.5A1.75 1.75 0 0 1 3.5 3.75H6.1c.42 0 .82.16 1.11.45l.58.58c.29.29.69.45 1.1.45h3.61A1.75 1.75 0 0 1 14.25 7v3.5a1.75 1.75 0 0 1-1.75 1.75h-9A1.75 1.75 0 0 1 1.75 10.5z"
+          stroke="currentColor"
+          strokeLinejoin="round"
+          strokeWidth="1.2"
+        />
+      ) : (
+        <path
+          d="M2.25 4.75A1.75 1.75 0 0 1 4 3h1.82c.38 0 .75.14 1.02.4l.62.6c.27.26.63.4 1.01.4H12a1.75 1.75 0 0 1 1.75 1.75v5A1.75 1.75 0 0 1 12 12.9H4A1.75 1.75 0 0 1 2.25 11.15z"
+          stroke="currentColor"
+          strokeLinejoin="round"
+          strokeWidth="1.2"
+        />
+      )}
+    </svg>
+  );
+}
+
+function WorkspaceFileTreeFileIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="workspace-file-tree-icon is-file"
+      fill="none"
+      viewBox="0 0 16 16"
+    >
+      <path
+        d="M5.25 2.75h3.8L12.25 6v6.25A1.75 1.75 0 0 1 10.5 14h-5A1.75 1.75 0 0 1 3.75 12.25v-7.75A1.75 1.75 0 0 1 5.5 2.75z"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.2"
+      />
+      <path
+        d="M9 2.75V6h3.25"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.2"
+      />
+    </svg>
   );
 }
 
@@ -17473,29 +18103,6 @@ function CompanyContextMenuIcon({
             stroke="currentColor"
             strokeLinecap="round"
             strokeWidth="1.4"
-          />
-        </svg>
-      );
-    case "approvals":
-      return (
-        <svg
-          aria-hidden="true"
-          className={className}
-          fill="none"
-          viewBox="0 0 16 16"
-        >
-          <path
-            d="M8 2.5 12 4v3.6c0 2.1-1.1 4.04-4 5.9-2.9-1.86-4-3.8-4-5.9V4Z"
-            stroke="currentColor"
-            strokeLinejoin="round"
-            strokeWidth="1.3"
-          />
-          <path
-            d="m6.3 7.95 1.15 1.15 2.35-2.45"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="1.3"
           />
         </svg>
       );
@@ -17609,89 +18216,146 @@ function CompanyContextMenuIcon({
   }
 }
 
-function GitChangeSection({
-  title,
-  files,
+function WorkspaceGitChangesList({
   activePath,
-  primaryActionLabel,
-  onOpen,
-  onPrimaryAction,
-  onDiscard,
+  files,
+  onOpenDiff,
 }: {
-  title: string;
-  files: GitStatusFile[];
   activePath: string | null;
-  primaryActionLabel: string;
-  onOpen: (file: GitStatusFile) => void;
-  onPrimaryAction: (file: GitStatusFile) => void;
-  onDiscard: (file: GitStatusFile) => void;
+  files: GitStatusFile[];
+  onOpenDiff: (path: string) => void;
 }) {
   if (!files.length) {
-    return null;
+    return (
+      <div className="workspace-empty-state workspace-git-empty-state">
+        <h3>No changes yet</h3>
+        <p>Changes will show up here as soon as the workspace gets dirty.</p>
+      </div>
+    );
   }
 
   return (
-    <section className="git-change-group">
-      <div className="git-change-group-header">
-        <h3>{title}</h3>
-        <span>{files.length}</span>
-      </div>
-      <div className="surface-list dense">
-        {files.map((file) => (
-          <div
-            className={
-              activePath === file.path
-                ? "git-change-row active"
-                : "git-change-row"
-            }
-            key={`${title}:${file.path}`}
-            onClick={() => onOpen(file)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onOpen(file);
-              }
-            }}
-            role="button"
-            tabIndex={0}
+    <div className="workspace-git-change-list">
+      {files.map((file) => (
+        <button
+          className={
+            activePath === file.path
+              ? "workspace-git-change-row active"
+              : "workspace-git-change-row"
+          }
+          key={file.path}
+          onClick={() => onOpenDiff(file.path)}
+          title={file.path}
+          type="button"
+        >
+          <span
+            className={`workspace-git-status-letter ${gitStatusToneClass(file.status)}`}
           >
-            <div className="git-change-row-main">
-              <span
-                className={`git-status-badge ${file.status ? `status-${file.status}` : ""}`}
-              >
-                {gitStatusBadge(file.status)}
-              </span>
-              <div>
-                <strong>{fileName(file.path)}</strong>
-                <span>{parentPath(file.path)}</span>
-              </div>
-            </div>
-            <div
-              className="git-change-actions"
-              onClick={(event) => event.stopPropagation()}
+            {gitStatusBadge(file.status)}
+          </span>
+          <span className="workspace-git-change-path">{file.path}</span>
+          <span className="workspace-git-change-stats">
+            <span className={gitDiffCountClass(file.additions ?? 0, "additions")}>
+              +{file.additions ?? 0}
+            </span>
+            <span className={gitDiffCountClass(file.deletions ?? 0, "deletions")}>
+              -{file.deletions ?? 0}
+            </span>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function WorkspaceCommitHistoryList({
+  commits,
+}: {
+  commits: GitLogResult["commits"];
+}) {
+  if (!commits.length) {
+    return (
+      <div className="workspace-empty-state workspace-git-empty-state">
+        <h3>No commits yet</h3>
+        <p>Recent repository commits will appear here after the next refresh.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="workspace-commit-history-list">
+      {commits.map((commit) => (
+        <article className="workspace-commit-history-item" key={commit.oid}>
+          <WorkspaceCommitHistoryIcon />
+          <div className="workspace-commit-history-body">
+            <strong
+              className="workspace-commit-history-summary"
+              title={commit.message}
             >
-              <button
-                className="secondary-button compact-button"
-                onClick={() => onPrimaryAction(file)}
-                type="button"
-              >
-                {primaryActionLabel}
-              </button>
-              {!file.staged ? (
-                <button
-                  className="secondary-button compact-button destructive-button"
-                  onClick={() => onDiscard(file)}
-                  type="button"
-                >
-                  Discard
-                </button>
-              ) : null}
+              {commit.summary.trim() || commit.short_oid}
+            </strong>
+            <div className="workspace-commit-history-meta">
+              <span className="workspace-commit-history-hash">
+                {commit.short_oid}
+              </span>
+              <span className="workspace-commit-history-time">
+                {formatRelativeTimestamp(commit.author_time)}
+              </span>
             </div>
           </div>
-        ))}
-      </div>
-    </section>
+        </article>
+      ))}
+    </div>
   );
+}
+
+function WorkspaceCommitHistoryIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="workspace-commit-history-icon"
+      fill="none"
+      viewBox="0 0 16 16"
+    >
+      <path
+        d="M1.5 8h4.25m4.5 0h4.25"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.3"
+      />
+      <circle cx="8" cy="8" r="2.25" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
+  );
+}
+
+function gitStatusToneClass(status: string | null | undefined) {
+  switch (status) {
+    case "added":
+    case "untracked":
+      return "status-added";
+    case "deleted":
+    case "conflicted":
+      return "status-deleted";
+    case "modified":
+    case "renamed":
+    case "copied":
+      return "status-modified";
+    default:
+      return "status-neutral";
+  }
+}
+
+function gitDiffCountClass(
+  value: number,
+  tone: "additions" | "deletions"
+) {
+  if (value === 0) {
+    return "workspace-git-change-count zero";
+  }
+
+  return tone === "additions"
+    ? "workspace-git-change-count additions"
+    : "workspace-git-change-count deletions";
 }
 
 function screenLabel(screen: AppScreen): string {
@@ -17704,10 +18368,8 @@ function screenLabel(screen: AppScreen): string {
       return "Agents";
     case "issues":
       return "Conversations";
-    case "approvals":
-      return "Approvals";
     case "projects":
-      return "Projects";
+      return "Repositories";
     case "activity":
       return "Activity";
     case "costs":
@@ -17728,8 +18390,6 @@ function sidebarScreenIcon(
       return "dashboard";
     case "issues":
       return "issues";
-    case "approvals":
-      return "approvals";
     case "stats":
       return "stats";
     case "activity":
@@ -17927,6 +18587,10 @@ function capitalize(value: string) {
   return value.slice(0, 1).toUpperCase() + value.slice(1);
 }
 
+function reasoningEffortLabel(value: string) {
+  return value === "xhigh" ? "Extra high" : capitalize(value);
+}
+
 function createEmptyIssueDraft(): IssueEditDraft {
   const runtimeDraft = createDefaultIssueRuntimeDraft(null);
   return {
@@ -17949,7 +18613,9 @@ function createIssueDraft(issue: IssueRecord): IssueEditDraft {
   const workspaceDraft = parseIssueExecutionWorkspaceSettings(
     issue.execution_workspace_settings
   );
-  const runtimeDraft = parseIssueAdapterOverrides(issue.assignee_adapter_overrides);
+  const runtimeDraft = parseIssueAdapterOverrides(
+    issue.assignee_adapter_overrides
+  );
 
   return {
     ...runtimeDraft,
@@ -17975,7 +18641,7 @@ function createEmptyAgentConfigDraft(): AgentConfigDraft {
     instructionsPath: "",
     command: "claude",
     model: "default",
-    thinkingEffort: "auto",
+    thinkingEffort: defaultReasoningEffortForProvider("claude"),
     bootstrapPrompt: "",
     enableChrome: false,
     skipPermissions: false,
@@ -18005,9 +18671,14 @@ function createAgentConfigDraft(agent: AgentRecord): AgentConfigDraft {
     instructionsPath: agent.instructions_path ?? "",
     command: stringFromUnknown(adapterConfig.command, "claude"),
     model: stringFromUnknown(adapterConfig.model, "default"),
-    thinkingEffort: stringFromUnknown(
-      adapterConfig.thinkingEffort ?? adapterConfig.reasoningEffort,
-      "auto"
+    thinkingEffort: normalizeReasoningEffortForProvider(
+      stringFromUnknown(
+        adapterConfig.thinkingEffort ?? adapterConfig.reasoningEffort
+      ),
+      detectAgentCliProvider(
+        stringFromUnknown(adapterConfig.command, "claude"),
+        stringFromUnknown(adapterConfig.model, "default")
+      )
     ),
     bootstrapPrompt: stringFromUnknown(runtimeConfig.bootstrapPrompt),
     enableChrome: booleanFromUnknown(adapterConfig.enableChrome),
@@ -18046,13 +18717,19 @@ function buildAgentConfigUpdateParams(
   agent: AgentRecord,
   draft: AgentConfigDraft
 ) {
+  const provider = detectAgentCliProvider(draft.command, draft.model);
   const adapterConfig = {
     ...objectFromUnknown(agent.adapter_config),
     command: normalizeOptionalDraftString(draft.command) ?? "claude",
     model: normalizeOptionalDraftString(draft.model) ?? "default",
-    thinkingEffort: normalizeOptionalDraftString(draft.thinkingEffort) ?? "auto",
-    reasoningEffort:
-      normalizeOptionalDraftString(draft.thinkingEffort) ?? "auto",
+    thinkingEffort: normalizeReasoningEffortForProvider(
+      normalizeOptionalDraftString(draft.thinkingEffort),
+      provider
+    ),
+    reasoningEffort: normalizeReasoningEffortForProvider(
+      normalizeOptionalDraftString(draft.thinkingEffort),
+      provider
+    ),
     enableChrome: draft.enableChrome,
     skipPermissions: draft.skipPermissions,
   } as Record<string, unknown>;
@@ -18132,7 +18809,7 @@ function parseAgentConfigEnvVars(value: unknown): AgentConfigEnvVarDraft[] {
       const record = objectFromUnknown(entry);
       const key = stringFromUnknown(record.key);
       const envValue = stringFromUnknown(record.value);
-      if (!key && !envValue) {
+      if (!(key || envValue)) {
         return null;
       }
       return createAgentConfigEnvVarDraft({
@@ -18306,6 +18983,8 @@ const fallbackCodexModelOptions = [
   "gpt-5-codex",
   "codex-mini-latest",
 ];
+const claudeReasoningEffortOptions = ["low", "medium", "high", "max"];
+const codexReasoningEffortOptions = ["low", "medium", "high", "xhigh"];
 
 function detectAgentCliProvider(
   command: string | null | undefined,
@@ -18403,11 +19082,11 @@ function buildProviderModelCatalog(
   const discoveredModels =
     provider === "codex"
       ? dependencyCheck?.cli.codex.installed
-        ? dependencyCheck?.cli.codex.models ?? []
+        ? (dependencyCheck?.cli.codex.models ?? [])
         : []
       : provider === "claude"
         ? dependencyCheck?.cli.claude.installed
-          ? dependencyCheck?.cli.claude.models ?? []
+          ? (dependencyCheck?.cli.claude.models ?? [])
           : []
         : [];
   const fallbackModels =
@@ -18417,12 +19096,79 @@ function buildProviderModelCatalog(
         ? fallbackClaudeModelOptions
         : [];
 
-  return ["default", ...(discoveredModels.length ? discoveredModels : fallbackModels)];
+  return [
+    "default",
+    ...(discoveredModels.length ? discoveredModels : fallbackModels),
+  ];
+}
+
+function defaultReasoningEffortForProvider(provider: AgentCliProvider) {
+  void provider;
+  return "medium";
+}
+
+function normalizeReasoningEffortForProvider(
+  value: string | null | undefined,
+  provider: AgentCliProvider
+) {
+  const normalized = value?.trim().toLowerCase() ?? "";
+
+  if (provider === "codex") {
+    if (
+      normalized === "xhigh" ||
+      normalized === "extra high" ||
+      normalized === "extra_high" ||
+      normalized === "extrahigh" ||
+      normalized === "max"
+    ) {
+      return "xhigh";
+    }
+    if (normalized === "low" || normalized === "medium" || normalized === "high") {
+      return normalized;
+    }
+    return defaultReasoningEffortForProvider(provider);
+  }
+
+  if (provider === "claude") {
+    if (
+      normalized === "xhigh" ||
+      normalized === "extra high" ||
+      normalized === "extra_high" ||
+      normalized === "extrahigh" ||
+      normalized === "max"
+    ) {
+      return "max";
+    }
+    if (normalized === "low" || normalized === "medium" || normalized === "high") {
+      return normalized;
+    }
+    return defaultReasoningEffortForProvider(provider);
+  }
+
+  return normalized || "medium";
+}
+
+function buildProviderReasoningEffortCatalog(provider: AgentCliProvider) {
+  if (provider === "codex") {
+    return codexReasoningEffortOptions;
+  }
+  if (provider === "claude") {
+    return claudeReasoningEffortOptions;
+  }
+  return ["low", "medium", "high"];
+}
+
+function buildReasoningEffortOptions(
+  draft: Pick<IssueRuntimeDraft, "command" | "model" | "thinkingEffort">
+) {
+  const provider = detectAgentCliProvider(draft.command, draft.model);
+  void draft.thinkingEffort;
+  return buildProviderReasoningEffortCatalog(provider);
 }
 
 function runtimeDraftPatchForProviderSelection(
   command: string,
-  draft: Pick<IssueRuntimeDraft, "model" | "planMode">,
+  draft: Pick<IssueRuntimeDraft, "model" | "planMode" | "thinkingEffort">,
   dependencyCheck: RuntimeCapabilities | null
 ) {
   const provider = detectAgentCliProvider(command);
@@ -18432,6 +19178,10 @@ function runtimeDraftPatchForProviderSelection(
   return {
     command,
     model,
+    thinkingEffort: normalizeReasoningEffortForProvider(
+      draft.thinkingEffort,
+      provider
+    ),
     planMode: provider === "claude" ? draft.planMode : false,
   };
 }
@@ -18531,16 +19281,33 @@ function normalizeDashboardProjectGrouping(
   return "status";
 }
 
+function orderProjectsByCreatedAt(projects: ProjectRecord[]) {
+  return [...projects].sort((left, right) => {
+    const leftCreatedAt = parseIssueDate(left.created_at)?.getTime() ?? Infinity;
+    const rightCreatedAt =
+      parseIssueDate(right.created_at)?.getTime() ?? Infinity;
+    if (leftCreatedAt !== rightCreatedAt) {
+      return leftCreatedAt - rightCreatedAt;
+    }
+
+    return left.id.localeCompare(right.id);
+  });
+}
+
 function useBirdsEyeCodeImpact(sessionIds: string[]) {
   const [summaries, setSummaries] = useState<
     Record<string, BirdsEyeCodeImpactSummary>
   >({});
   const sortedSessionIds = useMemo(
-    () => [...new Set(sessionIds)].sort((left, right) => left.localeCompare(right)),
+    () =>
+      [...new Set(sessionIds)].sort((left, right) => left.localeCompare(right)),
     [sessionIds]
   );
   const missingSessionIds = useMemo(
-    () => sortedSessionIds.filter((sessionId) => summaries[sessionId] === undefined),
+    () =>
+      sortedSessionIds.filter(
+        (sessionId) => summaries[sessionId] === undefined
+      ),
     [sortedSessionIds, summaries]
   );
   const missingSessionKey = missingSessionIds.join("|");
@@ -18649,7 +19416,7 @@ function buildBirdsEyeTree({
     }
   }
 
-  const projectNodes = projects
+  const projectNodes = orderProjectsByCreatedAt(projects)
     .map((project) => {
       const repoPath = project.primary_workspace?.cwd?.trim() ?? null;
       const projectChats = chats.filter(
@@ -18689,8 +19456,8 @@ function buildBirdsEyeTree({
         })
       );
 
-      for (const worktree of projectWorktreesByProjectId[project.id]?.worktrees ??
-        []) {
+      for (const worktree of projectWorktreesByProjectId[project.id]
+        ?.worktrees ?? []) {
         ensureFolder(
           birdsEyeFolderNode({
             branch: worktree.branch ?? null,
@@ -18788,8 +19555,7 @@ function buildBirdsEyeTree({
             return right.liveRunCount - left.liveRunCount;
           }
 
-          const leftTime =
-            parseIssueDate(left.lastActivityAt)?.getTime() ?? 0;
+          const leftTime = parseIssueDate(left.lastActivityAt)?.getTime() ?? 0;
           const rightTime =
             parseIssueDate(right.lastActivityAt)?.getTime() ?? 0;
           if (rightTime !== leftTime) {
@@ -18799,15 +19565,11 @@ function buildBirdsEyeTree({
           return left.label.localeCompare(right.label);
         });
       const allChats = folders.flatMap((folder) => folder.chats);
-      const latestChat = allChats
-        .slice()
-        .sort((left, right) => {
-          const leftTime =
-            parseIssueDate(left.lastActivityAt)?.getTime() ?? 0;
-          const rightTime =
-            parseIssueDate(right.lastActivityAt)?.getTime() ?? 0;
-          return rightTime - leftTime;
-        })[0];
+      const latestChat = allChats.slice().sort((left, right) => {
+        const leftTime = parseIssueDate(left.lastActivityAt)?.getTime() ?? 0;
+        const rightTime = parseIssueDate(right.lastActivityAt)?.getTime() ?? 0;
+        return rightTime - leftTime;
+      })[0];
 
       return {
         chatCount: allChats.length,
@@ -18821,7 +19583,7 @@ function buildBirdsEyeTree({
         folderCount: folders.length,
         folders,
         kind: "project" as const,
-        label: project.name ?? project.title ?? "Untitled project",
+        label: project.name ?? project.title ?? "Untitled repository",
         lastActivityAt: latestChat?.lastActivityAt ?? null,
         liveRunCount: folders.reduce(
           (count, folder) => count + folder.liveRunCount,
@@ -18831,19 +19593,6 @@ function buildBirdsEyeTree({
         repoPath,
         rowId: `project:${project.id}`,
       };
-    })
-    .sort((left, right) => {
-      if (right.liveRunCount !== left.liveRunCount) {
-        return right.liveRunCount - left.liveRunCount;
-      }
-
-      const leftTime = parseIssueDate(left.lastActivityAt)?.getTime() ?? 0;
-      const rightTime = parseIssueDate(right.lastActivityAt)?.getTime() ?? 0;
-      if (rightTime !== leftTime) {
-        return rightTime - leftTime;
-      }
-
-      return left.label.localeCompare(right.label);
     });
 
   const rowById = new Map<string, BirdsEyeTreeNode>();
@@ -18964,7 +19713,8 @@ function birdsEyeFolderForIssue(
     return birdsEyeFolderNode({
       branch: workspace.workspace_branch ?? null,
       label:
-        workspace.workspace_branch?.trim() || fileName(workspace.workspace_repo_path),
+        workspace.workspace_branch?.trim() ||
+        fileName(workspace.workspace_repo_path),
       path: workspace.workspace_repo_path,
       projectId: project.id,
       runtimeDraft: defaultRuntimeDraft,
@@ -19043,13 +19793,21 @@ function birdsEyeActivityTimestamp(
   update: IssueRunCardUpdateRecord | null,
   workspace: WorkspaceRecord | null
 ) {
-  return [update?.last_activity_at, workspace?.last_accessed_at, workspace?.updated_at, issue.updated_at, issue.created_at]
-    .filter((value): value is string => Boolean(value))
-    .sort((left, right) => {
-      const leftTime = parseIssueDate(left)?.getTime() ?? 0;
-      const rightTime = parseIssueDate(right)?.getTime() ?? 0;
-      return rightTime - leftTime;
-    })[0] ?? null;
+  return (
+    [
+      update?.last_activity_at,
+      workspace?.last_accessed_at,
+      workspace?.updated_at,
+      issue.updated_at,
+      issue.created_at,
+    ]
+      .filter((value): value is string => Boolean(value))
+      .sort((left, right) => {
+        const leftTime = parseIssueDate(left)?.getTime() ?? 0;
+        const rightTime = parseIssueDate(right)?.getTime() ?? 0;
+        return rightTime - leftTime;
+      })[0] ?? null
+  );
 }
 
 function dashboardOverviewChatToIssueRecord(
@@ -19250,74 +20008,81 @@ function buildDashboardProjectColumns(
   projectViews: NonNullable<DesktopSettings["dashboard_project_views"]>
 ): DashboardProjectColumnLayout[] {
   const gridColumnCount = projects.length <= 1 ? 1 : 2;
-  const projectColumnDrafts = projects.map((project) => {
-    const projectViewSettings = projectViews[project.id] ?? {};
-    const projectIssues = issues.filter(
-      (issue) => issue.project_id === project.id
-    );
-    const boards = buildDashboardProjectColumnBoards(
-      project,
-      projectIssues,
-      agents,
-      projectViewSettings
-    );
-    const width = Math.max(
-      ...boards.map((board) => board.width),
-      dashboardProjectBoardMinWidth
-    );
+  const projectColumnDrafts = orderProjectsByCreatedAt(projects).map(
+    (project) => {
+      const projectViewSettings = projectViews[project.id] ?? {};
+      const projectIssues = issues.filter(
+        (issue) => issue.project_id === project.id
+      );
+      const boards = buildDashboardProjectColumnBoards(
+        project,
+        projectIssues,
+        agents,
+        projectViewSettings
+      );
+      const width = Math.max(
+        ...boards.map((board) => board.width),
+        dashboardProjectBoardMinWidth
+      );
 
-    return {
-      project,
-      boards,
-      height:
-        boards.length * dashboardProjectBoardHeight +
-        Math.max(boards.length - 1, 0) * dashboardProjectBoardStackGap +
-        dashboardProjectAddViewSlotHeight,
-      width,
-    };
-  });
+      return {
+        project,
+        boards,
+        height:
+          boards.length * dashboardProjectBoardHeight +
+          Math.max(boards.length - 1, 0) * dashboardProjectBoardStackGap +
+          dashboardProjectAddViewSlotHeight,
+        width,
+      };
+    }
+  );
   const rowCount = Math.ceil(projectColumnDrafts.length / gridColumnCount);
   const columnWidths = Array.from(
     { length: gridColumnCount },
     (_, columnIndex) =>
-      projectColumnDrafts.reduce((maxWidth, projectColumn, columnIndexInDraft) => {
-        if (columnIndexInDraft % gridColumnCount !== columnIndex) {
-          return maxWidth;
-        }
+      projectColumnDrafts.reduce(
+        (maxWidth, projectColumn, columnIndexInDraft) => {
+          if (columnIndexInDraft % gridColumnCount !== columnIndex) {
+            return maxWidth;
+          }
 
-        return Math.max(maxWidth, projectColumn.width);
-      }, dashboardProjectBoardMinWidth)
+          return Math.max(maxWidth, projectColumn.width);
+        },
+        dashboardProjectBoardMinWidth
+      )
   );
   const rowHeights = Array.from({ length: rowCount }, (_, rowIndex) =>
-    projectColumnDrafts.reduce((maxHeight, projectColumn, columnIndexInDraft) => {
-      if (Math.floor(columnIndexInDraft / gridColumnCount) !== rowIndex) {
-        return maxHeight;
-      }
+    projectColumnDrafts.reduce(
+      (maxHeight, projectColumn, columnIndexInDraft) => {
+        if (Math.floor(columnIndexInDraft / gridColumnCount) !== rowIndex) {
+          return maxHeight;
+        }
 
-      return Math.max(maxHeight, projectColumn.height);
-    }, dashboardProjectBoardHeight + dashboardProjectAddViewSlotHeight)
+        return Math.max(maxHeight, projectColumn.height);
+      },
+      dashboardProjectBoardHeight + dashboardProjectAddViewSlotHeight
+    )
   );
   const columnOffsets = columnWidths.map((_, columnIndex) => {
     if (columnIndex === 0) {
       return 120;
     }
 
-    return (
-      columnWidths
-        .slice(0, columnIndex)
-        .reduce((total, width) => total + width + dashboardProjectBoardGapX, 120)
-    );
+    return columnWidths
+      .slice(0, columnIndex)
+      .reduce((total, width) => total + width + dashboardProjectBoardGapX, 120);
   });
   const rowOffsets = rowHeights.map((_, rowIndex) => {
     if (rowIndex === 0) {
       return 104;
     }
 
-    return (
-      rowHeights
-        .slice(0, rowIndex)
-        .reduce((total, height) => total + height + dashboardProjectBoardGapY, 104)
-    );
+    return rowHeights
+      .slice(0, rowIndex)
+      .reduce(
+        (total, height) => total + height + dashboardProjectBoardGapY,
+        104
+      );
   });
 
   return projectColumnDrafts.map((projectColumn, index) => {
@@ -19340,10 +20105,14 @@ function buildDashboardCanvasBounds(
   }
 
   const maxRight = Math.max(
-    ...projectColumns.map((projectColumn) => projectColumn.left + projectColumn.width)
+    ...projectColumns.map(
+      (projectColumn) => projectColumn.left + projectColumn.width
+    )
   );
   const maxBottom = Math.max(
-    ...projectColumns.map((projectColumn) => projectColumn.top + projectColumn.height)
+    ...projectColumns.map(
+      (projectColumn) => projectColumn.top + projectColumn.height
+    )
   );
 
   return {
@@ -19499,7 +20268,10 @@ function nextDashboardProjectViewGrouping(
 }
 
 function createDashboardProjectViewId() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
     return crypto.randomUUID();
   }
 
@@ -19552,7 +20324,7 @@ function issueProjectLabel(
   projectId?: string | null
 ) {
   if (!projectId) {
-    return "No project";
+    return "No repository";
   }
 
   const project = projects.find((entry) => entry.id === projectId);
@@ -19626,10 +20398,7 @@ function agentModelLabel(agent: AgentRecord) {
   return runtimeModelLabel(mergedRuntimeConfig);
 }
 
-function agentModelLabelById(
-  agents: AgentRecord[],
-  agentId?: string | null
-) {
+function agentModelLabelById(agents: AgentRecord[], agentId?: string | null) {
   if (!agentId) {
     return "Unknown model";
   }
@@ -19773,7 +20542,7 @@ function formatRelativeIssueDate(value: string | null | undefined) {
   const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
   const deltaSeconds = Math.round((date.getTime() - Date.now()) / 1000);
   const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
-    ["day", 86400],
+    ["day", 86_400],
     ["hour", 3600],
     ["minute", 60],
   ];
@@ -20062,7 +20831,7 @@ function formatRelativeAgentRunDate(value: string | null | undefined) {
   const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
   const deltaSeconds = Math.round((date.getTime() - Date.now()) / 1000);
   const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
-    ["day", 86400],
+    ["day", 86_400],
     ["hour", 3600],
     ["minute", 60],
   ];
@@ -20369,7 +21138,7 @@ function buildProjectLeadAssignments(
   const assignments = new Map<string, ProjectRecord[]>();
 
   for (const project of projects) {
-    if (!project.lead_agent_id || !agentMap.has(project.lead_agent_id)) {
+    if (!(project.lead_agent_id && agentMap.has(project.lead_agent_id))) {
       continue;
     }
 
@@ -20392,10 +21161,7 @@ function buildProjectLeadAssignments(
     });
 }
 
-function sortAgentsForOrg(
-  agents: AgentRecord[],
-  ceoAgentId: string | null
-) {
+function sortAgentsForOrg(agents: AgentRecord[], ceoAgentId: string | null) {
   return [...agents].sort((left, right) =>
     compareAgentRecordsForOrg(left, right, ceoAgentId)
   );
@@ -20456,7 +21222,7 @@ function isOrgRootAgent(
     return true;
   }
 
-  if (!agent.reports_to || !agentMap.has(agent.reports_to)) {
+  if (!(agent.reports_to && agentMap.has(agent.reports_to))) {
     return true;
   }
 
@@ -20642,7 +21408,7 @@ function formatRelativeTimestamp(timestamp: number) {
   const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
   const deltaSeconds = Math.round((timestamp * 1000 - Date.now()) / 1000);
   const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
-    ["day", 86400],
+    ["day", 86_400],
     ["hour", 3600],
     ["minute", 60],
   ];

@@ -5,6 +5,7 @@ import {
   type ConversationQuestionOption,
   type ConversationRole,
 } from "./conversationTimeline";
+import { shouldHideSyntheticSessionMessage } from "./sessionMessageVisibility";
 import type { SessionMessage } from "./types";
 
 export type SessionConversationProvider = "claude" | "codex" | "custom";
@@ -17,18 +18,18 @@ export type SessionConversationTone =
   | "warning";
 
 export interface SessionConversationCommandBlock {
-  id: string;
-  kind: "command";
   command: string;
   exitCode: number | null;
+  id: string;
+  kind: "command";
   output: string | null;
   status: string;
 }
 
 export interface SessionConversationNoteBlock {
   id: string;
-  kind: "note";
   kicker: string;
+  kind: "note";
   meta: string[];
   text: string;
   tone: SessionConversationTone;
@@ -77,11 +78,14 @@ export function buildSessionConversationTimeline(
   messages: SessionMessage[],
   provider: SessionConversationProvider
 ): SessionConversationRow[] {
+  const visibleMessages = messages.filter(
+    (message) => !shouldHideSyntheticSessionMessage(message)
+  );
   if (provider === "codex") {
-    return buildCodexConversationTimeline(messages);
+    return buildCodexConversationTimeline(visibleMessages);
   }
 
-  const normalizedMessages = normalizeClaudeMessages(messages);
+  const normalizedMessages = normalizeClaudeMessages(visibleMessages);
   const resultMessageIds = new Set(
     normalizedMessages
       .filter((message) => isClaudeResultMessage(message))
@@ -89,13 +93,13 @@ export function buildSessionConversationTimeline(
   );
   const baseRows = dedupeSessionConversationRows(
     buildConversationTimeline(normalizedMessages)
-      .map((row): SessionConversationRow => ({
-        ...row,
-        provider:
-          provider === "custom"
-            ? ("custom" as const)
-            : ("claude" as const),
-      }))
+      .map(
+        (row): SessionConversationRow => ({
+          ...row,
+          provider:
+            provider === "custom" ? ("custom" as const) : ("claude" as const),
+        })
+      )
       .filter((row) => !resultMessageIds.has(row.messageId))
   );
   const compactBoundaryRows = normalizedMessages
@@ -105,9 +109,11 @@ export function buildSessionConversationTimeline(
     .map((message) => buildClaudeResultRow(message, provider))
     .filter(isPresent);
 
-  return dedupeSessionConversationRows([...baseRows, ...compactBoundaryRows, ...resultRows]).sort(
-    (left, right) => left.sequenceNumber - right.sequenceNumber
-  );
+  return dedupeSessionConversationRows([
+    ...baseRows,
+    ...compactBoundaryRows,
+    ...resultRows,
+  ]).sort((left, right) => left.sequenceNumber - right.sequenceNumber);
 }
 
 export function deriveLatestSessionCompletionSummary(
@@ -250,7 +256,10 @@ function buildCodexConversationTimeline(messages: SessionMessage[]) {
         output: sanitizeText(readString(item?.aggregated_output)),
         status: readString(item?.status) ?? "completed",
       });
-    } else if (messageType === "item.completed" && itemType === "agent_message") {
+    } else if (
+      messageType === "item.completed" &&
+      itemType === "agent_message"
+    ) {
       const text = sanitizeText(readString(item?.text));
       if (text) {
         row.role = "assistant";
@@ -329,7 +338,8 @@ function deriveCodexCompletionSummary(messages: SessionMessage[]) {
 
     const usage = readRecord(payload.usage);
     const inputTokens = numberFromUnknown(usage?.input_tokens) ?? 0;
-    const cachedInputTokens = numberFromUnknown(usage?.cached_input_tokens) ?? 0;
+    const cachedInputTokens =
+      numberFromUnknown(usage?.cached_input_tokens) ?? 0;
     const outputTokens = numberFromUnknown(usage?.output_tokens) ?? 0;
     const totalTokens = inputTokens + cachedInputTokens + outputTokens;
     const durationMs = numberFromUnknown(payload.duration_ms);
@@ -387,7 +397,9 @@ function normalizeClaudeMessages(messages: SessionMessage[]) {
             readString(readRecord(block)?.type)?.toLowerCase() === "tool_result"
         );
 
-      const parentToolUseId = sanitizeText(readString(payload.parent_tool_use_id));
+      const parentToolUseId = sanitizeText(
+        readString(payload.parent_tool_use_id)
+      );
       if (onlyToolResults || parentToolUseId) {
         return {
           ...message,
@@ -431,13 +443,10 @@ function buildClaudeSystemRow(
     ],
     id: message.id,
     messageId: message.id,
-        provider:
-          provider === "custom"
-            ? ("custom" as const)
-            : ("claude" as const),
-        role: "system" as const,
-        sequenceNumber: normalizeSequenceNumber(message.sequence_number),
-      };
+    provider: provider === "custom" ? ("custom" as const) : ("claude" as const),
+    role: "system" as const,
+    sequenceNumber: normalizeSequenceNumber(message.sequence_number),
+  };
 }
 
 function buildClaudeResultRow(
@@ -474,20 +483,15 @@ function buildClaudeResultRow(
         kind: "result" as const,
         meta,
         text: sanitizeText(readString(payload.result)) ?? "Completed",
-        tone: Boolean(payload.is_error)
-          ? ("failed" as const)
-          : ("succeeded" as const),
+        tone: payload.is_error ? ("failed" as const) : ("succeeded" as const),
       },
     ],
     id: message.id,
     messageId: message.id,
-        provider:
-          provider === "custom"
-            ? ("custom" as const)
-            : ("claude" as const),
-        role: "result" as const,
-        sequenceNumber: normalizeSequenceNumber(message.sequence_number),
-      };
+    provider: provider === "custom" ? ("custom" as const) : ("claude" as const),
+    role: "result" as const,
+    sequenceNumber: normalizeSequenceNumber(message.sequence_number),
+  };
 }
 
 function deriveClaudeCompletionSummary(messages: SessionMessage[]) {
@@ -514,7 +518,7 @@ function deriveClaudeCompletionSummary(messages: SessionMessage[]) {
     if (readString(payload.type)?.toLowerCase() !== "result") {
       continue;
     }
-    if (Boolean(payload.is_error)) {
+    if (payload.is_error) {
       return null;
     }
 
@@ -707,7 +711,9 @@ function normalizeQuestionInput(inputValue: unknown): ConversationQuestion[] {
       : [];
 
   return rawQuestions
-    .map((question, index) => parseQuestion(question, `codex-question-${index}`))
+    .map((question, index) =>
+      parseQuestion(question, `codex-question-${index}`)
+    )
     .filter((question): question is ConversationQuestion => question !== null);
 }
 
@@ -719,7 +725,7 @@ function parseQuestion(
   const question =
     sanitizeText(readString(record?.question)) ??
     sanitizeText(readString(record?.prompt));
-  if (!record || !question) {
+  if (!(record && question)) {
     return null;
   }
 
@@ -744,7 +750,9 @@ function parseQuestion(
   };
 }
 
-function parseQuestionOption(value: unknown): ConversationQuestionOption | null {
+function parseQuestionOption(
+  value: unknown
+): ConversationQuestionOption | null {
   if (typeof value === "string") {
     const label = sanitizeText(value);
     if (!label) {
@@ -763,7 +771,7 @@ function parseQuestionOption(value: unknown): ConversationQuestionOption | null 
     sanitizeText(readString(record?.label)) ??
     sanitizeText(readString(record?.title)) ??
     sanitizeText(readString(record?.value));
-  if (!record || !label) {
+  if (!(record && label)) {
     return null;
   }
 
