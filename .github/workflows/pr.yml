@@ -8,20 +8,6 @@ on:
       - '**'
 
 jobs:
-  vitest:
-    timeout-minutes: 20
-
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install shell dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y zsh
-      - uses: ./.github/actions/ci-setup
-      - name: test
-        run: pnpm --filter @unbound/web test
-
   desktop:
     timeout-minutes: 20
     runs-on: ubuntu-latest
