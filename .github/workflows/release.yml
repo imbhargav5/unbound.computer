@@ -1,0 +1,285 @@
+name: Release Desktop App
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: Release tag to create or update (e.g., v1.0.0)
+        required: true
+        type: string
+      release_name:
+        description: Release title
+        required: true
+        type: string
+      release_notes:
+        description: Optional release notes (markdown)
+        required: false
+        type: string
+      make_latest:
+        description: Mark this release as the latest release
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    name: Build macOS ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-14
+            macos-arch: arm64
+            app-zip: Unbound-macos-arm64.zip
+            daemon-zip: Unbound-daemon-macos-arm64.zip
+            updater-archive: Unbound-macos-arm64-updater.tar.gz
+            updater-target: darwin-aarch64
+          - arch: x64
+            runner: macos-13
+            macos-arch: x86_64
+            app-zip: Unbound-macos-x64.zip
+            daemon-zip: Unbound-daemon-macos-x64.zip
+            updater-archive: Unbound-macos-x64-updater.tar.gz
+            updater-target: darwin-x86_64
+    env:
+      MACOS_ARCH: ${{ matrix.macos-arch }}
+      APP_ZIP_NAME: ${{ matrix.app-zip }}
+      DAEMON_ARCHIVE_NAME: ${{ matrix.daemon-zip }}
+      UPDATER_ARCHIVE_NAME: ${{ matrix.updater-archive }}
+      TAURI_UPDATER_TARGET: ${{ matrix.updater-target }}
+      MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+      MACOS_TEAM_ID: ${{ secrets.MACOS_TEAM_ID }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            apps/desktop/src-tauri -> target
+            apps/daemon -> target
+          shared-key: macos-${{ matrix.arch }}
+
+      - name: CI Setup
+        uses: ./.github/actions/ci-setup
+
+      - name: Resolve release version
+        id: version
+        run: |
+          TAG="${{ github.event.inputs.tag_name }}"
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building release version: $VERSION"
+
+      - name: Configure signing keychain
+        env:
+          MACOS_CERT_BASE64: ${{ secrets.MACOS_CERT_BASE64 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          echo "KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -lut 21600 build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          echo "$MACOS_CERT_BASE64" | base64 --decode > /tmp/macos-cert.p12 2>/dev/null || echo "$MACOS_CERT_BASE64" | base64 -D > /tmp/macos-cert.p12
+          security import /tmp/macos-cert.p12 -k build.keychain -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/xcrun
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          security list-keychain -d user -s build.keychain
+
+      - name: Generate release env file
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          cat > .env.release <<EOF
+          SUPABASE_URL=${SUPABASE_URL}
+          SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}
+          UNBOUND_ENV=production
+          EOF
+
+      - name: Build release artifacts
+        env:
+          MACOS_RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          MACOS_BUILD_NUMBER: ${{ github.run_number }}
+        run: ./scripts/release/build-macos-release.sh
+
+      - name: Verify exported desktop app and daemon
+        id: exported-app
+        run: |
+          APP_PATH="$(find dist/macos/export-app -maxdepth 1 -name '*.app' -print -quit)"
+          if [[ -z "$APP_PATH" ]]; then
+            echo "ERROR: Expected exported .app in dist/macos/export-app." >&2
+            exit 1
+          fi
+
+          if [[ -e "$APP_PATH/Contents/MacOS/unbound-daemon" ]]; then
+            echo "ERROR: Desktop app bundle unexpectedly embeds unbound-daemon." >&2
+            exit 1
+          fi
+
+          DAEMON_PATH="dist/macos/export-daemon/unbound-daemon"
+          if [[ ! -x "$DAEMON_PATH" ]]; then
+            echo "ERROR: Expected standalone daemon artifact at $DAEMON_PATH." >&2
+            exit 1
+          fi
+
+          codesign --verify --deep --strict "$APP_PATH"
+          codesign --verify --strict "$DAEMON_PATH"
+          echo "app_path=$APP_PATH" >> "$GITHUB_OUTPUT"
+          echo "daemon_path=$DAEMON_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Notarize, staple, and repackage
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_NOTARYTOOL_KEY_ID: ${{ secrets.APPLE_NOTARYTOOL_KEY_ID }}
+          APPLE_NOTARYTOOL_ISSUER_ID: ${{ secrets.APPLE_NOTARYTOOL_ISSUER_ID }}
+          APPLE_NOTARYTOOL_PRIVATE_KEY: ${{ secrets.APPLE_NOTARYTOOL_PRIVATE_KEY }}
+        run: |
+          NOTARY_PROFILE="unbound-release"
+          APP_ZIP_PATH="dist/macos/${{ matrix.app-zip }}"
+          DAEMON_ZIP_PATH="dist/macos/${{ matrix.daemon-zip }}"
+          APP_PATH="${{ steps.exported-app.outputs.app_path }}"
+          DAEMON_PATH="${{ steps.exported-app.outputs.daemon_path }}"
+
+          if [[ -n "$APPLE_NOTARYTOOL_KEY_ID" && -n "$APPLE_NOTARYTOOL_ISSUER_ID" && -n "$APPLE_NOTARYTOOL_PRIVATE_KEY" ]]; then
+            echo "$APPLE_NOTARYTOOL_PRIVATE_KEY" > /tmp/AuthKey.p8
+            xcrun notarytool store-credentials "$NOTARY_PROFILE" \
+              --key /tmp/AuthKey.p8 \
+              --key-id "$APPLE_NOTARYTOOL_KEY_ID" \
+              --issuer "$APPLE_NOTARYTOOL_ISSUER_ID"
+          else
+            xcrun notarytool store-credentials "$NOTARY_PROFILE" \
+              --apple-id "$APPLE_ID" \
+              --team-id "$MACOS_TEAM_ID" \
+              --password "$APPLE_ID_PASSWORD"
+          fi
+
+          xcrun notarytool submit "$APP_ZIP_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
+          xcrun notarytool submit "$DAEMON_ZIP_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
+          xcrun stapler staple "$APP_PATH"
+
+          rm -f "$APP_ZIP_PATH"
+          ditto -c -k --keepParent "$APP_PATH" "$APP_ZIP_PATH"
+
+          ./scripts/release/generate-desktop-updater-artifacts.sh \
+            "$APP_PATH" "dist/macos" \
+            "${{ steps.version.outputs.version }}" \
+            "v${{ steps.version.outputs.version }}"
+
+          spctl -a -vv "$APP_PATH"
+          spctl -a -vv -t exec "$DAEMON_PATH"
+
+      - name: Prepare upload
+        run: |
+          mkdir -p upload
+          cp "dist/macos/${{ matrix.app-zip }}" upload/
+          cp "dist/macos/${{ matrix.daemon-zip }}" upload/
+          if [[ -f "dist/macos/${{ matrix.updater-archive }}" ]]; then
+            cp "dist/macos/${{ matrix.updater-archive }}" upload/
+          fi
+          if [[ -f "dist/macos/${{ matrix.updater-archive }}.sig" ]]; then
+            cp "dist/macos/${{ matrix.updater-archive }}.sig" upload/
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: upload/
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish release
+    needs: build-macos
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: List artifacts
+        run: find release-assets -type f | sort
+
+      - name: Prepare release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-upload
+          cp release-assets/macos-arm64/* release-upload/
+          cp release-assets/macos-x64/* release-upload/
+          find release-upload -type f | sort
+
+      - name: Generate updater manifest (latest.json)
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.inputs.tag_name }}"
+          VERSION="${TAG#v}"
+          REPO="${{ github.repository }}"
+          BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          read_sig() {
+            local file="$1"
+            if [ -f "$file" ]; then
+              cat "$file"
+            else
+              echo ""
+            fi
+          }
+
+          ARM64_SIG=$(read_sig "release-upload/Unbound-macos-arm64-updater.tar.gz.sig")
+          X64_SIG=$(read_sig "release-upload/Unbound-macos-x64-updater.tar.gz.sig")
+
+          cat > release-upload/latest.json <<MANIFEST
+          {
+            "version": "${VERSION}",
+            "pub_date": "${PUB_DATE}",
+            "platforms": {
+              "darwin-aarch64": {
+                "signature": "${ARM64_SIG}",
+                "url": "${BASE_URL}/Unbound-macos-arm64-updater.tar.gz"
+              },
+              "darwin-x86_64": {
+                "signature": "${X64_SIG}",
+                "url": "${BASE_URL}/Unbound-macos-x64-updater.tar.gz"
+              }
+            }
+          }
+          MANIFEST
+
+          echo "Generated latest.json:"
+          cat release-upload/latest.json
+
+      - name: Generate checksums
+        run: |
+          cd release-upload
+          ls -1 | grep -v SHA256SUMS | xargs sha256sum > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create or update release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.event.inputs.tag_name }}
+          name: ${{ github.event.inputs.release_name }}
+          body: ${{ github.event.inputs.release_notes }}
+          makeLatest: ${{ github.event.inputs.make_latest }}
+          allowUpdates: true
+          replacesArtifacts: true
+          artifactErrorsFailBuild: true
+          artifacts: release-upload/*

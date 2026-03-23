@@ -22,6 +22,7 @@
     "release:patch": "tsx scripts/release/add-release.ts patch",
     "release:minor": "tsx scripts/release/add-release.ts minor",
     "release:major": "tsx scripts/release/add-release.ts major",
+    "release:dispatch": "node scripts/release/dispatch-release-build.mjs",
     "daemon:build": "cd apps/daemon && cargo build --workspace --release",
     "daemon:start": "./apps/daemon/target/release/unbound-daemon start &",
     "daemon:foreground": "RUST_LOG=debug ./apps/daemon/target/release/unbound-daemon start --foreground",
