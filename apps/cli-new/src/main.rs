@@ -143,9 +143,7 @@ async fn ensure_authenticated() -> anyhow::Result<()> {
         anyhow::anyhow!("Daemon is not running. Start it separately with 'unbound daemon start'")
     })?;
 
-    let response = client
-        .call_method(daemon_ipc::Method::GhAuthStatus)
-        .await?;
+    let response = client.call_method(daemon_ipc::Method::GhAuthStatus).await?;
 
     if let Some(result) = &response.result {
         let authenticated = result
@@ -159,9 +157,7 @@ async fn ensure_authenticated() -> anyhow::Result<()> {
         }
     }
 
-    anyhow::bail!(
-        "GitHub authentication required. Run 'unbound login' or 'gh auth login' first."
-    );
+    anyhow::bail!("GitHub authentication required. Run 'unbound login' or 'gh auth login' first.");
 }
 
 /// Find the git repository root from the current directory.

@@ -11,7 +11,8 @@ use std::process::Command;
 pub async fn login(format: &OutputFormat) -> Result<()> {
     if let Some(result) = fetch_gh_auth_status().await? {
         if gh_authenticated(&result) {
-            let identity = active_host_identity(&result).unwrap_or_else(|| "GitHub CLI".to_string());
+            let identity =
+                active_host_identity(&result).unwrap_or_else(|| "GitHub CLI".to_string());
             output::print_success(&format!("Already authenticated as {}", identity), format);
             return Ok(());
         }

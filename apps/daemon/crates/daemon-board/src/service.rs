@@ -3,9 +3,9 @@ use crate::models::{
     AddIssueAttachmentInput, AddIssueCommentInput, Agent, AgentLiveRunCount, AgentRun,
     AgentRunEvent, Approval, ApprovalDecisionInput, Company, CreateAgentDecisionApprovalInput,
     CreateAgentHireInput, CreateAgentInput, CreateCompanyInput, CreateIssueInput,
-    CreateProjectInput, DashboardOverview, DashboardOverviewChat, Goal, Issue,
-    IssueAttachment, IssueComment, IssueListFilter, IssueRunCardUpdate, Project,
-    ProjectWorkspace, UpdateAgentInput, UpdateIssueInput, UpdateProjectInput, Workspace,
+    CreateProjectInput, DashboardOverview, DashboardOverviewChat, Goal, Issue, IssueAttachment,
+    IssueComment, IssueListFilter, IssueRunCardUpdate, Project, ProjectWorkspace, UpdateAgentInput,
+    UpdateIssueInput, UpdateProjectInput, Workspace,
 };
 use crate::run_summary::{
     summarize_agent_run_event, summarize_agent_run_excerpt, summarize_agent_run_result,
@@ -1077,7 +1077,9 @@ pub async fn update_project(db: &AsyncDatabase, input: UpdateProjectInput) -> Bo
                  SET execution_workspace_policy = ?1, updated_at = ?2
                  WHERE id = ?3",
                 params![
-                    next_execution_workspace_policy.as_ref().map(Value::to_string),
+                    next_execution_workspace_policy
+                        .as_ref()
+                        .map(Value::to_string),
                     now,
                     project_id,
                 ],
@@ -3046,9 +3048,7 @@ fn row_to_issue_run_card_update_row(row: &Row<'_>) -> rusqlite::Result<IssueRunC
     })
 }
 
-fn row_to_dashboard_overview_chat_row(
-    row: &Row<'_>,
-) -> rusqlite::Result<DashboardOverviewChat> {
+fn row_to_dashboard_overview_chat_row(row: &Row<'_>) -> rusqlite::Result<DashboardOverviewChat> {
     Ok(DashboardOverviewChat {
         id: row.get(0)?,
         project_id: row.get(1)?,
@@ -3103,7 +3103,10 @@ fn list_issue_run_card_updates_sync(
         return Ok(Vec::new());
     }
 
-    let run_ids = rows.iter().map(|row| row.run_id.clone()).collect::<Vec<_>>();
+    let run_ids = rows
+        .iter()
+        .map(|row| row.run_id.clone())
+        .collect::<Vec<_>>();
     let events_by_run = list_recent_events_for_run_ids(conn, &run_ids, 8)?;
 
     Ok(rows
