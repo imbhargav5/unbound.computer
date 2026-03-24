@@ -523,7 +523,10 @@ impl App {
     pub async fn logout(&mut self) -> Result<()> {
         let status = Command::new("gh").args(["auth", "logout"]).status()?;
         if !status.success() {
-            return Err(anyhow::anyhow!("gh auth logout exited with status {}", status));
+            return Err(anyhow::anyhow!(
+                "gh auth logout exited with status {}",
+                status
+            ));
         }
 
         // Clear auth status

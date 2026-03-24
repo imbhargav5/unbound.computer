@@ -2184,10 +2184,7 @@ impl AgentRunCoordinator {
                 issue.title,
                 issue.status,
                 issue.priority,
-                issue
-                    .description
-                    .as_deref()
-                    .unwrap_or("No description."),
+                issue.description.as_deref().unwrap_or("No description."),
                 comment_summary,
                 attachment_summary,
             )
@@ -2233,8 +2230,7 @@ impl AgentRunCoordinator {
         } else {
             format!(
                 "You are {}, a {} agent inside Unbound.",
-                agent.name,
-                agent.role
+                agent.name, agent.role
             )
         };
         let unlinked_issue_rule = if direct_model_run {
@@ -3353,7 +3349,11 @@ fn merged_issue_adapter_config(
     agent: &Agent,
     issue: Option<&Issue>,
 ) -> serde_json::Map<String, Value> {
-    let mut adapter_config = agent.adapter_config.as_object().cloned().unwrap_or_default();
+    let mut adapter_config = agent
+        .adapter_config
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
     if let Some(overrides) = issue
         .and_then(|issue| issue.assignee_adapter_overrides.as_ref())
         .and_then(Value::as_object)
@@ -3368,12 +3368,8 @@ fn merged_issue_adapter_config(
 fn agent_cli_kind(agent: &Agent, issue: Option<&Issue>) -> AgentCliKind {
     let adapter_config = merged_issue_adapter_config(agent, issue);
     detect_agent_cli_kind(
-        adapter_config
-            .get("command")
-            .and_then(Value::as_str),
-        adapter_config
-            .get("model")
-            .and_then(Value::as_str),
+        adapter_config.get("command").and_then(Value::as_str),
+        adapter_config.get("model").and_then(Value::as_str),
     )
 }
 
