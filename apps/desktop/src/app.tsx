@@ -128,6 +128,11 @@ import {
   DesktopSessionStateManager,
   useDesktopSessionLiveState,
 } from "./lib/sessionLiveState";
+import {
+  playBirdsEyeFocusSound,
+  shouldPlayBirdsEyeFocusSound,
+  type BirdsEyeFocusChangeCause,
+} from "./lib/birdsEyeFocusSound";
 
 type AppScreen =
   | "dashboard"
@@ -1069,6 +1074,8 @@ const defaultBirdsEyeCanvasOffset: DashboardCanvasOffset = {
   x: 48,
   y: 40,
 };
+const birdsEyeCanvasZoomLevels = [0.85, 0.95, 1, 1.1, 1.2] as const;
+const defaultBirdsEyeCanvasZoomIndex = 2;
 const dashboardCanvasZoomLevels = [0.7, 0.85, 1, 1.15, 1.3] as const;
 const defaultDashboardCanvasZoomIndex = 2;
 
@@ -7601,6 +7608,9 @@ function DashboardBirdsEyeRouteView({
   );
   const [birdsEyeCanvasOffset, setBirdsEyeCanvasOffset] =
     useState<DashboardCanvasOffset>(defaultBirdsEyeCanvasOffset);
+  const [birdsEyeCanvasZoomIndex, setBirdsEyeCanvasZoomIndex] = useState(
+    defaultBirdsEyeCanvasZoomIndex
+  );
   const [isBirdsEyeCanvasDragging, setIsBirdsEyeCanvasDragging] =
     useState(false);
   const [isHelpMenuOpen, setIsHelpMenuOpen] = useState(false);
@@ -7610,6 +7620,7 @@ function DashboardBirdsEyeRouteView({
   const [quickCreateState, setQuickCreateState] = useState<BirdsEyeQuickCreateState>(
     defaultQuickCreateState
   );
+  const focusedRowIdRef = useRef<string | null>(null);
   const rowRefs = useRef(new Map<string, HTMLButtonElement | null>());
   const quickCreateInputRef = useRef<HTMLInputElement | null>(null);
   const commandPaletteInputRef = useRef<HTMLInputElement | null>(null);
@@ -7621,6 +7632,13 @@ function DashboardBirdsEyeRouteView({
     startX: number;
     startY: number;
   } | null>(null);
+  const birdsEyeCanvasWheelZoomRef = useRef<{
+    accumulatedDeltaY: number;
+    lastEventTime: number;
+  }>({
+    accumulatedDeltaY: 0,
+    lastEventTime: 0,
+  });
   const helpButtonRef = useRef<HTMLButtonElement | null>(null);
   const helpMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -7705,9 +7723,29 @@ function DashboardBirdsEyeRouteView({
     return [...ids];
   }, [previewChat?.sessionId, visibleRows]);
   const codeImpactBySessionId = useBirdsEyeCodeImpact(impactSessionIds);
+  const birdsEyeCanvasZoomScale =
+    birdsEyeCanvasZoomLevels[birdsEyeCanvasZoomIndex] ?? 1;
+  const setBirdsEyeFocusedRow = (
+    nextRowId: string | null,
+    cause: BirdsEyeFocusChangeCause = "programmatic"
+  ) => {
+    const previousRowId = focusedRowIdRef.current;
+    if (previousRowId === nextRowId) {
+      return;
+    }
+
+    focusedRowIdRef.current = nextRowId;
+    setFocusedRowId(nextRowId);
+
+    // Keep playback in the original interaction tick so browsers allow it.
+    if (shouldPlayBirdsEyeFocusSound(previousRowId, nextRowId, cause)) {
+      playBirdsEyeFocusSound();
+    }
+  };
+
   useEffect(() => {
     if (visibleRows.length === 0) {
-      setFocusedRowId(null);
+      setBirdsEyeFocusedRow(null);
       return;
     }
 
@@ -7715,13 +7753,13 @@ function DashboardBirdsEyeRouteView({
       pendingFocusRowId &&
       visibleRows.some((row) => row.rowId === pendingFocusRowId)
     ) {
-      setFocusedRowId(pendingFocusRowId);
+      setBirdsEyeFocusedRow(pendingFocusRowId);
       setPendingFocusRowId(null);
       return;
     }
 
     if (!focusedRowId || !visibleRows.some((row) => row.rowId === focusedRowId)) {
-      setFocusedRowId(visibleRows[0]?.rowId ?? null);
+      setBirdsEyeFocusedRow(visibleRows[0]?.rowId ?? null);
     }
   }, [focusedRowId, pendingFocusRowId, visibleRows]);
 
@@ -7834,7 +7872,10 @@ function DashboardBirdsEyeRouteView({
     });
   };
 
-  const focusRowByIndex = (index: number) => {
+  const focusRowByIndex = (
+    index: number,
+    cause: BirdsEyeFocusChangeCause = "programmatic"
+  ) => {
     if (visibleRows.length === 0) {
       return;
     }
@@ -7846,7 +7887,7 @@ function DashboardBirdsEyeRouteView({
     }
 
     ensureRowAncestorsExpanded(nextRow);
-    setFocusedRowId(nextRow.rowId);
+    setBirdsEyeFocusedRow(nextRow.rowId, cause);
   };
 
   const siblingRowsForRow = (row: BirdsEyeVisibleRow | null) => {
@@ -7861,7 +7902,8 @@ function DashboardBirdsEyeRouteView({
 
   const focusSiblingRow = (
     row: BirdsEyeVisibleRow | null,
-    direction: "previous" | "next"
+    direction: "previous" | "next",
+    cause: BirdsEyeFocusChangeCause = "programmatic"
   ) => {
     if (!row) {
       return;
@@ -7889,7 +7931,7 @@ function DashboardBirdsEyeRouteView({
       return;
     }
 
-    setFocusedRowId(nextRow.rowId);
+    setBirdsEyeFocusedRow(nextRow.rowId, cause);
   };
 
   const firstChildRowIdForRow = (row: BirdsEyeVisibleRow | null) => {
@@ -7908,7 +7950,10 @@ function DashboardBirdsEyeRouteView({
     return null;
   };
 
-  const openRow = (row: BirdsEyeVisibleRow | null) => {
+  const openRow = (
+    row: BirdsEyeVisibleRow | null,
+    cause: BirdsEyeFocusChangeCause = "programmatic"
+  ) => {
     if (!row) {
       return;
     }
@@ -7932,11 +7977,14 @@ function DashboardBirdsEyeRouteView({
 
     const firstChildRowId = firstChildRowIdForRow(row);
     if (firstChildRowId) {
-      setFocusedRowId(firstChildRowId);
+      setBirdsEyeFocusedRow(firstChildRowId, cause);
     }
   };
 
-  const closeRow = (row: BirdsEyeVisibleRow | null) => {
+  const closeRow = (
+    row: BirdsEyeVisibleRow | null,
+    cause: BirdsEyeFocusChangeCause = "programmatic"
+  ) => {
     if (!row) {
       return;
     }
@@ -7944,13 +7992,13 @@ function DashboardBirdsEyeRouteView({
     if (row.node.kind === "chat") {
       onClosePreview();
       if (row.parentRowId) {
-        setFocusedRowId(row.parentRowId);
+        setBirdsEyeFocusedRow(row.parentRowId, cause);
       }
       return;
     }
 
     if (row.parentRowId) {
-      setFocusedRowId(row.parentRowId);
+      setBirdsEyeFocusedRow(row.parentRowId, cause);
       return;
     }
 
@@ -8102,7 +8150,7 @@ function DashboardBirdsEyeRouteView({
 
   const closeQuickCreate = () => {
     setQuickCreateState(defaultQuickCreateState);
-    setFocusedRowId(
+    setBirdsEyeFocusedRow(
       quickCreateState.sourceRowId ?? quickCreateState.folderRowId ?? focusedRow?.rowId ?? null
     );
   };
@@ -8164,6 +8212,66 @@ function DashboardBirdsEyeRouteView({
     }
   };
 
+  const setBirdsEyeCanvasZoom = (
+    nextZoomIndex: number | ((currentZoomIndex: number) => number),
+    anchor?: DashboardCanvasOffset
+  ) => {
+    const viewport = canvasViewportRef.current;
+    if (!viewport) {
+      setBirdsEyeCanvasZoomIndex((currentZoomIndex) =>
+        clampNumber(
+          typeof nextZoomIndex === "function"
+            ? nextZoomIndex(currentZoomIndex)
+            : nextZoomIndex,
+          0,
+          birdsEyeCanvasZoomLevels.length - 1
+        )
+      );
+      return;
+    }
+
+    setBirdsEyeCanvasZoomIndex((currentZoomIndex) => {
+      const safeZoomIndex = clampNumber(
+        typeof nextZoomIndex === "function"
+          ? nextZoomIndex(currentZoomIndex)
+          : nextZoomIndex,
+        0,
+        birdsEyeCanvasZoomLevels.length - 1
+      );
+      if (safeZoomIndex === currentZoomIndex) {
+        return currentZoomIndex;
+      }
+
+      const currentZoomScale = birdsEyeCanvasZoomLevels[currentZoomIndex] ?? 1;
+      const nextZoomScale = birdsEyeCanvasZoomLevels[safeZoomIndex] ?? 1;
+      const anchorX = anchor?.x ?? viewport.clientWidth / 2;
+      const anchorY = anchor?.y ?? viewport.clientHeight / 2;
+
+      setBirdsEyeCanvasOffset((currentOffset) => {
+        const worldX = (anchorX - currentOffset.x) / currentZoomScale;
+        const worldY = (anchorY - currentOffset.y) / currentZoomScale;
+
+        return {
+          x: anchorX - worldX * nextZoomScale,
+          y: anchorY - worldY * nextZoomScale,
+        };
+      });
+
+      return safeZoomIndex;
+    });
+  };
+
+  const nudgeBirdsEyeCanvasZoom = (
+    delta: number,
+    anchor?: DashboardCanvasOffset
+  ) => {
+    if (delta === 0) {
+      return;
+    }
+
+    setBirdsEyeCanvasZoom((currentZoomIndex) => currentZoomIndex + delta, anchor);
+  };
+
   const handleBirdsEyeCanvasWheel = (event: WheelEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement | null;
     if (
@@ -8175,10 +8283,29 @@ function DashboardBirdsEyeRouteView({
     }
 
     event.preventDefault();
-    setBirdsEyeCanvasOffset((current) => ({
-      x: current.x - event.deltaX,
-      y: current.y - event.deltaY,
-    }));
+    const wheelZoomState = birdsEyeCanvasWheelZoomRef.current;
+    const resetThresholdMs = 180;
+    if (event.timeStamp - wheelZoomState.lastEventTime > resetThresholdMs) {
+      wheelZoomState.accumulatedDeltaY = 0;
+    }
+
+    wheelZoomState.lastEventTime = event.timeStamp;
+    wheelZoomState.accumulatedDeltaY += event.deltaY;
+
+    const isTrackpadPinch = event.ctrlKey;
+    const threshold = event.deltaMode === 1 ? 1 : isTrackpadPinch ? 6 : 16;
+    if (Math.abs(wheelZoomState.accumulatedDeltaY) < threshold) {
+      return;
+    }
+
+    const zoomDelta = wheelZoomState.accumulatedDeltaY < 0 ? 1 : -1;
+    wheelZoomState.accumulatedDeltaY = 0;
+    const viewportRect = event.currentTarget.getBoundingClientRect();
+
+    nudgeBirdsEyeCanvasZoom(zoomDelta, {
+      x: event.clientX - viewportRect.left,
+      y: event.clientY - viewportRect.top,
+    });
   };
 
   const handleOpenBirdsEyeCommandPalette = () => {
@@ -8275,7 +8402,7 @@ function DashboardBirdsEyeRouteView({
             return;
           }
 
-          setFocusedRowId(recentChatRowId);
+          setBirdsEyeFocusedRow(recentChatRowId);
         },
       },
       {
@@ -8400,17 +8527,17 @@ function DashboardBirdsEyeRouteView({
 
       if (isPrimaryModifier && event.key === "ArrowUp") {
         event.preventDefault();
-        focusRowByIndex(0);
+        focusRowByIndex(0, "keyboard");
         return;
       }
 
       if (isPrimaryModifier && event.key === "ArrowDown") {
         event.preventDefault();
         if (recentChatRowId && recentChatRowId !== focusedRow?.rowId) {
-          setFocusedRowId(recentChatRowId);
+          setBirdsEyeFocusedRow(recentChatRowId, "keyboard");
           return;
         }
-        focusRowByIndex(visibleRows.length - 1);
+        focusRowByIndex(visibleRows.length - 1, "keyboard");
         return;
       }
 
@@ -8423,23 +8550,23 @@ function DashboardBirdsEyeRouteView({
       switch (event.key) {
         case "ArrowDown":
           event.preventDefault();
-          focusSiblingRow(focusedRow, "next");
+          focusSiblingRow(focusedRow, "next", "keyboard");
           return;
         case "ArrowUp":
           event.preventDefault();
-          focusSiblingRow(focusedRow, "previous");
+          focusSiblingRow(focusedRow, "previous", "keyboard");
           return;
         case "ArrowRight":
           event.preventDefault();
-          openRow(focusedRow);
+          openRow(focusedRow, "keyboard");
           return;
         case "ArrowLeft":
           event.preventDefault();
-          closeRow(focusedRow);
+          closeRow(focusedRow, "keyboard");
           return;
         case "Enter":
           event.preventDefault();
-          openRow(focusedRow);
+          openRow(focusedRow, "keyboard");
           return;
         case "Escape":
           if (previewIssue) {
@@ -8517,10 +8644,7 @@ function DashboardBirdsEyeRouteView({
         row.node.kind === "chat" && previewIssue?.id === row.node.chat.id
       }
       onClick={() => {
-        setFocusedRowId(row.rowId);
-        if (row.node.kind === "chat") {
-          onOpenIssuePreview(row.node.chat.id);
-        }
+        setBirdsEyeFocusedRow(row.rowId, "click");
       }}
       onDoubleClick={() => {
         if (row.node.kind === "chat") {
@@ -8701,7 +8825,7 @@ function DashboardBirdsEyeRouteView({
               <div
                 className="birds-eye-canvas-stage"
                 style={{
-                  transform: `translate(${birdsEyeCanvasOffset.x}px, ${birdsEyeCanvasOffset.y}px)`,
+                  transform: `translate(${birdsEyeCanvasOffset.x}px, ${birdsEyeCanvasOffset.y}px) scale(${birdsEyeCanvasZoomScale})`,
                 }}
               >
                 <div className="birds-eye-tree" role="tree">
@@ -8752,6 +8876,34 @@ function DashboardBirdsEyeRouteView({
           </div>
         </div>
       )}
+      <div className="dashboard-canvas-route-footer">
+        <div className="dashboard-canvas-route-footer-inner">
+          <div
+            aria-label="Birds eye zoom"
+            className="dashboard-canvas-zoom-control"
+            role="group"
+          >
+            <span className="dashboard-canvas-zoom-label">Zoom</span>
+            <div className="dashboard-canvas-zoom-steps">
+              {birdsEyeCanvasZoomLevels.map((zoomLevel, index) => (
+                <button
+                  aria-pressed={index === birdsEyeCanvasZoomIndex}
+                  className={
+                    index === birdsEyeCanvasZoomIndex
+                      ? "dashboard-canvas-zoom-step is-active"
+                      : "dashboard-canvas-zoom-step"
+                  }
+                  key={zoomLevel}
+                  onClick={() => setBirdsEyeCanvasZoom(index)}
+                  type="button"
+                >
+                  {dashboardCanvasZoomLabel(zoomLevel)}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
 
       <BirdsEyeCommandPalette
         actions={filteredCommandActions}
@@ -8910,12 +9062,10 @@ function BirdsEyeRow({
           <>
             <div className="birds-eye-chat-title-row">
               <strong>{node.title}</strong>
-              <span className="issues-linked-run-role-pill">
-                {issueStatusLabel(node.chat.status)}
-              </span>
             </div>
             <span>
               {[
+                issueStatusLabel(node.chat.status),
                 node.agentLabel,
                 node.runStatus
                   ? agentRunStatusLabel(node.runStatus)
@@ -8950,9 +9100,6 @@ function BirdsEyeRow({
           <>
             <span className="birds-eye-row-metric">
               {formatCompactIssueTimestamp(node.lastActivityAt)}
-            </span>
-            <span className="birds-eye-impact-pill">
-              {birdsEyeImpactLabel(codeImpact)}
             </span>
           </>
         )}

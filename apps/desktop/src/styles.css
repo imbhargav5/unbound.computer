@@ -6929,7 +6929,7 @@ p {
 }
 
 .birds-eye-project-group {
-  flex: 0 0 clamp(320px, 28vw, 400px);
+  flex: 0 0 clamp(640px, 56vw, 800px);
   gap: 8px;
   padding: 8px;
   border: 1px solid #2f2f38;
