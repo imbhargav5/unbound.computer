@@ -69,6 +69,39 @@ export interface DesktopSettings {
       }> | null;
     }
   > | null;
+  birds_eye_canvas?: Record<string, BirdsEyeCanvasCompanyState> | null;
+}
+
+export interface BirdsEyeCanvasViewportState {
+  x: number;
+  y: number;
+  zoom_index: number;
+}
+
+export interface BirdsEyeCanvasRepoRegionState {
+  page?: number | null;
+  x: number;
+  y: number;
+}
+
+export interface BirdsEyeCanvasWorktreeTileState {
+  active_issue_id?: string | null;
+  issue_ids?: string[] | null;
+  lru_issue_ids?: string[] | null;
+}
+
+export interface BirdsEyeCanvasFocusTargetState {
+  kind: "repo" | "worktree" | "chat" | "tile";
+  issue_id?: string | null;
+  project_id: string;
+  worktree_key?: string | null;
+}
+
+export interface BirdsEyeCanvasCompanyState {
+  focused_target?: BirdsEyeCanvasFocusTargetState | null;
+  repo_regions?: Record<string, BirdsEyeCanvasRepoRegionState> | null;
+  viewport?: BirdsEyeCanvasViewportState | null;
+  worktree_tiles?: Record<string, BirdsEyeCanvasWorktreeTileState> | null;
 }
 
 export interface Company {
