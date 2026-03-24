@@ -35,6 +35,48 @@ pub struct DashboardProjectViewSettings {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+pub struct BirdsEyeCanvasViewportSettings {
+    pub x: f64,
+    pub y: f64,
+    pub zoom_index: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct BirdsEyeCanvasRepoRegionSettings {
+    pub page: Option<i64>,
+    pub x: f64,
+    pub y: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct BirdsEyeCanvasWorktreeTileSettings {
+    pub active_issue_id: Option<String>,
+    pub issue_ids: Option<Vec<String>>,
+    pub lru_issue_ids: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct BirdsEyeCanvasFocusTargetSettings {
+    pub kind: String,
+    pub issue_id: Option<String>,
+    pub project_id: String,
+    pub worktree_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct BirdsEyeCanvasCompanySettings {
+    pub focused_target: Option<BirdsEyeCanvasFocusTargetSettings>,
+    pub repo_regions: Option<HashMap<String, BirdsEyeCanvasRepoRegionSettings>>,
+    pub viewport: Option<BirdsEyeCanvasViewportSettings>,
+    pub worktree_tiles: Option<HashMap<String, BirdsEyeCanvasWorktreeTileSettings>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct DesktopSettings {
     pub preferred_company_id: Option<String>,
     pub preferred_repository_id: Option<String>,
@@ -44,6 +86,7 @@ pub struct DesktopSettings {
     pub theme_mode: Option<String>,
     pub font_size_preset: Option<String>,
     pub dashboard_project_views: Option<HashMap<String, DashboardProjectViewSettings>>,
+    pub birds_eye_canvas: Option<HashMap<String, BirdsEyeCanvasCompanySettings>>,
 }
 
 impl Default for DesktopSettings {
@@ -57,6 +100,7 @@ impl Default for DesktopSettings {
             theme_mode: Some("dark".to_string()),
             font_size_preset: Some("medium".to_string()),
             dashboard_project_views: Some(HashMap::new()),
+            birds_eye_canvas: Some(HashMap::new()),
         }
     }
 }

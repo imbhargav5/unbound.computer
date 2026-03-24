@@ -83,6 +83,7 @@ import type {
   AgentRunRecord,
   AgentRecord,
   ApprovalRecord,
+  BirdsEyeCanvasCompanyState,
   Company,
   CompanySnapshot,
   DashboardOverviewChatRecord,
@@ -470,6 +471,200 @@ type BirdsEyeIssueLike = Pick<
   | "created_at"
   | "updated_at"
 >;
+
+interface BirdsEyeCanvasFocusTarget {
+  kind: "repo" | "worktree" | "chat" | "tile";
+  issueId: string | null;
+  projectId: string;
+  worktreeKey: string | null;
+}
+
+interface BirdsEyeWorktreeTileState {
+  activeIssueId: string | null;
+  issueIds: string[];
+  lruIssueIds: string[];
+}
+
+interface BirdsEyeCanvasState {
+  focusedTarget: BirdsEyeCanvasFocusTarget | null;
+  repoRegions: Record<
+    string,
+    {
+      page: number;
+      x: number;
+      y: number;
+    }
+  >;
+  viewport: {
+    x: number;
+    y: number;
+    zoomIndex: number;
+  };
+  worktreeTiles: Record<string, BirdsEyeWorktreeTileState>;
+}
+
+interface BirdsEyeCanvasChatCardModel {
+  chat: BirdsEyeChatNode;
+  x: number;
+  y: number;
+}
+
+interface BirdsEyeCanvasWorktreeBoardModel {
+  cards: BirdsEyeCanvasChatCardModel[];
+  folder: BirdsEyeFolderNode;
+  height: number;
+  key: string;
+  pageIndex: number;
+  tileState: BirdsEyeWorktreeTileState;
+  width: number;
+  x: number;
+  y: number;
+}
+
+interface BirdsEyeCanvasRepoRegionModel {
+  height: number;
+  page: number;
+  project: BirdsEyeProjectNode;
+  totalPages: number;
+  visibleWorktrees: BirdsEyeCanvasWorktreeBoardModel[];
+  width: number;
+  x: number;
+  y: number;
+}
+
+function createDefaultBirdsEyeCanvasState(): BirdsEyeCanvasState {
+  return {
+    focusedTarget: null,
+    repoRegions: {},
+    viewport: {
+      x: defaultBirdsEyeCanvasOffset.x,
+      y: defaultBirdsEyeCanvasOffset.y,
+      zoomIndex: defaultBirdsEyeCanvasZoomIndex,
+    },
+    worktreeTiles: {},
+  };
+}
+
+function createEmptyBirdsEyeWorktreeTileState(): BirdsEyeWorktreeTileState {
+  return {
+    activeIssueId: null,
+    issueIds: [],
+    lruIssueIds: [],
+  };
+}
+
+function parseBirdsEyeCanvasState(
+  state: BirdsEyeCanvasCompanyState | null | undefined
+): BirdsEyeCanvasState {
+  const fallback = createDefaultBirdsEyeCanvasState();
+  if (!state) {
+    return fallback;
+  }
+
+  return {
+    focusedTarget: state.focused_target
+      ? {
+          kind: state.focused_target.kind,
+          issueId: state.focused_target.issue_id ?? null,
+          projectId: state.focused_target.project_id,
+          worktreeKey: state.focused_target.worktree_key ?? null,
+        }
+      : null,
+    repoRegions: Object.fromEntries(
+      Object.entries(state.repo_regions ?? {}).map(([projectId, region]) => [
+        projectId,
+        {
+          page: Math.max(0, Math.floor(region?.page ?? 0)),
+          x: typeof region?.x === "number" ? region.x : 0,
+          y: typeof region?.y === "number" ? region.y : 0,
+        },
+      ])
+    ),
+    viewport: {
+      x: typeof state.viewport?.x === "number" ? state.viewport.x : fallback.viewport.x,
+      y: typeof state.viewport?.y === "number" ? state.viewport.y : fallback.viewport.y,
+      zoomIndex:
+        typeof state.viewport?.zoom_index === "number"
+          ? Math.max(0, Math.floor(state.viewport.zoom_index))
+          : fallback.viewport.zoomIndex,
+    },
+    worktreeTiles: Object.fromEntries(
+      Object.entries(state.worktree_tiles ?? {}).map(([worktreeKey, tileState]) => [
+        worktreeKey,
+        {
+          activeIssueId: tileState?.active_issue_id ?? null,
+          issueIds: Array.isArray(tileState?.issue_ids)
+            ? tileState.issue_ids.filter(
+                (issueId): issueId is string => typeof issueId === "string"
+              )
+            : [],
+          lruIssueIds: Array.isArray(tileState?.lru_issue_ids)
+            ? tileState.lru_issue_ids.filter(
+                (issueId): issueId is string => typeof issueId === "string"
+              )
+            : [],
+        },
+      ])
+    ),
+  };
+}
+
+function serializeBirdsEyeCanvasState(
+  state: BirdsEyeCanvasState
+): BirdsEyeCanvasCompanyState {
+  return {
+    focused_target: state.focusedTarget
+      ? {
+          kind: state.focusedTarget.kind,
+          issue_id: state.focusedTarget.issueId,
+          project_id: state.focusedTarget.projectId,
+          worktree_key: state.focusedTarget.worktreeKey,
+        }
+      : null,
+    repo_regions: Object.fromEntries(
+      Object.entries(state.repoRegions).map(([projectId, region]) => [
+        projectId,
+        {
+          page: region.page,
+          x: region.x,
+          y: region.y,
+        },
+      ])
+    ),
+    viewport: {
+      x: state.viewport.x,
+      y: state.viewport.y,
+      zoom_index: state.viewport.zoomIndex,
+    },
+    worktree_tiles: Object.fromEntries(
+      Object.entries(state.worktreeTiles).map(([worktreeKey, tileState]) => [
+        worktreeKey,
+        {
+          active_issue_id: tileState.activeIssueId,
+          issue_ids: tileState.issueIds,
+          lru_issue_ids: tileState.lruIssueIds,
+        },
+      ])
+    ),
+  };
+}
+
+function birdsEyeFocusTargetKey(target: BirdsEyeCanvasFocusTarget | null) {
+  if (!target) {
+    return null;
+  }
+
+  switch (target.kind) {
+    case "repo":
+      return `repo:${target.projectId}`;
+    case "worktree":
+      return `worktree:${target.projectId}:${target.worktreeKey ?? ""}`;
+    case "chat":
+      return `chat:${target.issueId ?? ""}`;
+    case "tile":
+      return `tile:${target.worktreeKey ?? ""}:${target.issueId ?? ""}`;
+  }
+}
 
 function normalizeGitWorktreeRecords(value: unknown): GitWorktreeRecord[] {
   if (Array.isArray(value)) {
@@ -1054,6 +1249,7 @@ const defaultSettings: DesktopSettings = {
   theme_mode: "dark",
   font_size_preset: "medium",
   dashboard_project_views: {},
+  birds_eye_canvas: {},
 };
 
 const companyContextMenuItems: Array<{
@@ -1076,6 +1272,21 @@ const defaultBirdsEyeCanvasOffset: DashboardCanvasOffset = {
 };
 const birdsEyeCanvasZoomLevels = [0.85, 0.95, 1, 1.1, 1.2] as const;
 const defaultBirdsEyeCanvasZoomIndex = 2;
+const birdsEyeRepoRegionGapX = 420;
+const birdsEyeRepoRegionDefaultY = 80;
+const birdsEyeRepoRegionPadding = 28;
+const birdsEyeRepoRegionLabelOffsetY = 28;
+const birdsEyeRepoRegionMinWidth = 920;
+const birdsEyeRepoRegionBackgroundAlpha = 0.12;
+const birdsEyeWorktreeBoardGap = 24;
+const birdsEyeWorktreePageSize = 8;
+const birdsEyeWorktreeBoardHeight = 640;
+const birdsEyeWorktreeBoardWidthCompact = 430;
+const birdsEyeWorktreeBoardWidthWide = 560;
+const birdsEyeWorktreeTileAreaHeight = 332;
+const birdsEyeWorktreeCardHeight = 74;
+const birdsEyeWorktreeCardGap = 14;
+const birdsEyeWorktreeCardColumnMinWidth = 180;
 const dashboardCanvasZoomLevels = [0.7, 0.85, 1, 1.15, 1.3] as const;
 const defaultDashboardCanvasZoomIndex = 2;
 
@@ -1404,6 +1615,10 @@ export function App() {
   const currentCompanyAgents =
     boardAgents.length > 0 ? boardAgents : dashboardOverviewAgents;
   const dashboardProjectViews = settings.dashboard_project_views ?? {};
+  const selectedBirdsEyeCanvasSettings =
+    (selectedCompanyId
+      ? settings.birds_eye_canvas?.[selectedCompanyId]
+      : null) ?? null;
   const dashboardProjectColumns = useMemo(
     () =>
       buildDashboardProjectColumns(
@@ -3841,7 +4056,6 @@ export function App() {
     } else {
       const overview = await boardDashboardOverview(selectedCompanyId);
       setDashboardOverview(overview);
-      setDashboardPreviewIssueDetail(createdIssue);
     }
     if (uploadedAttachments.length > 0) {
       setIssueAttachmentsByIssueId((current) => ({
@@ -3860,9 +4074,6 @@ export function App() {
         preferred_view: preferredViewForScreen("issues"),
       });
     } else {
-      setDashboardIssuePreviewId(createdIssue.id);
-      setDashboardPreviewIssueDetail(createdIssue);
-      setDashboardIssuePreviewError(null);
       setSelectedScreen("dashboard");
     }
 
@@ -3972,6 +4183,195 @@ export function App() {
       navigateToDetail: false,
       title,
     });
+
+  const ensureCurrentCompanySnapshot = async () => {
+    if (!selectedCompanyId) {
+      throw new Error("Select a space before opening a chat.");
+    }
+
+    if (companySnapshot?.company?.id === selectedCompanyId) {
+      return companySnapshot;
+    }
+
+    const snapshot = await boardCompanySnapshot(selectedCompanyId);
+    setCompanySnapshot(snapshot);
+    return snapshot;
+  };
+
+  const handleOpenDashboardIssueTile = async (issueId: string) => {
+    try {
+      const snapshot = await ensureCurrentCompanySnapshot();
+      const freshIssue = await boardGetIssue(issueId);
+      const detailIssue = freshIssue as IssueRecord;
+      const nextSnapshot = snapshot
+        ? {
+            ...snapshot,
+            issues: snapshot.issues.some((issue) => issue.id === detailIssue.id)
+              ? snapshot.issues.map((issue) =>
+                  issue.id === detailIssue.id ? detailIssue : issue
+                )
+              : snapshot.issues.concat(detailIssue),
+          }
+        : null;
+
+      if (nextSnapshot) {
+        setCompanySnapshot(nextSnapshot);
+      }
+
+      const issueWorkspace =
+        nextSnapshot?.workspaces.find((workspace) => {
+          if (workspace.issue_id === detailIssue.id) {
+            return true;
+          }
+
+          if (!detailIssue.workspace_session_id) {
+            return false;
+          }
+
+          return (
+            workspace.id === detailIssue.workspace_session_id ||
+            workspace.session_id === detailIssue.workspace_session_id
+          );
+        }) ?? null;
+
+      startTransition(() => {
+        setSelectedIssueId(detailIssue.id);
+        setIssueDraft(createIssueDraft(detailIssue));
+        setIssuesRouteMode("detail");
+        setWorkspaceCenterTab("conversation");
+        if (issueWorkspace?.id) {
+          setSelectedBoardWorkspaceId(issueWorkspace.id);
+        }
+      });
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const renderDashboardIssueTile = (
+    issueId: string,
+    onClose: () => void
+  ): ReactNode => {
+    if (!selectedIssue || selectedIssue.id !== issueId || issuesRouteMode !== "detail") {
+      return (
+        <div className="birds-eye-tile-loading">
+          <strong>Loading chat…</strong>
+          <span>Hydrating the repo workspace, transcript, and tools.</span>
+        </div>
+      );
+    }
+
+    return (
+      <IssueWorkspaceDetailView
+        agents={companySnapshot?.agents ?? dashboardOverviewAgents}
+        availableStatusOptions={issueStatusOptions}
+        dependencyCheck={dependencyCheck}
+        embedded
+        isSavingIssue={isSavingIssue}
+        isWorking={isWorking}
+        issue={selectedIssue}
+        issueDraft={issueDraft}
+        issueEditorError={issueEditorError}
+        issueWorkspaceSidebar={null}
+        latestCompletionSummary={activeSessionLiveState.latestCompletionSummary}
+        onAddAttachment={() => void handleAddIssueAttachment(selectedIssue)}
+        onBack={onClose}
+        onCommitIssuePatch={(patch) =>
+          void handlePersistIssuePatch(selectedIssue, patch)
+        }
+        onIssueDraftChange={(patch) =>
+          setIssueDraft((current) => ({
+            ...current,
+            ...patch,
+          }))
+        }
+        onPromptChange={setPrompt}
+        onRespondToQuestion={handleRespondToQuestion}
+        onRevealRepo={() => {
+          if (selectedIssueWorkspace?.workspace_repo_path) {
+            void desktopRevealInFinder(selectedIssueWorkspace.workspace_repo_path);
+          }
+        }}
+        onRunTerminal={handleRunTerminal}
+        onSelectWorkspaceCenterTab={setWorkspaceCenterTab}
+        onSendPrompt={(content) => void handleSendConversationPrompt(content)}
+        onStopSession={() => {
+          if (selectedIssueWorkspace?.session_id) {
+            void agentStop(selectedIssueWorkspace.session_id);
+          }
+        }}
+        onStopTerminal={() => {
+          if (selectedIssueWorkspace?.session_id) {
+            void terminalStop(selectedIssueWorkspace.session_id);
+          }
+        }}
+        onTerminalCommandChange={setTerminalCommand}
+        previewTabLabel={previewTabLabel}
+        projectLabel={(projectId) =>
+          issueProjectLabel(
+            boardProjects.length > 0 ? boardProjects : dashboardOverviewProjects,
+            projectId
+          )
+        }
+        projects={boardProjects.length > 0 ? boardProjects : dashboardOverviewProjects}
+        prompt={prompt}
+        selectableParentIssues={selectableParentIssues}
+        selectedDiff={
+          selectedIssueWorkspace?.session_id === activeSession?.id
+            ? selectedDiff
+            : null
+        }
+        selectedFile={
+          selectedIssueWorkspace?.session_id === activeSession?.id
+            ? selectedFile
+            : null
+        }
+        selectedFilePath={
+          selectedIssueWorkspace?.session_id === activeSession?.id
+            ? selectedFilePath
+            : null
+        }
+        session={
+          selectedIssueWorkspace?.session_id === activeSession?.id
+            ? activeSession
+            : null
+        }
+        sessionErrorMessage={
+          selectedIssueWorkspace?.session_id === activeSession?.id
+            ? activeSessionLiveState.errorMessage
+            : null
+        }
+        sessionLoading={
+          selectedIssueWorkspace?.session_id === activeSession?.id
+            ? activeSessionLiveState.isLoadingMessages
+            : false
+        }
+        sessionRows={
+          selectedIssueWorkspace?.session_id === activeSession?.id
+            ? activeSessionConversationRows
+            : []
+        }
+        statusLabel={issueStatusLabel}
+        runtimeStatusValue={
+          selectedIssueWorkspace?.session_id === activeSession?.id
+            ? stringifyStatus(activeRuntimeStatusState)
+            : "waiting"
+        }
+        terminalCommand={terminalCommand}
+        terminalContainerRef={terminalContainerRef}
+        terminalStatusValue={
+          selectedIssueWorkspace?.session_id === activeSession?.id
+            ? stringifyStatus(activeTerminalStatusState)
+            : "waiting"
+        }
+        workspace={selectedIssueWorkspace}
+        workspaceCenterTab={workspaceCenterTab}
+        workspaceTargetErrorMessage={issueDetailWorktreeState.errorMessage}
+        workspaceTargetLoading={issueDetailWorktreeState.isLoading}
+        workspaceTargetWorktrees={issueDetailWorktreeState.worktrees}
+      />
+    );
+  };
 
   const handleSelectIssue = async (issueId: string) => {
     setStatusMessage(null);
@@ -4567,6 +4967,21 @@ export function App() {
     }
   };
 
+  const persistBirdsEyeCanvasState = async (
+    companyId: string,
+    canvasState: BirdsEyeCanvasState
+  ) => {
+    const nextSettings = mergeDesktopSettings({
+      ...settings,
+      birds_eye_canvas: {
+        ...(settings.birds_eye_canvas ?? {}),
+        [companyId]: serializeBirdsEyeCanvasState(canvasState),
+      },
+    });
+    setSettings(nextSettings);
+    await persistSettings(nextSettings);
+  };
+
   const loadDependencies = async () => {
     try {
       const result = await systemCheckDependencies();
@@ -4958,54 +5373,31 @@ export function App() {
             ) : null}
 
             {selectedScreen === "dashboard" ? (
-              <DashboardBirdsEyeRouteView
+              <SpatialDashboardBirdsEyeRouteView
                 agents={dashboardOverviewAgents}
+                canvasState={selectedBirdsEyeCanvasSettings}
                 chats={dashboardOverviewChats}
                 dependencyCheck={dependencyCheck}
                 isLoadingOverview={isDashboardOverviewLoading}
-                previewIssue={dashboardPreviewIssue}
+                onCanvasStateChange={(nextState) =>
+                  selectedCompanyId
+                    ? void persistBirdsEyeCanvasState(
+                        selectedCompanyId,
+                        nextState
+                      )
+                    : undefined
+                }
                 projects={dashboardOverviewProjects}
                 onCreateProject={handleOpenCreateProjectDialog}
                 onCreateQuickChat={(title, defaults) =>
                   handleCreateBirdsEyeChat(title, defaults)
                 }
-                onClosePreview={handleCloseDashboardIssuePreview}
                 onOpenIssueDetail={(issueId) =>
-                  void handleOpenDashboardIssueDetail(issueId)
+                  void handleOpenDashboardIssueTile(issueId)
                 }
-                onOpenIssuePreview={handleOpenDashboardIssuePreview}
+                renderIssueTile={renderDashboardIssueTile}
+                selectedIssueTileId={selectedIssue?.id ?? null}
                 workspaces={dashboardOverviewWorkspaces}
-              />
-            ) : null}
-
-            {selectedScreen === "dashboard" && dashboardPreviewIssue ? (
-              <DashboardIssuePreviewDialogView
-                agents={dashboardOverviewAgents}
-                attachments={dashboardPreviewAttachments}
-                comments={dashboardPreviewComments}
-                errorMessage={dashboardIssuePreviewError}
-                isLoading={isDashboardIssuePreviewLoading}
-                issue={dashboardPreviewIssue}
-                onClose={handleCloseDashboardIssuePreview}
-                onOpenIssue={() =>
-                  void handleOpenDashboardIssueDetail(dashboardPreviewIssue.id)
-                }
-                parentIssueLabel={(parentIssueId) =>
-                  issueParentLabel(boardIssues, parentIssueId)
-                }
-                projectLabel={(projectId) =>
-                  issueProjectLabel(
-                    boardProjects.length > 0
-                      ? boardProjects
-                      : dashboardOverviewProjects,
-                    projectId
-                  )
-                }
-                runCardUpdate={dashboardPreviewRunCardUpdate}
-                statusLabel={issueStatusLabel}
-                subissueCount={
-                  dashboardPreviewChatSummary?.child_issue_count ?? 0
-                }
               />
             ) : null}
 
@@ -8918,6 +9310,2246 @@ function DashboardBirdsEyeRouteView({
   );
 }
 
+function SpatialDashboardBirdsEyeRouteView({
+  agents,
+  canvasState,
+  chats,
+  dependencyCheck,
+  isLoadingOverview,
+  onCanvasStateChange,
+  onCreateProject,
+  onCreateQuickChat,
+  onOpenIssueDetail,
+  projects,
+  renderIssueTile,
+  selectedIssueTileId,
+  workspaces,
+}: {
+  agents: AgentRecord[];
+  canvasState: BirdsEyeCanvasCompanyState | null;
+  chats: DashboardOverviewChatRecord[];
+  dependencyCheck: RuntimeCapabilities | null;
+  isLoadingOverview: boolean;
+  onCanvasStateChange: (nextState: BirdsEyeCanvasState) => void | Promise<void>;
+  onCreateProject: () => void;
+  onCreateQuickChat: (
+    title: string,
+    defaults: CreateIssueDialogDefaults
+  ) => Promise<IssueRecord>;
+  onOpenIssueDetail: (issueId: string) => void;
+  projects: ProjectRecord[];
+  renderIssueTile: (issueId: string, onClose: () => void) => ReactNode;
+  selectedIssueTileId: string | null;
+  workspaces: WorkspaceRecord[];
+}) {
+  const projectWorktreesByProjectId = useDashboardProjectWorktrees(
+    projects,
+    projects.map((project) => project.id)
+  );
+  const treeModel = useMemo(
+    () =>
+      buildBirdsEyeTree({
+        agents,
+        chats,
+        dependencyCheck,
+        projectWorktreesByProjectId,
+        projects,
+        workspaces,
+      }),
+    [
+      agents,
+      chats,
+      dependencyCheck,
+      projectWorktreesByProjectId,
+      projects,
+      workspaces,
+    ]
+  );
+  const incomingCanvasStateKey = useMemo(
+    () => JSON.stringify(canvasState ?? null),
+    [canvasState]
+  );
+  const [localCanvasState, setLocalCanvasState] = useState<BirdsEyeCanvasState>(
+    () => parseBirdsEyeCanvasState(canvasState)
+  );
+  const [isHelpMenuOpen, setIsHelpMenuOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [commandPaletteMode, setCommandPaletteMode] = useState<
+    "default" | "open-chat" | "run-command"
+  >("default");
+  const [commandPaletteQuery, setCommandPaletteQuery] = useState("");
+  const [commandPaletteIndex, setCommandPaletteIndex] = useState(0);
+  const [contextMenu, setContextMenu] = useState<{
+    projectId: string | null;
+    worktreeKey: string | null;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [quickCreateState, setQuickCreateState] = useState<null | {
+    draft: BirdsEyeQuickCreateDraft;
+    errorMessage: string | null;
+    isSaving: boolean;
+    projectId: string;
+    title: string;
+    worktreeKey: string;
+    x: number;
+    y: number;
+  }>(null);
+  const [isViewportDragging, setIsViewportDragging] = useState(false);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const repoDragRef = useRef<{
+    originX: number;
+    originY: number;
+    pointerId: number;
+    projectId: string;
+    startX: number;
+    startY: number;
+  } | null>(null);
+  const panRef = useRef<{
+    originX: number;
+    originY: number;
+    pointerId: number;
+    startX: number;
+    startY: number;
+  } | null>(null);
+  const wheelZoomRef = useRef({
+    accumulatedDeltaY: 0,
+    lastEventTime: 0,
+  });
+  const isSpacePressedRef = useRef(false);
+  const focusKeyRef = useRef<string | null>(null);
+  const helpButtonRef = useRef<HTMLButtonElement | null>(null);
+  const helpMenuRef = useRef<HTMLDivElement | null>(null);
+  const quickCreateInputRef = useRef<HTMLInputElement | null>(null);
+  const commandPaletteInputRef = useRef<HTMLInputElement | null>(null);
+  const canvasModel = useMemo(
+    () => buildBirdsEyeCanvasModel(treeModel, localCanvasState),
+    [localCanvasState, treeModel]
+  );
+  const normalizedCanvasStateKey = useMemo(
+    () => JSON.stringify(serializeBirdsEyeCanvasState(canvasModel.normalizedState)),
+    [canvasModel.normalizedState]
+  );
+  const localCanvasStateKey = useMemo(
+    () => JSON.stringify(serializeBirdsEyeCanvasState(localCanvasState)),
+    [localCanvasState]
+  );
+  const effectiveCanvasState = canvasModel.normalizedState;
+  const canvasZoomScale =
+    birdsEyeCanvasZoomLevels[effectiveCanvasState.viewport.zoomIndex] ?? 1;
+  const defaultQuickCreateDraft = useMemo(
+    () => createBirdsEyeQuickCreateState(dependencyCheck).draft,
+    [dependencyCheck]
+  );
+  const repoRegions = canvasModel.repoRegions;
+  const folderByKey = useMemo(() => {
+    const next = new Map<string, BirdsEyeFolderNode>();
+    for (const project of treeModel.projects) {
+      for (const folder of project.folders) {
+        next.set(folder.folderKey, folder);
+      }
+    }
+    return next;
+  }, [treeModel.projects]);
+  const projectById = useMemo(
+    () => new Map(treeModel.projects.map((project) => [project.project.id, project])),
+    [treeModel.projects]
+  );
+  const worktreeOptions = useMemo(
+    () =>
+      treeModel.projects.flatMap((project) =>
+        project.folders.map((folder) => ({
+          folder,
+          label: `${project.label} · ${folder.label}`,
+          projectId: project.project.id,
+          worktreeKey: folder.folderKey,
+        }))
+      ),
+    [treeModel.projects]
+  );
+  const focusedTarget = effectiveCanvasState.focusedTarget;
+  const focusedProject =
+    (focusedTarget
+      ? projectById.get(focusedTarget.projectId) ?? null
+      : treeModel.projects[0] ?? null) ?? null;
+  const focusedWorktree =
+    focusedTarget?.worktreeKey
+      ? folderByKey.get(focusedTarget.worktreeKey) ?? null
+      : null;
+  const focusedTileIssueId =
+    focusedTarget?.kind === "tile" ? focusedTarget.issueId : null;
+
+  useEffect(() => {
+    setLocalCanvasState(parseBirdsEyeCanvasState(canvasState));
+  }, [incomingCanvasStateKey]);
+
+  useEffect(() => {
+    if (normalizedCanvasStateKey === localCanvasStateKey) {
+      return;
+    }
+    setLocalCanvasState(canvasModel.normalizedState);
+  }, [canvasModel.normalizedState, localCanvasStateKey, normalizedCanvasStateKey]);
+
+  useEffect(() => {
+    if (normalizedCanvasStateKey === incomingCanvasStateKey) {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => {
+      void onCanvasStateChange(effectiveCanvasState);
+    }, 180);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    effectiveCanvasState,
+    incomingCanvasStateKey,
+    normalizedCanvasStateKey,
+    onCanvasStateChange,
+  ]);
+
+  useEffect(() => {
+    if (!quickCreateState) {
+      return;
+    }
+    const frameId = window.requestAnimationFrame(() => {
+      quickCreateInputRef.current?.focus();
+      quickCreateInputRef.current?.select();
+    });
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [quickCreateState?.worktreeKey]);
+
+  useEffect(() => {
+    if (!isCommandPaletteOpen) {
+      return;
+    }
+    const frameId = window.requestAnimationFrame(() => {
+      commandPaletteInputRef.current?.focus();
+      commandPaletteInputRef.current?.select();
+    });
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [isCommandPaletteOpen]);
+
+  useEffect(() => {
+    if (!isHelpMenuOpen) {
+      return;
+    }
+
+    const closeMenu = (event?: Event) => {
+      const target = event?.target as Node | null | undefined;
+      if (
+        target &&
+        (helpButtonRef.current?.contains(target) ||
+          helpMenuRef.current?.contains(target))
+      ) {
+        return;
+      }
+      setIsHelpMenuOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsHelpMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", closeMenu);
+    document.addEventListener("scroll", closeMenu, true);
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("blur", closeMenu);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu);
+      document.removeEventListener("scroll", closeMenu, true);
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("blur", closeMenu);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isHelpMenuOpen]);
+
+  useEffect(() => {
+    if (!contextMenu) {
+      return;
+    }
+
+    const closeMenu = () => setContextMenu(null);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setContextMenu(null);
+      }
+    };
+
+    document.addEventListener("pointerdown", closeMenu);
+    document.addEventListener("scroll", closeMenu, true);
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("blur", closeMenu);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu);
+      document.removeEventListener("scroll", closeMenu, true);
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("blur", closeMenu);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [contextMenu]);
+
+  const updateCanvasState = (
+    updater: (current: BirdsEyeCanvasState) => BirdsEyeCanvasState
+  ) => {
+    setLocalCanvasState((current) => updater(current));
+  };
+
+  const setFocusedTarget = (
+    nextTarget: BirdsEyeCanvasFocusTarget | null,
+    cause: BirdsEyeFocusChangeCause = "programmatic"
+  ) => {
+    setLocalCanvasState((current) => {
+      const previousKey = birdsEyeFocusTargetKey(current.focusedTarget);
+      const nextKey = birdsEyeFocusTargetKey(nextTarget);
+      if (previousKey === nextKey) {
+        return current;
+      }
+      focusKeyRef.current = nextKey;
+      if (shouldPlayBirdsEyeFocusSound(previousKey, nextKey, cause)) {
+        playBirdsEyeFocusSound();
+      }
+      return {
+        ...current,
+        focusedTarget: nextTarget,
+      };
+    });
+  };
+
+  const setRepoPage = (projectId: string, page: number) => {
+    updateCanvasState((current) => ({
+      ...current,
+      repoRegions: {
+        ...current.repoRegions,
+        [projectId]: {
+          ...(current.repoRegions[projectId] ??
+            defaultBirdsEyeRepoRegionState(
+              treeModel.projects.findIndex((project) => project.project.id === projectId)
+            )),
+          page,
+        },
+      },
+    }));
+  };
+
+  const fitCanvasToViewport = () => {
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    const padding = 88;
+    const fitScale = Math.min(
+      (viewport.clientWidth - padding * 2) / canvasModel.bounds.width,
+      (viewport.clientHeight - padding * 2) / canvasModel.bounds.height
+    );
+    const nextZoomIndex = birdsEyeCanvasZoomLevels.reduce(
+      (bestIndex, zoomLevel, index) =>
+        zoomLevel <= fitScale ? index : bestIndex,
+      0
+    );
+
+    updateCanvasState((current) => ({
+      ...current,
+      viewport: {
+        x: padding,
+        y: padding,
+        zoomIndex: nextZoomIndex,
+      },
+    }));
+  };
+
+  const resetCanvasViewport = () => {
+    updateCanvasState((current) => ({
+      ...current,
+      viewport: {
+        x: defaultBirdsEyeCanvasOffset.x,
+        y: defaultBirdsEyeCanvasOffset.y,
+        zoomIndex: defaultBirdsEyeCanvasZoomIndex,
+      },
+    }));
+  };
+
+  const nudgeCanvasZoom = (
+    delta: number,
+    anchor?: DashboardCanvasOffset
+  ) => {
+    const viewport = viewportRef.current;
+    if (!viewport || delta === 0) {
+      return;
+    }
+
+    updateCanvasState((current) => {
+      const nextZoomIndex = clampNumber(
+        current.viewport.zoomIndex + delta,
+        0,
+        birdsEyeCanvasZoomLevels.length - 1
+      );
+      if (nextZoomIndex === current.viewport.zoomIndex) {
+        return current;
+      }
+
+      const currentZoomScale =
+        birdsEyeCanvasZoomLevels[current.viewport.zoomIndex] ?? 1;
+      const nextZoomScale = birdsEyeCanvasZoomLevels[nextZoomIndex] ?? 1;
+      const anchorX = anchor?.x ?? viewport.clientWidth / 2;
+      const anchorY = anchor?.y ?? viewport.clientHeight / 2;
+      const worldX = (anchorX - current.viewport.x) / currentZoomScale;
+      const worldY = (anchorY - current.viewport.y) / currentZoomScale;
+
+      return {
+        ...current,
+        viewport: {
+          x: anchorX - worldX * nextZoomScale,
+          y: anchorY - worldY * nextZoomScale,
+          zoomIndex: nextZoomIndex,
+        },
+      };
+    });
+  };
+
+  const openIssueTile = (
+    projectId: string,
+    worktreeKey: string,
+    issueId: string,
+    focusTile = true
+  ) => {
+    updateCanvasState((current) => {
+      const existingState =
+        current.worktreeTiles[worktreeKey] ?? createEmptyBirdsEyeWorktreeTileState();
+      let nextIssueIds = existingState.issueIds.filter(Boolean);
+      let nextLruIds = existingState.lruIssueIds.filter((entry) =>
+        nextIssueIds.includes(entry)
+      );
+
+      if (!nextIssueIds.includes(issueId)) {
+        if (nextIssueIds.length >= 4) {
+          const evictedIssueId =
+            nextLruIds.find((entry) => nextIssueIds.includes(entry)) ??
+            nextIssueIds[0];
+          nextIssueIds = nextIssueIds.filter((entry) => entry !== evictedIssueId);
+          nextLruIds = nextLruIds.filter((entry) => entry !== evictedIssueId);
+        }
+        nextIssueIds = nextIssueIds.concat(issueId);
+      }
+
+      nextLruIds = nextLruIds.filter((entry) => entry !== issueId).concat(issueId);
+
+      return {
+        ...current,
+        focusedTarget: focusTile
+          ? {
+              kind: "tile",
+              issueId,
+              projectId,
+              worktreeKey,
+            }
+          : {
+              kind: "chat",
+              issueId,
+              projectId,
+              worktreeKey,
+            },
+        worktreeTiles: {
+          ...current.worktreeTiles,
+          [worktreeKey]: {
+            activeIssueId: issueId,
+            issueIds: nextIssueIds,
+            lruIssueIds: nextLruIds,
+          },
+        },
+      };
+    });
+    onOpenIssueDetail(issueId);
+  };
+
+  const closeIssueTile = (projectId: string, worktreeKey: string, issueId: string) => {
+    updateCanvasState((current) => {
+      const existingState =
+        current.worktreeTiles[worktreeKey] ?? createEmptyBirdsEyeWorktreeTileState();
+      const nextIssueIds = existingState.issueIds.filter((entry) => entry !== issueId);
+      const nextLruIds = existingState.lruIssueIds.filter((entry) => entry !== issueId);
+      const nextActiveIssueId =
+        existingState.activeIssueId === issueId
+          ? nextIssueIds[0] ?? null
+          : existingState.activeIssueId;
+
+      return {
+        ...current,
+        focusedTarget:
+          current.focusedTarget?.kind === "tile" &&
+          current.focusedTarget.issueId === issueId &&
+          current.focusedTarget.worktreeKey === worktreeKey
+            ? {
+                kind: "worktree",
+                issueId: null,
+                projectId,
+                worktreeKey,
+              }
+            : current.focusedTarget,
+        worktreeTiles: {
+          ...current.worktreeTiles,
+          [worktreeKey]: {
+            activeIssueId: nextActiveIssueId,
+            issueIds: nextIssueIds,
+            lruIssueIds: nextLruIds,
+          },
+        },
+      };
+    });
+  };
+
+  const activateTile = (projectId: string, worktreeKey: string, issueId: string) => {
+    updateCanvasState((current) => {
+      const existingState =
+        current.worktreeTiles[worktreeKey] ?? createEmptyBirdsEyeWorktreeTileState();
+      const nextIssueIds = existingState.issueIds.includes(issueId)
+        ? existingState.issueIds
+        : existingState.issueIds.concat(issueId).slice(0, 4);
+      const nextLruIds = existingState.lruIssueIds
+        .filter((entry) => entry !== issueId)
+        .concat(issueId);
+
+      return {
+        ...current,
+        focusedTarget: {
+          kind: "tile",
+          issueId,
+          projectId,
+          worktreeKey,
+        },
+        worktreeTiles: {
+          ...current.worktreeTiles,
+          [worktreeKey]: {
+            activeIssueId: issueId,
+            issueIds: nextIssueIds,
+            lruIssueIds: nextLruIds,
+          },
+        },
+      };
+    });
+    onOpenIssueDetail(issueId);
+  };
+
+  const moveFocusedTile = (direction: "left" | "right" | "up" | "down") => {
+    if (!focusedTarget || focusedTarget.kind !== "tile" || !focusedTarget.worktreeKey) {
+      return;
+    }
+
+    const tileState = effectiveCanvasState.worktreeTiles[focusedTarget.worktreeKey];
+    if (!tileState) {
+      return;
+    }
+
+    const currentIndex = tileState.issueIds.findIndex(
+      (issueId) => issueId === focusedTarget.issueId
+    );
+    if (currentIndex < 0) {
+      return;
+    }
+
+    let nextIndex = currentIndex;
+    if (direction === "left" && currentIndex % 2 === 1) {
+      nextIndex = currentIndex - 1;
+    }
+    if (direction === "right" && currentIndex % 2 === 0 && currentIndex + 1 < tileState.issueIds.length) {
+      nextIndex = currentIndex + 1;
+    }
+    if (direction === "up" && currentIndex - 2 >= 0) {
+      nextIndex = currentIndex - 2;
+    }
+    if (direction === "down" && currentIndex + 2 < tileState.issueIds.length) {
+      nextIndex = currentIndex + 2;
+    }
+
+    if (nextIndex === currentIndex) {
+      return;
+    }
+
+    updateCanvasState((current) => {
+      const nextState = current.worktreeTiles[focusedTarget.worktreeKey ?? ""];
+      if (!nextState) {
+        return current;
+      }
+      const nextIssueIds = nextState.issueIds.slice();
+      [nextIssueIds[currentIndex], nextIssueIds[nextIndex]] = [
+        nextIssueIds[nextIndex],
+        nextIssueIds[currentIndex],
+      ];
+      return {
+        ...current,
+        worktreeTiles: {
+          ...current.worktreeTiles,
+          [focusedTarget.worktreeKey ?? ""]: {
+            ...nextState,
+            issueIds: nextIssueIds,
+          },
+        },
+      };
+    });
+  };
+
+  const focusRepoSibling = (direction: "previous" | "next") => {
+    const repoIds = repoRegions.map((region) => region.project.project.id);
+    if (repoIds.length === 0) {
+      return;
+    }
+    const currentProjectId = focusedTarget?.projectId ?? repoIds[0];
+    const currentIndex = Math.max(repoIds.indexOf(currentProjectId), 0);
+    const nextIndex =
+      direction === "next"
+        ? (currentIndex + 1) % repoIds.length
+        : (currentIndex - 1 + repoIds.length) % repoIds.length;
+    const nextProjectId = repoIds[nextIndex] ?? repoIds[0];
+    setFocusedTarget(
+      {
+        kind: "repo",
+        issueId: null,
+        projectId: nextProjectId,
+        worktreeKey: null,
+      },
+      "keyboard"
+    );
+  };
+
+  const focusWorktreeSibling = (direction: "previous" | "next") => {
+    if (!focusedProject) {
+      return;
+    }
+    const worktreeKeys = focusedProject.folders.map((folder) => folder.folderKey);
+    if (worktreeKeys.length === 0) {
+      return;
+    }
+    const currentKey =
+      focusedTarget?.worktreeKey ?? focusedProject.folders[0]?.folderKey ?? null;
+    const currentIndex = Math.max(worktreeKeys.indexOf(currentKey ?? ""), 0);
+    const nextIndex =
+      direction === "next"
+        ? (currentIndex + 1) % worktreeKeys.length
+        : (currentIndex - 1 + worktreeKeys.length) % worktreeKeys.length;
+    const nextWorktreeKey = worktreeKeys[nextIndex] ?? worktreeKeys[0];
+    const nextPage = Math.floor(nextIndex / birdsEyeWorktreePageSize);
+    setRepoPage(focusedProject.project.id, nextPage);
+    setFocusedTarget(
+      {
+        kind: "worktree",
+        issueId: null,
+        projectId: focusedProject.project.id,
+        worktreeKey: nextWorktreeKey,
+      },
+      "keyboard"
+    );
+  };
+
+  const focusChatSibling = (direction: "previous" | "next") => {
+    if (!focusedWorktree) {
+      return;
+    }
+    const chatsInWorktree = focusedWorktree.chats;
+    if (chatsInWorktree.length === 0) {
+      return;
+    }
+    const currentIssueId =
+      focusedTarget?.issueId ?? chatsInWorktree[0]?.chat.id ?? null;
+    const currentIndex = Math.max(
+      chatsInWorktree.findIndex((chat) => chat.chat.id === currentIssueId),
+      0
+    );
+    const nextIndex =
+      direction === "next"
+        ? (currentIndex + 1) % chatsInWorktree.length
+        : (currentIndex - 1 + chatsInWorktree.length) % chatsInWorktree.length;
+    const nextChat = chatsInWorktree[nextIndex] ?? chatsInWorktree[0];
+    setFocusedTarget(
+      {
+        kind: "chat",
+        issueId: nextChat.chat.id,
+        projectId: focusedWorktree.projectId,
+        worktreeKey: focusedWorktree.folderKey,
+      },
+      "keyboard"
+    );
+  };
+
+  const cycleTileFocus = (direction: "previous" | "next") => {
+    if (!focusedWorktree) {
+      return;
+    }
+    const tileState =
+      effectiveCanvasState.worktreeTiles[focusedWorktree.folderKey] ??
+      createEmptyBirdsEyeWorktreeTileState();
+    if (tileState.issueIds.length === 0) {
+      return;
+    }
+    const currentIssueId =
+      focusedTarget?.kind === "tile" && focusedTarget.worktreeKey === focusedWorktree.folderKey
+        ? focusedTarget.issueId
+        : tileState.activeIssueId ?? tileState.issueIds[0];
+    const currentIndex = Math.max(
+      tileState.issueIds.findIndex((issueId) => issueId === currentIssueId),
+      0
+    );
+    const nextIndex =
+      direction === "next"
+        ? (currentIndex + 1) % tileState.issueIds.length
+        : (currentIndex - 1 + tileState.issueIds.length) % tileState.issueIds.length;
+    const nextIssueId = tileState.issueIds[nextIndex] ?? tileState.issueIds[0];
+    activateTile(focusedWorktree.projectId, focusedWorktree.folderKey, nextIssueId);
+  };
+
+  const openFocusedQuickCreate = (
+    anchor?: { x: number; y: number },
+    preferredProjectId?: string | null,
+    preferredWorktreeKey?: string | null
+  ) => {
+    const fallbackFolder =
+      (preferredWorktreeKey ? folderByKey.get(preferredWorktreeKey) : null) ??
+      (focusedTarget?.worktreeKey
+        ? folderByKey.get(focusedTarget.worktreeKey) ?? null
+        : null) ??
+      (preferredProjectId
+        ? projectById.get(preferredProjectId)?.folders[0] ?? null
+        : null) ??
+      focusedProject?.folders[0] ??
+      treeModel.projects[0]?.folders[0] ??
+      null;
+
+    if (!fallbackFolder) {
+      onCreateProject();
+      return;
+    }
+
+    const viewportRect = viewportRef.current?.getBoundingClientRect();
+    const targetX = anchor?.x ?? (viewportRect ? viewportRect.left + 120 : 120);
+    const targetY = anchor?.y ?? (viewportRect ? viewportRect.top + 120 : 120);
+
+    setQuickCreateState({
+      draft: {
+        ...defaultQuickCreateDraft,
+        ...fallbackFolder.createDefaults,
+        command:
+          fallbackFolder.createDefaults.command ?? defaultQuickCreateDraft.command,
+        model:
+          fallbackFolder.createDefaults.model ?? defaultQuickCreateDraft.model,
+        projectId:
+          fallbackFolder.projectId ?? fallbackFolder.createDefaults.projectId ?? "",
+      },
+      errorMessage: null,
+      isSaving: false,
+      projectId: fallbackFolder.projectId,
+      title: birdsEyeSuggestedTitle(fallbackFolder),
+      worktreeKey: fallbackFolder.folderKey,
+      x: targetX,
+      y: targetY,
+    });
+    setContextMenu(null);
+  };
+
+  const openChatPalette = (mode: "open-chat" | "run-command") => {
+    setContextMenu(null);
+    setIsCommandPaletteOpen(true);
+    setCommandPaletteMode(mode);
+    setCommandPaletteQuery("");
+    setCommandPaletteIndex(0);
+  };
+
+  const commandActions = useMemo(() => {
+    const actions: Array<{
+      description: string;
+      id: string;
+      keywords: string;
+      label: string;
+      run: () => void;
+    }> = [];
+
+    if (commandPaletteMode === "open-chat") {
+      const candidateFolders = focusedWorktree
+        ? [focusedWorktree]
+        : focusedProject?.folders ?? treeModel.projects.flatMap((project) => project.folders);
+
+      for (const folder of candidateFolders) {
+        for (const chat of folder.chats) {
+          actions.push({
+            description: `${folder.label} · ${issueStatusLabel(chat.chat.status)}`,
+            id: `chat:${chat.chat.id}`,
+            keywords: `${chat.title} ${folder.label} ${chat.agentLabel}`,
+            label: chat.title,
+            run: () => {
+              openIssueTile(chat.projectId, folder.folderKey, chat.chat.id, true);
+              setIsCommandPaletteOpen(false);
+            },
+          });
+        }
+      }
+
+      return actions;
+    }
+
+    actions.push(
+      {
+        description: "Create a new chat in the focused worktree.",
+        id: "new-chat",
+        keywords: "new chat create worktree",
+        label: "New chat",
+        run: () => openFocusedQuickCreate(),
+      },
+      {
+        description: "Open an existing chat from the current context.",
+        id: "open-chat",
+        keywords: "open existing chat quick open",
+        label: "Open existing chat",
+        run: () => openChatPalette("open-chat"),
+      },
+      {
+        description: "Create a new project region on the canvas.",
+        id: "new-project",
+        keywords: "new project region",
+        label: "New project",
+        run: onCreateProject,
+      },
+      {
+        description: "Fit all repo regions into the viewport.",
+        id: "fit-canvas",
+        keywords: "fit canvas zoom reset",
+        label: "Fit canvas",
+        run: fitCanvasToViewport,
+      },
+      {
+        description: "Reset the viewport to the default origin.",
+        id: "reset-canvas",
+        keywords: "reset viewport origin",
+        label: "Reset canvas position",
+        run: resetCanvasViewport,
+      }
+    );
+
+    return actions;
+  }, [
+    commandPaletteMode,
+    defaultQuickCreateDraft,
+    focusedProject,
+    focusedWorktree,
+    onCreateProject,
+    treeModel.projects,
+  ]);
+
+  const filteredCommandActions = useMemo(() => {
+    const query = commandPaletteQuery.trim().toLowerCase();
+    if (!query) {
+      return commandActions;
+    }
+
+    return commandActions.filter((action) =>
+      `${action.label} ${action.description} ${action.keywords}`
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [commandActions, commandPaletteQuery]);
+
+  useEffect(() => {
+    setCommandPaletteIndex(0);
+  }, [commandPaletteMode, commandPaletteQuery, isCommandPaletteOpen]);
+
+  const openContextMenu = (
+    event: MouseEvent<HTMLElement>,
+    projectId: string | null,
+    worktreeKey: string | null
+  ) => {
+    event.preventDefault();
+    setContextMenu({
+      projectId,
+      worktreeKey,
+      x: event.clientX,
+      y: event.clientY,
+    });
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const isPrimaryModifier = event.metaKey || event.ctrlKey;
+
+      if (event.code === "Space" && !isEditableEventTarget(event.target)) {
+        isSpacePressedRef.current = true;
+      }
+
+      if (isPrimaryModifier && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setIsCommandPaletteOpen(true);
+        setCommandPaletteMode("default");
+        setCommandPaletteQuery("");
+        return;
+      }
+
+      if (isPrimaryModifier && event.key.toLowerCase() === "p") {
+        event.preventDefault();
+        setIsCommandPaletteOpen(true);
+        setCommandPaletteMode("open-chat");
+        setCommandPaletteQuery("");
+        return;
+      }
+
+      if (isCommandPaletteOpen) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          setIsCommandPaletteOpen(false);
+          return;
+        }
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          setCommandPaletteIndex((current) =>
+            clampNumber(current + 1, 0, Math.max(filteredCommandActions.length - 1, 0))
+          );
+          return;
+        }
+        if (event.key === "ArrowUp") {
+          event.preventDefault();
+          setCommandPaletteIndex((current) =>
+            clampNumber(current - 1, 0, Math.max(filteredCommandActions.length - 1, 0))
+          );
+          return;
+        }
+        if (event.key === "Enter") {
+          event.preventDefault();
+          const action = filteredCommandActions[commandPaletteIndex] ?? null;
+          if (action) {
+            setIsCommandPaletteOpen(false);
+            action.run();
+          }
+        }
+        return;
+      }
+
+      if (quickCreateState) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          setQuickCreateState(null);
+        }
+        return;
+      }
+
+      if (isEditableEventTarget(event.target)) {
+        return;
+      }
+
+      if (!focusedTarget && repoRegions.length > 0) {
+        setFocusedTarget(
+          {
+            kind: "repo",
+            issueId: null,
+            projectId: repoRegions[0]?.project.project.id ?? "",
+            worktreeKey: null,
+          },
+          "keyboard"
+        );
+      }
+
+      if (!isPrimaryModifier && event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        openFocusedQuickCreate();
+        return;
+      }
+
+      if (isPrimaryModifier && (event.key === "+" || event.key === "=")) {
+        event.preventDefault();
+        nudgeCanvasZoom(1);
+        return;
+      }
+
+      if (isPrimaryModifier && event.key === "-") {
+        event.preventDefault();
+        nudgeCanvasZoom(-1);
+        return;
+      }
+
+      if (isPrimaryModifier && event.key === "0") {
+        event.preventDefault();
+        fitCanvasToViewport();
+        return;
+      }
+
+      if (isPrimaryModifier && !event.shiftKey && !event.altKey) {
+        if (event.key === "1" && focusedTarget?.kind !== "tile" && !focusedWorktree) {
+          event.preventDefault();
+          updateCanvasState((current) => ({
+            ...current,
+            viewport: { ...current.viewport, zoomIndex: 0 },
+          }));
+          return;
+        }
+        if (event.key === "2" && focusedTarget?.kind !== "tile" && !focusedWorktree) {
+          event.preventDefault();
+          updateCanvasState((current) => ({
+            ...current,
+            viewport: { ...current.viewport, zoomIndex: 2 },
+          }));
+          return;
+        }
+        if (event.key === "3" && focusedTarget?.kind !== "tile" && !focusedWorktree) {
+          event.preventDefault();
+          updateCanvasState((current) => ({
+            ...current,
+            viewport: { ...current.viewport, zoomIndex: 4 },
+          }));
+          return;
+        }
+      }
+
+      if (isPrimaryModifier && (event.key === "." || event.key === ",")) {
+        event.preventDefault();
+        focusWorktreeSibling(event.key === "." ? "next" : "previous");
+        return;
+      }
+
+      if (event.ctrlKey && event.key === "Tab") {
+        event.preventDefault();
+        focusChatSibling(event.shiftKey ? "previous" : "next");
+        return;
+      }
+
+      if (isPrimaryModifier && event.key === "`") {
+        event.preventDefault();
+        cycleTileFocus("next");
+        return;
+      }
+
+      if (isPrimaryModifier && focusedWorktree && focusedTarget?.kind === "tile") {
+        if (["1", "2", "3", "4"].includes(event.key)) {
+          const tileState =
+            effectiveCanvasState.worktreeTiles[focusedWorktree.folderKey] ??
+            createEmptyBirdsEyeWorktreeTileState();
+          const issueId = tileState.issueIds[Number(event.key) - 1] ?? null;
+          if (issueId) {
+            event.preventDefault();
+            activateTile(focusedWorktree.projectId, focusedWorktree.folderKey, issueId);
+          }
+          return;
+        }
+
+        if (event.key.toLowerCase() === "w") {
+          event.preventDefault();
+          if (focusedTarget.issueId) {
+            closeIssueTile(
+              focusedWorktree.projectId,
+              focusedWorktree.folderKey,
+              focusedTarget.issueId
+            );
+          }
+          return;
+        }
+
+        if (event.altKey && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+          event.preventDefault();
+          moveFocusedTile(
+            event.key === "ArrowLeft"
+              ? "left"
+              : event.key === "ArrowRight"
+                ? "right"
+                : event.key === "ArrowUp"
+                  ? "up"
+                  : "down"
+          );
+          return;
+        }
+      }
+
+      if (isPrimaryModifier && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+        event.preventDefault();
+
+        if (event.key === "ArrowUp") {
+          if (focusedTarget?.kind === "tile" || focusedTarget?.kind === "chat") {
+            setFocusedTarget(
+              {
+                kind: "worktree",
+                issueId: null,
+                projectId: focusedTarget.projectId,
+                worktreeKey: focusedTarget.worktreeKey,
+              },
+              "keyboard"
+            );
+            return;
+          }
+          if (focusedTarget?.kind === "worktree") {
+            setFocusedTarget(
+              {
+                kind: "repo",
+                issueId: null,
+                projectId: focusedTarget.projectId,
+                worktreeKey: null,
+              },
+              "keyboard"
+            );
+          }
+          return;
+        }
+
+        if (event.key === "ArrowDown") {
+          if (focusedTarget?.kind === "repo") {
+            const firstFolder =
+              projectById.get(focusedTarget.projectId)?.folders[0] ?? null;
+            if (firstFolder) {
+              setRepoPage(focusedTarget.projectId, 0);
+              setFocusedTarget(
+                {
+                  kind: "worktree",
+                  issueId: null,
+                  projectId: focusedTarget.projectId,
+                  worktreeKey: firstFolder.folderKey,
+                },
+                "keyboard"
+              );
+            }
+            return;
+          }
+
+          if (focusedTarget?.kind === "worktree") {
+            const folder = focusedTarget.worktreeKey
+              ? folderByKey.get(focusedTarget.worktreeKey) ?? null
+              : null;
+            const firstChat = folder?.chats[0] ?? null;
+            if (firstChat) {
+              setFocusedTarget(
+                {
+                  kind: "chat",
+                  issueId: firstChat.chat.id,
+                  projectId: firstChat.projectId,
+                  worktreeKey: folder?.folderKey ?? null,
+                },
+                "keyboard"
+              );
+            }
+            return;
+          }
+
+          if (focusedTarget?.kind === "chat" && focusedTarget.issueId && focusedTarget.worktreeKey) {
+            openIssueTile(
+              focusedTarget.projectId,
+              focusedTarget.worktreeKey,
+              focusedTarget.issueId,
+              true
+            );
+          }
+          return;
+        }
+
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+          const direction = event.key === "ArrowRight" ? "next" : "previous";
+          if (!focusedTarget || focusedTarget.kind === "repo") {
+            focusRepoSibling(direction);
+            return;
+          }
+          if (focusedTarget.kind === "worktree") {
+            focusWorktreeSibling(direction);
+            return;
+          }
+          if (focusedTarget.kind === "chat") {
+            focusChatSibling(direction);
+            return;
+          }
+          cycleTileFocus(direction);
+          return;
+        }
+      }
+
+      if (event.key === "Enter" && focusedTarget?.kind === "chat" && focusedTarget.issueId && focusedTarget.worktreeKey) {
+        event.preventDefault();
+        openIssueTile(
+          focusedTarget.projectId,
+          focusedTarget.worktreeKey,
+          focusedTarget.issueId,
+          Boolean(isPrimaryModifier)
+        );
+        return;
+      }
+
+      if (event.key === "Escape" && focusedTarget?.kind === "tile" && focusedTarget.issueId && focusedTarget.worktreeKey) {
+        event.preventDefault();
+        closeIssueTile(
+          focusedTarget.projectId,
+          focusedTarget.worktreeKey,
+          focusedTarget.issueId
+        );
+      }
+    };
+
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.code === "Space") {
+        isSpacePressedRef.current = false;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [
+    canvasModel.bounds.height,
+    canvasModel.bounds.width,
+    commandPaletteIndex,
+    filteredCommandActions,
+    focusedProject,
+    focusedTarget,
+    focusedWorktree,
+    onCreateProject,
+    onOpenIssueDetail,
+    quickCreateState,
+    repoRegions,
+    selectedIssueTileId,
+  ]);
+
+  const handleViewportPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || !isSpacePressedRef.current) {
+      return;
+    }
+
+    panRef.current = {
+      originX: effectiveCanvasState.viewport.x,
+      originY: effectiveCanvasState.viewport.y,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+    setIsViewportDragging(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  };
+
+  const handleViewportPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (panRef.current?.pointerId === event.pointerId) {
+      updateCanvasState((current) => ({
+        ...current,
+        viewport: {
+          ...current.viewport,
+          x: panRef.current!.originX + event.clientX - panRef.current!.startX,
+          y: panRef.current!.originY + event.clientY - panRef.current!.startY,
+        },
+      }));
+      return;
+    }
+
+    if (repoDragRef.current?.pointerId === event.pointerId) {
+      updateCanvasState((current) => ({
+        ...current,
+        repoRegions: {
+          ...current.repoRegions,
+          [repoDragRef.current!.projectId]: {
+            ...(current.repoRegions[repoDragRef.current!.projectId] ??
+              defaultBirdsEyeRepoRegionState(0)),
+            x: repoDragRef.current!.originX + event.clientX - repoDragRef.current!.startX,
+            y: repoDragRef.current!.originY + event.clientY - repoDragRef.current!.startY,
+          },
+        },
+      }));
+    }
+  };
+
+  const handleViewportPointerEnd = (event: PointerEvent<HTMLDivElement>) => {
+    if (panRef.current?.pointerId === event.pointerId) {
+      panRef.current = null;
+      setIsViewportDragging(false);
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+    }
+
+    if (repoDragRef.current?.pointerId === event.pointerId) {
+      repoDragRef.current = null;
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+    }
+  };
+
+  const handleViewportWheel = (event: WheelEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null;
+    if (
+      target?.closest(
+        "input, textarea, select, button, [role='menu'], .shadcn-select-content"
+      )
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    const wheelZoomState = wheelZoomRef.current;
+    if (event.timeStamp - wheelZoomState.lastEventTime > 180) {
+      wheelZoomState.accumulatedDeltaY = 0;
+    }
+
+    wheelZoomState.lastEventTime = event.timeStamp;
+    wheelZoomState.accumulatedDeltaY += event.deltaY;
+
+    const isTrackpadPinch = event.ctrlKey;
+    const threshold = event.deltaMode === 1 ? 1 : isTrackpadPinch ? 6 : 18;
+    if (Math.abs(wheelZoomState.accumulatedDeltaY) < threshold) {
+      return;
+    }
+
+    const zoomDelta = wheelZoomState.accumulatedDeltaY < 0 ? 1 : -1;
+    wheelZoomState.accumulatedDeltaY = 0;
+    const viewportRect = event.currentTarget.getBoundingClientRect();
+    nudgeCanvasZoom(zoomDelta, {
+      x: event.clientX - viewportRect.left,
+      y: event.clientY - viewportRect.top,
+    });
+  };
+
+  const handleQuickCreateSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!quickCreateState) {
+      return;
+    }
+
+    const folder = folderByKey.get(quickCreateState.worktreeKey) ?? null;
+    if (!folder) {
+      return;
+    }
+
+    setQuickCreateState((current) =>
+      current
+        ? {
+            ...current,
+            errorMessage: null,
+            isSaving: true,
+          }
+        : current
+    );
+
+    try {
+      const createdIssue = await onCreateQuickChat(quickCreateState.title, {
+        ...quickCreateState.draft,
+        projectId: quickCreateState.projectId,
+      });
+      setQuickCreateState(null);
+      setFocusedTarget(
+        {
+          kind: "chat",
+          issueId: createdIssue.id,
+          projectId: folder.projectId,
+          worktreeKey: folder.folderKey,
+        },
+        "programmatic"
+      );
+    } catch (error) {
+      setQuickCreateState((current) =>
+        current
+          ? {
+              ...current,
+              errorMessage: error instanceof Error ? error.message : String(error),
+              isSaving: false,
+            }
+          : current
+      );
+    }
+  };
+
+  return (
+    <section className="birds-eye-route birds-eye-route-spatial">
+      <div className="birds-eye-route-header">
+        <div className="birds-eye-route-header-inner">
+          <DashboardBreadcrumbs items={[{ label: "Dashboard" }]} />
+          <div className="birds-eye-route-actions">
+            <button
+              className="secondary-button compact-button"
+              onClick={onCreateProject}
+              type="button"
+            >
+              Add project
+            </button>
+            <div className="birds-eye-help-shell">
+              <button
+                aria-expanded={isHelpMenuOpen}
+                aria-haspopup="menu"
+                className={
+                  isHelpMenuOpen
+                    ? "secondary-button compact-button birds-eye-help-button is-open"
+                    : "secondary-button compact-button birds-eye-help-button"
+                }
+                onClick={() => setIsHelpMenuOpen((current) => !current)}
+                ref={helpButtonRef}
+                type="button"
+              >
+                <span>Help</span>
+                <span aria-hidden="true" className="birds-eye-help-button-icon">
+                  <ChevronUpDownIcon />
+                </span>
+              </button>
+              {isHelpMenuOpen ? (
+                <div className="birds-eye-help-menu" ref={helpMenuRef} role="menu">
+                  <button
+                    className="birds-eye-help-item"
+                    onClick={() => {
+                      setIsHelpMenuOpen(false);
+                      setIsCommandPaletteOpen(true);
+                      setCommandPaletteMode("default");
+                      setCommandPaletteQuery("");
+                    }}
+                    role="menuitem"
+                    type="button"
+                  >
+                    <strong>Keyboard shortcuts</strong>
+                    <span>Open the command palette for the spatial canvas.</span>
+                  </button>
+                  <button
+                    className="birds-eye-help-item"
+                    onClick={fitCanvasToViewport}
+                    role="menuitem"
+                    type="button"
+                  >
+                    <strong>Fit canvas</strong>
+                    <span>Frame all repo regions inside the viewport.</span>
+                  </button>
+                  <button
+                    className="birds-eye-help-item"
+                    onClick={resetCanvasViewport}
+                    role="menuitem"
+                    type="button"
+                  >
+                    <strong>Reset viewport</strong>
+                    <span>Return to the default origin and zoom.</span>
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {projects.length ? (
+        <div className="birds-eye-layout birds-eye-layout-spatial">
+          <div className="birds-eye-tree-panel birds-eye-tree-panel-spatial">
+            <div
+              className={
+                isViewportDragging
+                  ? "birds-eye-canvas-viewport is-dragging"
+                  : "birds-eye-canvas-viewport"
+              }
+              onContextMenu={(event) => openContextMenu(event, null, null)}
+              onPointerCancel={handleViewportPointerEnd}
+              onPointerDown={handleViewportPointerDown}
+              onPointerMove={handleViewportPointerMove}
+              onPointerUp={handleViewportPointerEnd}
+              onWheel={handleViewportWheel}
+              ref={viewportRef}
+            >
+              <div className="birds-eye-canvas-grid" />
+              <div
+                className="birds-eye-canvas-stage birds-eye-canvas-stage-spatial"
+                style={{
+                  transform: `translate(${effectiveCanvasState.viewport.x}px, ${effectiveCanvasState.viewport.y}px) scale(${canvasZoomScale})`,
+                }}
+              >
+                <div className="birds-eye-spatial-plane" role="tree">
+                  {repoRegions.map((region) => {
+                    const isFocusedRepo =
+                      focusedTarget?.kind === "repo" &&
+                      focusedTarget.projectId === region.project.project.id;
+
+                    return (
+                      <section
+                        className={
+                          isFocusedRepo
+                            ? "birds-eye-repo-region is-focused"
+                            : "birds-eye-repo-region"
+                        }
+                        key={region.project.project.id}
+                        onContextMenu={(event) =>
+                          openContextMenu(event, region.project.project.id, null)
+                        }
+                        style={{
+                          left: region.x,
+                          top: region.y,
+                          width: region.width,
+                          height: region.height,
+                        }}
+                      >
+                        <div
+                          className="birds-eye-repo-region-header"
+                          onClick={() =>
+                            setFocusedTarget(
+                              {
+                                kind: "repo",
+                                issueId: null,
+                                projectId: region.project.project.id,
+                                worktreeKey: null,
+                              },
+                              "click"
+                            )
+                          }
+                          onPointerDown={(event) => {
+                            if (event.button !== 0 || isSpacePressedRef.current) {
+                              return;
+                            }
+                            repoDragRef.current = {
+                              originX:
+                                effectiveCanvasState.repoRegions[region.project.project.id]?.x ??
+                                region.x,
+                              originY:
+                                effectiveCanvasState.repoRegions[region.project.project.id]?.y ??
+                                region.y,
+                              pointerId: event.pointerId,
+                              projectId: region.project.project.id,
+                              startX: event.clientX,
+                              startY: event.clientY,
+                            };
+                            event.currentTarget.setPointerCapture(event.pointerId);
+                            event.stopPropagation();
+                          }}
+                          role="presentation"
+                        >
+                          <div>
+                            <strong>{region.project.label}</strong>
+                            <span>
+                              {region.project.folderCount} worktrees · {region.project.chatCount} chats
+                            </span>
+                          </div>
+                          {region.totalPages > 1 ? (
+                            <div className="birds-eye-repo-region-pagination">
+                              <button
+                                className="secondary-button compact-button"
+                                onClick={() =>
+                                  setRepoPage(
+                                    region.project.project.id,
+                                    clampNumber(region.page - 1, 0, region.totalPages - 1)
+                                  )
+                                }
+                                type="button"
+                              >
+                                ◂
+                              </button>
+                              <span>{region.page + 1}/{region.totalPages}</span>
+                              <button
+                                className="secondary-button compact-button"
+                                onClick={() =>
+                                  setRepoPage(
+                                    region.project.project.id,
+                                    clampNumber(region.page + 1, 0, region.totalPages - 1)
+                                  )
+                                }
+                                type="button"
+                              >
+                                ▸
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div className="birds-eye-repo-worktree-grid">
+                          {region.visibleWorktrees.map((board) => {
+                            const isFocusedWorktree =
+                              focusedTarget?.kind === "worktree" &&
+                              focusedTarget.projectId === board.folder.projectId &&
+                              focusedTarget.worktreeKey === board.folder.folderKey;
+
+                            return (
+                              <section
+                                className={
+                                  isFocusedWorktree
+                                    ? "birds-eye-worktree-board is-focused"
+                                    : "birds-eye-worktree-board"
+                                }
+                                key={board.key}
+                                onClick={() =>
+                                  setFocusedTarget(
+                                    {
+                                      kind: "worktree",
+                                      issueId: null,
+                                      projectId: board.folder.projectId,
+                                      worktreeKey: board.folder.folderKey,
+                                    },
+                                    "click"
+                                  )
+                                }
+                                onContextMenu={(event) =>
+                                  openContextMenu(
+                                    event,
+                                    board.folder.projectId,
+                                    board.folder.folderKey
+                                  )
+                                }
+                                style={{
+                                  left: board.x,
+                                  top: board.y,
+                                  width: board.width,
+                                  height: board.height,
+                                }}
+                              >
+                                <div className="birds-eye-worktree-board-header">
+                                  <div>
+                                    <strong>{board.folder.label}</strong>
+                                    <span>
+                                      {board.folder.secondaryLabel ??
+                                        formatCompactIssueTimestamp(
+                                          board.folder.lastActivityAt
+                                        )}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div
+                                  className={`birds-eye-worktree-tile-strip tile-count-${board.tileState.issueIds.length}`}
+                                >
+                                  {board.tileState.issueIds.length > 0 ? (
+                                    board.tileState.issueIds.map((issueId) => {
+                                      const tileChat =
+                                        board.folder.chats.find(
+                                          (chat) => chat.chat.id === issueId
+                                        ) ?? null;
+                                      if (!tileChat) {
+                                        return null;
+                                      }
+
+                                      const isTileFocused =
+                                        focusedTarget?.kind === "tile" &&
+                                        focusedTarget.issueId === issueId &&
+                                        focusedTarget.worktreeKey === board.folder.folderKey;
+                                      const isActiveFullTile =
+                                        selectedIssueTileId === issueId &&
+                                        board.tileState.activeIssueId === issueId;
+
+                                      return (
+                                        <div
+                                          className={
+                                            isActiveFullTile
+                                              ? isTileFocused
+                                                ? "birds-eye-chat-tile is-focused is-active"
+                                                : "birds-eye-chat-tile is-active"
+                                              : isTileFocused
+                                                ? "birds-eye-chat-tile is-focused"
+                                                : "birds-eye-chat-tile"
+                                          }
+                                          key={issueId}
+                                          onClick={() =>
+                                            activateTile(
+                                              board.folder.projectId,
+                                              board.folder.folderKey,
+                                              issueId
+                                            )
+                                          }
+                                        >
+                                          <div className="birds-eye-chat-tile-header">
+                                            <div>
+                                              <strong>
+                                                {tileChat.chat.identifier ?? tileChat.title}
+                                              </strong>
+                                              <span>{issueStatusLabel(tileChat.chat.status)}</span>
+                                            </div>
+                                            <button
+                                              className="secondary-button compact-button"
+                                              onClick={(event) => {
+                                                event.stopPropagation();
+                                                closeIssueTile(
+                                                  board.folder.projectId,
+                                                  board.folder.folderKey,
+                                                  issueId
+                                                );
+                                              }}
+                                              type="button"
+                                            >
+                                              Close
+                                            </button>
+                                          </div>
+                                          {isActiveFullTile ? (
+                                            <div className="birds-eye-chat-tile-body is-active">
+                                              {renderIssueTile(issueId, () =>
+                                                closeIssueTile(
+                                                  board.folder.projectId,
+                                                  board.folder.folderKey,
+                                                  issueId
+                                                )
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <div className="birds-eye-chat-tile-body">
+                                              <SpatialBirdsEyeTileStub
+                                                chat={tileChat}
+                                                onActivate={() =>
+                                                  activateTile(
+                                                    board.folder.projectId,
+                                                    board.folder.folderKey,
+                                                    issueId
+                                                  )
+                                                }
+                                              />
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })
+                                  ) : (
+                                    <div className="birds-eye-worktree-empty-tiles">
+                                      <span>No tiles open</span>
+                                      <button
+                                        className="secondary-button compact-button"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          openFocusedQuickCreate(undefined, board.folder.projectId, board.folder.folderKey);
+                                        }}
+                                        type="button"
+                                      >
+                                        New chat
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="birds-eye-worktree-chat-grid">
+                                  {board.cards.map((card) => {
+                                    const isFocusedChat =
+                                      focusedTarget?.kind === "chat" &&
+                                      focusedTarget.issueId === card.chat.chat.id &&
+                                      focusedTarget.worktreeKey === board.folder.folderKey;
+                                    const isOpen = board.tileState.issueIds.includes(
+                                      card.chat.chat.id
+                                    );
+                                    const isDotOnly = canvasZoomScale <= 0.9;
+
+                                    return (
+                                      <SpatialBirdsEyeChatCard
+                                        chat={card.chat}
+                                        isDotOnly={isDotOnly}
+                                        isFocused={isFocusedChat}
+                                        isOpen={isOpen}
+                                        key={card.chat.chat.id}
+                                        onClick={() =>
+                                          setFocusedTarget(
+                                            {
+                                              kind: "chat",
+                                              issueId: card.chat.chat.id,
+                                              projectId: board.folder.projectId,
+                                              worktreeKey: board.folder.folderKey,
+                                            },
+                                            "click"
+                                          )
+                                        }
+                                        onDoubleClick={() =>
+                                          openIssueTile(
+                                            board.folder.projectId,
+                                            board.folder.folderKey,
+                                            card.chat.chat.id,
+                                            true
+                                          )
+                                        }
+                                        style={{
+                                          left: card.x,
+                                          top: card.y +
+                                            (board.tileState.issueIds.length > 0
+                                              ? birdsEyeWorktreeTileAreaHeight + 18
+                                              : 0),
+                                        }}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              </section>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    );
+                  })}
+
+                  <button
+                    className="birds-eye-add-project-region"
+                    onClick={onCreateProject}
+                    style={{
+                      left:
+                        (repoRegions.at(-1)?.x ?? defaultBirdsEyeCanvasOffset.x) +
+                        (repoRegions.at(-1)?.width ?? 0) +
+                        birdsEyeRepoRegionGapX,
+                      top: birdsEyeRepoRegionDefaultY,
+                    }}
+                    type="button"
+                  >
+                    <span>+</span>
+                    <strong>Add project</strong>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : isLoadingOverview ? (
+        <div className="dashboard-canvas-empty-wrap birds-eye-empty-wrap">
+          <div className="dashboard-canvas-empty-card birds-eye-empty-card">
+            <div className="dashboard-canvas-empty-copy">
+              <span className="dashboard-canvas-empty-badge">
+                Loading overview
+              </span>
+              <h2>Hydrating the spatial canvas</h2>
+              <p>
+                Repos, worktrees, and chats are loading into the local-first
+                canvas.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="dashboard-canvas-empty-wrap birds-eye-empty-wrap">
+          <div className="dashboard-canvas-empty-card birds-eye-empty-card">
+            <div className="dashboard-canvas-empty-copy">
+              <span className="dashboard-canvas-empty-badge">
+                Projects required
+              </span>
+              <h2>Create a project first</h2>
+              <p>
+                Add a project with a repository anchor before opening worktrees
+                and chats on the canvas.
+              </p>
+            </div>
+            <button className="primary-button" onClick={onCreateProject} type="button">
+              Create project
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="dashboard-canvas-route-footer">
+        <div className="dashboard-canvas-route-footer-inner">
+          <div className="birds-eye-footer-hint">
+            <span>Space + drag pans</span>
+            <span>Enter opens a tile</span>
+            <span>Cmd/Ctrl + K opens commands</span>
+          </div>
+          <div
+            aria-label="Birds eye zoom"
+            className="dashboard-canvas-zoom-control"
+            role="group"
+          >
+            <span className="dashboard-canvas-zoom-label">Zoom</span>
+            <div className="dashboard-canvas-zoom-steps">
+              {birdsEyeCanvasZoomLevels.map((zoomLevel, index) => (
+                <button
+                  aria-pressed={index === effectiveCanvasState.viewport.zoomIndex}
+                  className={
+                    index === effectiveCanvasState.viewport.zoomIndex
+                      ? "dashboard-canvas-zoom-step is-active"
+                      : "dashboard-canvas-zoom-step"
+                  }
+                  key={zoomLevel}
+                  onClick={() =>
+                    updateCanvasState((current) => ({
+                      ...current,
+                      viewport: {
+                        ...current.viewport,
+                        zoomIndex: index,
+                      },
+                    }))
+                  }
+                  type="button"
+                >
+                  {dashboardCanvasZoomLabel(zoomLevel)}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {contextMenu ? (
+        <SpatialBirdsEyeContextMenu
+          onAction={(action) => {
+            if (action === "new-chat" || action === "create-worktree-chat") {
+              openFocusedQuickCreate(
+                { x: contextMenu.x, y: contextMenu.y },
+                contextMenu.projectId,
+                contextMenu.worktreeKey
+              );
+              return;
+            }
+
+            if (action === "new-agent-session") {
+              return;
+            }
+
+            if (action === "open-existing-chat") {
+              openChatPalette("open-chat");
+              return;
+            }
+
+            openChatPalette("run-command");
+          }}
+          x={contextMenu.x}
+          y={contextMenu.y}
+        />
+      ) : null}
+
+      {quickCreateState ? (
+        <SpatialBirdsEyeQuickCreatePanel
+          dependencyCheck={dependencyCheck}
+          draft={quickCreateState.draft}
+          errorMessage={quickCreateState.errorMessage}
+          inputRef={(element) => {
+            quickCreateInputRef.current = element;
+          }}
+          isSaving={quickCreateState.isSaving}
+          onCancel={() => setQuickCreateState(null)}
+          onDraftChange={(patch) =>
+            setQuickCreateState((current) =>
+              current
+                ? {
+                    ...current,
+                    draft: {
+                      ...current.draft,
+                      ...patch,
+                    },
+                    errorMessage: null,
+                  }
+                : current
+            )
+          }
+          onProjectWorktreeChange={(value) => {
+            const nextOption =
+              worktreeOptions.find((option) => option.worktreeKey === value) ?? null;
+            if (!nextOption) {
+              return;
+            }
+
+            setQuickCreateState((current) =>
+              current
+                ? {
+                    ...current,
+                    draft: {
+                      ...defaultQuickCreateDraft,
+                      ...nextOption.folder.createDefaults,
+                      command:
+                        nextOption.folder.createDefaults.command ??
+                        defaultQuickCreateDraft.command,
+                      model:
+                        nextOption.folder.createDefaults.model ??
+                        defaultQuickCreateDraft.model,
+                      projectId: nextOption.projectId,
+                    },
+                    projectId: nextOption.projectId,
+                    worktreeKey: nextOption.worktreeKey,
+                  }
+                : current
+            );
+          }}
+          onSubmit={handleQuickCreateSubmit}
+          onTitleChange={(title) =>
+            setQuickCreateState((current) =>
+              current
+                ? {
+                    ...current,
+                    errorMessage: null,
+                    title,
+                  }
+                : current
+            )
+          }
+          selectedWorktreeKey={quickCreateState.worktreeKey}
+          title={quickCreateState.title}
+          worktreeOptions={worktreeOptions}
+          x={quickCreateState.x}
+          y={quickCreateState.y}
+        />
+      ) : null}
+
+      {isCommandPaletteOpen ? (
+        <BirdsEyeCommandPalette
+          actions={filteredCommandActions}
+          activeIndex={commandPaletteIndex}
+          inputRef={commandPaletteInputRef}
+          isOpen={isCommandPaletteOpen}
+          onClose={() => setIsCommandPaletteOpen(false)}
+          onQueryChange={setCommandPaletteQuery}
+          query={commandPaletteQuery}
+        />
+      ) : null}
+    </section>
+  );
+}
+
+function SpatialBirdsEyeContextMenu({
+  onAction,
+  x,
+  y,
+}: {
+  onAction: (
+    action:
+      | "new-chat"
+      | "new-agent-session"
+      | "open-existing-chat"
+      | "create-worktree-chat"
+      | "run-command"
+  ) => void;
+  x: number;
+  y: number;
+}) {
+  return (
+    <div className="birds-eye-context-menu" style={{ left: x, top: y }}>
+      <button onClick={() => onAction("new-chat")} type="button">
+        <strong>New Chat</strong>
+        <span>Create a chat at this location.</span>
+      </button>
+      <button className="is-disabled" disabled type="button">
+        <strong>New Agent Session</strong>
+        <span>Coming soon.</span>
+      </button>
+      <button onClick={() => onAction("open-existing-chat")} type="button">
+        <strong>Open Existing Chat</strong>
+        <span>Search and open a chat in context.</span>
+      </button>
+      <button onClick={() => onAction("create-worktree-chat")} type="button">
+        <strong>Create Worktree Chat</strong>
+        <span>Start a chat anchored to this worktree.</span>
+      </button>
+      <button onClick={() => onAction("run-command")} type="button">
+        <strong>Run Command</strong>
+        <span>Open the command palette for this context.</span>
+      </button>
+    </div>
+  );
+}
+
+function SpatialBirdsEyeQuickCreatePanel({
+  dependencyCheck,
+  draft,
+  errorMessage,
+  inputRef,
+  isSaving,
+  onCancel,
+  onDraftChange,
+  onProjectWorktreeChange,
+  onSubmit,
+  onTitleChange,
+  selectedWorktreeKey,
+  title,
+  worktreeOptions,
+  x,
+  y,
+}: {
+  dependencyCheck: RuntimeCapabilities | null;
+  draft: BirdsEyeQuickCreateDraft;
+  errorMessage: string | null;
+  inputRef: (element: HTMLInputElement | null) => void;
+  isSaving: boolean;
+  onCancel: () => void;
+  onDraftChange: (patch: Partial<BirdsEyeQuickCreateDraft>) => void;
+  onProjectWorktreeChange: (value: string) => void;
+  onSubmit: (event: FormEvent) => void;
+  onTitleChange: (title: string) => void;
+  selectedWorktreeKey: string;
+  title: string;
+  worktreeOptions: Array<{
+    folder: BirdsEyeFolderNode;
+    label: string;
+    projectId: string;
+    worktreeKey: string;
+  }>;
+  x: number;
+  y: number;
+}) {
+  const runtimeProvider = detectAgentCliProvider(draft.command, draft.model);
+  const runtimeModelOptions = buildAgentModelOptions(
+    { command: draft.command, model: draft.model },
+    dependencyCheck
+  );
+  const runtimeThinkingEffortOptions = mergeIssueOptions(
+    ["auto", "low", "medium", "high"],
+    draft.thinkingEffort
+  );
+
+  return (
+    <div className="birds-eye-quick-create-popover" style={{ left: x, top: y }}>
+      <form className="birds-eye-quick-create-panel" onSubmit={onSubmit}>
+        <div className="birds-eye-quick-create-copy">
+          <span className="route-kicker">New chat</span>
+          <strong>Spawn a new local-first agent chat</strong>
+        </div>
+
+        <input
+          className="birds-eye-draft-title-input"
+          onChange={(event) => onTitleChange(event.target.value)}
+          placeholder="Name this chat"
+          ref={inputRef}
+          value={title}
+        />
+
+        <div className="birds-eye-quick-create-grid">
+          <label className="birds-eye-draft-field">
+            <span>Worktree</span>
+            <IssueDialogInlineSelect
+              ariaLabel="Target worktree"
+              className="birds-eye-draft-select"
+              onChange={onProjectWorktreeChange}
+              value={selectedWorktreeKey}
+            >
+              {worktreeOptions.map((option) => (
+                <option key={option.worktreeKey} value={option.worktreeKey}>
+                  {option.label}
+                </option>
+              ))}
+            </IssueDialogInlineSelect>
+          </label>
+
+          <label className="birds-eye-draft-field">
+            <span>Model</span>
+            <IssueDialogInlineSelect
+              ariaLabel="New chat model"
+              className="birds-eye-draft-select"
+              onChange={(value) => onDraftChange({ model: value })}
+              value={draft.model}
+            >
+              {runtimeModelOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option === "default" ? "Default" : option}
+                </option>
+              ))}
+            </IssueDialogInlineSelect>
+          </label>
+
+          <label className="birds-eye-draft-field">
+            <span>Thinking</span>
+            <IssueDialogInlineSelect
+              ariaLabel="New chat thinking effort"
+              className="birds-eye-draft-select"
+              onChange={(value) => onDraftChange({ thinkingEffort: value })}
+              value={draft.thinkingEffort}
+            >
+              {runtimeThinkingEffortOptions.map((option) => (
+                <option key={option} value={option}>
+                  {capitalize(option)}
+                </option>
+              ))}
+            </IssueDialogInlineSelect>
+          </label>
+
+          <div className="birds-eye-draft-field birds-eye-draft-toggle-field">
+            <span>Plan mode</span>
+            <button
+              aria-label="Toggle plan mode"
+              aria-pressed={draft.planMode}
+              className={
+                draft.planMode ? "agent-config-toggle active" : "agent-config-toggle"
+              }
+              disabled={runtimeProvider !== "claude"}
+              onClick={() => onDraftChange({ planMode: !draft.planMode })}
+              type="button"
+            >
+              <span />
+            </button>
+          </div>
+        </div>
+
+        {errorMessage ? (
+          <span className="project-kanban-add-card-error">{errorMessage}</span>
+        ) : null}
+
+        <div className="birds-eye-draft-actions">
+          <button
+            className="secondary-button compact-button"
+            onClick={onCancel}
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            className="primary-button compact-button"
+            disabled={isSaving}
+            type="submit"
+          >
+            {isSaving ? "Creating..." : "Create chat"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function SpatialBirdsEyeChatCard({
+  chat,
+  isDotOnly,
+  isFocused,
+  isOpen,
+  onClick,
+  onDoubleClick,
+  style,
+}: {
+  chat: BirdsEyeChatNode;
+  isDotOnly: boolean;
+  isFocused: boolean;
+  isOpen: boolean;
+  onClick: () => void;
+  onDoubleClick: () => void;
+  style: {
+    left: number;
+    top: number;
+  };
+}) {
+  if (isDotOnly) {
+    return (
+      <button
+        className={isFocused ? "birds-eye-chat-dot is-focused" : "birds-eye-chat-dot"}
+        onClick={onClick}
+        onDoubleClick={onDoubleClick}
+        style={style}
+        type="button"
+      >
+        <span className="sr-only">{chat.title}</span>
+      </button>
+    );
+  }
+
+  return (
+    <button
+      className={
+        isOpen
+          ? isFocused
+            ? "birds-eye-chat-card is-open is-focused"
+            : "birds-eye-chat-card is-open"
+          : isFocused
+            ? "birds-eye-chat-card is-focused"
+            : "birds-eye-chat-card"
+      }
+      onClick={onClick}
+      onDoubleClick={onDoubleClick}
+      style={style}
+      type="button"
+    >
+      <div className="birds-eye-chat-card-header">
+        <strong>{chat.title}</strong>
+        {chat.chat.identifier ? <span>{chat.chat.identifier}</span> : null}
+      </div>
+      <div className="birds-eye-chat-card-meta">
+        <span>{issueStatusLabel(chat.chat.status)}</span>
+        {chat.runStatus ? <span>{agentRunStatusLabel(chat.runStatus)}</span> : null}
+      </div>
+      <div className="birds-eye-chat-card-last-action">
+        {chat.runSummary || chat.agentLabel || "No recent action"}
+      </div>
+      {isOpen ? <div className="birds-eye-chat-card-open-indicator">Open</div> : null}
+    </button>
+  );
+}
+
+function SpatialBirdsEyeTileStub({
+  chat,
+  onActivate,
+}: {
+  chat: BirdsEyeChatNode;
+  onActivate: () => void;
+}) {
+  return (
+    <button className="birds-eye-tile-stub" onClick={onActivate} type="button">
+      <strong>{chat.title}</strong>
+      <span>{chat.chat.identifier ?? issueStatusLabel(chat.chat.status)}</span>
+      <p>{chat.runSummary || chat.agentLabel || "Background tile"}</p>
+    </button>
+  );
+}
+
 function BirdsEyeCommandPalette({
   actions,
   activeIndex,
@@ -12346,6 +14978,7 @@ function IssueWorkspaceDetailView({
   agents,
   availableStatusOptions,
   dependencyCheck,
+  embedded = false,
   issue,
   issueDraft,
   issueEditorError,
@@ -12392,6 +15025,7 @@ function IssueWorkspaceDetailView({
   agents: AgentRecord[];
   availableStatusOptions: string[];
   dependencyCheck: RuntimeCapabilities | null;
+  embedded?: boolean;
   issue: IssueRecord;
   issueDraft: IssueEditDraft;
   issueEditorError: string | null;
@@ -12474,13 +15108,21 @@ function IssueWorkspaceDetailView({
   };
 
   return (
-    <section className="route-scroll issues-detail-route conversation-detail-route">
-      <DashboardBreadcrumbs
-        items={[
-          { label: "Conversations", onClick: onBack },
-          { label: issueBreadcrumbTitle },
-        ]}
-      />
+    <section
+      className={
+        embedded
+          ? "issues-detail-route conversation-detail-route issues-detail-route-embedded"
+          : "route-scroll issues-detail-route conversation-detail-route"
+      }
+    >
+      {!embedded ? (
+        <DashboardBreadcrumbs
+          items={[
+            { label: "Conversations", onClick: onBack },
+            { label: issueBreadcrumbTitle },
+          ]}
+        />
+      ) : null}
 
       <div className="conversation-detail-shell workspace-issue-detail-shell">
         <main className="workspace-center">
@@ -12664,7 +15306,7 @@ function IssueWorkspaceDetailView({
 
         {issueWorkspaceSidebar ? (
           issueWorkspaceSidebar
-        ) : (
+        ) : !embedded ? (
           <aside className="conversation-detail-empty-sidebar">
             <section className="inspector-panel workspace-details-panel">
               <h3>Workspace Inspector</h3>
@@ -12674,7 +15316,7 @@ function IssueWorkspaceDetailView({
               </p>
             </section>
           </aside>
-        )}
+        ) : null}
       </div>
     </section>
   );
@@ -18002,6 +20644,7 @@ function mergeDesktopSettings(settings: DesktopSettings): DesktopSettings {
     ...defaultSettings,
     ...settings,
     dashboard_project_views: settings.dashboard_project_views ?? {},
+    birds_eye_canvas: settings.birds_eye_canvas ?? {},
   };
 }
 
@@ -19016,6 +21659,261 @@ function buildBirdsEyeTree({
     projects: projectNodes,
     rowById,
     rowIds,
+  };
+}
+
+function birdsEyeWorktreeGridDimensions(count: number) {
+  const safeCount = Math.max(count, 1);
+  if (safeCount <= 2) {
+    return { columns: safeCount, rows: 1 };
+  }
+  if (safeCount <= 4) {
+    return { columns: 2, rows: 2 };
+  }
+  if (safeCount <= 6) {
+    return { columns: 3, rows: 2 };
+  }
+  return { columns: 4, rows: 2 };
+}
+
+function defaultBirdsEyeRepoRegionState(index: number) {
+  return {
+    page: 0,
+    x:
+      defaultBirdsEyeCanvasOffset.x +
+      index * (birdsEyeRepoRegionMinWidth + birdsEyeRepoRegionGapX),
+    y: birdsEyeRepoRegionDefaultY,
+  };
+}
+
+function buildBirdsEyeChatCardModels(chats: BirdsEyeChatNode[]) {
+  if (chats.length === 0) {
+    return [];
+  }
+
+  const columns = chats.length <= 2 ? 1 : chats.length <= 4 ? 2 : 3;
+  const effectiveColumnWidth = Math.max(
+    birdsEyeWorktreeCardColumnMinWidth,
+    Math.floor(
+      (birdsEyeWorktreeBoardWidthWide - (columns - 1) * birdsEyeWorktreeCardGap) /
+        columns
+    )
+  );
+
+  return chats.map((chat, index) => {
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+
+    return {
+      chat,
+      x: column * (effectiveColumnWidth + birdsEyeWorktreeCardGap),
+      y:
+        row * (birdsEyeWorktreeCardHeight + birdsEyeWorktreeCardGap) +
+        (column % 2 === 1 ? 6 : 0),
+    };
+  });
+}
+
+function normalizeBirdsEyeWorktreeTileState(
+  tileState: BirdsEyeWorktreeTileState | undefined,
+  availableIssueIds: string[]
+) {
+  const issueIdSet = new Set(availableIssueIds);
+  const issueIds = (tileState?.issueIds ?? [])
+    .filter((issueId) => issueIdSet.has(issueId))
+    .slice(0, 4);
+  const lruIssueIds = (tileState?.lruIssueIds ?? [])
+    .filter((issueId) => issueIds.includes(issueId))
+    .concat(issueIds.filter((issueId) => !(tileState?.lruIssueIds ?? []).includes(issueId)));
+  const activeIssueId =
+    tileState?.activeIssueId && issueIds.includes(tileState.activeIssueId)
+      ? tileState.activeIssueId
+      : issueIds[0] ?? null;
+
+  return {
+    activeIssueId,
+    issueIds,
+    lruIssueIds,
+  };
+}
+
+function buildBirdsEyeCanvasModel(
+  treeModel: BirdsEyeTreeModel,
+  canvasState: BirdsEyeCanvasState
+) {
+  const normalizedState: BirdsEyeCanvasState = {
+    focusedTarget: canvasState.focusedTarget,
+    repoRegions: { ...canvasState.repoRegions },
+    viewport: {
+      x: canvasState.viewport.x,
+      y: canvasState.viewport.y,
+      zoomIndex: clampNumber(
+        canvasState.viewport.zoomIndex,
+        0,
+        birdsEyeCanvasZoomLevels.length - 1
+      ),
+    },
+    worktreeTiles: { ...canvasState.worktreeTiles },
+  };
+
+  const repoRegions = treeModel.projects.map((project, index) => {
+    const persistedRegion =
+      normalizedState.repoRegions[project.project.id] ??
+      defaultBirdsEyeRepoRegionState(index);
+    normalizedState.repoRegions[project.project.id] = persistedRegion;
+
+    const totalPages = Math.max(
+      1,
+      Math.ceil(project.folders.length / birdsEyeWorktreePageSize)
+    );
+    const page = clampNumber(
+      persistedRegion.page,
+      0,
+      Math.max(totalPages - 1, 0)
+    );
+    normalizedState.repoRegions[project.project.id] = {
+      ...persistedRegion,
+      page,
+    };
+
+    const visibleWorktrees = project.folders.slice(
+      page * birdsEyeWorktreePageSize,
+      page * birdsEyeWorktreePageSize + birdsEyeWorktreePageSize
+    );
+    const grid = birdsEyeWorktreeGridDimensions(visibleWorktrees.length);
+    const boardWidth =
+      visibleWorktrees.length <= 2
+        ? birdsEyeWorktreeBoardWidthWide
+        : birdsEyeWorktreeBoardWidthCompact;
+    const regionWidth = Math.max(
+      birdsEyeRepoRegionMinWidth,
+      birdsEyeRepoRegionPadding * 2 +
+        grid.columns * boardWidth +
+        Math.max(grid.columns - 1, 0) * birdsEyeWorktreeBoardGap
+    );
+    const regionHeight =
+      birdsEyeRepoRegionPadding * 2 +
+      birdsEyeRepoRegionLabelOffsetY +
+      grid.rows * birdsEyeWorktreeBoardHeight +
+      Math.max(grid.rows - 1, 0) * birdsEyeWorktreeBoardGap;
+
+    const boardModels = visibleWorktrees.map((folder, worktreeIndex) => {
+      const column = worktreeIndex % grid.columns;
+      const row = Math.floor(worktreeIndex / grid.columns);
+      const key = folder.folderKey;
+      const tileState = normalizeBirdsEyeWorktreeTileState(
+        normalizedState.worktreeTiles[key],
+        folder.chats.map((chat) => chat.chat.id)
+      );
+      normalizedState.worktreeTiles[key] = tileState;
+
+      return {
+        cards: buildBirdsEyeChatCardModels(folder.chats),
+        folder,
+        height: birdsEyeWorktreeBoardHeight,
+        key,
+        pageIndex: page,
+        tileState,
+        width: boardWidth,
+        x:
+          birdsEyeRepoRegionPadding +
+          column * (boardWidth + birdsEyeWorktreeBoardGap),
+        y:
+          birdsEyeRepoRegionPadding +
+          birdsEyeRepoRegionLabelOffsetY +
+          row * (birdsEyeWorktreeBoardHeight + birdsEyeWorktreeBoardGap),
+      };
+    });
+
+    return {
+      height: regionHeight,
+      page,
+      project,
+      totalPages,
+      visibleWorktrees: boardModels,
+      width: regionWidth,
+      x: persistedRegion.x,
+      y: persistedRegion.y,
+    };
+  });
+
+  for (const worktreeKey of Object.keys(normalizedState.worktreeTiles)) {
+    if (
+      !treeModel.projects.some((project) =>
+        project.folders.some((folder) => folder.folderKey === worktreeKey)
+      )
+    ) {
+      delete normalizedState.worktreeTiles[worktreeKey];
+    }
+  }
+
+  const bounds = repoRegions.length
+    ? {
+        height: Math.max(
+          ...repoRegions.map((region) => region.y + region.height)
+        ) + 220,
+        width: Math.max(...repoRegions.map((region) => region.x + region.width)) + 220,
+      }
+    : { width: 2200, height: 1600 };
+
+  const isFocusTargetValid = (() => {
+    const target = normalizedState.focusedTarget;
+    if (!target) {
+      return false;
+    }
+
+    const project = treeModel.projects.find(
+      (entry) => entry.project.id === target.projectId
+    );
+    if (!project) {
+      return false;
+    }
+    if (target.kind === "repo") {
+      return true;
+    }
+
+    const folder = project.folders.find(
+      (entry) => entry.folderKey === target.worktreeKey
+    );
+    if (!folder) {
+      return false;
+    }
+
+    if (target.kind === "worktree") {
+      return true;
+    }
+
+    if (!target.issueId) {
+      return false;
+    }
+
+    if (target.kind === "chat") {
+      return folder.chats.some((chat) => chat.chat.id === target.issueId);
+    }
+
+    return (
+      normalizedState.worktreeTiles[target.worktreeKey ?? ""]?.issueIds.includes(
+        target.issueId
+      ) ?? false
+    );
+  })();
+
+  if (!isFocusTargetValid) {
+    const firstProject = treeModel.projects[0] ?? null;
+    normalizedState.focusedTarget = firstProject
+      ? {
+          kind: "repo",
+          issueId: null,
+          projectId: firstProject.project.id,
+          worktreeKey: null,
+        }
+      : null;
+  }
+
+  return {
+    bounds,
+    normalizedState,
+    repoRegions,
   };
 }
 
