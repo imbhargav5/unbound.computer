@@ -4291,7 +4291,9 @@ export function App() {
           }))
         }
         onPromptChange={setPrompt}
-        onRespondToQuestion={handleRespondToQuestion}
+        onRespondToQuestion={(response) =>
+          void handleRespondToSessionQuestion(response)
+        }
         onRevealRepo={() => {
           if (selectedIssueWorkspace?.workspace_repo_path) {
             void desktopRevealInFinder(selectedIssueWorkspace.workspace_repo_path);
@@ -9381,8 +9383,14 @@ function SpatialDashboardBirdsEyeRouteView({
   const [recentlyOpenedTileKey, setRecentlyOpenedTileKey] = useState<string | null>(
     null
   );
+  const [measuredWorktreeHeights, setMeasuredWorktreeHeights] = useState<
+    Record<string, number>
+  >({});
   const [isViewportDragging, setIsViewportDragging] = useState(false);
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const worktreeBoardObserversRef = useRef<Map<string, ResizeObserver>>(
+    new Map()
+  );
   const repoDragRef = useRef<{
     originX: number;
     originY: number;
@@ -9409,8 +9417,13 @@ function SpatialDashboardBirdsEyeRouteView({
   const quickCreateInputRef = useRef<HTMLInputElement | null>(null);
   const commandPaletteInputRef = useRef<HTMLInputElement | null>(null);
   const canvasModel = useMemo(
-    () => buildBirdsEyeCanvasModel(treeModel, localCanvasState),
-    [localCanvasState, treeModel]
+    () =>
+      buildBirdsEyeCanvasModel(
+        treeModel,
+        localCanvasState,
+        measuredWorktreeHeights
+      ),
+    [localCanvasState, measuredWorktreeHeights, treeModel]
   );
   const normalizedCanvasStateKey = useMemo(
     () => JSON.stringify(serializeBirdsEyeCanvasState(canvasModel.normalizedState)),
@@ -9526,6 +9539,43 @@ function SpatialDashboardBirdsEyeRouteView({
   }, [quickCreateState?.worktreeKey]);
 
   useEffect(() => {
+    return () => {
+      for (const observer of worktreeBoardObserversRef.current.values()) {
+        observer.disconnect();
+      }
+      worktreeBoardObserversRef.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    const validWorktreeKeys = new Set(
+      treeModel.projects.flatMap((project) =>
+        project.folders.map((folder) => folder.folderKey)
+      )
+    );
+
+    setMeasuredWorktreeHeights((current) => {
+      let hasChanges = false;
+      const nextEntries = Object.entries(current).filter(([worktreeKey]) => {
+        const keep = validWorktreeKeys.has(worktreeKey);
+        if (!keep) {
+          hasChanges = true;
+          const observer = worktreeBoardObserversRef.current.get(worktreeKey);
+          observer?.disconnect();
+          worktreeBoardObserversRef.current.delete(worktreeKey);
+        }
+        return keep;
+      });
+
+      if (!hasChanges) {
+        return current;
+      }
+
+      return Object.fromEntries(nextEntries);
+    });
+  }, [treeModel.projects]);
+
+  useEffect(() => {
     if (!recentlyOpenedTileKey) {
       return;
     }
@@ -9622,6 +9672,46 @@ function SpatialDashboardBirdsEyeRouteView({
   ) => {
     setLocalCanvasState((current) => updater(current));
   };
+
+  const registerWorktreeBoard =
+    (worktreeKey: string) => (element: HTMLElement | null) => {
+      const existingObserver = worktreeBoardObserversRef.current.get(worktreeKey);
+      if (existingObserver) {
+        existingObserver.disconnect();
+        worktreeBoardObserversRef.current.delete(worktreeKey);
+      }
+
+      if (!element) {
+        return;
+      }
+
+      const syncHeight = (height: number) => {
+        const nextHeight = Math.ceil(height);
+        if (nextHeight <= 0) {
+          return;
+        }
+        setMeasuredWorktreeHeights((current) =>
+          current[worktreeKey] === nextHeight
+            ? current
+            : {
+                ...current,
+                [worktreeKey]: nextHeight,
+              }
+        );
+      };
+
+      syncHeight(element.offsetHeight);
+
+      const observer = new ResizeObserver((entries) => {
+        const entry = entries[0];
+        if (!entry) {
+          return;
+        }
+        syncHeight((entry.target as HTMLElement).offsetHeight);
+      });
+      observer.observe(element);
+      worktreeBoardObserversRef.current.set(worktreeKey, observer);
+    };
 
   const setFocusedTarget = (
     nextTarget: BirdsEyeCanvasFocusTarget | null,
@@ -11011,11 +11101,12 @@ function SpatialDashboardBirdsEyeRouteView({
                                     "click"
                                   )
                                 }
+                                ref={registerWorktreeBoard(board.folder.folderKey)}
                                 style={{
                                   left: board.x,
+                                  minHeight: board.height,
                                   top: board.y,
                                   width: board.width,
-                                  height: board.height,
                                 }}
                               >
                                 <div className="birds-eye-worktree-board-header">
@@ -20180,7 +20271,7 @@ function birdsEyeWorktreeGridDimensions(count: number) {
   if (safeCount <= 6) {
     return { columns: 3, rows: 2 };
   }
-  return { columns: 4, rows: 2 };
+  return { columns: 4, rows: Math.ceil(safeCount / 4) };
 }
 
 function defaultBirdsEyeRepoRegionState(index: number) {
@@ -20218,7 +20309,8 @@ function normalizeBirdsEyeWorktreeTileState(
 
 function buildBirdsEyeCanvasModel(
   treeModel: BirdsEyeTreeModel,
-  canvasState: BirdsEyeCanvasState
+  canvasState: BirdsEyeCanvasState,
+  measuredWorktreeHeights: Record<string, number>
 ) {
   const normalizedState: BirdsEyeCanvasState = {
     focusedTarget: canvasState.focusedTarget,
@@ -20241,29 +20333,45 @@ function buildBirdsEyeCanvasModel(
       defaultBirdsEyeRepoRegionState(index);
     normalizedState.repoRegions[project.project.id] = persistedRegion;
 
-    const totalPages = Math.max(
-      1,
-      Math.ceil(project.folders.length / birdsEyeWorktreePageSize)
-    );
-    const page = clampNumber(
-      persistedRegion.page,
-      0,
-      Math.max(totalPages - 1, 0)
-    );
+    const totalPages = 1;
+    const page = 0;
     normalizedState.repoRegions[project.project.id] = {
       ...persistedRegion,
       page,
     };
 
-    const visibleWorktrees = project.folders.slice(
-      page * birdsEyeWorktreePageSize,
-      page * birdsEyeWorktreePageSize + birdsEyeWorktreePageSize
-    );
+    const visibleWorktrees = project.folders;
     const grid = birdsEyeWorktreeGridDimensions(visibleWorktrees.length);
     const boardWidth =
       visibleWorktrees.length <= 2
         ? birdsEyeWorktreeBoardWidthWide
         : birdsEyeWorktreeBoardWidthCompact;
+    const boardHeights = visibleWorktrees.map((folder) =>
+      Math.max(
+        birdsEyeWorktreeBoardHeight,
+        Math.ceil(measuredWorktreeHeights[folder.folderKey] ?? 0)
+      )
+    );
+    const rowHeights = Array.from({ length: grid.rows }, (_, rowIndex) =>
+      boardHeights.reduce((maxHeight, boardHeight, worktreeIndex) => {
+        if (Math.floor(worktreeIndex / grid.columns) !== rowIndex) {
+          return maxHeight;
+        }
+        return Math.max(maxHeight, boardHeight);
+      }, 0)
+    );
+    const rowOffsets = rowHeights.reduce<number[]>((offsets, rowHeight, rowIndex) => {
+      if (rowIndex === 0) {
+        offsets.push(0);
+        return offsets;
+      }
+      offsets.push(
+        offsets[rowIndex - 1]! +
+          rowHeights[rowIndex - 1]! +
+          birdsEyeWorktreeBoardGap
+      );
+      return offsets;
+    }, []);
     const regionWidth = Math.max(
       birdsEyeRepoRegionMinWidth,
       birdsEyeRepoRegionPadding * 2 +
@@ -20273,7 +20381,7 @@ function buildBirdsEyeCanvasModel(
     const regionHeight =
       birdsEyeRepoRegionPadding * 2 +
       birdsEyeRepoRegionLabelOffsetY +
-      grid.rows * birdsEyeWorktreeBoardHeight +
+      rowHeights.reduce((total, rowHeight) => total + rowHeight, 0) +
       Math.max(grid.rows - 1, 0) * birdsEyeWorktreeBoardGap;
 
     const boardModels = visibleWorktrees.map((folder, worktreeIndex) => {
@@ -20289,7 +20397,7 @@ function buildBirdsEyeCanvasModel(
       return {
         folder,
         chats: folder.chats,
-        height: birdsEyeWorktreeBoardHeight,
+        height: boardHeights[worktreeIndex] ?? birdsEyeWorktreeBoardHeight,
         key,
         pageIndex: page,
         tileState,
@@ -20300,7 +20408,7 @@ function buildBirdsEyeCanvasModel(
         y:
           birdsEyeRepoRegionPadding +
           birdsEyeRepoRegionLabelOffsetY +
-          row * (birdsEyeWorktreeBoardHeight + birdsEyeWorktreeBoardGap),
+          (rowOffsets[row] ?? 0),
       };
     });
 
