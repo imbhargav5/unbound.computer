@@ -48,13 +48,16 @@ export function StatsRouteView({
     [issues]
   );
   const visibleConversations = useMemo(
-    () => issues.filter((issue) => !issue.hidden_at && isRootConversationIssue(issue)),
+    () =>
+      issues.filter(
+        (issue) => !issue.hidden_at && isRootConversationIssue(issue)
+      ),
     [issues]
   );
   const queuedMessages = useMemo(
     () =>
       issues.filter(
-        (issue) => !issue.hidden_at && !isRootConversationIssue(issue)
+        (issue) => !(issue.hidden_at || isRootConversationIssue(issue))
       ),
     [issues]
   );
@@ -86,20 +89,28 @@ export function StatsRouteView({
     };
 
     for (const issue of visibleConversations) {
-      ensureSummary(issueModelLabel(issue, agents)).conversationIds.add(issue.id);
+      ensureSummary(issueModelLabel(issue, agents)).conversationIds.add(
+        issue.id
+      );
     }
 
     for (const workspace of workspaces) {
-      const issue = workspace.issue_id ? issueById.get(workspace.issue_id) : null;
+      const issue = workspace.issue_id
+        ? issueById.get(workspace.issue_id)
+        : null;
       ensureSummary(
-        issue ? issueModelLabel(issue, agents) : agentModelLabelById(agents, workspace.agent_id)
+        issue
+          ? issueModelLabel(issue, agents)
+          : agentModelLabelById(agents, workspace.agent_id)
       ).workspaceCount += 1;
     }
 
     for (const update of Object.values(issueRunCardUpdatesByIssueId)) {
       const issue = issueById.get(update.issue_id);
       const summary = ensureSummary(
-        issue ? issueModelLabel(issue, agents) : agentModelLabelById(agents, update.agent_id)
+        issue
+          ? issueModelLabel(issue, agents)
+          : agentModelLabelById(agents, update.agent_id)
       );
       summary.conversationIds.add(update.issue_id);
       if (update.run_status === "queued" || update.run_status === "running") {
@@ -135,7 +146,13 @@ export function StatsRouteView({
         }
         return left.label.localeCompare(right.label);
       });
-  }, [agents, issueById, issueRunCardUpdatesByIssueId, visibleConversations, workspaces]);
+  }, [
+    agents,
+    issueById,
+    issueRunCardUpdatesByIssueId,
+    visibleConversations,
+    workspaces,
+  ]);
   const recentModelUpdates = useMemo(() => {
     return Object.values(issueRunCardUpdatesByIssueId)
       .map((update) => ({
@@ -149,7 +166,8 @@ export function StatsRouteView({
           entry.issue !== null && entry.issue.hidden_at == null
       )
       .sort((left, right) => {
-        const leftDate = parseIssueDate(left.update.last_activity_at)?.getTime() ?? 0;
+        const leftDate =
+          parseIssueDate(left.update.last_activity_at)?.getTime() ?? 0;
         const rightDate =
           parseIssueDate(right.update.last_activity_at)?.getTime() ?? 0;
         return rightDate - leftDate;
@@ -311,7 +329,9 @@ export function StatsRouteView({
                       {issueRunCardUpdateSummary(update)}
                     </span>
                   </div>
-                  <span>{formatCompactIssueTimestamp(update.last_activity_at)}</span>
+                  <span>
+                    {formatCompactIssueTimestamp(update.last_activity_at)}
+                  </span>
                 </div>
               ))}
             </div>
@@ -333,7 +353,9 @@ export function StatsRouteView({
                   onClick={() => onOpenWorkspace(workspace)}
                   type="button"
                 >
-                  <strong>{workspace.issue_identifier ?? workspace.title}</strong>
+                  <strong>
+                    {workspace.issue_identifier ?? workspace.title}
+                  </strong>
                   <span>
                     {[
                       workspace.issue_title,
@@ -377,7 +399,7 @@ function DependencyToolRow({
         <strong>{label}</strong>
         <span>
           {capability.installed
-            ? capability.path ?? "Installed and ready"
+            ? (capability.path ?? "Installed and ready")
             : "Not detected in PATH"}
         </span>
       </div>
@@ -429,7 +451,7 @@ function formatRelativeIssueDate(value: string | null | undefined) {
   const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
   const deltaSeconds = Math.round((date.getTime() - Date.now()) / 1000);
   const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
-    ["day", 86400],
+    ["day", 86_400],
     ["hour", 3600],
     ["minute", 60],
   ];
@@ -515,10 +537,7 @@ function issueModelLabel(
   return agentModelLabelById(agents, issue.assignee_agent_id);
 }
 
-function agentModelLabelById(
-  agents: AgentRecord[],
-  agentId?: string | null
-) {
+function agentModelLabelById(agents: AgentRecord[], agentId?: string | null) {
   if (!agentId) {
     return "Unknown model";
   }

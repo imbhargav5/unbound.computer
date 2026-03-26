@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, useState, type ReactElement } from "react";
+import { act, type ReactElement, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -21,8 +21,9 @@ import type {
   WorkspaceRecord,
 } from "./lib/types";
 
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
-  true;
+(
+  globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
 
 describe("issue detail parity components", () => {
   let container: HTMLDivElement | null = null;
@@ -127,9 +128,9 @@ describe("issue detail parity components", () => {
       textarea?.dispatchEvent(new Event("input", { bubbles: true }));
       textarea?.dispatchEvent(new Event("change", { bubbles: true }));
     });
-    expect(view.querySelector('[data-testid="composer-value"]')?.textContent).toBe(
-      "Ship the update"
-    );
+    expect(
+      view.querySelector('[data-testid="composer-value"]')?.textContent
+    ).toBe("Ship the update");
 
     expect(view.textContent).toContain("1.2k tokens");
     expect(view.textContent).toContain("$0.02");
@@ -143,11 +144,13 @@ describe("issue detail parity components", () => {
     expect(view.textContent).toContain("Add Attachments");
     expect(view.textContent).toContain("Plan mode");
 
-    const planToggleButton = Array.from(
-      view.querySelectorAll("button")
-    ).find((button) => button.textContent?.includes("Plan mode"));
+    const planToggleButton = Array.from(view.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("Plan mode")
+    );
     act(() => {
-      planToggleButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      planToggleButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true })
+      );
     });
     expect(view.textContent).toContain(
       "Plan mode — Claude will create a plan before making changes"
@@ -157,7 +160,9 @@ describe("issue detail parity components", () => {
       (button) => button.textContent?.includes("Add Attachments")
     );
     act(() => {
-      attachmentButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      attachmentButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true })
+      );
     });
     expect(onAddAttachment).toHaveBeenCalledTimes(1);
 
@@ -236,7 +241,9 @@ describe("issue detail parity components", () => {
     const providerSelect = view.querySelector(
       'select[aria-label="New chat provider"]'
     );
-    const modelSelect = view.querySelector('select[aria-label="New chat model"]');
+    const modelSelect = view.querySelector(
+      'select[aria-label="New chat model"]'
+    );
 
     expect(providerSelect).not.toBeNull();
     expect(modelSelect).not.toBeNull();
@@ -302,8 +309,8 @@ describe("issue detail parity components", () => {
         gitState={gitState}
         hasUncommittedChanges
         hasUnpushedCommits={false}
-        isWorking={false}
         issueMeta={<div>Issue metadata</div>}
+        isWorking={false}
         onDiscardFile={() => undefined}
         onGitCommit={onGitCommit}
         onGitCommitMessageChange={() => undefined}
@@ -325,8 +332,8 @@ describe("issue detail parity components", () => {
     expect(view.textContent).toContain("feature/readme");
     expect(view.textContent).toContain("Issue");
 
-    const filesTab = Array.from(view.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("Files")
+    const filesTab = Array.from(view.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("Files")
     );
     act(() => {
       filesTab?.dispatchEvent(new MouseEvent("click", { bubbles: true }));

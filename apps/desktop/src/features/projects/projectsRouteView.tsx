@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
 
 import type { GoalRecord, ProjectRecord } from "../../lib/types";
-import {
-  DashboardBreadcrumbs,
-  DetailRow,
-} from "../shared/routePrimitives";
+import { DashboardBreadcrumbs, DetailRow } from "../shared/routePrimitives";
 
 type ProjectDefaultNewChatArea = "repo_root" | "new_worktree";
 
@@ -44,9 +41,9 @@ export function ProjectsRouteView({
   const [isDeletingProject, setIsDeletingProject] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isSavingProjectSettings, setIsSavingProjectSettings] = useState(false);
-  const [projectSettingsError, setProjectSettingsError] = useState<string | null>(
-    null
-  );
+  const [projectSettingsError, setProjectSettingsError] = useState<
+    string | null
+  >(null);
   const [projectDefaultNewChatAreaDraft, setProjectDefaultNewChatAreaDraft] =
     useState<ProjectDefaultNewChatArea>("repo_root");
 
@@ -56,8 +53,14 @@ export function ProjectsRouteView({
     setDeleteError(null);
     setIsSavingProjectSettings(false);
     setProjectSettingsError(null);
-    setProjectDefaultNewChatAreaDraft(projectDefaultNewChatArea(currentProject));
-  }, [currentProject?.execution_workspace_policy, currentProject?.id, currentProject?.updated_at]);
+    setProjectDefaultNewChatAreaDraft(
+      projectDefaultNewChatArea(currentProject)
+    );
+  }, [
+    currentProject?.execution_workspace_policy,
+    currentProject?.id,
+    currentProject?.updated_at,
+  ]);
 
   const handleConfirmProjectDelete = async () => {
     if (!currentProject || isDeletingProject) {
@@ -194,15 +197,17 @@ export function ProjectsRouteView({
               <section className="projects-detail-section">
                 <h3>Project Settings</h3>
                 {projectSettingsError ? (
-                  <div className="issue-dialog-alert">{projectSettingsError}</div>
+                  <div className="issue-dialog-alert">
+                    {projectSettingsError}
+                  </div>
                 ) : null}
                 <div className="settings-shadcn-form">
                   <div className="settings-shadcn-field settings-shadcn-field-select">
                     <div className="settings-shadcn-field-copy">
                       <strong>Default new chat area</strong>
                       <p>
-                        Choose whether new chats for this project start in the repo
-                        root or spin up a fresh worktree by default.
+                        Choose whether new chats for this project start in the
+                        repo root or spin up a fresh worktree by default.
                       </p>
                     </div>
                     <div className="settings-shadcn-field-control">
@@ -307,8 +312,9 @@ export function DeleteProjectDialogView({
               Delete {project.name ?? project.title ?? "project"}?
             </h2>
             <p id="delete-project-dialog-description">
-              This will permanently delete this project, all related conversations, and
-              all related worktrees. This action cannot be undone.
+              This will permanently delete this project, all related
+              conversations, and all related worktrees. This action cannot be
+              undone.
             </p>
           </div>
           <button
@@ -341,8 +347,8 @@ export function DeleteProjectDialogView({
           </div>
 
           <p className="project-delete-warning">
-            Repository records stay intact, but every board conversation and worktree
-            anchored to this project will be removed.
+            Repository records stay intact, but every board conversation and
+            worktree anchored to this project will be removed.
           </p>
         </div>
 

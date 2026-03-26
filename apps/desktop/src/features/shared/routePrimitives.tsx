@@ -40,14 +40,14 @@ export function DashboardBreadcrumbs({
               </span>
             )}
 
-            {!isCurrent ? (
+            {isCurrent ? null : (
               <span
                 aria-hidden="true"
                 className="dashboard-breadcrumb-separator"
               >
                 ›
               </span>
-            ) : null}
+            )}
           </div>
         );
       })}
@@ -85,13 +85,7 @@ export function SummaryPill({
   );
 }
 
-export function DetailRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
+export function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="detail-row">
       <span>{label}</span>

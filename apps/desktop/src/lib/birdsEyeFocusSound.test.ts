@@ -22,9 +22,9 @@ describe("shouldPlayBirdsEyeFocusSound", () => {
   });
 
   it("stays silent when focus does not actually change", () => {
-    expect(
-      shouldPlayBirdsEyeFocusSound("chat:1", "chat:1", "keyboard")
-    ).toBe(false);
+    expect(shouldPlayBirdsEyeFocusSound("chat:1", "chat:1", "keyboard")).toBe(
+      false
+    );
     expect(shouldPlayBirdsEyeFocusSound("chat:1", null, "keyboard")).toBe(
       false
     );

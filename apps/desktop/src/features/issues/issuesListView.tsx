@@ -101,8 +101,8 @@ export function IssuesListView({
           <div className="issues-empty-state">
             <h2>{emptyTitle}</h2>
             <p>
-              Conversations hold the context, and model worktrees spin up when
-              a run starts.
+              Conversations hold the context, and model worktrees spin up when a
+              run starts.
             </p>
           </div>
         )}

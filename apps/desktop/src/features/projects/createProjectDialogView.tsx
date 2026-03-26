@@ -37,8 +37,8 @@ export function CreateProjectDialogView({
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
       <div
-        aria-modal="true"
         aria-labelledby="create-project-dialog-title"
+        aria-modal="true"
         className="project-dialog"
         onClick={(event) => event.stopPropagation()}
         role="dialog"

@@ -1,12 +1,11 @@
 import { Terminal } from "@xterm/xterm";
 import {
   type FormEvent,
-  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent,
   type PointerEvent,
-  type RefObject,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
-  type WheelEvent,
+  type RefObject,
   startTransition,
   useDeferredValue,
   useEffect,
@@ -14,25 +13,40 @@ import {
   useMemo,
   useRef,
   useState,
+  type WheelEvent,
 } from "react";
+import { ActivityRouteView } from "../features/activity/activityRouteView";
+import { IssuesListView } from "../features/issues/issuesListView";
+import { CreateProjectDialogView } from "../features/projects/createProjectDialogView";
+import { ProjectsRouteView } from "../features/projects/projectsRouteView";
 import {
+  DashboardBreadcrumbs,
+  DetailRow,
+  MetricCard,
+  RoutePlaceholder,
+  SummaryPill,
+} from "../features/shared/routePrimitives";
+import { StatsRouteView } from "../features/stats/statsRouteView";
+import {
+  agentSend,
+  agentStop,
   boardAddIssueAttachment,
-  boardCancelAgentRun,
   boardApproveApproval,
+  boardCancelAgentRun,
   boardCompanySnapshot,
-  boardDashboardOverview,
   boardCreateAgent,
   boardCreateCompany,
   boardCreateIssue,
   boardCreateProject,
+  boardDashboardOverview,
   boardDeleteProject,
   boardGetAgentRun,
   boardGetIssue,
   boardListAgentLiveRunCounts,
-  boardListIssueAttachments,
   boardListAgentRunEvents,
   boardListAgentRuns,
   boardListCompanies,
+  boardListIssueAttachments,
   boardListIssueComments,
   boardListIssueRunCardUpdates,
   boardListIssueRuns,
@@ -43,45 +57,61 @@ import {
   boardUpdateCompany,
   boardUpdateIssue,
   boardUpdateProject,
-  agentSend,
-  agentStatus,
-  agentStop,
   desktopBootstrap,
   desktopOpenExternal,
   desktopPickFile,
   desktopPickRepositoryDirectory,
   desktopRevealInFinder,
-  gitCommit,
   gitBranches,
+  gitCommit,
   gitDiffFile,
   gitDiscard,
   gitLog,
   gitPush,
   gitStage,
   gitStatus,
-  gitWorktrees,
   gitUnstage,
+  gitWorktrees,
   listenToSessionEvents,
   listenToSessionStreamErrors,
-  messageList,
   repositoryList,
   repositoryListFiles,
   repositoryReadFile,
   sessionList,
-  sessionSubscribe,
-  sessionUnsubscribe,
   settingsGet,
   settingsUpdate,
   systemCheckDependencies,
   terminalRun,
-  terminalStatus,
   terminalStop,
 } from "../lib/api";
+import {
+  type BirdsEyeFocusChangeCause,
+  playBirdsEyeFocusSound,
+  shouldPlayBirdsEyeFocusSound,
+} from "../lib/birdsEyeFocusSound";
+import {
+  buildConversationTimeline,
+  type ConversationQuestion,
+  type ConversationRow,
+  type ConversationSubAgent,
+  type ConversationTodoItem,
+  type ConversationTool,
+} from "../lib/conversationTimeline";
+import type {
+  SessionCompletionSummary,
+  SessionConversationCommandBlock,
+  SessionConversationNoteBlock,
+  SessionConversationRow,
+} from "../lib/sessionConversation";
+import {
+  DesktopSessionStateManager,
+  useDesktopSessionLiveState,
+} from "../lib/sessionLiveState";
 import type {
   AgentLiveRunCountRecord,
+  AgentRecord,
   AgentRunEventRecord,
   AgentRunRecord,
-  AgentRecord,
   ApprovalRecord,
   BirdsEyeCanvasCompanyState,
   Company,
@@ -98,11 +128,11 @@ import type {
   GitStatusFile,
   GitStatusResult,
   GitWorktreeRecord,
-  IssueAttachmentRecord,
   GoalRecord,
+  IssueAttachmentRecord,
   IssueCommentRecord,
-  IssueRunCardUpdateRecord,
   IssueRecord,
+  IssueRunCardUpdateRecord,
   ProjectRecord,
   RepositoryRecord,
   RuntimeCapabilities,
@@ -111,44 +141,6 @@ import type {
   SessionStreamPayload,
   WorkspaceRecord,
 } from "../lib/types";
-import {
-  type ConversationQuestion,
-  type ConversationRow,
-  type ConversationSubAgent,
-  type ConversationTodoItem,
-  type ConversationTool,
-  buildConversationTimeline,
-} from "../lib/conversationTimeline";
-import {
-  type SessionCompletionSummary,
-  type SessionConversationCommandBlock,
-  type SessionConversationNoteBlock,
-  type SessionConversationRow,
-} from "../lib/sessionConversation";
-import {
-  DesktopSessionStateManager,
-  useDesktopSessionLiveState,
-} from "../lib/sessionLiveState";
-import {
-  playBirdsEyeFocusSound,
-  shouldPlayBirdsEyeFocusSound,
-  type BirdsEyeFocusChangeCause,
-} from "../lib/birdsEyeFocusSound";
-import { ActivityRouteView } from "../features/activity/activityRouteView";
-import { ApprovalsRouteView } from "../features/approvals/approvalsRouteView";
-import { IssuesListView } from "../features/issues/issuesListView";
-import { CreateProjectDialogView } from "../features/projects/createProjectDialogView";
-import { ProjectsRouteView } from "../features/projects/projectsRouteView";
-import { StatsRouteView } from "../features/stats/statsRouteView";
-import {
-  BoardPlaceholderView,
-  DashboardBreadcrumbs,
-  DetailRow,
-  MetricCard,
-  ProjectDialogSelectField,
-  RoutePlaceholder,
-  SummaryPill,
-} from "../features/shared/routePrimitives";
 
 type AppScreen =
   | "dashboard"
@@ -170,11 +162,7 @@ const emptyProjectRecords: ProjectRecord[] = [];
 const emptyWorkspaceRecords: WorkspaceRecord[] = [];
 const emptyDashboardOverviewChats: DashboardOverviewChatRecord[] = [];
 
-type SettingsSection =
-  | "general"
-  | "appearance"
-  | "notifications"
-  | "privacy";
+type SettingsSection = "general" | "appearance" | "notifications" | "privacy";
 
 type ThemeMode = "system" | "light" | "dark";
 type FontSizePreset = "small" | "medium" | "large";
@@ -198,10 +186,7 @@ interface IssueLinkedRun {
 type BoardRootLayout = "companyDashboard" | "settings";
 type WorkspaceCenterTab = "conversation" | "runs" | "terminal" | "preview";
 type WorkspaceSidebarTab = "changes" | "files" | "commits" | "issue";
-type CompanyContextMenuScreen =
-  | "dashboard"
-  | "issues"
-  | "companySettings";
+type CompanyContextMenuScreen = "dashboard" | "issues" | "companySettings";
 type CompanyContextMenuIconKey =
   | CompanyContextMenuScreen
   | "activity"
@@ -211,9 +196,9 @@ type CompanyContextMenuIconKey =
   | "stats";
 
 interface CompanyContextMenuState {
+  agents: AgentRecord[];
   companyId: string;
   companyName: string;
-  agents: AgentRecord[];
   isLoadingAgents: boolean;
   x: number;
   y: number;
@@ -230,11 +215,11 @@ type ProjectDefaultNewChatArea = "repo_root" | "new_worktree";
 
 interface IssueRuntimeDraft {
   command: string;
-  model: string;
-  thinkingEffort: string;
-  planMode: boolean;
   enableChrome: boolean;
+  model: string;
+  planMode: boolean;
   skipPermissions: boolean;
+  thinkingEffort: string;
 }
 
 interface DashboardProjectColumn {
@@ -246,21 +231,21 @@ interface DashboardProjectColumn {
 
 interface DashboardProjectBoardLayout {
   boardId: string;
+  columns: DashboardProjectColumn[];
   grouping: DashboardProjectGrouping;
   isDefaultView: boolean;
+  issueCount: number;
   project: ProjectRecord;
-  columns: DashboardProjectColumn[];
   viewId: string;
   viewName: string;
   width: number;
-  issueCount: number;
 }
 
 interface DashboardProjectColumnLayout {
-  project: ProjectRecord;
   boards: DashboardProjectBoardLayout[];
   height: number;
   left: number;
+  project: ProjectRecord;
   top: number;
   width: number;
 }
@@ -278,17 +263,17 @@ const projectDefaultNewChatAreaOptions: Array<
 ];
 
 interface CreateIssueDialogDefaults {
-  dialogMode?: IssueDialogMode;
-  parentId?: string;
-  projectId?: string;
-  priority?: string;
-  status?: string;
   command?: string;
-  model?: string;
-  thinkingEffort?: string;
-  planMode?: boolean;
+  dialogMode?: IssueDialogMode;
   enableChrome?: boolean;
+  model?: string;
+  parentId?: string;
+  planMode?: boolean;
+  priority?: string;
+  projectId?: string;
   skipPermissions?: boolean;
+  status?: string;
+  thinkingEffort?: string;
   workspaceTargetMode?: IssueWorkspaceTargetMode;
   workspaceWorktreeBranch?: string;
   workspaceWorktreeName?: string;
@@ -301,71 +286,71 @@ interface DashboardProjectViewDraft {
 }
 
 interface IssueEditDraft extends IssueRuntimeDraft {
-  title: string;
+  assigneeAgentId: string;
   description: string;
-  status: string;
+  parentId: string;
   priority: string;
   projectId: string;
-  assigneeAgentId: string;
-  parentId: string;
+  status: string;
+  title: string;
   workspaceTargetMode: IssueWorkspaceTargetMode;
-  workspaceWorktreePath: string;
   workspaceWorktreeBranch: string;
   workspaceWorktreeName: string;
+  workspaceWorktreePath: string;
 }
 
 interface ProjectWorktreeState {
-  worktrees: GitWorktreeRecord[];
-  isLoading: boolean;
   errorMessage: string | null;
   hasLoaded?: boolean;
+  isLoading: boolean;
   repoPath?: string | null;
+  worktrees: GitWorktreeRecord[];
 }
 
 interface IssueAttachmentDraft {
-  path: string;
   name: string;
+  path: string;
 }
 
 interface AgentConfigEnvVarDraft {
   id: string;
   key: string;
-  value: string;
   mode: "plain" | "secret";
+  value: string;
 }
 
 interface AgentConfigDraft {
-  name: string;
-  title: string;
-  capabilities: string;
-  promptTemplate: string;
   adapterType: string;
-  workingDirectory: string;
-  instructionsPath: string;
-  command: string;
-  model: string;
-  thinkingEffort: string;
   bootstrapPrompt: string;
-  enableChrome: boolean;
-  skipPermissions: boolean;
-  maxTurns: string;
-  extraArgs: string;
-  envVars: AgentConfigEnvVarDraft[];
-  timeoutSec: string;
-  interruptGraceSec: string;
   canCreateAgents: boolean;
+  capabilities: string;
+  command: string;
+  enableChrome: boolean;
+  envVars: AgentConfigEnvVarDraft[];
+  extraArgs: string;
+  instructionsPath: string;
+  interruptGraceSec: string;
+  maxTurns: string;
+  model: string;
   monthlyBudget: string;
+  name: string;
+  promptTemplate: string;
+  skipPermissions: boolean;
+  thinkingEffort: string;
+  timeoutSec: string;
+  title: string;
+  workingDirectory: string;
 }
 
 type ActivityFeedTarget = { kind: "issue"; issueId: string };
 
 interface ActivityFeedItem {
   id: string;
+  subtitle: string;
+  target: ActivityFeedTarget;
   timestamp: Date;
   title: string;
-  subtitle: string;
   trailingLabel: string;
-  target: ActivityFeedTarget;
 }
 
 interface DashboardBreadcrumbItem {
@@ -381,48 +366,48 @@ interface BirdsEyeCodeImpactSummary {
 }
 
 interface BirdsEyeChatNode {
-  kind: "chat";
-  rowId: string;
-  chat: DashboardOverviewChatRecord;
-  projectId: string;
-  folderRowId: string;
-  title: string;
   agentLabel: string;
+  chat: DashboardOverviewChatRecord;
+  createDefaults: CreateIssueDialogDefaults;
+  folderRowId: string;
+  kind: "chat";
   lastActivityAt: string | null;
+  projectId: string;
+  rowId: string;
   runStatus: string | null;
   runSummary: string | null;
   sessionId: string | null;
-  createDefaults: CreateIssueDialogDefaults;
+  title: string;
 }
 
 interface BirdsEyeFolderNode {
-  kind: "folder";
-  rowId: string;
-  projectId: string;
-  folderKey: string;
-  label: string;
-  secondaryLabel: string | null;
-  path: string | null;
-  folderType: "repo_root" | "worktree" | "pending_worktree";
-  chats: BirdsEyeChatNode[];
   chatCount: number;
-  liveRunCount: number;
-  lastActivityAt: string | null;
+  chats: BirdsEyeChatNode[];
   createDefaults: CreateIssueDialogDefaults;
+  folderKey: string;
+  folderType: "repo_root" | "worktree" | "pending_worktree";
+  kind: "folder";
+  label: string;
+  lastActivityAt: string | null;
+  liveRunCount: number;
+  path: string | null;
+  projectId: string;
+  rowId: string;
+  secondaryLabel: string | null;
 }
 
 interface BirdsEyeProjectNode {
-  kind: "project";
-  rowId: string;
-  project: ProjectRecord;
-  label: string;
-  repoPath: string | null;
-  folders: BirdsEyeFolderNode[];
-  folderCount: number;
   chatCount: number;
-  liveRunCount: number;
-  lastActivityAt: string | null;
   createDefaults: CreateIssueDialogDefaults;
+  folderCount: number;
+  folders: BirdsEyeFolderNode[];
+  kind: "project";
+  label: string;
+  lastActivityAt: string | null;
+  liveRunCount: number;
+  project: ProjectRecord;
+  repoPath: string | null;
+  rowId: string;
 }
 
 type BirdsEyeTreeNode =
@@ -431,18 +416,18 @@ type BirdsEyeTreeNode =
   | BirdsEyeChatNode;
 
 interface BirdsEyeVisibleRow {
-  rowId: string;
   depth: number;
   hasChildren: boolean;
   isExpanded: boolean;
-  parentRowId: string | null;
   node: BirdsEyeTreeNode;
+  parentRowId: string | null;
+  rowId: string;
 }
 
 interface BirdsEyeTreeModel {
+  chatByIssueId: Map<string, BirdsEyeChatNode>;
   projects: BirdsEyeProjectNode[];
   rowById: Map<string, BirdsEyeTreeNode>;
-  chatByIssueId: Map<string, BirdsEyeChatNode>;
   rowIds: Set<string>;
 }
 
@@ -488,8 +473,8 @@ type BirdsEyeIssueLike = Pick<
 >;
 
 interface BirdsEyeCanvasFocusTarget {
-  kind: "repo" | "worktree" | "chat" | "tile";
   issueId: string | null;
+  kind: "repo" | "worktree" | "chat" | "tile";
   projectId: string;
   worktreeKey: string | null;
 }
@@ -519,9 +504,9 @@ interface BirdsEyeCanvasState {
 }
 
 interface BirdsEyeCanvasWorktreeBoardModel {
+  chats: BirdsEyeChatNode[];
   folder: BirdsEyeFolderNode;
   height: number;
-  chats: BirdsEyeChatNode[];
   key: string;
   pageIndex: number;
   tileState: BirdsEyeWorktreeTileState;
@@ -590,30 +575,38 @@ function parseBirdsEyeCanvasState(
       ])
     ),
     viewport: {
-      x: typeof state.viewport?.x === "number" ? state.viewport.x : fallback.viewport.x,
-      y: typeof state.viewport?.y === "number" ? state.viewport.y : fallback.viewport.y,
+      x:
+        typeof state.viewport?.x === "number"
+          ? state.viewport.x
+          : fallback.viewport.x,
+      y:
+        typeof state.viewport?.y === "number"
+          ? state.viewport.y
+          : fallback.viewport.y,
       zoomIndex:
         typeof state.viewport?.zoom_index === "number"
           ? Math.max(0, Math.floor(state.viewport.zoom_index))
           : fallback.viewport.zoomIndex,
     },
     worktreeTiles: Object.fromEntries(
-      Object.entries(state.worktree_tiles ?? {}).map(([worktreeKey, tileState]) => [
-        worktreeKey,
-        {
-          activeIssueId: tileState?.active_issue_id ?? null,
-          issueIds: Array.isArray(tileState?.issue_ids)
-            ? tileState.issue_ids.filter(
-                (issueId): issueId is string => typeof issueId === "string"
-              )
-            : [],
-          lruIssueIds: Array.isArray(tileState?.lru_issue_ids)
-            ? tileState.lru_issue_ids.filter(
-                (issueId): issueId is string => typeof issueId === "string"
-              )
-            : [],
-        },
-      ])
+      Object.entries(state.worktree_tiles ?? {}).map(
+        ([worktreeKey, tileState]) => [
+          worktreeKey,
+          {
+            activeIssueId: tileState?.active_issue_id ?? null,
+            issueIds: Array.isArray(tileState?.issue_ids)
+              ? tileState.issue_ids.filter(
+                  (issueId): issueId is string => typeof issueId === "string"
+                )
+              : [],
+            lruIssueIds: Array.isArray(tileState?.lru_issue_ids)
+              ? tileState.lru_issue_ids.filter(
+                  (issueId): issueId is string => typeof issueId === "string"
+                )
+              : [],
+          },
+        ]
+      )
     ),
   };
 }
@@ -686,8 +679,14 @@ function normalizeGitWorktreeRecords(value: unknown): GitWorktreeRecord[] {
     );
   }
 
-  if (value && typeof value === "object" && Array.isArray((value as { worktrees?: unknown }).worktrees)) {
-    return normalizeGitWorktreeRecords((value as { worktrees: unknown }).worktrees);
+  if (
+    value &&
+    typeof value === "object" &&
+    Array.isArray((value as { worktrees?: unknown }).worktrees)
+  ) {
+    return normalizeGitWorktreeRecords(
+      (value as { worktrees: unknown }).worktrees
+    );
   }
 
   return [];
@@ -772,7 +771,8 @@ function useDashboardProjectWorktrees(
         }))
         .filter(
           (entry) =>
-            entry.repoPath.length > 0 && requestedProjectIdSet.has(entry.projectId)
+            entry.repoPath.length > 0 &&
+            requestedProjectIdSet.has(entry.projectId)
         ),
     [projects, requestedProjectIdSet]
   );
@@ -799,7 +799,7 @@ function useDashboardProjectWorktrees(
         return (
           !current ||
           current.repoPath !== entry.repoPath ||
-          (!current.hasLoaded && !current.isLoading)
+          !(current.hasLoaded || current.isLoading)
         );
       }),
     [requestedRepoEntries, stateByProjectId]
@@ -884,7 +884,12 @@ function useDashboardProjectWorktrees(
     return () => {
       cancelled = true;
     };
-  }, [pendingRepoEntries, pendingRepoKey, requestedRepoEntries, requestedRepoKey]);
+  }, [
+    pendingRepoEntries,
+    pendingRepoKey,
+    requestedRepoEntries,
+    requestedRepoKey,
+  ]);
 
   return stateByProjectId;
 }
@@ -1433,8 +1438,7 @@ export function App() {
   const [issueDialogThinkingEffort, setIssueDialogThinkingEffort] =
     useState("auto");
   const [issueDialogPlanMode, setIssueDialogPlanMode] = useState(false);
-  const [issueDialogEnableChrome, setIssueDialogEnableChrome] =
-    useState(false);
+  const [issueDialogEnableChrome, setIssueDialogEnableChrome] = useState(false);
   const [issueDialogSkipPermissions, setIssueDialogSkipPermissions] =
     useState(false);
   const [issueDialogWorkspaceTargetMode, setIssueDialogWorkspaceTargetMode] =
@@ -1543,8 +1547,9 @@ export function App() {
     [boardIssues, selectedIssuesListTab]
   );
   const dashboardPreviewChatSummary =
-    dashboardOverviewChats.find((chat) => chat.id === dashboardIssuePreviewId) ??
-    null;
+    dashboardOverviewChats.find(
+      (chat) => chat.id === dashboardIssuePreviewId
+    ) ?? null;
   const activityVisibleIssues = useMemo(
     () => boardIssues.filter((issue) => !issue.hidden_at),
     [boardIssues]
@@ -1605,8 +1610,7 @@ export function App() {
   const issueDialogProjectRepoPath =
     currentProjectsForCreation.find(
       (project) => project.id === issueDialogProjectId
-    )
-      ?.primary_workspace?.cwd ?? null;
+    )?.primary_workspace?.cwd ?? null;
   const issueDialogWorktreeState = useProjectWorktrees(
     issueDialogProjectRepoPath
   );
@@ -1651,7 +1655,8 @@ export function App() {
     boardApprovals.find((approval) => approval.id === selectedApprovalId) ??
     boardApprovals[0] ??
     null;
-  const companyWorkspaces = companySnapshot?.workspaces ?? emptyWorkspaceRecords;
+  const companyWorkspaces =
+    companySnapshot?.workspaces ?? emptyWorkspaceRecords;
   const selectedBoardWorkspace =
     companyWorkspaces.find(
       (workspace) => workspace.id === selectedBoardWorkspaceId
@@ -1659,7 +1664,7 @@ export function App() {
     companyWorkspaces[0] ??
     null;
   const selectedIssueWorkspace = selectedIssue
-    ? companyWorkspaces.find((workspace) => {
+    ? (companyWorkspaces.find((workspace) => {
         if (workspace.issue_id === selectedIssue.id) {
           return true;
         }
@@ -1672,7 +1677,7 @@ export function App() {
           workspace.id === selectedIssue.workspace_session_id ||
           workspace.session_id === selectedIssue.workspace_session_id
         );
-      }) ?? null
+      }) ?? null)
     : null;
   const selectedAgent =
     boardAgents.find((agent) => agent.id === selectedAgentId) ??
@@ -1702,8 +1707,11 @@ export function App() {
   );
   const orderedSidebarProjects = useMemo(
     () =>
-      [...(boardProjects.length > 0 ? boardProjects : dashboardOverviewProjects)].sort(
-        (left, right) =>
+      [
+        ...(boardProjects.length > 0
+          ? boardProjects
+          : dashboardOverviewProjects),
+      ].sort((left, right) =>
         (left.name ?? left.title ?? left.id).localeCompare(
           right.name ?? right.title ?? right.id
         )
@@ -1721,8 +1729,9 @@ export function App() {
   const activeSession =
     sessions.find((session) => session.id === selectedSessionId) ?? null;
   const activeWorkspaceAgent =
-    boardAgents.find((agent) => agent.id === selectedBoardWorkspace?.agent_id) ??
-    null;
+    boardAgents.find(
+      (agent) => agent.id === selectedBoardWorkspace?.agent_id
+    ) ?? null;
   const activeWorkspaceProvider = detectWorkspaceAgentProvider(
     activeSession,
     activeWorkspaceAgent
@@ -1833,7 +1842,7 @@ export function App() {
   const refreshSelectedAgentRun = async (resetStreams: boolean) => {
     const agentId = selectedAgentIdRef.current;
     const runId = selectedAgentRunIdRef.current;
-    if (!agentId || !runId) {
+    if (!(agentId && runId)) {
       return;
     }
 
@@ -2332,13 +2341,15 @@ export function App() {
         const nextCounts = Object.fromEntries(
           counts.map((entry) => [entry.agent_id, entry.live_count])
         );
-        const hasLiveRuns = Object.values(nextCounts).some((count) => count > 0);
+        const hasLiveRuns = Object.values(nextCounts).some(
+          (count) => count > 0
+        );
 
         startTransition(() => {
           setLiveAgentRunCountsByAgentId(nextCounts);
         });
 
-        scheduleRefresh(hasLiveRuns ? 2000 : 10000);
+        scheduleRefresh(hasLiveRuns ? 2000 : 10_000);
       } catch (error) {
         if (cancelled) {
           return;
@@ -2428,7 +2439,7 @@ export function App() {
           });
         });
 
-        scheduleRefresh(hasLiveUpdates ? 2000 : 10000);
+        scheduleRefresh(hasLiveUpdates ? 2000 : 10_000);
       } catch (error) {
         if (cancelled) {
           return;
@@ -2449,11 +2460,7 @@ export function App() {
         window.clearTimeout(timeoutId);
       }
     };
-  }, [
-    bootstrap?.state,
-    activityVisibleIssueIdsKey,
-    selectedCompanyId,
-  ]);
+  }, [bootstrap?.state, activityVisibleIssueIdsKey, selectedCompanyId]);
 
   useEffect(() => {
     if (issuesRouteMode === "detail" && !selectedIssueId) {
@@ -2534,7 +2541,9 @@ export function App() {
 
     if (
       dashboardIssuePreviewId &&
-      !dashboardOverviewChats.some((chat) => chat.id === dashboardIssuePreviewId)
+      !dashboardOverviewChats.some(
+        (chat) => chat.id === dashboardIssuePreviewId
+      )
     ) {
       setDashboardIssuePreviewId(null);
       setDashboardPreviewIssueDetail(null);
@@ -2915,12 +2924,13 @@ export function App() {
 
     const loadWorkspace = async () => {
       try {
-        const [nextFiles, nextGit, nextHistory, nextBranches] = await Promise.all([
-          repositoryListFiles(selectedSessionId, ""),
-          gitStatus(selectedSessionId),
-          gitLog(selectedSessionId),
-          gitBranches(selectedSessionId),
-        ]);
+        const [nextFiles, nextGit, nextHistory, nextBranches] =
+          await Promise.all([
+            repositoryListFiles(selectedSessionId, ""),
+            gitStatus(selectedSessionId),
+            gitLog(selectedSessionId),
+            gitBranches(selectedSessionId),
+          ]);
 
         if (cancelled) {
           return;
@@ -2988,7 +2998,9 @@ export function App() {
       })
       .catch((error) => {
         if (!cancelled) {
-          setStatusMessage(error instanceof Error ? error.message : String(error));
+          setStatusMessage(
+            error instanceof Error ? error.message : String(error)
+          );
         }
       });
 
@@ -3066,12 +3078,14 @@ export function App() {
 
   const refreshActiveWorkspaceArtifacts = async (sessionId: string) => {
     try {
-      const [nextFiles, nextGit, nextHistory, nextBranches] = await Promise.all([
-        repositoryListFiles(sessionId, currentDirectory),
-        gitStatus(sessionId),
-        gitLog(sessionId),
-        gitBranches(sessionId),
-      ]);
+      const [nextFiles, nextGit, nextHistory, nextBranches] = await Promise.all(
+        [
+          repositoryListFiles(sessionId, currentDirectory),
+          gitStatus(sessionId),
+          gitLog(sessionId),
+          gitBranches(sessionId),
+        ]
+      );
       setFileEntries(nextFiles as FileEntry[]);
       setGitState(nextGit as GitStatusResult);
       setGitHistory(nextHistory as GitLogResult);
@@ -3305,8 +3319,7 @@ export function App() {
     wheelZoomState.accumulatedDeltaY += event.deltaY;
 
     const isTrackpadPinch = event.ctrlKey;
-    const threshold =
-      event.deltaMode === 1 ? 1 : isTrackpadPinch ? 6 : 16;
+    const threshold = event.deltaMode === 1 ? 1 : isTrackpadPinch ? 6 : 16;
     if (Math.abs(wheelZoomState.accumulatedDeltaY) < threshold) {
       return;
     }
@@ -3322,9 +3335,7 @@ export function App() {
   };
 
   const setDashboardCanvasZoom = (
-    nextZoomIndex:
-      | number
-      | ((currentZoomIndex: number) => number),
+    nextZoomIndex: number | ((currentZoomIndex: number) => number),
     anchor?: DashboardCanvasOffset
   ) => {
     const viewport = dashboardCanvasViewportRef.current;
@@ -3726,8 +3737,7 @@ export function App() {
 
   const handleCreateProjectFromDialog = async () => {
     if (
-      !selectedCompanyId ||
-      !projectDialogDerivedName ||
+      !(selectedCompanyId && projectDialogDerivedName) ||
       isProjectDialogSaving
     ) {
       return;
@@ -3841,8 +3851,9 @@ export function App() {
     const nextProjectId =
       defaults?.projectId ?? currentProjectsForCreation[0]?.id ?? "";
     const nextProject =
-      currentProjectsForCreation.find((project) => project.id === nextProjectId) ??
-      null;
+      currentProjectsForCreation.find(
+        (project) => project.id === nextProjectId
+      ) ?? null;
     const nextWorkspaceDefaults: Pick<
       IssueEditDraft,
       | "workspaceTargetMode"
@@ -4103,7 +4114,10 @@ export function App() {
   };
 
   const handleCreateIssueFromDialog = async () => {
-    if (!selectedCompanyId || !issueDialogTitle.trim() || isIssueDialogSaving) {
+    if (
+      !(selectedCompanyId && issueDialogTitle.trim()) ||
+      isIssueDialogSaving
+    ) {
       return;
     }
 
@@ -4257,7 +4271,11 @@ export function App() {
     issueId: string,
     onClose: () => void
   ): ReactNode => {
-    if (!selectedIssue || selectedIssue.id !== issueId || issuesRouteMode !== "detail") {
+    if (
+      !selectedIssue ||
+      selectedIssue.id !== issueId ||
+      issuesRouteMode !== "detail"
+    ) {
       return (
         <div className="birds-eye-tile-loading">
           <strong>Loading chat…</strong>
@@ -4273,11 +4291,11 @@ export function App() {
         dependencyCheck={dependencyCheck}
         embedded
         isSavingIssue={isSavingIssue}
-        isWorking={isWorking}
         issue={selectedIssue}
         issueDraft={issueDraft}
         issueEditorError={issueEditorError}
         issueWorkspaceSidebar={null}
+        isWorking={isWorking}
         latestCompletionSummary={activeSessionLiveState.latestCompletionSummary}
         onAddAttachment={() => void handleAddIssueAttachment(selectedIssue)}
         onBack={onClose}
@@ -4296,7 +4314,9 @@ export function App() {
         }
         onRevealRepo={() => {
           if (selectedIssueWorkspace?.workspace_repo_path) {
-            void desktopRevealInFinder(selectedIssueWorkspace.workspace_repo_path);
+            void desktopRevealInFinder(
+              selectedIssueWorkspace.workspace_repo_path
+            );
           }
         }}
         onRunTerminal={handleRunTerminal}
@@ -4316,12 +4336,21 @@ export function App() {
         previewTabLabel={previewTabLabel}
         projectLabel={(projectId) =>
           issueProjectLabel(
-            boardProjects.length > 0 ? boardProjects : dashboardOverviewProjects,
+            boardProjects.length > 0
+              ? boardProjects
+              : dashboardOverviewProjects,
             projectId
           )
         }
-        projects={boardProjects.length > 0 ? boardProjects : dashboardOverviewProjects}
+        projects={
+          boardProjects.length > 0 ? boardProjects : dashboardOverviewProjects
+        }
         prompt={prompt}
+        runtimeStatusValue={
+          selectedIssueWorkspace?.session_id === activeSession?.id
+            ? stringifyStatus(activeRuntimeStatusState)
+            : "waiting"
+        }
         selectableParentIssues={selectableParentIssues}
         selectedDiff={
           selectedIssueWorkspace?.session_id === activeSession?.id
@@ -4359,11 +4388,6 @@ export function App() {
             : []
         }
         statusLabel={issueStatusLabel}
-        runtimeStatusValue={
-          selectedIssueWorkspace?.session_id === activeSession?.id
-            ? stringifyStatus(activeRuntimeStatusState)
-            : "waiting"
-        }
         terminalCommand={terminalCommand}
         terminalContainerRef={terminalContainerRef}
         terminalStatusValue={
@@ -4440,45 +4464,45 @@ export function App() {
   ) => {
     const nextDraftPatch: Partial<IssueEditDraft> = {};
 
-    if (Object.prototype.hasOwnProperty.call(patch, "title")) {
+    if (Object.hasOwn(patch, "title")) {
       nextDraftPatch.title = updatedIssue.title;
     }
-    if (Object.prototype.hasOwnProperty.call(patch, "description")) {
+    if (Object.hasOwn(patch, "description")) {
       nextDraftPatch.description = updatedIssue.description ?? "";
     }
-    if (Object.prototype.hasOwnProperty.call(patch, "status")) {
+    if (Object.hasOwn(patch, "status")) {
       nextDraftPatch.status = updatedIssue.status;
     }
-    if (Object.prototype.hasOwnProperty.call(patch, "priority")) {
+    if (Object.hasOwn(patch, "priority")) {
       nextDraftPatch.priority = updatedIssue.priority;
     }
-    if (Object.prototype.hasOwnProperty.call(patch, "projectId")) {
+    if (Object.hasOwn(patch, "projectId")) {
       nextDraftPatch.projectId = updatedIssue.project_id ?? "";
     }
-    if (Object.prototype.hasOwnProperty.call(patch, "assigneeAgentId")) {
+    if (Object.hasOwn(patch, "assigneeAgentId")) {
       nextDraftPatch.assigneeAgentId = updatedIssue.assignee_agent_id ?? "";
     }
     if (
-      Object.prototype.hasOwnProperty.call(patch, "command") ||
-      Object.prototype.hasOwnProperty.call(patch, "model") ||
-      Object.prototype.hasOwnProperty.call(patch, "thinkingEffort") ||
-      Object.prototype.hasOwnProperty.call(patch, "planMode") ||
-      Object.prototype.hasOwnProperty.call(patch, "enableChrome") ||
-      Object.prototype.hasOwnProperty.call(patch, "skipPermissions")
+      Object.hasOwn(patch, "command") ||
+      Object.hasOwn(patch, "model") ||
+      Object.hasOwn(patch, "thinkingEffort") ||
+      Object.hasOwn(patch, "planMode") ||
+      Object.hasOwn(patch, "enableChrome") ||
+      Object.hasOwn(patch, "skipPermissions")
     ) {
       Object.assign(
         nextDraftPatch,
         parseIssueAdapterOverrides(updatedIssue.assignee_adapter_overrides)
       );
     }
-    if (Object.prototype.hasOwnProperty.call(patch, "parentId")) {
+    if (Object.hasOwn(patch, "parentId")) {
       nextDraftPatch.parentId = updatedIssue.parent_id ?? "";
     }
     if (
-      Object.prototype.hasOwnProperty.call(patch, "workspaceTargetMode") ||
-      Object.prototype.hasOwnProperty.call(patch, "workspaceWorktreePath") ||
-      Object.prototype.hasOwnProperty.call(patch, "workspaceWorktreeBranch") ||
-      Object.prototype.hasOwnProperty.call(patch, "workspaceWorktreeName")
+      Object.hasOwn(patch, "workspaceTargetMode") ||
+      Object.hasOwn(patch, "workspaceWorktreePath") ||
+      Object.hasOwn(patch, "workspaceWorktreeBranch") ||
+      Object.hasOwn(patch, "workspaceWorktreeName")
     ) {
       Object.assign(
         nextDraftPatch,
@@ -4505,14 +4529,12 @@ export function App() {
   ) =>
     enqueueIssueUpdate(async () => {
       const shouldValidateIssueStatus =
-        Object.prototype.hasOwnProperty.call(patch, "status") ||
-        Object.prototype.hasOwnProperty.call(patch, "assigneeAgentId");
+        Object.hasOwn(patch, "status") ||
+        Object.hasOwn(patch, "assigneeAgentId");
       if (shouldValidateIssueStatus) {
         const validationMessage = issueStatusAssigneeValidationMessage(
-          Object.prototype.hasOwnProperty.call(patch, "status")
-            ? patch.status
-            : issueDraft.status,
-          Object.prototype.hasOwnProperty.call(patch, "assigneeAgentId")
+          Object.hasOwn(patch, "status") ? patch.status : issueDraft.status,
+          Object.hasOwn(patch, "assigneeAgentId")
             ? patch.assigneeAgentId
             : issueDraft.assigneeAgentId,
           boardAgents
@@ -4526,7 +4548,7 @@ export function App() {
         issue_id: issue.id,
       };
 
-      if (Object.prototype.hasOwnProperty.call(patch, "title")) {
+      if (Object.hasOwn(patch, "title")) {
         const trimmedTitle = (patch.title ?? "").trim();
         if (!trimmedTitle) {
           setIssueEditorError("Conversation title is required.");
@@ -4535,20 +4557,20 @@ export function App() {
         params.title = trimmedTitle;
       }
 
-      if (Object.prototype.hasOwnProperty.call(patch, "description")) {
+      if (Object.hasOwn(patch, "description")) {
         const trimmedDescription = (patch.description ?? "").trim();
         params.description = trimmedDescription ? trimmedDescription : null;
       }
 
-      if (Object.prototype.hasOwnProperty.call(patch, "status")) {
+      if (Object.hasOwn(patch, "status")) {
         params.status = patch.status;
       }
 
-      if (Object.prototype.hasOwnProperty.call(patch, "priority")) {
+      if (Object.hasOwn(patch, "priority")) {
         params.priority = patch.priority;
       }
 
-      if (Object.prototype.hasOwnProperty.call(patch, "projectId")) {
+      if (Object.hasOwn(patch, "projectId")) {
         const trimmedProjectId = patch.projectId?.trim() ?? "";
         if (!trimmedProjectId) {
           setIssueEditorError("Project is required.");
@@ -4557,36 +4579,34 @@ export function App() {
         params.project_id = trimmedProjectId;
       }
 
-      if (Object.prototype.hasOwnProperty.call(patch, "assigneeAgentId")) {
+      if (Object.hasOwn(patch, "assigneeAgentId")) {
         params.assignee_agent_id = patch.assigneeAgentId?.trim()
           ? patch.assigneeAgentId.trim()
           : null;
       }
 
-      if (Object.prototype.hasOwnProperty.call(patch, "parentId")) {
+      if (Object.hasOwn(patch, "parentId")) {
         params.parent_id = patch.parentId?.trim()
           ? patch.parentId.trim()
           : null;
       }
 
       const shouldPersistRuntimeSettings =
-        Object.prototype.hasOwnProperty.call(patch, "command") ||
-        Object.prototype.hasOwnProperty.call(patch, "model") ||
-        Object.prototype.hasOwnProperty.call(patch, "thinkingEffort") ||
-        Object.prototype.hasOwnProperty.call(patch, "planMode") ||
-        Object.prototype.hasOwnProperty.call(patch, "enableChrome") ||
-        Object.prototype.hasOwnProperty.call(patch, "skipPermissions");
+        Object.hasOwn(patch, "command") ||
+        Object.hasOwn(patch, "model") ||
+        Object.hasOwn(patch, "thinkingEffort") ||
+        Object.hasOwn(patch, "planMode") ||
+        Object.hasOwn(patch, "enableChrome") ||
+        Object.hasOwn(patch, "skipPermissions");
 
       if (shouldPersistRuntimeSettings) {
         params.assignee_adapter_overrides = issueAdapterOverridesFromDraft({
           command: patch.command ?? issueDraft.command,
           model: patch.model ?? issueDraft.model,
-          thinkingEffort:
-            patch.thinkingEffort ?? issueDraft.thinkingEffort,
+          thinkingEffort: patch.thinkingEffort ?? issueDraft.thinkingEffort,
           planMode: patch.planMode ?? issueDraft.planMode,
           enableChrome: patch.enableChrome ?? issueDraft.enableChrome,
-          skipPermissions:
-            patch.skipPermissions ?? issueDraft.skipPermissions,
+          skipPermissions: patch.skipPermissions ?? issueDraft.skipPermissions,
         });
         if (hiddenExecutionAgentId && !issue.assignee_agent_id?.trim()) {
           params.assignee_agent_id = hiddenExecutionAgentId;
@@ -4594,32 +4614,30 @@ export function App() {
       }
 
       const shouldPersistWorkspaceSettings =
-        Object.prototype.hasOwnProperty.call(patch, "workspaceTargetMode") ||
-        Object.prototype.hasOwnProperty.call(patch, "workspaceWorktreePath") ||
-        Object.prototype.hasOwnProperty.call(
-          patch,
-          "workspaceWorktreeBranch"
-        ) ||
-        Object.prototype.hasOwnProperty.call(patch, "workspaceWorktreeName");
+        Object.hasOwn(patch, "workspaceTargetMode") ||
+        Object.hasOwn(patch, "workspaceWorktreePath") ||
+        Object.hasOwn(patch, "workspaceWorktreeBranch") ||
+        Object.hasOwn(patch, "workspaceWorktreeName");
 
       if (shouldPersistWorkspaceSettings) {
         params.execution_workspace_settings =
-          issueExecutionWorkspaceSettingsFromDraft({
-            workspaceTargetMode:
-              patch.workspaceTargetMode ?? issueDraft.workspaceTargetMode,
-            workspaceWorktreePath:
-              patch.workspaceWorktreePath ?? issueDraft.workspaceWorktreePath,
-            workspaceWorktreeBranch:
-              patch.workspaceWorktreeBranch ?? issueDraft.workspaceWorktreeBranch,
-            workspaceWorktreeName:
-              patch.workspaceWorktreeName ?? issueDraft.workspaceWorktreeName,
-          }, patch.projectId ?? issueDraft.projectId);
+          issueExecutionWorkspaceSettingsFromDraft(
+            {
+              workspaceTargetMode:
+                patch.workspaceTargetMode ?? issueDraft.workspaceTargetMode,
+              workspaceWorktreePath:
+                patch.workspaceWorktreePath ?? issueDraft.workspaceWorktreePath,
+              workspaceWorktreeBranch:
+                patch.workspaceWorktreeBranch ??
+                issueDraft.workspaceWorktreeBranch,
+              workspaceWorktreeName:
+                patch.workspaceWorktreeName ?? issueDraft.workspaceWorktreeName,
+            },
+            patch.projectId ?? issueDraft.projectId
+          );
       }
 
-      if (
-        options &&
-        Object.prototype.hasOwnProperty.call(options, "hiddenAt")
-      ) {
+      if (options && Object.hasOwn(options, "hiddenAt")) {
         params.hidden_at = options.hiddenAt;
       }
 
@@ -4790,7 +4808,7 @@ export function App() {
 
   const sendSessionMessage = async (content: string) => {
     const trimmedContent = content.trim();
-    if (!selectedSessionId || !trimmedContent) {
+    if (!(selectedSessionId && trimmedContent)) {
       return;
     }
 
@@ -4800,7 +4818,9 @@ export function App() {
       await agentSend(
         selectedSessionId,
         trimmedContent,
-        activeWorkspaceProvider === "custom" ? undefined : activeWorkspaceProvider
+        activeWorkspaceProvider === "custom"
+          ? undefined
+          : activeWorkspaceProvider
       );
       sessionStateManager.handleSessionEvent({
         event: {},
@@ -4841,7 +4861,7 @@ export function App() {
 
   const handleRunTerminal = async (event: FormEvent) => {
     event.preventDefault();
-    if (!selectedSessionId || !terminalCommand.trim()) {
+    if (!(selectedSessionId && terminalCommand.trim())) {
       return;
     }
 
@@ -5035,7 +5055,7 @@ export function App() {
   };
 
   const handleGitCommit = async (pushAfterCommit = false) => {
-    if (!selectedSessionId || !gitCommitMessage.trim()) {
+    if (!(selectedSessionId && gitCommitMessage.trim())) {
       return;
     }
 
@@ -5221,7 +5241,7 @@ export function App() {
           style={{ left: companyContextMenu.x, top: companyContextMenu.y }}
         >
           <div className="company-context-menu-header">
-            <div className="company-context-menu-monogram" aria-hidden="true">
+            <div aria-hidden="true" className="company-context-menu-monogram">
               {companyContextMenu.companyName.slice(0, 1).toUpperCase()}
             </div>
             <div className="company-context-menu-copy">
@@ -5380,21 +5400,11 @@ export function App() {
             ) : null}
 
             {selectedScreen === "dashboard" ? (
-              <SpatialDashboardBirdsEyeRouteView
+              <GridDashboardBirdsEyeRouteView
                 agents={dashboardOverviewAgents}
-                canvasState={selectedBirdsEyeCanvasSettings}
                 chats={dashboardOverviewChats}
                 dependencyCheck={dependencyCheck}
                 isLoadingOverview={isDashboardOverviewLoading}
-                onCanvasStateChange={(nextState) =>
-                  selectedCompanyId
-                    ? void persistBirdsEyeCanvasState(
-                        selectedCompanyId,
-                        nextState
-                      )
-                    : undefined
-                }
-                projects={dashboardOverviewProjects}
                 onCreateProject={handleOpenCreateProjectDialog}
                 onCreateQuickChat={(title, defaults) =>
                   handleCreateBirdsEyeChat(title, defaults)
@@ -5402,6 +5412,7 @@ export function App() {
                 onOpenIssueDetail={(issueId) =>
                   void handleOpenDashboardIssueTile(issueId)
                 }
+                projects={dashboardOverviewProjects}
                 renderIssueTile={renderDashboardIssueTile}
                 selectedIssueTileId={selectedIssue?.id ?? null}
                 workspaces={dashboardOverviewWorkspaces}
@@ -5435,7 +5446,6 @@ export function App() {
                   availableStatusOptions={issueStatusOptions}
                   dependencyCheck={dependencyCheck}
                   isSavingIssue={isSavingIssue}
-                  isWorking={isWorking}
                   issue={selectedIssue}
                   issueDraft={issueDraft}
                   issueEditorError={issueEditorError}
@@ -5454,10 +5464,10 @@ export function App() {
                         <IssueWorkspaceInspectorMeta
                           agents={companySnapshot?.agents ?? []}
                           availableStatusOptions={issueStatusOptions}
+                          isSavingIssue={isSavingIssue}
                           issue={selectedIssue}
                           issueDraft={issueDraft}
                           issueEditorError={issueEditorError}
-                          isSavingIssue={isSavingIssue}
                           onCommitIssuePatch={(patch) =>
                             void handlePersistIssuePatch(selectedIssue, patch)
                           }
@@ -5482,10 +5492,6 @@ export function App() {
                         />
                       }
                       isWorking={isWorking}
-                      selectedDiff={selectedDiff}
-                      selectedFilePath={selectedFilePath}
-                      workspace={selectedIssueWorkspace}
-                      workspaceSidebarTab={workspaceSidebarTab}
                       onDiscardFile={(file) => void handleDiscardFile(file)}
                       onGitCommit={(push) => void handleGitCommit(push)}
                       onGitCommitMessageChange={setGitCommitMessage}
@@ -5496,7 +5502,20 @@ export function App() {
                       onSelectSidebarTab={setWorkspaceSidebarTab}
                       onStageFile={(file) => void handleStageFile(file)}
                       onUnstageFile={(file) => void handleUnstageFile(file)}
+                      selectedDiff={selectedDiff}
+                      selectedFilePath={selectedFilePath}
+                      workspace={selectedIssueWorkspace}
+                      workspaceSidebarTab={workspaceSidebarTab}
                     />
+                  }
+                  isWorking={isWorking}
+                  latestCompletionSummary={
+                    selectedIssueWorkspace?.session_id === activeSession?.id
+                      ? activeSessionLiveState.latestCompletionSummary
+                      : null
+                  }
+                  onAddAttachment={() =>
+                    void handleAddIssueAttachment(selectedIssue)
                   }
                   onBack={() => handleShowIssuesList()}
                   onCommitIssuePatch={(patch) =>
@@ -5507,9 +5526,6 @@ export function App() {
                       ...current,
                       ...patch,
                     }))
-                  }
-                  onAddAttachment={() =>
-                    void handleAddIssueAttachment(selectedIssue)
                   }
                   onPromptChange={setPrompt}
                   onRespondToQuestion={(response) =>
@@ -5547,6 +5563,11 @@ export function App() {
                   }
                   projects={companySnapshot?.projects ?? []}
                   prompt={prompt}
+                  runtimeStatusValue={
+                    selectedIssueWorkspace?.session_id === activeSession?.id
+                      ? stringifyStatus(activeRuntimeStatusState)
+                      : "waiting"
+                  }
                   selectableParentIssues={selectableParentIssues}
                   selectedDiff={selectedDiff}
                   selectedFile={selectedFile}
@@ -5566,11 +5587,6 @@ export function App() {
                       ? activeSessionLiveState.isLoadingMessages
                       : false
                   }
-                  latestCompletionSummary={
-                    selectedIssueWorkspace?.session_id === activeSession?.id
-                      ? activeSessionLiveState.latestCompletionSummary
-                      : null
-                  }
                   sessionRows={
                     selectedIssueWorkspace?.session_id === activeSession?.id
                       ? activeSessionConversationRows
@@ -5579,12 +5595,9 @@ export function App() {
                   statusLabel={issueStatusLabel}
                   terminalCommand={terminalCommand}
                   terminalContainerRef={terminalContainerRef}
-                  runtimeStatusValue={
-                    selectedIssueWorkspace?.session_id === activeSession?.id
-                      ? stringifyStatus(activeRuntimeStatusState)
-                      : "waiting"
-                  }
-                  terminalStatusValue={stringifyStatus(activeTerminalStatusState)}
+                  terminalStatusValue={stringifyStatus(
+                    activeTerminalStatusState
+                  )}
                   workspace={selectedIssueWorkspace}
                   workspaceCenterTab={workspaceCenterTab}
                   workspaceTargetErrorMessage={
@@ -5645,9 +5658,7 @@ export function App() {
             {selectedScreen === "companySettings" ? (
               <section className="route-scroll">
                 <div className="route-header compact">
-                  <DashboardBreadcrumbs
-                    items={[{ label: "Space settings" }]}
-                  />
+                  <DashboardBreadcrumbs items={[{ label: "Space settings" }]} />
                   <span className="route-kicker">Space settings</span>
                   <h1>{selectedCompany?.name ?? "Space settings"}</h1>
                   <p>
@@ -5885,7 +5896,10 @@ export function App() {
                         />
                       </div>
                       <div className="settings-shadcn-actions">
-                        <button className="settings-shadcn-button" type="submit">
+                        <button
+                          className="settings-shadcn-button"
+                          type="submit"
+                        >
                           Save device settings
                         </button>
                       </div>
@@ -5946,16 +5960,16 @@ export function App() {
           errorMessage={projectDialogError}
           goals={boardGoals}
           isSaving={isProjectDialogSaving}
-          repoPath={projectDialogRepoPath}
-          selectedGoalId={projectDialogGoalId}
-          selectedStatus={projectDialogStatus}
-          targetDate={projectDialogTargetDate}
           onChooseFolder={() => void handleChooseProjectFolder()}
           onClose={handleCloseCreateProjectDialog}
           onCreate={() => void handleCreateProjectFromDialog()}
           onGoalChange={setProjectDialogGoalId}
           onStatusChange={setProjectDialogStatus}
           onTargetDateChange={setProjectDialogTargetDate}
+          repoPath={projectDialogRepoPath}
+          selectedGoalId={projectDialogGoalId}
+          selectedStatus={projectDialogStatus}
+          targetDate={projectDialogTargetDate}
         />
       ) : null}
 
@@ -5984,6 +5998,8 @@ export function App() {
           enableChrome={issueDialogEnableChrome}
           errorMessage={issueDialogError}
           isSaving={isIssueDialogSaving}
+          mode={issueDialogMode}
+          model={issueDialogModel}
           onAddAttachment={() => void handleAddIssueDialogAttachment()}
           onClose={handleCloseCreateIssueDialog}
           onCommandChange={setIssueDialogCommand}
@@ -5992,14 +6008,12 @@ export function App() {
           onEnableChromeChange={setIssueDialogEnableChrome}
           onModelChange={setIssueDialogModel}
           onPlanModeChange={setIssueDialogPlanMode}
-          mode={issueDialogMode}
           onProjectChange={handleIssueDialogProjectChange}
           onRemoveAttachment={handleRemoveIssueDialogAttachment}
           onSkipPermissionsChange={setIssueDialogSkipPermissions}
           onThinkingEffortChange={setIssueDialogThinkingEffort}
           onTitleChange={setIssueDialogTitle}
           onWorkspaceTargetChange={handleIssueDialogWorkspaceTargetChange}
-          model={issueDialogModel}
           parentConversationTitle={
             issueDialogParentIssueId
               ? issueParentLabel(boardIssues, issueDialogParentIssueId)
@@ -6008,11 +6022,11 @@ export function App() {
           planMode={issueDialogPlanMode}
           projects={boardProjects}
           selectedProjectId={issueDialogProjectId}
-          skipPermissions={issueDialogSkipPermissions}
           selectedWorkspaceTargetValue={issueWorkspaceTargetSelectValue(
             issueDialogWorkspaceTargetMode,
             issueDialogWorkspaceWorktreePath
           )}
+          skipPermissions={issueDialogSkipPermissions}
           thinkingEffort={issueDialogThinkingEffort}
           title={issueDialogTitle}
           workspaceTargetErrorMessage={issueDialogWorktreeState.errorMessage}
@@ -6020,7 +6034,6 @@ export function App() {
           workspaceTargetWorktrees={issueDialogWorktreeState.worktrees}
         />
       ) : null}
-
     </div>
   );
 }
@@ -6054,7 +6067,10 @@ function OrgRouteView({
     () => buildOrgHierarchy(agents, projects, ceoAgentId),
     [agents, projects, ceoAgentId]
   );
-  const flattenedHierarchy = useMemo(() => flattenOrgHierarchy(hierarchy), [hierarchy]);
+  const flattenedHierarchy = useMemo(
+    () => flattenOrgHierarchy(hierarchy),
+    [hierarchy]
+  );
   const managersCount = flattenedHierarchy.filter(
     (node) => node.reports.length > 0
   ).length;
@@ -6070,8 +6086,8 @@ function OrgRouteView({
         <span className="route-kicker">Agent org</span>
         <h1>{company?.name ? `${company.name} agent org` : "Agent org"}</h1>
         <p>
-          See the reporting hierarchy for agents across the space and jump
-          into any agent to inspect its configuration and runs.
+          See the reporting hierarchy for agents across the space and jump into
+          any agent to inspect its configuration and runs.
         </p>
       </div>
 
@@ -6087,8 +6103,8 @@ function OrgRouteView({
             <div>
               <h3>Agent hierarchy</h3>
               <p>
-                This chart shows how agents report across the space. Select
-                any node to jump into that agent&apos;s configuration and runs.
+                This chart shows how agents report across the space. Select any
+                node to jump into that agent&apos;s configuration and runs.
               </p>
             </div>
           </div>
@@ -6411,10 +6427,7 @@ function AgentsRouteView({
         <DashboardBreadcrumbs
           items={
             selectedAgent
-              ? [
-                  { label: "Agents" },
-                  { label: selectedAgent.name || "Agent" },
-                ]
+              ? [{ label: "Agents" }, { label: selectedAgent.name || "Agent" }]
               : [{ label: "Agents" }]
           }
         />
@@ -6465,9 +6478,9 @@ function AgentsRouteView({
             </div>
 
             <div
+              aria-label="Agent views"
               className="agents-tab-strip"
               role="tablist"
-              aria-label="Agent views"
             >
               {(
                 [
@@ -6502,9 +6515,9 @@ function AgentsRouteView({
 
             {mode === "configuration" ? (
               <AgentConfigurationTab
+                dependencyCheck={dependencyCheck}
                 draft={configurationDraft}
                 errorMessage={configurationError}
-                dependencyCheck={dependencyCheck}
                 isSaving={isSavingConfiguration}
                 onAddEnvVar={onAddEnvVar}
                 onChooseInstructionsFile={onChooseInstructionsFile}
@@ -7022,7 +7035,9 @@ function AgentConfigField({
   return (
     <div
       className={
-        fullWidth ? "issue-dialog-field agent-config-field-full" : "issue-dialog-field"
+        fullWidth
+          ? "issue-dialog-field agent-config-field-full"
+          : "issue-dialog-field"
       }
     >
       <label className="issue-dialog-label" htmlFor={htmlFor}>
@@ -7117,7 +7132,9 @@ function AgentConfigPathField({
           placeholder={placeholder}
           value={value}
         />
-        <AgentConfigInlineButton onClick={onChoose}>Choose</AgentConfigInlineButton>
+        <AgentConfigInlineButton onClick={onChoose}>
+          Choose
+        </AgentConfigInlineButton>
       </div>
     </AgentConfigField>
   );
@@ -7167,7 +7184,9 @@ function AgentRunEventDetails({ event }: { event: AgentRunEventRecord }) {
         <div className="agent-run-structured-card">
           <div className="agent-run-structured-header">
             <span className="agent-run-structured-kicker">Agent update</span>
-            <span className="agent-run-structured-state neutral">Completed</span>
+            <span className="agent-run-structured-state neutral">
+              Completed
+            </span>
           </div>
           <div className="agent-run-structured-copy">{text}</div>
         </div>
@@ -7197,7 +7216,9 @@ function AgentRunEventDetails({ event }: { event: AgentRunEventRecord }) {
         {command ? (
           <pre className="agent-run-structured-command">{command}</pre>
         ) : null}
-        {output ? <pre className="agent-run-structured-output">{output}</pre> : null}
+        {output ? (
+          <pre className="agent-run-structured-output">{output}</pre>
+        ) : null}
         {typeof exitCode === "number" ? (
           <div className="agent-run-structured-meta">
             <span>Exit code {exitCode}</span>
@@ -7216,7 +7237,9 @@ function AgentRunEventDetails({ event }: { event: AgentRunEventRecord }) {
           <span className="agent-run-structured-state neutral">Started</span>
         </div>
         <div className="agent-run-structured-copy">
-          {threadId ? `Codex resumed thread ${threadId}.` : "Codex thread started."}
+          {threadId
+            ? `Codex resumed thread ${threadId}.`
+            : "Codex thread started."}
         </div>
       </div>
     );
@@ -7245,7 +7268,9 @@ function AgentRunEventDetails({ event }: { event: AgentRunEventRecord }) {
       <div className="agent-run-structured-card subtle">
         <div className="agent-run-structured-header">
           <span className="agent-run-structured-kicker">Turn</span>
-          <span className="agent-run-structured-state succeeded">Completed</span>
+          <span className="agent-run-structured-state succeeded">
+            Completed
+          </span>
         </div>
         <div className="agent-run-structured-copy">
           Codex finished the turn.
@@ -7258,7 +7283,9 @@ function AgentRunEventDetails({ event }: { event: AgentRunEventRecord }) {
               <span>{formatAgentRunMetricLabel("Input", inputTokens)}</span>
             ) : null}
             {cachedInputTokens !== undefined ? (
-              <span>{formatAgentRunMetricLabel("Cached", cachedInputTokens)}</span>
+              <span>
+                {formatAgentRunMetricLabel("Cached", cachedInputTokens)}
+              </span>
             ) : null}
             {outputTokens !== undefined ? (
               <span>{formatAgentRunMetricLabel("Output", outputTokens)}</span>
@@ -7315,9 +7342,7 @@ function AgentRunEventDetails({ event }: { event: AgentRunEventRecord }) {
               success ? "completed" : event.event_type
             )}`}
           >
-            {agentRunEventStateLabel(
-              success ? "completed" : event.event_type
-            )}
+            {agentRunEventStateLabel(success ? "completed" : event.event_type)}
           </span>
         </div>
         <div className="agent-run-structured-copy">{message}</div>
@@ -7330,20 +7355,21 @@ function AgentRunEventDetails({ event }: { event: AgentRunEventRecord }) {
     );
   }
 
-  if (event.stream === "stderr" || event.event_type === "stderr") {
-    if (cleanMessage) {
-      return (
-        <div className="agent-run-structured-card warning">
-          <div className="agent-run-structured-header">
-            <span className="agent-run-structured-kicker">Warning</span>
-            <span className="agent-run-structured-state failed">
-              {event.level ? capitalize(event.level) : "Stderr"}
-            </span>
-          </div>
-          <pre className="agent-run-structured-output">{cleanMessage}</pre>
+  if (
+    (event.stream === "stderr" || event.event_type === "stderr") &&
+    cleanMessage
+  ) {
+    return (
+      <div className="agent-run-structured-card warning">
+        <div className="agent-run-structured-header">
+          <span className="agent-run-structured-kicker">Warning</span>
+          <span className="agent-run-structured-state failed">
+            {event.level ? capitalize(event.level) : "Stderr"}
+          </span>
         </div>
-      );
-    }
+        <pre className="agent-run-structured-output">{cleanMessage}</pre>
+      </div>
+    );
   }
 
   if (cleanMessage) {
@@ -7352,7 +7378,9 @@ function AgentRunEventDetails({ event }: { event: AgentRunEventRecord }) {
 
   if (event.payload !== undefined && event.payload !== null) {
     return (
-      <pre className="agent-run-json-block">{formatJsonBlock(event.payload)}</pre>
+      <pre className="agent-run-json-block">
+        {formatJsonBlock(event.payload)}
+      </pre>
     );
   }
 
@@ -7405,9 +7433,7 @@ function AgentRunsTabPanel({
         </button>
       </div>
 
-      {!selectedAgent ? (
-        <p>Select an agent to review its runs.</p>
-      ) : (
+      {selectedAgent ? (
         <div className="agents-runs-layout">
           <section className="surface-panel agents-runs-list-panel">
             <div className="surface-header">
@@ -7627,6 +7653,8 @@ function AgentRunsTabPanel({
             )}
           </section>
         </div>
+      ) : (
+        <p>Select an agent to review its runs.</p>
       )}
     </div>
   );
@@ -7651,7 +7679,11 @@ function AgentHeaderActionChip({
 }) {
   if (onClick) {
     return (
-      <button className="agent-page-header-action-chip" onClick={onClick} type="button">
+      <button
+        className="agent-page-header-action-chip"
+        onClick={onClick}
+        type="button"
+      >
         <span aria-hidden="true" className="agent-page-header-action-icon">
           {icon}
         </span>
@@ -7986,9 +8018,8 @@ function DashboardBirdsEyeRouteView({
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [commandPaletteQuery, setCommandPaletteQuery] = useState("");
   const [commandPaletteIndex, setCommandPaletteIndex] = useState(0);
-  const [quickCreateState, setQuickCreateState] = useState<BirdsEyeQuickCreateState>(
-    defaultQuickCreateState
-  );
+  const [quickCreateState, setQuickCreateState] =
+    useState<BirdsEyeQuickCreateState>(defaultQuickCreateState);
   const focusedRowIdRef = useRef<string | null>(null);
   const rowRefs = useRef(new Map<string, HTMLButtonElement | null>());
   const quickCreateInputRef = useRef<HTMLInputElement | null>(null);
@@ -8059,7 +8090,7 @@ function DashboardBirdsEyeRouteView({
   );
   const focusedRow = visibleRows[focusedRowIndex] ?? null;
   const previewChat = previewIssue?.id
-    ? treeModel.chatByIssueId.get(previewIssue.id) ?? null
+    ? (treeModel.chatByIssueId.get(previewIssue.id) ?? null)
     : null;
   const recentChatRowId = useMemo(() => {
     return visibleRows
@@ -8127,7 +8158,9 @@ function DashboardBirdsEyeRouteView({
       return;
     }
 
-    if (!focusedRowId || !visibleRows.some((row) => row.rowId === focusedRowId)) {
+    if (
+      !(focusedRowId && visibleRows.some((row) => row.rowId === focusedRowId))
+    ) {
       setBirdsEyeFocusedRow(visibleRows[0]?.rowId ?? null);
     }
   }, [focusedRowId, pendingFocusRowId, visibleRows]);
@@ -8225,7 +8258,8 @@ function DashboardBirdsEyeRouteView({
 
     while (currentParentId) {
       parents.push(currentParentId);
-      currentParentId = visibleRowLookup.get(currentParentId)?.parentRowId ?? null;
+      currentParentId =
+        visibleRowLookup.get(currentParentId)?.parentRowId ?? null;
     }
 
     if (parents.length === 0) {
@@ -8264,9 +8298,7 @@ function DashboardBirdsEyeRouteView({
       return [];
     }
 
-    return visibleRows.filter(
-      (entry) => entry.parentRowId === row.parentRowId
-    );
+    return visibleRows.filter((entry) => entry.parentRowId === row.parentRowId);
   };
 
   const focusSiblingRow = (
@@ -8304,7 +8336,7 @@ function DashboardBirdsEyeRouteView({
   };
 
   const firstChildRowIdForRow = (row: BirdsEyeVisibleRow | null) => {
-    if (!row || !row.hasChildren) {
+    if (!(row && row.hasChildren)) {
       return null;
     }
 
@@ -8397,7 +8429,9 @@ function DashboardBirdsEyeRouteView({
     );
   };
 
-  const ensureQuickCreateFolderExpanded = (folder: BirdsEyeFolderNode | null) => {
+  const ensureQuickCreateFolderExpanded = (
+    folder: BirdsEyeFolderNode | null
+  ) => {
     if (!folder) {
       return;
     }
@@ -8520,7 +8554,10 @@ function DashboardBirdsEyeRouteView({
   const closeQuickCreate = () => {
     setQuickCreateState(defaultQuickCreateState);
     setBirdsEyeFocusedRow(
-      quickCreateState.sourceRowId ?? quickCreateState.folderRowId ?? focusedRow?.rowId ?? null
+      quickCreateState.sourceRowId ??
+        quickCreateState.folderRowId ??
+        focusedRow?.rowId ??
+        null
     );
   };
 
@@ -8638,7 +8675,10 @@ function DashboardBirdsEyeRouteView({
       return;
     }
 
-    setBirdsEyeCanvasZoom((currentZoomIndex) => currentZoomIndex + delta, anchor);
+    setBirdsEyeCanvasZoom(
+      (currentZoomIndex) => currentZoomIndex + delta,
+      anchor
+    );
   };
 
   const handleBirdsEyeCanvasWheel = (event: WheelEvent<HTMLDivElement>) => {
@@ -8911,7 +8951,11 @@ function DashboardBirdsEyeRouteView({
         return;
       }
 
-      if (event.key.toLowerCase() === "n" && !event.altKey && !isPrimaryModifier) {
+      if (
+        event.key.toLowerCase() === "n" &&
+        !event.altKey &&
+        !isPrimaryModifier
+      ) {
         event.preventDefault();
         openQuickCreate();
         return;
@@ -8969,7 +9013,9 @@ function DashboardBirdsEyeRouteView({
     const folderNode =
       quickCreateState.folderRowId &&
       treeModel.rowById.get(quickCreateState.folderRowId)?.kind === "folder"
-        ? (treeModel.rowById.get(quickCreateState.folderRowId) as BirdsEyeFolderNode)
+        ? (treeModel.rowById.get(
+            quickCreateState.folderRowId
+          ) as BirdsEyeFolderNode)
         : null;
 
     if (!folderNode) {
@@ -9006,7 +9052,7 @@ function DashboardBirdsEyeRouteView({
       }}
       codeImpact={
         row.node.kind === "chat" && row.node.sessionId
-          ? codeImpactBySessionId[row.node.sessionId] ?? null
+          ? (codeImpactBySessionId[row.node.sessionId] ?? null)
           : null
       }
       isFocused={row.rowId === focusedRow?.rowId}
@@ -9037,10 +9083,16 @@ function DashboardBirdsEyeRouteView({
       quickCreateState.isOpen && quickCreateState.folderRowId === folder.rowId;
 
     return (
-      <section className="birds-eye-group birds-eye-folder-group" key={folder.rowId}>
+      <section
+        className="birds-eye-group birds-eye-folder-group"
+        key={folder.rowId}
+      >
         {renderBirdsEyeRowButton(folderRow)}
         {isFolderExpanded ? (
-          <div className="birds-eye-group-body birds-eye-folder-group-body" role="group">
+          <div
+            className="birds-eye-group-body birds-eye-folder-group-body"
+            role="group"
+          >
             {isInlineDraftOpen ? (
               <BirdsEyeQuickCreateRow
                 dependencyCheck={dependencyCheck}
@@ -9072,9 +9124,10 @@ function DashboardBirdsEyeRouteView({
                 }
                 sourceNode={
                   quickCreateState.sourceRowId
-                    ? visibleRowLookup.get(quickCreateState.sourceRowId)?.node ??
+                    ? (visibleRowLookup.get(quickCreateState.sourceRowId)
+                        ?.node ??
                       treeModel.rowById.get(quickCreateState.sourceRowId) ??
-                      null
+                      null)
                     : null
                 }
                 title={quickCreateState.title}
@@ -9113,7 +9166,10 @@ function DashboardBirdsEyeRouteView({
       >
         {renderBirdsEyeRowButton(projectRow)}
         {isProjectExpanded ? (
-          <div className="birds-eye-group-body birds-eye-project-group-body" role="group">
+          <div
+            className="birds-eye-group-body birds-eye-project-group-body"
+            role="group"
+          >
             {project.folders.map((folder) => renderBirdsEyeFolderGroup(folder))}
           </div>
         ) : null}
@@ -9288,6 +9344,325 @@ function DashboardBirdsEyeRouteView({
   );
 }
 
+function GridDashboardBirdsEyeRouteView({
+  agents,
+  chats,
+  dependencyCheck,
+  isLoadingOverview,
+  onCreateProject,
+  onCreateQuickChat,
+  onOpenIssueDetail,
+  projects,
+  renderIssueTile,
+  selectedIssueTileId,
+  workspaces,
+}: {
+  agents: AgentRecord[];
+  chats: DashboardOverviewChatRecord[];
+  dependencyCheck: RuntimeCapabilities | null;
+  isLoadingOverview: boolean;
+  onCreateProject: () => void;
+  onCreateQuickChat: (
+    title: string,
+    defaults: CreateIssueDialogDefaults
+  ) => Promise<IssueRecord>;
+  onOpenIssueDetail: (issueId: string) => void;
+  projects: ProjectRecord[];
+  renderIssueTile: (issueId: string, onClose: () => void) => ReactNode;
+  selectedIssueTileId: string | null;
+  workspaces: WorkspaceRecord[];
+}) {
+  const projectWorktreesByProjectId = useDashboardProjectWorktrees(
+    projects,
+    projects.map((project) => project.id)
+  );
+  const treeModel = useMemo(
+    () =>
+      buildBirdsEyeTree({
+        agents,
+        chats,
+        dependencyCheck,
+        projectWorktreesByProjectId,
+        projects,
+        workspaces,
+      }),
+    [
+      agents,
+      chats,
+      dependencyCheck,
+      projectWorktreesByProjectId,
+      projects,
+      workspaces,
+    ]
+  );
+
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [commandPaletteQuery, setCommandPaletteQuery] = useState("");
+  const [commandPaletteIndex, setCommandPaletteIndex] = useState(0);
+  const commandPaletteInputRef = useRef<HTMLInputElement | null>(null);
+
+  const allChats = useMemo(() => {
+    return treeModel.projects.flatMap((project) =>
+      project.folders.flatMap((folder) =>
+        folder.chats.map((chat) => ({
+          chat,
+          folder,
+          projectId: project.project.id,
+          projectLabel: project.label,
+        }))
+      )
+    );
+  }, [treeModel.projects]);
+
+  const commandActions = useMemo(() => {
+    const query = commandPaletteQuery.trim().toLowerCase();
+    return allChats
+      .filter((entry) =>
+        query
+          ? `${entry.chat.title} ${entry.folder.label} ${entry.projectLabel}`
+              .toLowerCase()
+              .includes(query)
+          : true
+      )
+      .map((entry) => ({
+        description: `${entry.projectLabel} · ${entry.folder.label}`,
+        id: `chat:${entry.chat.chat.id}`,
+        keywords: `${entry.chat.title} ${entry.folder.label}`,
+        label: entry.chat.title,
+        run: () => {
+          onOpenIssueDetail(entry.chat.chat.id);
+          setIsCommandPaletteOpen(false);
+        },
+      }));
+  }, [allChats, commandPaletteQuery, onOpenIssueDetail]);
+
+  useEffect(() => {
+    setCommandPaletteIndex(0);
+  }, [commandPaletteQuery, isCommandPaletteOpen]);
+
+  useEffect(() => {
+    if (!isCommandPaletteOpen) {
+      return;
+    }
+    const frameId = window.requestAnimationFrame(() => {
+      commandPaletteInputRef.current?.focus();
+    });
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [isCommandPaletteOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const isPrimaryModifier = event.metaKey || event.ctrlKey;
+
+      if (isPrimaryModifier && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setIsCommandPaletteOpen(true);
+        setCommandPaletteQuery("");
+        return;
+      }
+
+      if (isCommandPaletteOpen) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          setIsCommandPaletteOpen(false);
+          return;
+        }
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          setCommandPaletteIndex((current) =>
+            Math.min(current + 1, Math.max(commandActions.length - 1, 0))
+          );
+          return;
+        }
+        if (event.key === "ArrowUp") {
+          event.preventDefault();
+          setCommandPaletteIndex((current) => Math.max(current - 1, 0));
+          return;
+        }
+        if (event.key === "Enter") {
+          event.preventDefault();
+          const action = commandActions[commandPaletteIndex] ?? null;
+          if (action) {
+            setIsCommandPaletteOpen(false);
+            action.run();
+          }
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isCommandPaletteOpen, commandActions, commandPaletteIndex]);
+
+  return (
+    <section className="birds-eye-route">
+      <div className="birds-eye-route-header">
+        <div className="birds-eye-route-header-inner">
+          <DashboardBreadcrumbs items={[{ label: "Dashboard" }]} />
+          <div className="birds-eye-route-actions">
+            <button
+              className="secondary-button compact-button"
+              onClick={() => {
+                setIsCommandPaletteOpen(true);
+                setCommandPaletteQuery("");
+              }}
+              type="button"
+            >
+              Search chats
+            </button>
+            <button
+              className="secondary-button compact-button"
+              onClick={onCreateProject}
+              type="button"
+            >
+              Add project
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {projects.length ? (
+        <div
+          className={
+            selectedIssueTileId
+              ? "birds-eye-grid-split has-detail"
+              : "birds-eye-grid-split"
+          }
+        >
+          <div className="birds-eye-grid-panel">
+            <div className="birds-eye-repo-grid">
+              {treeModel.projects.map((project) => (
+                <div className="birds-eye-repo-column" key={project.project.id}>
+                  <div className="birds-eye-repo-column-header">
+                    <strong>{project.label}</strong>
+                    <span>
+                      {project.folderCount} worktrees · {project.chatCount}{" "}
+                      chats
+                    </span>
+                  </div>
+                  <div className="birds-eye-repo-column-body">
+                    {project.folders.map((folder) => (
+                      <div
+                        className="birds-eye-folder-section"
+                        key={folder.folderKey}
+                      >
+                        <div className="birds-eye-folder-section-header">
+                          <strong>{folder.label}</strong>
+                          <span>
+                            {folder.secondaryLabel ??
+                              formatCompactIssueTimestamp(
+                                folder.lastActivityAt
+                              )}
+                          </span>
+                        </div>
+                        <div className="birds-eye-chat-list">
+                          {folder.chats.length > 0 ? (
+                            folder.chats.map((chat) => (
+                              <button
+                                className={
+                                  selectedIssueTileId === chat.chat.id
+                                    ? "birds-eye-chat-list-item is-selected"
+                                    : "birds-eye-chat-list-item"
+                                }
+                                key={chat.chat.id}
+                                onClick={() => onOpenIssueDetail(chat.chat.id)}
+                                type="button"
+                              >
+                                <div className="birds-eye-chat-list-item-main">
+                                  <strong>{chat.title}</strong>
+                                  <span>
+                                    {issueStatusLabel(chat.chat.status)}
+                                  </span>
+                                </div>
+                                <div className="birds-eye-chat-list-item-meta">
+                                  <span>
+                                    {chat.runSummary ||
+                                      chat.agentLabel ||
+                                      "No recent action"}
+                                  </span>
+                                  {chat.chat.identifier ? (
+                                    <span>{chat.chat.identifier}</span>
+                                  ) : null}
+                                </div>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="birds-eye-chat-list-empty">
+                              <span>No chats in this worktree</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {selectedIssueTileId ? (
+            <div className="birds-eye-detail-pane">
+              {renderIssueTile(selectedIssueTileId, () => {
+                /* close handled by parent */
+              })}
+            </div>
+          ) : null}
+        </div>
+      ) : isLoadingOverview ? (
+        <div className="dashboard-canvas-empty-wrap birds-eye-empty-wrap">
+          <div className="dashboard-canvas-empty-card birds-eye-empty-card">
+            <div className="dashboard-canvas-empty-copy">
+              <span className="dashboard-canvas-empty-badge">
+                Loading overview
+              </span>
+              <h2>Loading dashboard</h2>
+              <p>Repos, worktrees, and chats are loading.</p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="dashboard-canvas-empty-wrap birds-eye-empty-wrap">
+          <div className="dashboard-canvas-empty-card birds-eye-empty-card">
+            <div className="dashboard-canvas-empty-copy">
+              <span className="dashboard-canvas-empty-badge">
+                Projects required
+              </span>
+              <h2>Create a project first</h2>
+              <p>
+                Add a project with a repository anchor before opening worktrees
+                and chats.
+              </p>
+            </div>
+            <button
+              className="primary-button"
+              onClick={onCreateProject}
+              type="button"
+            >
+              Create project
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isCommandPaletteOpen ? (
+        <BirdsEyeCommandPalette
+          actions={commandActions}
+          activeIndex={commandPaletteIndex}
+          inputRef={commandPaletteInputRef}
+          isOpen={isCommandPaletteOpen}
+          onClose={() => setIsCommandPaletteOpen(false)}
+          onQueryChange={setCommandPaletteQuery}
+          query={commandPaletteQuery}
+        />
+      ) : null}
+    </section>
+  );
+}
+
 function SpatialDashboardBirdsEyeRouteView({
   agents,
   canvasState,
@@ -9380,9 +9755,9 @@ function SpatialDashboardBirdsEyeRouteView({
     x: number;
     y: number;
   }>(null);
-  const [recentlyOpenedTileKey, setRecentlyOpenedTileKey] = useState<string | null>(
-    null
-  );
+  const [recentlyOpenedTileKey, setRecentlyOpenedTileKey] = useState<
+    string | null
+  >(null);
   const [measuredWorktreeHeights, setMeasuredWorktreeHeights] = useState<
     Record<string, number>
   >({});
@@ -9426,7 +9801,8 @@ function SpatialDashboardBirdsEyeRouteView({
     [localCanvasState, measuredWorktreeHeights, treeModel]
   );
   const normalizedCanvasStateKey = useMemo(
-    () => JSON.stringify(serializeBirdsEyeCanvasState(canvasModel.normalizedState)),
+    () =>
+      JSON.stringify(serializeBirdsEyeCanvasState(canvasModel.normalizedState)),
     [canvasModel.normalizedState]
   );
   const localCanvasStateKey = useMemo(
@@ -9451,7 +9827,10 @@ function SpatialDashboardBirdsEyeRouteView({
     return next;
   }, [treeModel.projects]);
   const projectById = useMemo(
-    () => new Map(treeModel.projects.map((project) => [project.project.id, project])),
+    () =>
+      new Map(
+        treeModel.projects.map((project) => [project.project.id, project])
+      ),
     [treeModel.projects]
   );
   const worktreeOptions = useMemo(
@@ -9469,15 +9848,14 @@ function SpatialDashboardBirdsEyeRouteView({
   const focusedTarget = effectiveCanvasState.focusedTarget;
   const focusedProject =
     (focusedTarget
-      ? projectById.get(focusedTarget.projectId) ?? null
-      : treeModel.projects[0] ?? null) ?? null;
-  const focusedWorktree =
-    focusedTarget?.worktreeKey
-      ? folderByKey.get(focusedTarget.worktreeKey) ?? null
-      : null;
+      ? (projectById.get(focusedTarget.projectId) ?? null)
+      : (treeModel.projects[0] ?? null)) ?? null;
+  const focusedWorktree = focusedTarget?.worktreeKey
+    ? (folderByKey.get(focusedTarget.worktreeKey) ?? null)
+    : null;
   const focusedWorktreeTileState = focusedWorktree
-    ? effectiveCanvasState.worktreeTiles[focusedWorktree.folderKey] ??
-      createEmptyBirdsEyeWorktreeTileState()
+    ? (effectiveCanvasState.worktreeTiles[focusedWorktree.folderKey] ??
+      createEmptyBirdsEyeWorktreeTileState())
     : null;
 
   const setWorktreePanel = (
@@ -9506,7 +9884,11 @@ function SpatialDashboardBirdsEyeRouteView({
       return;
     }
     setLocalCanvasState(canvasModel.normalizedState);
-  }, [canvasModel.normalizedState, localCanvasStateKey, normalizedCanvasStateKey]);
+  }, [
+    canvasModel.normalizedState,
+    localCanvasStateKey,
+    normalizedCanvasStateKey,
+  ]);
 
   useEffect(() => {
     if (normalizedCanvasStateKey === incomingCanvasStateKey) {
@@ -9675,7 +10057,8 @@ function SpatialDashboardBirdsEyeRouteView({
 
   const registerWorktreeBoard =
     (worktreeKey: string) => (element: HTMLElement | null) => {
-      const existingObserver = worktreeBoardObserversRef.current.get(worktreeKey);
+      const existingObserver =
+        worktreeBoardObserversRef.current.get(worktreeKey);
       if (existingObserver) {
         existingObserver.disconnect();
         worktreeBoardObserversRef.current.delete(worktreeKey);
@@ -9748,7 +10131,9 @@ function SpatialDashboardBirdsEyeRouteView({
         [projectId]: {
           ...(current.repoRegions[projectId] ??
             defaultBirdsEyeRepoRegionState(
-              treeModel.projects.findIndex((project) => project.project.id === projectId)
+              treeModel.projects.findIndex(
+                (project) => project.project.id === projectId
+              )
             )),
           page,
         },
@@ -9799,7 +10184,7 @@ function SpatialDashboardBirdsEyeRouteView({
     const region = repoRegions.find(
       (candidate) => candidate.project.project.id === projectId
     );
-    if (!viewport || !region) {
+    if (!(viewport && region)) {
       return;
     }
 
@@ -9847,10 +10232,7 @@ function SpatialDashboardBirdsEyeRouteView({
     });
   };
 
-  const nudgeCanvasZoom = (
-    delta: number,
-    anchor?: DashboardCanvasOffset
-  ) => {
+  const nudgeCanvasZoom = (delta: number, anchor?: DashboardCanvasOffset) => {
     const viewport = viewportRef.current;
     if (!viewport || delta === 0) {
       return;
@@ -9892,14 +10274,17 @@ function SpatialDashboardBirdsEyeRouteView({
     focusTile = true
   ) => {
     const isAlreadyOpen =
-      effectiveCanvasState.worktreeTiles[worktreeKey]?.issueIds.includes(issueId) ?? false;
+      effectiveCanvasState.worktreeTiles[worktreeKey]?.issueIds.includes(
+        issueId
+      ) ?? false;
     if (!isAlreadyOpen) {
       setRecentlyOpenedTileKey(`${worktreeKey}:${issueId}`);
     }
     setWorktreePanel(worktreeKey, focusTile ? "tiles" : "sidebar");
     updateCanvasState((current) => {
       const existingState =
-        current.worktreeTiles[worktreeKey] ?? createEmptyBirdsEyeWorktreeTileState();
+        current.worktreeTiles[worktreeKey] ??
+        createEmptyBirdsEyeWorktreeTileState();
       let nextIssueIds = existingState.issueIds.filter(Boolean);
       let nextLruIds = existingState.lruIssueIds.filter((entry) =>
         nextIssueIds.includes(entry)
@@ -9910,13 +10295,17 @@ function SpatialDashboardBirdsEyeRouteView({
           const evictedIssueId =
             nextLruIds.find((entry) => nextIssueIds.includes(entry)) ??
             nextIssueIds[0];
-          nextIssueIds = nextIssueIds.filter((entry) => entry !== evictedIssueId);
+          nextIssueIds = nextIssueIds.filter(
+            (entry) => entry !== evictedIssueId
+          );
           nextLruIds = nextLruIds.filter((entry) => entry !== evictedIssueId);
         }
         nextIssueIds = nextIssueIds.concat(issueId);
       }
 
-      nextLruIds = nextLruIds.filter((entry) => entry !== issueId).concat(issueId);
+      nextLruIds = nextLruIds
+        .filter((entry) => entry !== issueId)
+        .concat(issueId);
 
       return {
         ...current,
@@ -9946,15 +10335,24 @@ function SpatialDashboardBirdsEyeRouteView({
     onOpenIssueDetail(issueId);
   };
 
-  const closeIssueTile = (projectId: string, worktreeKey: string, issueId: string) => {
+  const closeIssueTile = (
+    projectId: string,
+    worktreeKey: string,
+    issueId: string
+  ) => {
     updateCanvasState((current) => {
       const existingState =
-        current.worktreeTiles[worktreeKey] ?? createEmptyBirdsEyeWorktreeTileState();
-      const nextIssueIds = existingState.issueIds.filter((entry) => entry !== issueId);
-      const nextLruIds = existingState.lruIssueIds.filter((entry) => entry !== issueId);
+        current.worktreeTiles[worktreeKey] ??
+        createEmptyBirdsEyeWorktreeTileState();
+      const nextIssueIds = existingState.issueIds.filter(
+        (entry) => entry !== issueId
+      );
+      const nextLruIds = existingState.lruIssueIds.filter(
+        (entry) => entry !== issueId
+      );
       const nextActiveIssueId =
         existingState.activeIssueId === issueId
-          ? nextIssueIds[0] ?? null
+          ? (nextIssueIds[0] ?? null)
           : existingState.activeIssueId;
 
       return {
@@ -9990,11 +10388,16 @@ function SpatialDashboardBirdsEyeRouteView({
     setWorktreePanel(worktreeKey, nextActiveIssueId ? "tiles" : "sidebar");
   };
 
-  const activateTile = (projectId: string, worktreeKey: string, issueId: string) => {
+  const activateTile = (
+    projectId: string,
+    worktreeKey: string,
+    issueId: string
+  ) => {
     setWorktreePanel(worktreeKey, "tiles");
     updateCanvasState((current) => {
       const existingState =
-        current.worktreeTiles[worktreeKey] ?? createEmptyBirdsEyeWorktreeTileState();
+        current.worktreeTiles[worktreeKey] ??
+        createEmptyBirdsEyeWorktreeTileState();
       const nextIssueIds = existingState.issueIds.includes(issueId)
         ? existingState.issueIds
         : existingState.issueIds.concat(issueId).slice(0, 4);
@@ -10024,11 +10427,16 @@ function SpatialDashboardBirdsEyeRouteView({
   };
 
   const moveFocusedTile = (direction: "left" | "right" | "up" | "down") => {
-    if (!focusedTarget || focusedTarget.kind !== "tile" || !focusedTarget.worktreeKey) {
+    if (
+      !focusedTarget ||
+      focusedTarget.kind !== "tile" ||
+      !focusedTarget.worktreeKey
+    ) {
       return;
     }
 
-    const tileState = effectiveCanvasState.worktreeTiles[focusedTarget.worktreeKey];
+    const tileState =
+      effectiveCanvasState.worktreeTiles[focusedTarget.worktreeKey];
     if (!tileState) {
       return;
     }
@@ -10044,7 +10452,11 @@ function SpatialDashboardBirdsEyeRouteView({
     if (direction === "left" && currentIndex % 2 === 1) {
       nextIndex = currentIndex - 1;
     }
-    if (direction === "right" && currentIndex % 2 === 0 && currentIndex + 1 < tileState.issueIds.length) {
+    if (
+      direction === "right" &&
+      currentIndex % 2 === 0 &&
+      currentIndex + 1 < tileState.issueIds.length
+    ) {
       nextIndex = currentIndex + 1;
     }
     if (direction === "up" && currentIndex - 2 >= 0) {
@@ -10109,12 +10521,16 @@ function SpatialDashboardBirdsEyeRouteView({
     if (!focusedProject) {
       return;
     }
-    const worktreeKeys = focusedProject.folders.map((folder) => folder.folderKey);
+    const worktreeKeys = focusedProject.folders.map(
+      (folder) => folder.folderKey
+    );
     if (worktreeKeys.length === 0) {
       return;
     }
     const currentKey =
-      focusedTarget?.worktreeKey ?? focusedProject.folders[0]?.folderKey ?? null;
+      focusedTarget?.worktreeKey ??
+      focusedProject.folders[0]?.folderKey ??
+      null;
     const currentIndex = Math.max(worktreeKeys.indexOf(currentKey ?? ""), 0);
     const nextIndex =
       direction === "next"
@@ -10175,9 +10591,10 @@ function SpatialDashboardBirdsEyeRouteView({
       return;
     }
     const currentIssueId =
-      focusedTarget?.kind === "tile" && focusedTarget.worktreeKey === focusedWorktree.folderKey
+      focusedTarget?.kind === "tile" &&
+      focusedTarget.worktreeKey === focusedWorktree.folderKey
         ? focusedTarget.issueId
-        : tileState.activeIssueId ?? tileState.issueIds[0];
+        : (tileState.activeIssueId ?? tileState.issueIds[0]);
     const currentIndex = Math.max(
       tileState.issueIds.findIndex((issueId) => issueId === currentIssueId),
       0
@@ -10185,9 +10602,14 @@ function SpatialDashboardBirdsEyeRouteView({
     const nextIndex =
       direction === "next"
         ? (currentIndex + 1) % tileState.issueIds.length
-        : (currentIndex - 1 + tileState.issueIds.length) % tileState.issueIds.length;
+        : (currentIndex - 1 + tileState.issueIds.length) %
+          tileState.issueIds.length;
     const nextIssueId = tileState.issueIds[nextIndex] ?? tileState.issueIds[0];
-    activateTile(focusedWorktree.projectId, focusedWorktree.folderKey, nextIssueId);
+    activateTile(
+      focusedWorktree.projectId,
+      focusedWorktree.folderKey,
+      nextIssueId
+    );
   };
 
   const openFocusedQuickCreate = (
@@ -10198,10 +10620,10 @@ function SpatialDashboardBirdsEyeRouteView({
     const fallbackFolder =
       (preferredWorktreeKey ? folderByKey.get(preferredWorktreeKey) : null) ??
       (focusedTarget?.worktreeKey
-        ? folderByKey.get(focusedTarget.worktreeKey) ?? null
+        ? (folderByKey.get(focusedTarget.worktreeKey) ?? null)
         : null) ??
       (preferredProjectId
-        ? projectById.get(preferredProjectId)?.folders[0] ?? null
+        ? (projectById.get(preferredProjectId)?.folders[0] ?? null)
         : null) ??
       focusedProject?.folders[0] ??
       treeModel.projects[0]?.folders[0] ??
@@ -10221,11 +10643,14 @@ function SpatialDashboardBirdsEyeRouteView({
         ...defaultQuickCreateDraft,
         ...fallbackFolder.createDefaults,
         command:
-          fallbackFolder.createDefaults.command ?? defaultQuickCreateDraft.command,
+          fallbackFolder.createDefaults.command ??
+          defaultQuickCreateDraft.command,
         model:
           fallbackFolder.createDefaults.model ?? defaultQuickCreateDraft.model,
         projectId:
-          fallbackFolder.projectId ?? fallbackFolder.createDefaults.projectId ?? "",
+          fallbackFolder.projectId ??
+          fallbackFolder.createDefaults.projectId ??
+          "",
       },
       errorMessage: null,
       isSaving: false,
@@ -10240,7 +10665,10 @@ function SpatialDashboardBirdsEyeRouteView({
 
   const openChatPalette = (
     mode: "open-chat" | "run-command" | "default",
-    scope: { projectId: string | null; worktreeKey: string | null } | null = null
+    scope: {
+      projectId: string | null;
+      worktreeKey: string | null;
+    } | null = null
   ) => {
     setContextMenu(null);
     setIsCommandPaletteOpen(true);
@@ -10258,22 +10686,21 @@ function SpatialDashboardBirdsEyeRouteView({
       label: string;
       run: () => void;
     }> = [];
-    const scopedWorktree =
-      commandPaletteScope?.worktreeKey
-        ? folderByKey.get(commandPaletteScope.worktreeKey) ?? null
-        : null;
+    const scopedWorktree = commandPaletteScope?.worktreeKey
+      ? (folderByKey.get(commandPaletteScope.worktreeKey) ?? null)
+      : null;
     const scopedProject = commandPaletteScope?.projectId
-      ? projectById.get(commandPaletteScope.projectId) ?? null
+      ? (projectById.get(commandPaletteScope.projectId) ?? null)
       : null;
 
     if (commandPaletteMode === "open-chat") {
       const candidateFolders = scopedWorktree
         ? [scopedWorktree]
         : focusedWorktree
-        ? [focusedWorktree]
-        : scopedProject?.folders ??
-          focusedProject?.folders ??
-          treeModel.projects.flatMap((project) => project.folders);
+          ? [focusedWorktree]
+          : (scopedProject?.folders ??
+            focusedProject?.folders ??
+            treeModel.projects.flatMap((project) => project.folders));
 
       for (const folder of candidateFolders) {
         for (const chat of folder.chats) {
@@ -10283,7 +10710,12 @@ function SpatialDashboardBirdsEyeRouteView({
             keywords: `${chat.title} ${folder.label} ${chat.agentLabel}`,
             label: chat.title,
             run: () => {
-              openIssueTile(chat.projectId, folder.folderKey, chat.chat.id, true);
+              openIssueTile(
+                chat.projectId,
+                folder.folderKey,
+                chat.chat.id,
+                true
+              );
               setIsCommandPaletteOpen(false);
             },
           });
@@ -10422,14 +10854,22 @@ function SpatialDashboardBirdsEyeRouteView({
         if (event.key === "ArrowDown") {
           event.preventDefault();
           setCommandPaletteIndex((current) =>
-            clampNumber(current + 1, 0, Math.max(filteredCommandActions.length - 1, 0))
+            clampNumber(
+              current + 1,
+              0,
+              Math.max(filteredCommandActions.length - 1, 0)
+            )
           );
           return;
         }
         if (event.key === "ArrowUp") {
           event.preventDefault();
           setCommandPaletteIndex((current) =>
-            clampNumber(current - 1, 0, Math.max(filteredCommandActions.length - 1, 0))
+            clampNumber(
+              current - 1,
+              0,
+              Math.max(filteredCommandActions.length - 1, 0)
+            )
           );
           return;
         }
@@ -10457,7 +10897,15 @@ function SpatialDashboardBirdsEyeRouteView({
         return;
       }
 
-      if (!focusedTarget && repoRegions.length > 0) {
+      const isArrowNavigationKey = [
+        "ArrowUp",
+        "ArrowDown",
+        "ArrowLeft",
+        "ArrowRight",
+      ].includes(event.key);
+
+      if (!focusedTarget && repoRegions.length > 0 && isArrowNavigationKey) {
+        event.preventDefault();
         setFocusedTarget(
           {
             kind: "repo",
@@ -10467,6 +10915,7 @@ function SpatialDashboardBirdsEyeRouteView({
           },
           "keyboard"
         );
+        return;
       }
 
       if (!isPrimaryModifier && event.key.toLowerCase() === "n") {
@@ -10475,13 +10924,13 @@ function SpatialDashboardBirdsEyeRouteView({
         return;
       }
 
-      if (isPrimaryModifier && (event.key === "+" || event.key === "=")) {
+      if (event.key === "+" || event.key === "=") {
         event.preventDefault();
         nudgeCanvasZoom(1);
         return;
       }
 
-      if (isPrimaryModifier && event.key === "-") {
+      if (event.key === "-") {
         event.preventDefault();
         nudgeCanvasZoom(-1);
         return;
@@ -10494,7 +10943,11 @@ function SpatialDashboardBirdsEyeRouteView({
       }
 
       if (isPrimaryModifier && !event.shiftKey && !event.altKey) {
-        if (event.key === "1" && focusedTarget?.kind !== "tile" && !focusedWorktree) {
+        if (
+          event.key === "1" &&
+          focusedTarget?.kind !== "tile" &&
+          !focusedWorktree
+        ) {
           event.preventDefault();
           updateCanvasState((current) => ({
             ...current,
@@ -10502,7 +10955,11 @@ function SpatialDashboardBirdsEyeRouteView({
           }));
           return;
         }
-        if (event.key === "2" && focusedTarget?.kind !== "tile" && !focusedWorktree) {
+        if (
+          event.key === "2" &&
+          focusedTarget?.kind !== "tile" &&
+          !focusedWorktree
+        ) {
           event.preventDefault();
           updateCanvasState((current) => ({
             ...current,
@@ -10510,7 +10967,11 @@ function SpatialDashboardBirdsEyeRouteView({
           }));
           return;
         }
-        if (event.key === "3" && focusedTarget?.kind !== "tile" && !focusedWorktree) {
+        if (
+          event.key === "3" &&
+          focusedTarget?.kind !== "tile" &&
+          !focusedWorktree
+        ) {
           event.preventDefault();
           updateCanvasState((current) => ({
             ...current,
@@ -10579,7 +11040,7 @@ function SpatialDashboardBirdsEyeRouteView({
             ? focusedTarget.issueId
             : focusedTarget?.kind === "chat"
               ? focusedTarget.issueId
-              : focusedWorktree.chats[0]?.chat.id ?? null;
+              : (focusedWorktree.chats[0]?.chat.id ?? null);
 
         if (sidebarIssueId) {
           setFocusedTarget(
@@ -10605,7 +11066,11 @@ function SpatialDashboardBirdsEyeRouteView({
         return;
       }
 
-      if (isPrimaryModifier && focusedWorktree && focusedTarget?.kind === "tile") {
+      if (
+        isPrimaryModifier &&
+        focusedWorktree &&
+        focusedTarget?.kind === "tile"
+      ) {
         if (["1", "2", "3", "4"].includes(event.key)) {
           const tileState =
             effectiveCanvasState.worktreeTiles[focusedWorktree.folderKey] ??
@@ -10613,7 +11078,11 @@ function SpatialDashboardBirdsEyeRouteView({
           const issueId = tileState.issueIds[Number(event.key) - 1] ?? null;
           if (issueId) {
             event.preventDefault();
-            activateTile(focusedWorktree.projectId, focusedWorktree.folderKey, issueId);
+            activateTile(
+              focusedWorktree.projectId,
+              focusedWorktree.folderKey,
+              issueId
+            );
           }
           return;
         }
@@ -10630,7 +11099,12 @@ function SpatialDashboardBirdsEyeRouteView({
           return;
         }
 
-        if (event.altKey && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+        if (
+          event.altKey &&
+          ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(
+            event.key
+          )
+        ) {
           event.preventDefault();
           moveFocusedTile(
             event.key === "ArrowLeft"
@@ -10645,7 +11119,10 @@ function SpatialDashboardBirdsEyeRouteView({
         }
       }
 
-      if (!isPrimaryModifier && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+      if (
+        !isPrimaryModifier &&
+        (event.key === "ArrowUp" || event.key === "ArrowDown")
+      ) {
         if (focusedTarget?.kind === "chat") {
           event.preventDefault();
           focusChatSibling(event.key === "ArrowDown" ? "next" : "previous");
@@ -10655,8 +11132,8 @@ function SpatialDashboardBirdsEyeRouteView({
         if (focusedTarget?.kind === "worktree") {
           const nextChat =
             event.key === "ArrowDown"
-              ? focusedWorktree?.chats[0] ?? null
-              : focusedWorktree?.chats.at(-1) ?? null;
+              ? (focusedWorktree?.chats[0] ?? null)
+              : (focusedWorktree?.chats.at(-1) ?? null);
           if (nextChat) {
             event.preventDefault();
             setFocusedTarget(
@@ -10672,7 +11149,10 @@ function SpatialDashboardBirdsEyeRouteView({
         }
       }
 
-      if (isPrimaryModifier && ["ArrowLeft", "ArrowRight"].includes(event.key)) {
+      if (
+        isPrimaryModifier &&
+        ["ArrowLeft", "ArrowRight"].includes(event.key)
+      ) {
         event.preventDefault();
 
         if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
@@ -10694,7 +11174,12 @@ function SpatialDashboardBirdsEyeRouteView({
         }
       }
 
-      if (event.key === "Enter" && focusedTarget?.kind === "chat" && focusedTarget.issueId && focusedTarget.worktreeKey) {
+      if (
+        event.key === "Enter" &&
+        focusedTarget?.kind === "chat" &&
+        focusedTarget.issueId &&
+        focusedTarget.worktreeKey
+      ) {
         event.preventDefault();
         openIssueTile(
           focusedTarget.projectId,
@@ -10705,7 +11190,12 @@ function SpatialDashboardBirdsEyeRouteView({
         return;
       }
 
-      if (event.key === "Escape" && focusedTarget?.kind === "tile" && focusedTarget.issueId && focusedTarget.worktreeKey) {
+      if (
+        event.key === "Escape" &&
+        focusedTarget?.kind === "tile" &&
+        focusedTarget.issueId &&
+        focusedTarget.worktreeKey
+      ) {
         event.preventDefault();
         closeIssueTile(
           focusedTarget.projectId,
@@ -10781,8 +11271,14 @@ function SpatialDashboardBirdsEyeRouteView({
           [repoDragRef.current!.projectId]: {
             ...(current.repoRegions[repoDragRef.current!.projectId] ??
               defaultBirdsEyeRepoRegionState(0)),
-            x: repoDragRef.current!.originX + event.clientX - repoDragRef.current!.startX,
-            y: repoDragRef.current!.originY + event.clientY - repoDragRef.current!.startY,
+            x:
+              repoDragRef.current!.originX +
+              event.clientX -
+              repoDragRef.current!.startX,
+            y:
+              repoDragRef.current!.originY +
+              event.clientY -
+              repoDragRef.current!.startY,
           },
         },
       }));
@@ -10817,6 +11313,26 @@ function SpatialDashboardBirdsEyeRouteView({
     }
 
     event.preventDefault();
+    const isZoomModifierPressed = event.metaKey || event.ctrlKey;
+    if (!isZoomModifierPressed) {
+      wheelZoomRef.current.accumulatedDeltaY = 0;
+      const deltaMultiplier =
+        event.deltaMode === 1
+          ? 20
+          : event.deltaMode === 2
+            ? event.currentTarget.clientHeight
+            : 1;
+      updateCanvasState((current) => ({
+        ...current,
+        viewport: {
+          ...current.viewport,
+          x: current.viewport.x - event.deltaX * deltaMultiplier,
+          y: current.viewport.y - event.deltaY * deltaMultiplier,
+        },
+      }));
+      return;
+    }
+
     const wheelZoomState = wheelZoomRef.current;
     if (event.timeStamp - wheelZoomState.lastEventTime > 180) {
       wheelZoomState.accumulatedDeltaY = 0;
@@ -10825,8 +11341,7 @@ function SpatialDashboardBirdsEyeRouteView({
     wheelZoomState.lastEventTime = event.timeStamp;
     wheelZoomState.accumulatedDeltaY += event.deltaY;
 
-    const isTrackpadPinch = event.ctrlKey;
-    const threshold = event.deltaMode === 1 ? 1 : isTrackpadPinch ? 6 : 18;
+    const threshold = event.deltaMode === 1 ? 1 : event.ctrlKey ? 6 : 18;
     if (Math.abs(wheelZoomState.accumulatedDeltaY) < threshold) {
       return;
     }
@@ -10873,7 +11388,8 @@ function SpatialDashboardBirdsEyeRouteView({
         current
           ? {
               ...current,
-              errorMessage: error instanceof Error ? error.message : String(error),
+              errorMessage:
+                error instanceof Error ? error.message : String(error),
               isSaving: false,
             }
           : current
@@ -10913,7 +11429,11 @@ function SpatialDashboardBirdsEyeRouteView({
                 </span>
               </button>
               {isHelpMenuOpen ? (
-                <div className="birds-eye-help-menu" ref={helpMenuRef} role="menu">
+                <div
+                  className="birds-eye-help-menu"
+                  ref={helpMenuRef}
+                  role="menu"
+                >
                   <button
                     className="birds-eye-help-item"
                     onClick={() => {
@@ -10927,7 +11447,9 @@ function SpatialDashboardBirdsEyeRouteView({
                     type="button"
                   >
                     <strong>Keyboard shortcuts</strong>
-                    <span>Open the command palette for the spatial canvas.</span>
+                    <span>
+                      Open the command palette for the spatial canvas.
+                    </span>
                   </button>
                   <button
                     className="birds-eye-help-item"
@@ -11012,22 +11534,29 @@ function SpatialDashboardBirdsEyeRouteView({
                             )
                           }
                           onPointerDown={(event) => {
-                            if (event.button !== 0 || isSpacePressedRef.current) {
+                            if (
+                              event.button !== 0 ||
+                              isSpacePressedRef.current
+                            ) {
                               return;
                             }
                             repoDragRef.current = {
                               originX:
-                                effectiveCanvasState.repoRegions[region.project.project.id]?.x ??
-                                region.x,
+                                effectiveCanvasState.repoRegions[
+                                  region.project.project.id
+                                ]?.x ?? region.x,
                               originY:
-                                effectiveCanvasState.repoRegions[region.project.project.id]?.y ??
-                                region.y,
+                                effectiveCanvasState.repoRegions[
+                                  region.project.project.id
+                                ]?.y ?? region.y,
                               pointerId: event.pointerId,
                               projectId: region.project.project.id,
                               startX: event.clientX,
                               startY: event.clientY,
                             };
-                            event.currentTarget.setPointerCapture(event.pointerId);
+                            event.currentTarget.setPointerCapture(
+                              event.pointerId
+                            );
                             event.stopPropagation();
                           }}
                           role="presentation"
@@ -11035,7 +11564,8 @@ function SpatialDashboardBirdsEyeRouteView({
                           <div>
                             <strong>{region.project.label}</strong>
                             <span>
-                              {region.project.folderCount} worktrees · {region.project.chatCount} chats
+                              {region.project.folderCount} worktrees ·{" "}
+                              {region.project.chatCount} chats
                             </span>
                           </div>
                           {region.totalPages > 1 ? (
@@ -11045,20 +11575,30 @@ function SpatialDashboardBirdsEyeRouteView({
                                 onClick={() =>
                                   setRepoPage(
                                     region.project.project.id,
-                                    clampNumber(region.page - 1, 0, region.totalPages - 1)
+                                    clampNumber(
+                                      region.page - 1,
+                                      0,
+                                      region.totalPages - 1
+                                    )
                                   )
                                 }
                                 type="button"
                               >
                                 ◂
                               </button>
-                              <span>{region.page + 1}/{region.totalPages}</span>
+                              <span>
+                                {region.page + 1}/{region.totalPages}
+                              </span>
                               <button
                                 className="secondary-button compact-button"
                                 onClick={() =>
                                   setRepoPage(
                                     region.project.project.id,
-                                    clampNumber(region.page + 1, 0, region.totalPages - 1)
+                                    clampNumber(
+                                      region.page + 1,
+                                      0,
+                                      region.totalPages - 1
+                                    )
                                   )
                                 }
                                 type="button"
@@ -11073,12 +11613,15 @@ function SpatialDashboardBirdsEyeRouteView({
                           {region.visibleWorktrees.map((board) => {
                             const isFocusedWorktree =
                               focusedTarget?.kind === "worktree" &&
-                              focusedTarget.projectId === board.folder.projectId &&
-                              focusedTarget.worktreeKey === board.folder.folderKey;
+                              focusedTarget.projectId ===
+                                board.folder.projectId &&
+                              focusedTarget.worktreeKey ===
+                                board.folder.folderKey;
                             const activePanel =
                               worktreePanelFocus[board.folder.folderKey] ??
                               (focusedTarget?.kind === "tile" &&
-                              focusedTarget.worktreeKey === board.folder.folderKey
+                              focusedTarget.worktreeKey ===
+                                board.folder.folderKey
                                 ? "tiles"
                                 : "sidebar");
 
@@ -11101,7 +11644,9 @@ function SpatialDashboardBirdsEyeRouteView({
                                     "click"
                                   )
                                 }
-                                ref={registerWorktreeBoard(board.folder.folderKey)}
+                                ref={registerWorktreeBoard(
+                                  board.folder.folderKey
+                                )}
                                 style={{
                                   left: board.x,
                                   minHeight: board.height,
@@ -11129,21 +11674,26 @@ function SpatialDashboardBirdsEyeRouteView({
                                         : "birds-eye-worktree-sidebar"
                                     }
                                     onClick={(event) => event.stopPropagation()}
-                                    onContextMenu={(event) => event.stopPropagation()}
+                                    onContextMenu={(event) =>
+                                      event.stopPropagation()
+                                    }
                                   >
                                     <div className="birds-eye-worktree-sidebar-scroll">
                                       {board.chats.length > 0 ? (
                                         board.chats.map((chat) => {
                                           const isFocusedChat =
                                             focusedTarget?.kind === "chat" &&
-                                            focusedTarget.issueId === chat.chat.id &&
+                                            focusedTarget.issueId ===
+                                              chat.chat.id &&
                                             focusedTarget.worktreeKey ===
                                               board.folder.folderKey;
-                                          const isOpen = board.tileState.issueIds.includes(
-                                            chat.chat.id
-                                          );
+                                          const isOpen =
+                                            board.tileState.issueIds.includes(
+                                              chat.chat.id
+                                            );
                                           const isActiveTile =
-                                            board.tileState.activeIssueId === chat.chat.id;
+                                            board.tileState.activeIssueId ===
+                                            chat.chat.id;
 
                                           return (
                                             <SpatialBirdsEyeSidebarChatRow
@@ -11175,7 +11725,10 @@ function SpatialDashboardBirdsEyeRouteView({
                                       ) : (
                                         <div className="birds-eye-worktree-sidebar-empty">
                                           <strong>No chats yet</strong>
-                                          <span>Create the first chat from the canvas.</span>
+                                          <span>
+                                            Create the first chat from the
+                                            canvas.
+                                          </span>
                                         </div>
                                       )}
                                     </div>
@@ -11206,113 +11759,133 @@ function SpatialDashboardBirdsEyeRouteView({
                                         },
                                         "click"
                                       );
-                                      setWorktreePanel(board.folder.folderKey, "tiles");
+                                      setWorktreePanel(
+                                        board.folder.folderKey,
+                                        "tiles"
+                                      );
                                     }}
                                   >
                                     {board.tileState.issueIds.length > 0 ? (
                                       <div
                                         className={`birds-eye-worktree-tile-grid tile-count-${board.tileState.issueIds.length}`}
                                       >
-                                        {board.tileState.issueIds.map((issueId) => {
-                                          const tileChat =
-                                            board.folder.chats.find(
-                                              (chat) => chat.chat.id === issueId
-                                            ) ?? null;
-                                          if (!tileChat) {
-                                            return null;
-                                          }
+                                        {board.tileState.issueIds.map(
+                                          (issueId) => {
+                                            const tileChat =
+                                              board.folder.chats.find(
+                                                (chat) =>
+                                                  chat.chat.id === issueId
+                                              ) ?? null;
+                                            if (!tileChat) {
+                                              return null;
+                                            }
 
-                                          const isTileFocused =
-                                            focusedTarget?.kind === "tile" &&
-                                            focusedTarget.issueId === issueId &&
-                                            focusedTarget.worktreeKey ===
-                                              board.folder.folderKey;
-                                          const isActiveFullTile =
-                                            selectedIssueTileId === issueId &&
-                                            board.tileState.activeIssueId === issueId;
+                                            const isTileFocused =
+                                              focusedTarget?.kind === "tile" &&
+                                              focusedTarget.issueId ===
+                                                issueId &&
+                                              focusedTarget.worktreeKey ===
+                                                board.folder.folderKey;
+                                            const isActiveFullTile =
+                                              selectedIssueTileId === issueId &&
+                                              board.tileState.activeIssueId ===
+                                                issueId;
 
-                                          return (
-                                            <div
-                                              className={
-                                                recentlyOpenedTileKey ===
-                                                `${board.folder.folderKey}:${issueId}`
-                                                  ? isActiveFullTile
-                                                    ? isTileFocused
-                                                      ? "birds-eye-chat-tile is-focused is-active is-entering"
-                                                      : "birds-eye-chat-tile is-active is-entering"
-                                                    : isTileFocused
-                                                      ? "birds-eye-chat-tile is-focused is-entering"
-                                                      : "birds-eye-chat-tile is-entering"
-                                                  : isActiveFullTile
-                                                  ? isTileFocused
-                                                    ? "birds-eye-chat-tile is-focused is-active"
-                                                    : "birds-eye-chat-tile is-active"
-                                                  : isTileFocused
-                                                    ? "birds-eye-chat-tile is-focused"
-                                                    : "birds-eye-chat-tile"
-                                              }
-                                              key={issueId}
-                                              onClick={(event) => {
-                                                event.stopPropagation();
-                                                activateTile(
-                                                  board.folder.projectId,
-                                                  board.folder.folderKey,
-                                                  issueId
-                                                );
-                                              }}
-                                              onContextMenu={(event) => event.stopPropagation()}
-                                            >
-                                              <div className="birds-eye-chat-tile-header">
-                                                <div>
-                                                  <strong>
-                                                    {tileChat.chat.identifier ?? tileChat.title}
-                                                  </strong>
-                                                  <span>
-                                                    {issueStatusLabel(tileChat.chat.status)}
-                                                  </span>
-                                                </div>
-                                                <button
-                                                  className="secondary-button compact-button"
-                                                  onClick={(event) => {
-                                                    event.stopPropagation();
-                                                    closeIssueTile(
-                                                      board.folder.projectId,
-                                                      board.folder.folderKey,
-                                                      issueId
-                                                    );
-                                                  }}
-                                                  type="button"
-                                                >
-                                                  Close
-                                                </button>
-                                              </div>
-                                              {isActiveFullTile ? (
-                                                <div className="birds-eye-chat-tile-body is-active">
-                                                  {renderIssueTile(issueId, () =>
-                                                    closeIssueTile(
-                                                      board.folder.projectId,
-                                                      board.folder.folderKey,
-                                                      issueId
-                                                    )
-                                                  )}
-                                                </div>
-                                              ) : (
-                                                <div className="birds-eye-chat-tile-body">
-                                                  <SpatialBirdsEyeTileStub
-                                                    chat={tileChat}
-                                                    onActivate={() =>
-                                                      activateTile(
+                                            return (
+                                              <div
+                                                className={
+                                                  recentlyOpenedTileKey ===
+                                                  `${board.folder.folderKey}:${issueId}`
+                                                    ? isActiveFullTile
+                                                      ? isTileFocused
+                                                        ? "birds-eye-chat-tile is-focused is-active is-entering"
+                                                        : "birds-eye-chat-tile is-active is-entering"
+                                                      : isTileFocused
+                                                        ? "birds-eye-chat-tile is-focused is-entering"
+                                                        : "birds-eye-chat-tile is-entering"
+                                                    : isActiveFullTile
+                                                      ? isTileFocused
+                                                        ? "birds-eye-chat-tile is-focused is-active"
+                                                        : "birds-eye-chat-tile is-active"
+                                                      : isTileFocused
+                                                        ? "birds-eye-chat-tile is-focused"
+                                                        : "birds-eye-chat-tile"
+                                                }
+                                                key={issueId}
+                                                onClick={(event) => {
+                                                  event.stopPropagation();
+                                                  activateTile(
+                                                    board.folder.projectId,
+                                                    board.folder.folderKey,
+                                                    issueId
+                                                  );
+                                                }}
+                                                onContextMenu={(event) =>
+                                                  event.stopPropagation()
+                                                }
+                                              >
+                                                <div className="birds-eye-chat-tile-header">
+                                                  <div>
+                                                    <strong>
+                                                      {tileChat.chat
+                                                        .identifier ??
+                                                        tileChat.title}
+                                                    </strong>
+                                                    <span>
+                                                      {issueStatusLabel(
+                                                        tileChat.chat.status
+                                                      )}
+                                                    </span>
+                                                  </div>
+                                                  <button
+                                                    className="secondary-button compact-button"
+                                                    onClick={(event) => {
+                                                      event.stopPropagation();
+                                                      closeIssueTile(
                                                         board.folder.projectId,
                                                         board.folder.folderKey,
                                                         issueId
-                                                      )
-                                                    }
-                                                  />
+                                                      );
+                                                    }}
+                                                    type="button"
+                                                  >
+                                                    Close
+                                                  </button>
                                                 </div>
-                                              )}
-                                            </div>
-                                          );
-                                        })}
+                                                {isActiveFullTile ? (
+                                                  <div className="birds-eye-chat-tile-body is-active">
+                                                    {renderIssueTile(
+                                                      issueId,
+                                                      () =>
+                                                        closeIssueTile(
+                                                          board.folder
+                                                            .projectId,
+                                                          board.folder
+                                                            .folderKey,
+                                                          issueId
+                                                        )
+                                                    )}
+                                                  </div>
+                                                ) : (
+                                                  <div className="birds-eye-chat-tile-body">
+                                                    <SpatialBirdsEyeTileStub
+                                                      chat={tileChat}
+                                                      onActivate={() =>
+                                                        activateTile(
+                                                          board.folder
+                                                            .projectId,
+                                                          board.folder
+                                                            .folderKey,
+                                                          issueId
+                                                        )
+                                                      }
+                                                    />
+                                                  </div>
+                                                )}
+                                              </div>
+                                            );
+                                          }
+                                        )}
                                       </div>
                                     ) : null}
 
@@ -11334,19 +11907,28 @@ function SpatialDashboardBirdsEyeRouteView({
                                       board.folder.folderKey ? (
                                         <div className="birds-eye-worktree-ghost-card">
                                           <span>New chat</span>
-                                          <strong>{quickCreateState.title || "Untitled chat"}</strong>
+                                          <strong>
+                                            {quickCreateState.title ||
+                                              "Untitled chat"}
+                                          </strong>
                                         </div>
                                       ) : null}
                                       {board.tileState.issueIds.length > 0 ? (
                                         <div className="birds-eye-worktree-canvas-copy">
-                                          <span>Right-click to create or reopen a chat in this worktree.</span>
+                                          <span>
+                                            Right-click to create or reopen a
+                                            chat in this worktree.
+                                          </span>
                                         </div>
                                       ) : (
                                         <div className="birds-eye-worktree-empty-state">
-                                          <strong>Open a chat or right-click to create one</strong>
+                                          <strong>
+                                            Open a chat or right-click to create
+                                            one
+                                          </strong>
                                           <span>
-                                            Keep the full history in the sidebar while up to four
-                                            chats run here.
+                                            Keep the full history in the sidebar
+                                            while up to four chats run here.
                                           </span>
                                         </div>
                                       )}
@@ -11366,7 +11948,8 @@ function SpatialDashboardBirdsEyeRouteView({
                     onClick={onCreateProject}
                     style={{
                       left:
-                        (repoRegions.at(-1)?.x ?? defaultBirdsEyeCanvasOffset.x) +
+                        (repoRegions.at(-1)?.x ??
+                          defaultBirdsEyeCanvasOffset.x) +
                         (repoRegions.at(-1)?.width ?? 0) +
                         birdsEyeRepoRegionGapX,
                       top: birdsEyeRepoRegionDefaultY,
@@ -11409,7 +11992,11 @@ function SpatialDashboardBirdsEyeRouteView({
                 and chats on the canvas.
               </p>
             </div>
-            <button className="primary-button" onClick={onCreateProject} type="button">
+            <button
+              className="primary-button"
+              onClick={onCreateProject}
+              type="button"
+            >
               Create project
             </button>
           </div>
@@ -11417,7 +12004,7 @@ function SpatialDashboardBirdsEyeRouteView({
       )}
 
       <div className="dashboard-canvas-route-footer">
-          <div className="dashboard-canvas-route-footer-inner">
+        <div className="dashboard-canvas-route-footer-inner">
           <div className="birds-eye-footer-hint">
             <span>Space + drag pans</span>
             <span>Cmd/Ctrl + ↑ or ↓ switches panels</span>
@@ -11432,7 +12019,9 @@ function SpatialDashboardBirdsEyeRouteView({
             <div className="dashboard-canvas-zoom-steps">
               {birdsEyeCanvasZoomLevels.map((zoomLevel, index) => (
                 <button
-                  aria-pressed={index === effectiveCanvasState.viewport.zoomIndex}
+                  aria-pressed={
+                    index === effectiveCanvasState.viewport.zoomIndex
+                  }
                   className={
                     index === effectiveCanvasState.viewport.zoomIndex
                       ? "dashboard-canvas-zoom-step is-active"
@@ -11518,7 +12107,8 @@ function SpatialDashboardBirdsEyeRouteView({
           }
           onProjectWorktreeChange={(value) => {
             const nextOption =
-              worktreeOptions.find((option) => option.worktreeKey === value) ?? null;
+              worktreeOptions.find((option) => option.worktreeKey === value) ??
+              null;
             if (!nextOption) {
               return;
             }
@@ -11738,7 +12328,9 @@ function SpatialBirdsEyeQuickCreatePanel({
               aria-label="Toggle plan mode"
               aria-pressed={draft.planMode}
               className={
-                draft.planMode ? "agent-config-toggle active" : "agent-config-toggle"
+                draft.planMode
+                  ? "agent-config-toggle active"
+                  : "agent-config-toggle"
               }
               disabled={runtimeProvider !== "claude"}
               onClick={() => onDraftChange({ planMode: !draft.planMode })}
@@ -11798,9 +12390,9 @@ function SpatialBirdsEyeSidebarChatRow({
             ? isFocused
               ? "birds-eye-sidebar-chat-row is-open is-focused"
               : "birds-eye-sidebar-chat-row is-open"
-          : isFocused
-            ? "birds-eye-sidebar-chat-row is-focused"
-            : "birds-eye-sidebar-chat-row"
+            : isFocused
+              ? "birds-eye-sidebar-chat-row is-focused"
+              : "birds-eye-sidebar-chat-row"
       }
       onClick={onClick}
       type="button"
@@ -11823,7 +12415,9 @@ function SpatialBirdsEyeSidebarChatRow({
         </div>
         <div className="birds-eye-sidebar-chat-meta">
           <span>{issueStatusLabel(chat.chat.status)}</span>
-          {isOpen ? <span>{isActiveTile ? "Focused tile" : "Open"}</span> : null}
+          {isOpen ? (
+            <span>{isActiveTile ? "Focused tile" : "Open"}</span>
+          ) : null}
         </div>
         <div className="birds-eye-sidebar-chat-last-action">
           {chat.runSummary || chat.agentLabel || "No recent action"}
@@ -11876,7 +12470,11 @@ function BirdsEyeCommandPalette({
   }
 
   return (
-    <div className="birds-eye-command-backdrop" onClick={onClose} role="presentation">
+    <div
+      className="birds-eye-command-backdrop"
+      onClick={onClose}
+      role="presentation"
+    >
       <div
         className="birds-eye-command-palette"
         onClick={(event) => event.stopPropagation()}
@@ -11981,13 +12579,9 @@ function BirdsEyeRow({
       </div>
 
       <div className="birds-eye-row-main">
-        {node.kind === "project" ? (
-          <strong>{node.label}</strong>
-        ) : null}
+        {node.kind === "project" ? <strong>{node.label}</strong> : null}
 
-        {node.kind === "folder" ? (
-          <strong>{node.label}</strong>
-        ) : null}
+        {node.kind === "folder" ? <strong>{node.label}</strong> : null}
 
         {node.kind === "chat" ? (
           <>
@@ -11998,9 +12592,7 @@ function BirdsEyeRow({
               {[
                 issueStatusLabel(node.chat.status),
                 node.agentLabel,
-                node.runStatus
-                  ? agentRunStatusLabel(node.runStatus)
-                  : null,
+                node.runStatus ? agentRunStatusLabel(node.runStatus) : null,
                 node.runSummary,
               ]
                 .filter(Boolean)
@@ -12169,7 +12761,9 @@ export function BirdsEyeQuickCreateRow({
                 aria-label="Toggle plan mode"
                 aria-pressed={draft.planMode}
                 className={
-                  draft.planMode ? "agent-config-toggle active" : "agent-config-toggle"
+                  draft.planMode
+                    ? "agent-config-toggle active"
+                    : "agent-config-toggle"
                 }
                 disabled={runtimeProvider !== "claude"}
                 onClick={() => onDraftChange({ planMode: !draft.planMode })}
@@ -12181,7 +12775,9 @@ export function BirdsEyeQuickCreateRow({
           </div>
 
           {errorMessage ? (
-            <span className="project-kanban-add-card-error">{errorMessage}</span>
+            <span className="project-kanban-add-card-error">
+              {errorMessage}
+            </span>
           ) : null}
         </div>
 
@@ -12259,13 +12855,19 @@ function BirdsEyePreviewPanel({
           </div>
 
           <div className="birds-eye-preview-summary">
-            <SummaryPill label="Status" value={issueStatusLabel(issue.status)} />
+            <SummaryPill
+              label="Status"
+              value={issueStatusLabel(issue.status)}
+            />
             <SummaryPill label="Agent" value={issueModelLabel(issue, agents)} />
             <SummaryPill
               label="Last activity"
               value={formatRelativeIssueDate(issue.updated_at)}
             />
-            <SummaryPill label="Code impact" value={birdsEyeImpactLabel(codeImpact)} />
+            <SummaryPill
+              label="Code impact"
+              value={birdsEyeImpactLabel(codeImpact)}
+            />
             <SummaryPill label="Queued" value={subissueCount} />
           </div>
 
@@ -12276,11 +12878,15 @@ function BirdsEyePreviewPanel({
                 <RunStatusBadge status={runCardUpdate.run_status} />
               </div>
               <p>{issueRunCardUpdateSummary(runCardUpdate)}</p>
-              <span>{formatRelativeIssueDate(runCardUpdate.last_activity_at)}</span>
+              <span>
+                {formatRelativeIssueDate(runCardUpdate.last_activity_at)}
+              </span>
             </section>
           ) : null}
 
-          {errorMessage ? <div className="issue-dialog-alert">{errorMessage}</div> : null}
+          {errorMessage ? (
+            <div className="issue-dialog-alert">{errorMessage}</div>
+          ) : null}
           {isLoading ? (
             <p className="issues-detail-copy muted">
               Loading the latest conversation state...
@@ -12518,7 +13124,8 @@ function DashboardCanvasRouteView({
               }}
             >
               {projectColumns.map((projectColumn) => {
-                const isSelected = selectedProjectId === projectColumn.project.id;
+                const isSelected =
+                  selectedProjectId === projectColumn.project.id;
                 const isCreatingProjectView =
                   creatingProjectId === projectColumn.project.id;
                 const isSavingProjectView =
@@ -12583,7 +13190,9 @@ function DashboardCanvasRouteView({
                             </label>
 
                             <div className="project-kanban-board-meta">
-                              <span>{projectBoard.issueCount} conversations</span>
+                              <span>
+                                {projectBoard.issueCount} conversations
+                              </span>
                               <span>
                                 {projectBoard.project.target_date
                                   ? `Target ${formatShortDate(projectBoard.project.target_date)}`
@@ -12613,8 +13222,8 @@ function DashboardCanvasRouteView({
                                 type="button"
                               >
                                 <span
-                                  className="project-kanban-column-create-icon"
                                   aria-hidden="true"
+                                  className="project-kanban-column-create-icon"
                                 >
                                   +
                                 </span>
@@ -12645,10 +13254,14 @@ function DashboardCanvasRouteView({
                                             issue.id
                                           ] ?? null;
                                         const cardUpdateSummary = cardUpdate
-                                          ? issueRunCardUpdateSummary(cardUpdate)
+                                          ? issueRunCardUpdateSummary(
+                                              cardUpdate
+                                            )
                                           : null;
-                                        const issueAgentLabel =
-                                          issueModelLabel(issue, agents);
+                                        const issueAgentLabel = issueModelLabel(
+                                          issue,
+                                          agents
+                                        );
                                         const hasAssignedAgent =
                                           Boolean(issue.assignee_agent_id) ||
                                           Object.keys(
@@ -12661,7 +13274,9 @@ function DashboardCanvasRouteView({
                                           <button
                                             className="project-kanban-card"
                                             key={issue.id}
-                                            onClick={() => onOpenIssue(issue.id)}
+                                            onClick={() =>
+                                              onOpenIssue(issue.id)
+                                            }
                                             type="button"
                                           >
                                             <div className="project-kanban-card-header">
@@ -12696,7 +13311,10 @@ function DashboardCanvasRouteView({
                                                 </span>
                                                 <span
                                                   className="project-kanban-card-update-copy"
-                                                  title={cardUpdateSummary ?? undefined}
+                                                  title={
+                                                    cardUpdateSummary ??
+                                                    undefined
+                                                  }
                                                 >
                                                   {cardUpdateSummary}
                                                 </span>
@@ -12766,11 +13384,15 @@ function DashboardCanvasRouteView({
                                 className="primary-button compact-button"
                                 disabled={isSavingProjectView}
                                 onClick={() =>
-                                  void handleSaveProjectView(projectColumn.project.id)
+                                  void handleSaveProjectView(
+                                    projectColumn.project.id
+                                  )
                                 }
                                 type="button"
                               >
-                                {isSavingProjectView ? "Saving..." : "Save view"}
+                                {isSavingProjectView
+                                  ? "Saving..."
+                                  : "Save view"}
                               </button>
                             </div>
                           </div>
@@ -12778,7 +13400,9 @@ function DashboardCanvasRouteView({
                       ) : (
                         <button
                           className="project-kanban-add-button"
-                          onClick={() => handleOpenProjectViewComposer(projectColumn)}
+                          onClick={() =>
+                            handleOpenProjectViewComposer(projectColumn)
+                          }
                           type="button"
                         >
                           <span
@@ -12806,7 +13430,7 @@ function DashboardCanvasRouteView({
       ) : (
         <div className="dashboard-canvas-empty-wrap">
           <div className="dashboard-canvas-empty-card">
-            <div className="dashboard-canvas-empty-icon" aria-hidden="true">
+            <div aria-hidden="true" className="dashboard-canvas-empty-icon">
               <svg fill="none" viewBox="0 0 48 48">
                 <path
                   d="M10 13.5h28A3.5 3.5 0 0 1 41.5 17v18A3.5 3.5 0 0 1 38 38.5H10A3.5 3.5 0 0 1 6.5 35V17A3.5 3.5 0 0 1 10 13.5Z"
@@ -13298,9 +13922,9 @@ function IssueDetailView({
 
           <section className="issues-detail-section">
             <div
+              aria-label="Conversation details sections"
               className="issues-detail-tabs"
               role="tablist"
-              aria-label="Conversation details sections"
             >
               <button
                 aria-selected={activeTab === "conversation"}
@@ -13521,11 +14145,11 @@ function IssueDetailView({
                         </button>
                       ))}
                     </div>
-                  ) : !isLoadingLinkedRuns && !linkedRunsError ? (
+                  ) : isLoadingLinkedRuns || linkedRunsError ? null : (
                     <p className="issues-detail-copy muted">
                       No model runs linked to this conversation yet.
                     </p>
-                  ) : null}
+                  )}
                 </>
               ) : null}
 
@@ -13614,12 +14238,12 @@ function IssueDetailView({
                   <IssuePropertySelectRow
                     disabled={isSavingIssue}
                     label="Status"
-                    tone={normalizeBoardIssueValue(issueDraft.status)}
                     onChange={(value) =>
                       commitPropertyPatch({
                         status: value,
                       })
                     }
+                    tone={normalizeBoardIssueValue(issueDraft.status)}
                     value={issueDraft.status}
                   >
                     {availableStatusOptions.map((status) => (
@@ -13632,7 +14256,6 @@ function IssueDetailView({
                   <IssuePropertySelectRow
                     disabled={isSavingIssue}
                     label="Project"
-                    tone="project"
                     onChange={(value) =>
                       commitPropertyPatch({
                         projectId: value,
@@ -13642,6 +14265,7 @@ function IssueDetailView({
                         workspaceWorktreeName: "",
                       })
                     }
+                    tone="project"
                     value={issueDraft.projectId}
                   >
                     <option disabled value="">
@@ -13658,7 +14282,6 @@ function IssueDetailView({
                     disabled={isSavingIssue || !selectedProjectRepoPath}
                     hint={workspaceTargetHint}
                     label="Worktree target"
-                    tone="neutral"
                     onChange={(value) =>
                       commitPropertyPatch(
                         issueWorkspaceDraftPatchFromSelection(
@@ -13668,6 +14291,7 @@ function IssueDetailView({
                         )
                       )
                     }
+                    tone="neutral"
                     value={selectedWorkspaceTargetValue}
                   >
                     <option value="main">Repo root</option>
@@ -13696,12 +14320,12 @@ function IssueDetailView({
                   <IssuePropertySelectRow
                     disabled={isSavingIssue}
                     label="Parent Conversation"
-                    tone="neutral"
                     onChange={(value) =>
                       commitPropertyPatch({
                         parentId: value,
                       })
                     }
+                    tone="neutral"
                     value={issueDraft.parentId}
                   >
                     <option value="">No parent conversation</option>
@@ -14297,7 +14921,10 @@ function ConversationIssueDetailView({
 
             <div className="conversation-detail-summary-grid">
               <SummaryPill label="Status" value={statusLabel(issue.status)} />
-              <SummaryPill label="Project" value={projectLabel(issue.project_id)} />
+              <SummaryPill
+                label="Project"
+                value={projectLabel(issue.project_id)}
+              />
               <SummaryPill label="Agent" value={providerLabel} />
               <SummaryPill label="Runtime" value={runtimeStatusLabel} />
               <SummaryPill label="Attachments" value={attachments.length} />
@@ -14315,7 +14942,8 @@ function ConversationIssueDetailView({
                 <div>
                   <h3>Attached context</h3>
                   <p className="issues-detail-copy muted">
-                    Files stored with the board issue and available to future runs.
+                    Files stored with the board issue and available to future
+                    runs.
                   </p>
                 </div>
                 <button
@@ -14349,9 +14977,7 @@ function ConversationIssueDetailView({
                   ))}
                 </div>
               ) : (
-                <p className="issues-detail-copy muted">
-                  No attachments yet.
-                </p>
+                <p className="issues-detail-copy muted">No attachments yet.</p>
               )}
             </section>
 
@@ -14360,7 +14986,8 @@ function ConversationIssueDetailView({
                 <div>
                   <h3>Queued follow-ups</h3>
                   <p className="issues-detail-copy muted">
-                    Lightweight child conversations that are still attached here.
+                    Lightweight child conversations that are still attached
+                    here.
                   </p>
                 </div>
                 <button
@@ -14418,27 +15045,35 @@ function ConversationIssueDetailView({
             {isConversationLoading ? (
               <div className="conversation-empty-state">
                 <h3>Loading daemon conversation…</h3>
-                <p>The issue already has a workspace session. The transcript will appear once the session state finishes hydrating.</p>
+                <p>
+                  The issue already has a workspace session. The transcript will
+                  appear once the session state finishes hydrating.
+                </p>
               </div>
-            ) : !hasWorkspaceSession ? (
+            ) : hasWorkspaceSession ? (
+              conversationRows.length ? (
+                <div className="conversation-timeline-scroll">
+                  <ConversationTimeline
+                    onRespondToQuestion={onRespondToQuestion}
+                    rows={conversationRows}
+                  />
+                </div>
+              ) : (
+                <div className="conversation-empty-state">
+                  <h3>No daemon messages yet</h3>
+                  <p>
+                    Send the first prompt below to start the workspace
+                    transcript for this conversation.
+                  </p>
+                </div>
+              )
+            ) : (
               <div className="conversation-empty-state">
                 <h3>No workspace session</h3>
                 <p>
-                  This issue does not have a checked-out daemon workspace, so there is no live transcript, file tree, or git history to show yet.
-                </p>
-              </div>
-            ) : conversationRows.length ? (
-              <div className="conversation-timeline-scroll">
-                <ConversationTimeline
-                  onRespondToQuestion={onRespondToQuestion}
-                  rows={conversationRows}
-                />
-              </div>
-            ) : (
-              <div className="conversation-empty-state">
-                <h3>No daemon messages yet</h3>
-                <p>
-                  Send the first prompt below to start the workspace transcript for this conversation.
+                  This issue does not have a checked-out daemon workspace, so
+                  there is no live transcript, file tree, or git history to show
+                  yet.
                 </p>
               </div>
             )}
@@ -14458,7 +15093,8 @@ function ConversationIssueDetailView({
                 />
                 <div className="conversation-composer-footer">
                   <span className="issues-detail-copy muted">
-                    Replies, tool calls, sub-agents, and code changes stream from the daemon session.
+                    Replies, tool calls, sub-agents, and code changes stream
+                    from the daemon session.
                   </span>
                   <button
                     className="primary-button"
@@ -14480,13 +15116,11 @@ function ConversationIssueDetailView({
             <section className="inspector-panel workspace-details-panel">
               <h3>Workspace Inspector</h3>
               <p className="issues-detail-copy muted">
-                Changes, files, and commits appear here once this conversation has an attached daemon workspace.
+                Changes, files, and commits appear here once this conversation
+                has an attached daemon workspace.
               </p>
               <div className="workspace-detail-grid">
-                <DetailRow
-                  label="Status"
-                  value={statusLabel(issue.status)}
-                />
+                <DetailRow label="Status" value={statusLabel(issue.status)} />
                 <DetailRow
                   label="Project"
                   value={projectLabel(issue.project_id)}
@@ -14540,12 +15174,12 @@ function ConversationIssueDetailView({
                   <IssuePropertySelectRow
                     disabled={isSavingIssue}
                     label="Status"
-                    tone={normalizeBoardIssueValue(issueDraft.status)}
                     onChange={(value) =>
                       commitPropertyPatch({
                         status: value,
                       })
                     }
+                    tone={normalizeBoardIssueValue(issueDraft.status)}
                     value={issueDraft.status}
                   >
                     {availableStatusOptions.map((status) => (
@@ -14558,7 +15192,6 @@ function ConversationIssueDetailView({
                   <IssuePropertySelectRow
                     disabled={isSavingIssue}
                     label="Project"
-                    tone="project"
                     onChange={(value) =>
                       commitPropertyPatch({
                         projectId: value,
@@ -14568,6 +15201,7 @@ function ConversationIssueDetailView({
                         workspaceWorktreeName: "",
                       })
                     }
+                    tone="project"
                     value={issueDraft.projectId}
                   >
                     <option disabled value="">
@@ -14584,7 +15218,6 @@ function ConversationIssueDetailView({
                     disabled={isSavingIssue || !selectedProjectRepoPath}
                     hint={workspaceTargetHint}
                     label="Worktree target"
-                    tone="neutral"
                     onChange={(value) =>
                       commitPropertyPatch(
                         issueWorkspaceDraftPatchFromSelection(
@@ -14594,6 +15227,7 @@ function ConversationIssueDetailView({
                         )
                       )
                     }
+                    tone="neutral"
                     value={selectedWorkspaceTargetValue}
                   >
                     <option value="main">Repo root</option>
@@ -14622,12 +15256,12 @@ function ConversationIssueDetailView({
                   <IssuePropertySelectRow
                     disabled={isSavingIssue}
                     label="Parent Conversation"
-                    tone="neutral"
                     onChange={(value) =>
                       commitPropertyPatch({
                         parentId: value,
                       })
                     }
+                    tone="neutral"
                     value={issueDraft.parentId}
                   >
                     <option value="">No parent conversation</option>
@@ -14889,11 +15523,14 @@ function IssueWorkspaceDetailView({
   workspaceTargetLoading: boolean;
   workspaceTargetWorktrees: GitWorktreeRecord[];
 }) {
-  const issueProjectName = projectLabel(issueDraft.projectId || issue.project_id);
+  const issueProjectName = projectLabel(
+    issueDraft.projectId || issue.project_id
+  );
   const issueBreadcrumbTitle = issueDraft.title.trim() || issue.title;
   const hasWorkspaceSession = Boolean(workspace?.session_id);
   const isConversationLoading =
-    sessionLoading || (hasWorkspaceSession && session == null && sessionRows.length === 0);
+    sessionLoading ||
+    (hasWorkspaceSession && session == null && sessionRows.length === 0);
   const composerDisabled = !session;
   const effectiveWorkspaceCenterTab =
     workspaceCenterTab === "runs" ? "conversation" : workspaceCenterTab;
@@ -14906,14 +15543,20 @@ function IssueWorkspaceDetailView({
     issueDraft.command,
     issueDraft.model
   );
-  const runtimeModelOptions = buildAgentModelOptions(issueDraft, dependencyCheck);
+  const runtimeModelOptions = buildAgentModelOptions(
+    issueDraft,
+    dependencyCheck
+  );
   const runtimeThinkingEffortOptions = mergeIssueOptions(
     ["auto", "low", "medium", "high"],
     issueDraft.thinkingEffort
   );
   const isSessionStreaming =
     runtimeStatusValue === "running" || runtimeStatusValue === "waiting";
-  const runtimeTone = workspaceRuntimeTone(runtimeStatusValue, sessionErrorMessage);
+  const runtimeTone = workspaceRuntimeTone(
+    runtimeStatusValue,
+    sessionErrorMessage
+  );
 
   const commitRuntimePatch = (patch: Partial<IssueEditDraft>) => {
     onIssueDraftChange(patch);
@@ -14935,14 +15578,14 @@ function IssueWorkspaceDetailView({
           : "route-scroll issues-detail-route conversation-detail-route"
       }
     >
-      {!embedded ? (
+      {embedded ? null : (
         <DashboardBreadcrumbs
           items={[
             { label: "Conversations", onClick: onBack },
             { label: issueBreadcrumbTitle },
           ]}
         />
-      ) : null}
+      )}
 
       <div className="conversation-detail-shell workspace-issue-detail-shell">
         <main className="workspace-center">
@@ -14952,7 +15595,9 @@ function IssueWorkspaceDetailView({
                 <div className="workspace-tab-strip">
                   <WorkspaceCenterTabButton
                     active={effectiveWorkspaceCenterTab === "conversation"}
-                    label={session?.title ?? (issueDraft.title.trim() || issue.title)}
+                    label={
+                      session?.title ?? (issueDraft.title.trim() || issue.title)
+                    }
                     onClick={() => onSelectWorkspaceCenterTab("conversation")}
                   />
                   <WorkspaceCenterTabButton
@@ -14977,12 +15622,18 @@ function IssueWorkspaceDetailView({
                       issueAssigneeLabel(
                         agents,
                         issueDraft.assigneeAgentId || issue.assignee_agent_id
-                      ) || providerLabelForRuntimeConfig(issueDraft.command, issueDraft.model)
+                      ) ||
+                      providerLabelForRuntimeConfig(
+                        issueDraft.command,
+                        issueDraft.model
+                      )
                     }
                     issueLabel={issueDraft.title.trim() || issue.title}
                     renderedCount={sessionRows.length}
                     sessionId={session?.id ?? null}
-                    title={session?.title ?? (issueDraft.title.trim() || issue.title)}
+                    title={
+                      session?.title ?? (issueDraft.title.trim() || issue.title)
+                    }
                   />
 
                   {isConversationLoading ? (
@@ -15000,7 +15651,10 @@ function IssueWorkspaceDetailView({
                   ) : (
                     <div className="conversation-empty-state">
                       <h3>No daemon messages yet</h3>
-                      <p>Send the first prompt below to start the workspace transcript.</p>
+                      <p>
+                        Send the first prompt below to start the workspace
+                        transcript.
+                      </p>
                     </div>
                   )}
 
@@ -15016,14 +15670,15 @@ function IssueWorkspaceDetailView({
                     isStreaming={isSessionStreaming}
                     latestCompletionSummary={latestCompletionSummary}
                     modelOptions={runtimeModelOptions}
-                    onChange={onPromptChange}
                     onAddAttachment={onAddAttachment}
                     onCancel={session ? onStopSession : undefined}
-                    onModelChange={(value) => commitRuntimePatch({ model: value })}
+                    onChange={onPromptChange}
+                    onModelChange={(value) =>
+                      commitRuntimePatch({ model: value })
+                    }
                     onPlanModeChange={(value) =>
                       commitRuntimePatch({
-                        planMode:
-                          runtimeProvider === "claude" ? value : false,
+                        planMode: runtimeProvider === "claude" ? value : false,
                       })
                     }
                     onProviderChange={(value) =>
@@ -15062,7 +15717,10 @@ function IssueWorkspaceDetailView({
                     </button>
                   </div>
                   <div className="terminal-frame" ref={terminalContainerRef} />
-                  <form className="workspace-terminal-form" onSubmit={onRunTerminal}>
+                  <form
+                    className="workspace-terminal-form"
+                    onSubmit={onRunTerminal}
+                  >
                     <input
                       onChange={(event) =>
                         onTerminalCommandChange(event.target.value)
@@ -15094,8 +15752,14 @@ function IssueWorkspaceDetailView({
                   {selectedDiff ? (
                     <div className="workspace-preview">
                       <div className="summary-grid">
-                        <SummaryPill label="Added" value={selectedDiff.additions} />
-                        <SummaryPill label="Deleted" value={selectedDiff.deletions} />
+                        <SummaryPill
+                          label="Added"
+                          value={selectedDiff.additions}
+                        />
+                        <SummaryPill
+                          label="Deleted"
+                          value={selectedDiff.deletions}
+                        />
                         <SummaryPill
                           label="Binary"
                           value={selectedDiff.is_binary ? "yes" : "no"}
@@ -15117,8 +15781,8 @@ function IssueWorkspaceDetailView({
             <section className="workspace-empty-state workspace-center-empty">
               <h3>Creating workspace…</h3>
               <p>
-                This issue always runs from a workspace. The daemon is still attaching
-                the repo root or git worktree for this issue.
+                This issue always runs from a workspace. The daemon is still
+                attaching the repo root or git worktree for this issue.
               </p>
             </section>
           )}
@@ -15126,7 +15790,7 @@ function IssueWorkspaceDetailView({
 
         {issueWorkspaceSidebar ? (
           issueWorkspaceSidebar
-        ) : !embedded ? (
+        ) : embedded ? null : (
           <aside className="conversation-detail-empty-sidebar">
             <section className="inspector-panel workspace-details-panel">
               <h3>Workspace Inspector</h3>
@@ -15136,7 +15800,7 @@ function IssueWorkspaceDetailView({
               </p>
             </section>
           </aside>
-        ) : null}
+        )}
       </div>
     </section>
   );
@@ -15184,7 +15848,9 @@ function SessionConversationRowView({
       <div className="conversation-row-content">
         {row.blocks.map((block) => {
           if (block.kind === "text") {
-            return <ConversationTextBlockView key={block.id} text={block.text} />;
+            return (
+              <ConversationTextBlockView key={block.id} text={block.text} />
+            );
           }
           if (block.kind === "error") {
             return (
@@ -15223,10 +15889,7 @@ function SessionConversationRowView({
           }
           if (block.kind === "command") {
             return (
-              <SessionConversationCommandCard
-                block={block}
-                key={block.id}
-              />
+              <SessionConversationCommandCard block={block} key={block.id} />
             );
           }
           if (block.kind === "note") {
@@ -15458,7 +16121,7 @@ export function WorkspaceChatComposer({
       const activeElement = document.activeElement;
       if (
         trimmedValue.length === 0 &&
-        (!activeElement || !composerRef.current?.contains(activeElement))
+        !(activeElement && composerRef.current?.contains(activeElement))
       ) {
         setIsExpanded(false);
         setIsMenuOpen(false);
@@ -15486,7 +16149,7 @@ export function WorkspaceChatComposer({
   ) => {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
       event.preventDefault();
-      if (!disabled && !isStreaming && trimmedValue.length > 0) {
+      if (!(disabled || isStreaming) && trimmedValue.length > 0) {
         onSend();
       }
       return;
@@ -15520,11 +16183,17 @@ export function WorkspaceChatComposer({
       {!isCompact && isPlanMode ? (
         <div className="workspace-chat-composer-plan">
           <span className="workspace-chat-composer-plan-icon">⌘</span>
-          <span>Plan mode — Claude will create a plan before making changes</span>
+          <span>
+            Plan mode — Claude will create a plan before making changes
+          </span>
         </div>
       ) : null}
 
-      {!isCompact ? (
+      {isCompact ? (
+        <div className="workspace-chat-composer-compact-copy">
+          What do you want to build?
+        </div>
+      ) : (
         <textarea
           className="workspace-chat-composer-input"
           disabled={disabled}
@@ -15537,22 +16206,22 @@ export function WorkspaceChatComposer({
           rows={3}
           value={value}
         />
-      ) : (
-        <div className="workspace-chat-composer-compact-copy">
-          What do you want to build?
-        </div>
       )}
 
       <div className="workspace-chat-composer-toolbar">
         <div className="workspace-chat-composer-controls">
-          {!isCompact ? (
+          {isCompact ? (
+            <span className="workspace-chat-composer-compact-spacer" />
+          ) : (
             <>
               {providerOptions.length > 0 && onProviderChange ? (
                 <WorkspaceChatComposerSelect
                   ariaLabel="Conversation provider"
                   disabled={disabled}
                   onChange={onProviderChange}
-                  value={selectedProvider ?? providerOptions[0]?.value ?? "claude"}
+                  value={
+                    selectedProvider ?? providerOptions[0]?.value ?? "claude"
+                  }
                 >
                   {providerOptions.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -15663,8 +16332,6 @@ export function WorkspaceChatComposer({
                 </span>
               </div>
             </>
-          ) : (
-            <span className="workspace-chat-composer-compact-spacer" />
           )}
         </div>
         <button
@@ -15772,8 +16439,8 @@ function compactMetricNumber(value: number) {
   if (value >= 1_000_000) {
     return `${(value / 1_000_000).toFixed(1)}m`;
   }
-  if (value >= 1_000) {
-    return `${(value / 1_000).toFixed(1)}k`;
+  if (value >= 1000) {
+    return `${(value / 1000).toFixed(1)}k`;
   }
   return `${value}`;
 }
@@ -15798,7 +16465,9 @@ function SessionConversationCommandCard({
         <pre className="conversation-command-output">{block.output}</pre>
       ) : null}
       {typeof block.exitCode === "number" ? (
-        <div className="conversation-command-meta">Exit code {block.exitCode}</div>
+        <div className="conversation-command-meta">
+          Exit code {block.exitCode}
+        </div>
       ) : null}
     </div>
   );
@@ -15814,7 +16483,9 @@ function SessionConversationNoteCard({
       <div className="conversation-note-header">
         <span className="conversation-note-kicker">{block.kicker}</span>
         {block.meta.length ? (
-          <span className="conversation-note-meta">{block.meta.join(" · ")}</span>
+          <span className="conversation-note-meta">
+            {block.meta.join(" · ")}
+          </span>
         ) : null}
       </div>
       <div className="conversation-note-copy">{block.text}</div>
@@ -15870,7 +16541,9 @@ function ConversationTimelineRowView({
       <div className="conversation-row-content">
         {row.blocks.map((block) => {
           if (block.kind === "text") {
-            return <ConversationTextBlockView key={block.id} text={block.text} />;
+            return (
+              <ConversationTextBlockView key={block.id} text={block.text} />
+            );
           }
           if (block.kind === "error") {
             return (
@@ -15939,7 +16612,11 @@ function ConversationTextBlockView({ text }: { text: string }) {
   );
 }
 
-function ConversationTodoListCard({ items }: { items: ConversationTodoItem[] }) {
+function ConversationTodoListCard({
+  items,
+}: {
+  items: ConversationTodoItem[];
+}) {
   return (
     <div className="conversation-todo-card">
       {items.map((item) => (
@@ -16029,7 +16706,9 @@ function ConversationQuestionCard({
                 type="button"
               >
                 <span>{option.label}</span>
-                {option.description ? <small>{option.description}</small> : null}
+                {option.description ? (
+                  <small>{option.description}</small>
+                ) : null}
               </button>
             );
           })}
@@ -16105,10 +16784,7 @@ function ConversationToolCard({
           </div>
         </div>
         <div className="conversation-tool-status-shell">
-          <span
-            className="conversation-tool-status"
-            data-status={tool.status}
-          >
+          <span className="conversation-tool-status" data-status={tool.status}>
             {capitalize(tool.status.replace("_", " "))}
           </span>
           {hasDetail ? (
@@ -16153,7 +16829,9 @@ function ConversationSubAgentCard({
           </span>
           <div>
             <strong>{conversationSubAgentLabel(activity.subagentType)}</strong>
-            {activity.description ? <small>{activity.description}</small> : null}
+            {activity.description ? (
+              <small>{activity.description}</small>
+            ) : null}
           </div>
         </div>
         <div className="conversation-tool-status-shell">
@@ -16199,7 +16877,9 @@ type ConversationTextSegment = {
   language: string | null;
 };
 
-function splitConversationTextSegments(text: string): ConversationTextSegment[] {
+function splitConversationTextSegments(
+  text: string
+): ConversationTextSegment[] {
   const source = text.trim();
   if (!source.includes("```")) {
     return [
@@ -16502,7 +17182,10 @@ function DashboardIssuePreviewDialogView({
 
             <div className="dashboard-issue-preview-summary">
               <SummaryPill label="Status" value={statusLabel(issue.status)} />
-              <SummaryPill label="Project" value={projectLabel(issue.project_id)} />
+              <SummaryPill
+                label="Project"
+                value={projectLabel(issue.project_id)}
+              />
               <SummaryPill label="Messages" value={comments.length} />
               <SummaryPill label="Attachments" value={attachments.length} />
               <SummaryPill label="Queued" value={subissueCount} />
@@ -16519,7 +17202,8 @@ function DashboardIssuePreviewDialogView({
                   {issueRunCardUpdateSummary(runCardUpdate)}
                 </p>
                 <span>
-                  Last activity {formatRelativeIssueDate(runCardUpdate.last_activity_at)}
+                  Last activity{" "}
+                  {formatRelativeIssueDate(runCardUpdate.last_activity_at)}
                 </span>
               </section>
             ) : null}
@@ -16558,9 +17242,7 @@ function DashboardIssuePreviewDialogView({
                     ))}
                   </div>
                 ) : (
-                  <p className="issues-detail-copy muted">
-                    No messages yet.
-                  </p>
+                  <p className="issues-detail-copy muted">No messages yet.</p>
                 )}
               </section>
 
@@ -16921,7 +17603,13 @@ function IssueListStatusIcon({ status }: { status: string }) {
     default:
       return (
         <svg aria-hidden="true" fill="none" viewBox="0 0 16 16">
-          <circle cx="8" cy="8" r="5.25" stroke="currentColor" strokeWidth="1.8" />
+          <circle
+            cx="8"
+            cy="8"
+            r="5.25"
+            stroke="currentColor"
+            strokeWidth="1.8"
+          />
         </svg>
       );
   }
@@ -17169,8 +17857,8 @@ function CreateCompanyDialogView({
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
       <div
-        aria-modal="true"
         aria-labelledby="create-company-dialog-title"
+        aria-modal="true"
         className="project-dialog"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
@@ -17226,8 +17914,7 @@ function CreateCompanyDialogView({
                 value={description}
               />
               <small className="issue-dialog-hint">
-                Optional setup context you can refine later from space
-                settings.
+                Optional setup context you can refine later from space settings.
               </small>
             </label>
 
@@ -17377,9 +18064,7 @@ function CreateIssueDialogView({
       typeof project === "object" &&
       typeof (project as ProjectRecord).id === "string"
   );
-  const worktreeOptions = normalizeGitWorktreeRecords(
-    workspaceTargetWorktrees
-  );
+  const worktreeOptions = normalizeGitWorktreeRecords(workspaceTargetWorktrees);
   const dialogTitle =
     mode === "queuedMessage" ? "Queue message" : "New conversation";
   const issueProjectValidationMessage =
@@ -17388,7 +18073,8 @@ function CreateIssueDialogView({
         ? "Create a project before queueing messages."
         : "Create a project before creating a conversation."
       : null;
-  const visibleIssueErrorMessage = issueErrorMessage ?? issueProjectValidationMessage;
+  const visibleIssueErrorMessage =
+    issueErrorMessage ?? issueProjectValidationMessage;
   const canCreate =
     !isSavingIssue &&
     issueTitle.trim().length > 0 &&
@@ -17403,8 +18089,7 @@ function CreateIssueDialogView({
     issueWorkspaceTargetValue.startsWith("existing:") &&
     !worktreeOptions.some(
       (worktree) =>
-        existingWorktreeTargetValue(worktree.path) ===
-        issueWorkspaceTargetValue
+        existingWorktreeTargetValue(worktree.path) === issueWorkspaceTargetValue
     )
       ? {
           name: fileName(issueWorkspaceTargetValue.slice("existing:".length)),
@@ -17442,8 +18127,8 @@ function CreateIssueDialogView({
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
       <div
-        aria-modal="true"
         aria-labelledby="create-issue-dialog-title"
+        aria-modal="true"
         className="issue-dialog"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
@@ -17474,9 +18159,7 @@ function CreateIssueDialogView({
 
         <div className="issue-dialog-body">
           {visibleIssueErrorMessage ? (
-            <div className="issue-dialog-alert">
-              {visibleIssueErrorMessage}
-            </div>
+            <div className="issue-dialog-alert">{visibleIssueErrorMessage}</div>
           ) : null}
 
           <div className="issue-dialog-composer">
@@ -17567,8 +18250,8 @@ function CreateIssueDialogView({
                 <div>
                   <h3>Model configuration</h3>
                   <p className="issue-dialog-inline-hint">
-                    Choose which local model runs this conversation and how
-                    much autonomy it gets.
+                    Choose which local model runs this conversation and how much
+                    autonomy it gets.
                   </p>
                 </div>
               </div>
@@ -17600,10 +18283,7 @@ function CreateIssueDialogView({
                   </AgentConfigSelect>
                 </AgentConfigField>
 
-                <AgentConfigField
-                  htmlFor="issue-dialog-model"
-                  label="Model"
-                >
+                <AgentConfigField htmlFor="issue-dialog-model" label="Model">
                   <AgentConfigSelect
                     ariaLabel="Conversation model"
                     id="issue-dialog-model"
@@ -17647,7 +18327,10 @@ function CreateIssueDialogView({
                     value={isPlanMode ? "plan" : "default"}
                   >
                     <option value="default">Off</option>
-                    <option disabled={runtimeProvider !== "claude"} value="plan">
+                    <option
+                      disabled={runtimeProvider !== "claude"}
+                      value="plan"
+                    >
                       Claude plan mode
                     </option>
                   </AgentConfigSelect>
@@ -17996,12 +18679,14 @@ function ThemeModeCard({
         <span className="theme-card-icon">{themeModeSymbol(mode)}</span>
         <span>{capitalize(mode)}</span>
       </div>
-      {!isAvailable ? (
-        <small className="theme-card-meta">Coming soon</small>
-      ) : isSelected ? (
-        <span className="theme-card-check">✓</span>
+      {isAvailable ? (
+        isSelected ? (
+          <span className="theme-card-check">✓</span>
+        ) : (
+          <span className="theme-card-empty" />
+        )
       ) : (
-        <span className="theme-card-empty" />
+        <small className="theme-card-meta">Coming soon</small>
       )}
     </button>
   );
@@ -18249,8 +18934,8 @@ function IssueWorkspaceInspectorMeta({
         <IssuePropertySelectRow
           disabled={isSavingIssue}
           label="Status"
-          tone={normalizeBoardIssueValue(issueDraft.status)}
           onChange={(value) => commitPropertyPatch({ status: value })}
+          tone={normalizeBoardIssueValue(issueDraft.status)}
           value={issueDraft.status}
         >
           {availableStatusOptions.map((status) => (
@@ -18263,12 +18948,12 @@ function IssueWorkspaceInspectorMeta({
         <IssuePropertySelectRow
           disabled={isSavingIssue}
           label="Assignee"
-          tone="neutral"
           onChange={(value) =>
             commitPropertyPatch({
               assigneeAgentId: value,
             })
           }
+          tone="neutral"
           value={issueDraft.assigneeAgentId}
         >
           <option value="">Unassigned</option>
@@ -18282,7 +18967,6 @@ function IssueWorkspaceInspectorMeta({
         <IssuePropertySelectRow
           disabled={isSavingIssue}
           label="Project"
-          tone="project"
           onChange={(value) =>
             commitPropertyPatch({
               projectId: value,
@@ -18292,6 +18976,7 @@ function IssueWorkspaceInspectorMeta({
               workspaceWorktreeName: "",
             })
           }
+          tone="project"
           value={issueDraft.projectId}
         >
           <option disabled value="">
@@ -18308,7 +18993,6 @@ function IssueWorkspaceInspectorMeta({
           disabled={isSavingIssue || !selectedProjectRepoPath}
           hint={workspaceTargetHint}
           label="Worktree target"
-          tone="neutral"
           onChange={(value) =>
             commitPropertyPatch(
               issueWorkspaceDraftPatchFromSelection(
@@ -18318,6 +19002,7 @@ function IssueWorkspaceInspectorMeta({
               )
             )
           }
+          tone="neutral"
           value={selectedWorkspaceTargetValue}
         >
           <option value="main">Repo root</option>
@@ -18344,8 +19029,8 @@ function IssueWorkspaceInspectorMeta({
         <IssuePropertySelectRow
           disabled={isSavingIssue}
           label="Parent"
-          tone="neutral"
           onChange={(value) => commitPropertyPatch({ parentId: value })}
+          tone="neutral"
           value={issueDraft.parentId}
         >
           <option value="">No parent conversation</option>
@@ -18360,7 +19045,10 @@ function IssueWorkspaceInspectorMeta({
       <section className="workspace-issue-sidebar-section">
         <IssuePropertyStaticRow
           label="Provider"
-          value={providerLabelForRuntimeConfig(issueDraft.command, issueDraft.model)}
+          value={providerLabelForRuntimeConfig(
+            issueDraft.command,
+            issueDraft.model
+          )}
         />
         <IssuePropertyStaticRow
           label="Model"
@@ -18412,7 +19100,10 @@ function IssueWorkspaceSummaryMeta({
           <h3>{issue.identifier ?? issue.id}</h3>
           <p>{issue.title}</p>
         </div>
-        <IssuePropertyStaticRow label="Status" value={statusLabel(issue.status)} />
+        <IssuePropertyStaticRow
+          label="Status"
+          value={statusLabel(issue.status)}
+        />
         <IssuePropertyStaticRow
           label="Assignee"
           value={issueAssigneeLabel(agents, issue.assignee_agent_id)}
@@ -18644,12 +19335,12 @@ export function WorkspaceInspectorSidebar({
                 ) : null}
               </div>
             ) : headerActionMode === "push" ? (
-                <button
-                  aria-label="Push changes"
-                  className="git-header-push-button"
-                  disabled={!canPush}
-                  onClick={onGitPush}
-                  type="button"
+              <button
+                aria-label="Push changes"
+                className="git-header-push-button"
+                disabled={!canPush}
+                onClick={onGitPush}
+                type="button"
               >
                 Push
               </button>
@@ -18705,7 +19396,9 @@ export function WorkspaceInspectorSidebar({
             <label className="git-commit-field">
               <span>Commit message</span>
               <input
-                onChange={(event) => onGitCommitMessageChange(event.target.value)}
+                onChange={(event) =>
+                  onGitCommitMessageChange(event.target.value)
+                }
                 placeholder="Describe this change"
                 value={gitCommitMessage}
               />
@@ -18758,11 +19451,15 @@ export function WorkspaceInspectorSidebar({
                   className="file-list-button"
                   key={entry.path}
                   onClick={() =>
-                    entry.is_dir ? onOpenDirectory(entry.path) : onOpenFile(entry.path)
+                    entry.is_dir
+                      ? onOpenDirectory(entry.path)
+                      : onOpenFile(entry.path)
                   }
                   type="button"
                 >
-                  <strong>{entry.is_dir ? `${entry.name}/` : entry.name}</strong>
+                  <strong>
+                    {entry.is_dir ? `${entry.name}/` : entry.name}
+                  </strong>
                   <span>{entry.path}</span>
                 </button>
               ))}
@@ -18774,7 +19471,10 @@ export function WorkspaceInspectorSidebar({
           <div className="workspace-sidebar-content">
             <div className="summary-grid">
               <SummaryPill label="Branch" value={currentBranchName} />
-              <SummaryPill label="Changed" value={gitState?.files.length ?? 0} />
+              <SummaryPill
+                label="Changed"
+                value={gitState?.files.length ?? 0}
+              />
               <SummaryPill
                 label="Clean"
                 value={gitState?.is_clean ? "yes" : "no"}
@@ -19064,7 +19764,7 @@ function GitChangeSection({
               >
                 {primaryActionLabel}
               </button>
-              {!file.staged ? (
+              {file.staged ? null : (
                 <button
                   className="secondary-button compact-button destructive-button"
                   onClick={() => onDiscard(file)}
@@ -19072,7 +19772,7 @@ function GitChangeSection({
                 >
                   Discard
                 </button>
-              ) : null}
+              )}
             </div>
           </div>
         ))}
@@ -19337,7 +20037,9 @@ function createIssueDraft(issue: IssueRecord): IssueEditDraft {
   const workspaceDraft = parseIssueExecutionWorkspaceSettings(
     issue.execution_workspace_settings
   );
-  const runtimeDraft = parseIssueAdapterOverrides(issue.assignee_adapter_overrides);
+  const runtimeDraft = parseIssueAdapterOverrides(
+    issue.assignee_adapter_overrides
+  );
 
   return {
     ...runtimeDraft,
@@ -19438,7 +20140,8 @@ function buildAgentConfigUpdateParams(
     ...objectFromUnknown(agent.adapter_config),
     command: normalizeOptionalDraftString(draft.command) ?? "claude",
     model: normalizeOptionalDraftString(draft.model) ?? "default",
-    thinkingEffort: normalizeOptionalDraftString(draft.thinkingEffort) ?? "auto",
+    thinkingEffort:
+      normalizeOptionalDraftString(draft.thinkingEffort) ?? "auto",
     reasoningEffort:
       normalizeOptionalDraftString(draft.thinkingEffort) ?? "auto",
     enableChrome: draft.enableChrome,
@@ -19520,7 +20223,7 @@ function parseAgentConfigEnvVars(value: unknown): AgentConfigEnvVarDraft[] {
       const record = objectFromUnknown(entry);
       const key = stringFromUnknown(record.key);
       const envValue = stringFromUnknown(record.value);
-      if (!key && !envValue) {
+      if (!(key || envValue)) {
         return null;
       }
       return createAgentConfigEnvVarDraft({
@@ -19791,11 +20494,11 @@ function buildProviderModelCatalog(
   const discoveredModels =
     provider === "codex"
       ? dependencyCheck?.cli.codex.installed
-        ? dependencyCheck?.cli.codex.models ?? []
+        ? (dependencyCheck?.cli.codex.models ?? [])
         : []
       : provider === "claude"
         ? dependencyCheck?.cli.claude.installed
-          ? dependencyCheck?.cli.claude.models ?? []
+          ? (dependencyCheck?.cli.claude.models ?? [])
           : []
         : [];
   const fallbackModels =
@@ -19805,7 +20508,10 @@ function buildProviderModelCatalog(
         ? fallbackClaudeModelOptions
         : [];
 
-  return ["default", ...(discoveredModels.length ? discoveredModels : fallbackModels)];
+  return [
+    "default",
+    ...(discoveredModels.length ? discoveredModels : fallbackModels),
+  ];
 }
 
 function runtimeDraftPatchForProviderSelection(
@@ -19924,11 +20630,15 @@ function useBirdsEyeCodeImpact(sessionIds: string[]) {
     Record<string, BirdsEyeCodeImpactSummary>
   >({});
   const sortedSessionIds = useMemo(
-    () => [...new Set(sessionIds)].sort((left, right) => left.localeCompare(right)),
+    () =>
+      [...new Set(sessionIds)].sort((left, right) => left.localeCompare(right)),
     [sessionIds]
   );
   const missingSessionIds = useMemo(
-    () => sortedSessionIds.filter((sessionId) => summaries[sessionId] === undefined),
+    () =>
+      sortedSessionIds.filter(
+        (sessionId) => summaries[sessionId] === undefined
+      ),
     [sortedSessionIds, summaries]
   );
   const missingSessionKey = missingSessionIds.join("|");
@@ -20077,8 +20787,8 @@ function buildBirdsEyeTree({
         })
       );
 
-      for (const worktree of projectWorktreesByProjectId[project.id]?.worktrees ??
-        []) {
+      for (const worktree of projectWorktreesByProjectId[project.id]
+        ?.worktrees ?? []) {
         ensureFolder(
           birdsEyeFolderNode({
             branch: worktree.branch ?? null,
@@ -20176,8 +20886,7 @@ function buildBirdsEyeTree({
             return right.liveRunCount - left.liveRunCount;
           }
 
-          const leftTime =
-            parseIssueDate(left.lastActivityAt)?.getTime() ?? 0;
+          const leftTime = parseIssueDate(left.lastActivityAt)?.getTime() ?? 0;
           const rightTime =
             parseIssueDate(right.lastActivityAt)?.getTime() ?? 0;
           if (rightTime !== leftTime) {
@@ -20187,15 +20896,11 @@ function buildBirdsEyeTree({
           return left.label.localeCompare(right.label);
         });
       const allChats = folders.flatMap((folder) => folder.chats);
-      const latestChat = allChats
-        .slice()
-        .sort((left, right) => {
-          const leftTime =
-            parseIssueDate(left.lastActivityAt)?.getTime() ?? 0;
-          const rightTime =
-            parseIssueDate(right.lastActivityAt)?.getTime() ?? 0;
-          return rightTime - leftTime;
-        })[0];
+      const latestChat = allChats.slice().sort((left, right) => {
+        const leftTime = parseIssueDate(left.lastActivityAt)?.getTime() ?? 0;
+        const rightTime = parseIssueDate(right.lastActivityAt)?.getTime() ?? 0;
+        return rightTime - leftTime;
+      })[0];
 
       return {
         chatCount: allChats.length,
@@ -20294,11 +20999,15 @@ function normalizeBirdsEyeWorktreeTileState(
     .slice(0, 4);
   const lruIssueIds = (tileState?.lruIssueIds ?? [])
     .filter((issueId) => issueIds.includes(issueId))
-    .concat(issueIds.filter((issueId) => !(tileState?.lruIssueIds ?? []).includes(issueId)));
+    .concat(
+      issueIds.filter(
+        (issueId) => !(tileState?.lruIssueIds ?? []).includes(issueId)
+      )
+    );
   const activeIssueId =
     tileState?.activeIssueId && issueIds.includes(tileState.activeIssueId)
       ? tileState.activeIssueId
-      : issueIds[0] ?? null;
+      : (issueIds[0] ?? null);
 
   return {
     activeIssueId,
@@ -20360,18 +21069,21 @@ function buildBirdsEyeCanvasModel(
         return Math.max(maxHeight, boardHeight);
       }, 0)
     );
-    const rowOffsets = rowHeights.reduce<number[]>((offsets, rowHeight, rowIndex) => {
-      if (rowIndex === 0) {
-        offsets.push(0);
+    const rowOffsets = rowHeights.reduce<number[]>(
+      (offsets, rowHeight, rowIndex) => {
+        if (rowIndex === 0) {
+          offsets.push(0);
+          return offsets;
+        }
+        offsets.push(
+          offsets[rowIndex - 1]! +
+            rowHeights[rowIndex - 1]! +
+            birdsEyeWorktreeBoardGap
+        );
         return offsets;
-      }
-      offsets.push(
-        offsets[rowIndex - 1]! +
-          rowHeights[rowIndex - 1]! +
-          birdsEyeWorktreeBoardGap
-      );
-      return offsets;
-    }, []);
+      },
+      []
+    );
     const regionWidth = Math.max(
       birdsEyeRepoRegionMinWidth,
       birdsEyeRepoRegionPadding * 2 +
@@ -20436,10 +21148,12 @@ function buildBirdsEyeCanvasModel(
 
   const bounds = repoRegions.length
     ? {
-        height: Math.max(
-          ...repoRegions.map((region) => region.y + region.height)
-        ) + 220,
-        width: Math.max(...repoRegions.map((region) => region.x + region.width)) + 220,
+        height:
+          Math.max(...repoRegions.map((region) => region.y + region.height)) +
+          220,
+        width:
+          Math.max(...repoRegions.map((region) => region.x + region.width)) +
+          220,
       }
     : { width: 2200, height: 1600 };
 
@@ -20479,9 +21193,9 @@ function buildBirdsEyeCanvasModel(
     }
 
     return (
-      normalizedState.worktreeTiles[target.worktreeKey ?? ""]?.issueIds.includes(
-        target.issueId
-      ) ?? false
+      normalizedState.worktreeTiles[
+        target.worktreeKey ?? ""
+      ]?.issueIds.includes(target.issueId) ?? false
     );
   })();
 
@@ -20596,7 +21310,8 @@ function birdsEyeFolderForIssue(
     return birdsEyeFolderNode({
       branch: workspace.workspace_branch ?? null,
       label:
-        workspace.workspace_branch?.trim() || fileName(workspace.workspace_repo_path),
+        workspace.workspace_branch?.trim() ||
+        fileName(workspace.workspace_repo_path),
       path: workspace.workspace_repo_path,
       projectId: project.id,
       runtimeDraft: defaultRuntimeDraft,
@@ -20675,13 +21390,21 @@ function birdsEyeActivityTimestamp(
   update: IssueRunCardUpdateRecord | null,
   workspace: WorkspaceRecord | null
 ) {
-  return [update?.last_activity_at, workspace?.last_accessed_at, workspace?.updated_at, issue.updated_at, issue.created_at]
-    .filter((value): value is string => Boolean(value))
-    .sort((left, right) => {
-      const leftTime = parseIssueDate(left)?.getTime() ?? 0;
-      const rightTime = parseIssueDate(right)?.getTime() ?? 0;
-      return rightTime - leftTime;
-    })[0] ?? null;
+  return (
+    [
+      update?.last_activity_at,
+      workspace?.last_accessed_at,
+      workspace?.updated_at,
+      issue.updated_at,
+      issue.created_at,
+    ]
+      .filter((value): value is string => Boolean(value))
+      .sort((left, right) => {
+        const leftTime = parseIssueDate(left)?.getTime() ?? 0;
+        const rightTime = parseIssueDate(right)?.getTime() ?? 0;
+        return rightTime - leftTime;
+      })[0] ?? null
+  );
 }
 
 function dashboardOverviewChatToIssueRecord(
@@ -20912,44 +21635,49 @@ function buildDashboardProjectColumns(
   const columnWidths = Array.from(
     { length: gridColumnCount },
     (_, columnIndex) =>
-      projectColumnDrafts.reduce((maxWidth, projectColumn, columnIndexInDraft) => {
-        if (columnIndexInDraft % gridColumnCount !== columnIndex) {
-          return maxWidth;
-        }
+      projectColumnDrafts.reduce(
+        (maxWidth, projectColumn, columnIndexInDraft) => {
+          if (columnIndexInDraft % gridColumnCount !== columnIndex) {
+            return maxWidth;
+          }
 
-        return Math.max(maxWidth, projectColumn.width);
-      }, dashboardProjectBoardMinWidth)
+          return Math.max(maxWidth, projectColumn.width);
+        },
+        dashboardProjectBoardMinWidth
+      )
   );
   const rowHeights = Array.from({ length: rowCount }, (_, rowIndex) =>
-    projectColumnDrafts.reduce((maxHeight, projectColumn, columnIndexInDraft) => {
-      if (Math.floor(columnIndexInDraft / gridColumnCount) !== rowIndex) {
-        return maxHeight;
-      }
+    projectColumnDrafts.reduce(
+      (maxHeight, projectColumn, columnIndexInDraft) => {
+        if (Math.floor(columnIndexInDraft / gridColumnCount) !== rowIndex) {
+          return maxHeight;
+        }
 
-      return Math.max(maxHeight, projectColumn.height);
-    }, dashboardProjectBoardHeight + dashboardProjectAddViewSlotHeight)
+        return Math.max(maxHeight, projectColumn.height);
+      },
+      dashboardProjectBoardHeight + dashboardProjectAddViewSlotHeight
+    )
   );
   const columnOffsets = columnWidths.map((_, columnIndex) => {
     if (columnIndex === 0) {
       return 120;
     }
 
-    return (
-      columnWidths
-        .slice(0, columnIndex)
-        .reduce((total, width) => total + width + dashboardProjectBoardGapX, 120)
-    );
+    return columnWidths
+      .slice(0, columnIndex)
+      .reduce((total, width) => total + width + dashboardProjectBoardGapX, 120);
   });
   const rowOffsets = rowHeights.map((_, rowIndex) => {
     if (rowIndex === 0) {
       return 104;
     }
 
-    return (
-      rowHeights
-        .slice(0, rowIndex)
-        .reduce((total, height) => total + height + dashboardProjectBoardGapY, 104)
-    );
+    return rowHeights
+      .slice(0, rowIndex)
+      .reduce(
+        (total, height) => total + height + dashboardProjectBoardGapY,
+        104
+      );
   });
 
   return projectColumnDrafts.map((projectColumn, index) => {
@@ -20972,10 +21700,14 @@ function buildDashboardCanvasBounds(
   }
 
   const maxRight = Math.max(
-    ...projectColumns.map((projectColumn) => projectColumn.left + projectColumn.width)
+    ...projectColumns.map(
+      (projectColumn) => projectColumn.left + projectColumn.width
+    )
   );
   const maxBottom = Math.max(
-    ...projectColumns.map((projectColumn) => projectColumn.top + projectColumn.height)
+    ...projectColumns.map(
+      (projectColumn) => projectColumn.top + projectColumn.height
+    )
   );
 
   return {
@@ -21131,7 +21863,10 @@ function nextDashboardProjectViewGrouping(
 }
 
 function createDashboardProjectViewId() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
     return crypto.randomUUID();
   }
 
@@ -21258,10 +21993,7 @@ function agentModelLabel(agent: AgentRecord) {
   return runtimeModelLabel(mergedRuntimeConfig);
 }
 
-function agentModelLabelById(
-  agents: AgentRecord[],
-  agentId?: string | null
-) {
+function agentModelLabelById(agents: AgentRecord[], agentId?: string | null) {
   if (!agentId) {
     return "Unknown model";
   }
@@ -21405,7 +22137,7 @@ function formatRelativeIssueDate(value: string | null | undefined) {
   const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
   const deltaSeconds = Math.round((date.getTime() - Date.now()) / 1000);
   const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
-    ["day", 86400],
+    ["day", 86_400],
     ["hour", 3600],
     ["minute", 60],
   ];
@@ -21694,7 +22426,7 @@ function formatRelativeAgentRunDate(value: string | null | undefined) {
   const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
   const deltaSeconds = Math.round((date.getTime() - Date.now()) / 1000);
   const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
-    ["day", 86400],
+    ["day", 86_400],
     ["hour", 3600],
     ["minute", 60],
   ];
@@ -22001,7 +22733,7 @@ function buildProjectLeadAssignments(
   const assignments = new Map<string, ProjectRecord[]>();
 
   for (const project of projects) {
-    if (!project.lead_agent_id || !agentMap.has(project.lead_agent_id)) {
+    if (!(project.lead_agent_id && agentMap.has(project.lead_agent_id))) {
       continue;
     }
 
@@ -22024,10 +22756,7 @@ function buildProjectLeadAssignments(
     });
 }
 
-function sortAgentsForOrg(
-  agents: AgentRecord[],
-  ceoAgentId: string | null
-) {
+function sortAgentsForOrg(agents: AgentRecord[], ceoAgentId: string | null) {
   return [...agents].sort((left, right) =>
     compareAgentRecordsForOrg(left, right, ceoAgentId)
   );
@@ -22088,7 +22817,7 @@ function isOrgRootAgent(
     return true;
   }
 
-  if (!agent.reports_to || !agentMap.has(agent.reports_to)) {
+  if (!(agent.reports_to && agentMap.has(agent.reports_to))) {
     return true;
   }
 
@@ -22274,7 +23003,7 @@ function formatRelativeTimestamp(timestamp: number) {
   const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
   const deltaSeconds = Math.round((timestamp * 1000 - Date.now()) / 1000);
   const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
-    ["day", 86400],
+    ["day", 86_400],
     ["hour", 3600],
     ["minute", 60],
   ];

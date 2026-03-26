@@ -1,9 +1,12 @@
+import healthSoundUrl from "../assets/health.wav";
+
 export type BirdsEyeFocusChangeCause = "click" | "keyboard" | "programmatic";
 
 const minimumFocusSoundGapMs = 40;
 
 let lastBirdsEyeFocusSoundAt = 0;
 let birdsEyeAudioContextPromise: Promise<AudioContext | null> | null = null;
+let birdsEyeFocusBufferPromise: Promise<AudioBuffer | null> | null = null;
 
 export function shouldPlayBirdsEyeFocusSound(
   previousRowId: string | null,
@@ -28,8 +31,11 @@ export function playBirdsEyeFocusSound() {
 }
 
 async function playBirdsEyeFocusSoundInternal() {
-  const audioContext = await getBirdsEyeAudioContext();
-  if (!audioContext) {
+  const [audioContext, audioBuffer] = await Promise.all([
+    getBirdsEyeAudioContext(),
+    getBirdsEyeFocusBuffer(),
+  ]);
+  if (!(audioContext && audioBuffer)) {
     return;
   }
 
@@ -45,32 +51,19 @@ async function playBirdsEyeFocusSoundInternal() {
     return;
   }
 
-  const startAt = audioContext.currentTime;
-  const oscillator = audioContext.createOscillator();
-  const filter = audioContext.createBiquadFilter();
+  const source = audioContext.createBufferSource();
   const gain = audioContext.createGain();
+  const startAt = audioContext.currentTime;
 
-  oscillator.type = "square";
-  oscillator.frequency.setValueAtTime(1046, startAt);
-  oscillator.frequency.exponentialRampToValueAtTime(784, startAt + 0.075);
+  source.buffer = audioBuffer;
+  gain.gain.setValueAtTime(0.2, startAt);
 
-  filter.type = "lowpass";
-  filter.frequency.setValueAtTime(1800, startAt);
-  filter.Q.setValueAtTime(0.8, startAt);
-
-  gain.gain.setValueAtTime(0.0001, startAt);
-  gain.gain.exponentialRampToValueAtTime(0.035, startAt + 0.006);
-  gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.085);
-
-  oscillator.connect(filter);
-  filter.connect(gain);
+  source.connect(gain);
   gain.connect(audioContext.destination);
 
-  oscillator.start(startAt);
-  oscillator.stop(startAt + 0.09);
-  oscillator.onended = () => {
-    oscillator.disconnect();
-    filter.disconnect();
+  source.start(startAt);
+  source.onended = () => {
+    source.disconnect();
     gain.disconnect();
   };
 }
@@ -81,6 +74,32 @@ function getBirdsEyeAudioContext() {
   }
 
   return birdsEyeAudioContextPromise;
+}
+
+function getBirdsEyeFocusBuffer() {
+  if (!birdsEyeFocusBufferPromise) {
+    birdsEyeFocusBufferPromise = loadBirdsEyeFocusBuffer();
+  }
+
+  return birdsEyeFocusBufferPromise;
+}
+
+async function loadBirdsEyeFocusBuffer() {
+  const audioContext = await getBirdsEyeAudioContext();
+  if (!audioContext || typeof fetch !== "function") {
+    return null;
+  }
+
+  try {
+    const response = await fetch(healthSoundUrl);
+    if (!response.ok) {
+      return null;
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    return await audioContext.decodeAudioData(arrayBuffer);
+  } catch {
+    return null;
+  }
 }
 
 function createBirdsEyeAudioContext() {

@@ -1,1 +1,8 @@
-export { App } from "./app/desktopAppShell";
+export {
+  App,
+  BirdsEyeQuickCreateRow,
+  WorkspaceChatComposer,
+  WorkspaceInspectorSidebar,
+  WorkspaceRuntimeStatusLine,
+  WorkspaceSessionHeaderCard,
+} from "./app/desktopAppShell";

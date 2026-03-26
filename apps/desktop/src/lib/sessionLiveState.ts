@@ -108,7 +108,8 @@ class DesktopSessionLiveState {
     this.updateSnapshot({
       errorMessage: null,
       isLoadingMessages:
-        this.snapshot.messages.length === 0 || this.snapshot.errorMessage != null,
+        this.snapshot.messages.length === 0 ||
+        this.snapshot.errorMessage != null,
       subscriptionState: "connecting",
     });
 
@@ -118,7 +119,10 @@ class DesktopSessionLiveState {
       this.api.sessionSubscribe(this.sessionId),
     ])
       .then(() => {
-        if (generation !== this.refreshGeneration || this.activationCount === 0) {
+        if (
+          generation !== this.refreshGeneration ||
+          this.activationCount === 0
+        ) {
           return;
         }
         this.updateSnapshot({
@@ -253,9 +257,7 @@ class DesktopSessionLiveState {
     });
   }
 
-  private updateSnapshot(
-    patch: Partial<DesktopSessionStateSnapshot>
-  ) {
+  private updateSnapshot(patch: Partial<DesktopSessionStateSnapshot>) {
     this.snapshot = {
       ...this.snapshot,
       ...patch,
@@ -268,7 +270,9 @@ export class DesktopSessionStateManager {
   private readonly api: DesktopSessionLiveStateApi;
   private readonly states = new Map<string, DesktopSessionLiveState>();
 
-  constructor(api: DesktopSessionLiveStateApi = defaultDesktopSessionLiveStateApi) {
+  constructor(
+    api: DesktopSessionLiveStateApi = defaultDesktopSessionLiveStateApi
+  ) {
     this.api = api;
   }
 
@@ -293,7 +297,10 @@ export class DesktopSessionStateManager {
       return cached;
     }
 
-    const snapshot = createEmptySnapshot(sessionId ?? "missing-session", provider);
+    const snapshot = createEmptySnapshot(
+      sessionId ?? "missing-session",
+      provider
+    );
     emptySnapshotByKey.set(key, snapshot);
     return snapshot;
   }
@@ -341,11 +348,7 @@ export function useDesktopSessionLiveState(
     [liveState]
   );
 
-  return useSyncExternalStore(
-    subscribe,
-    getSnapshot,
-    getSnapshot
-  );
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
 function noopSubscribe() {

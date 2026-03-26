@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { ApprovalRecord } from "../../lib/types";
-import {
-  DashboardBreadcrumbs,
-  DetailRow,
-} from "../shared/routePrimitives";
+import { DashboardBreadcrumbs, DetailRow } from "../shared/routePrimitives";
 
 export function ApprovalsRouteView({
   approvals,
@@ -23,10 +20,11 @@ export function ApprovalsRouteView({
     () => extractApprovalDecisionQuestions(currentApproval),
     [currentApproval]
   );
-  const [decisionAnswers, setDecisionAnswers] = useState<Record<string, string>>(
-    {}
-  );
-  const [additionalDecisionContext, setAdditionalDecisionContext] = useState("");
+  const [decisionAnswers, setDecisionAnswers] = useState<
+    Record<string, string>
+  >({});
+  const [additionalDecisionContext, setAdditionalDecisionContext] =
+    useState("");
 
   useEffect(() => {
     setDecisionAnswers({});
@@ -156,7 +154,10 @@ export function ApprovalsRouteView({
                   </div>
                   <div className="approvals-decision-stack">
                     {decisionQuestions.map((question, index) => {
-                      const answerKey = approvalDecisionAnswerKey(question, index);
+                      const answerKey = approvalDecisionAnswerKey(
+                        question,
+                        index
+                      );
                       const selectedAnswer = decisionAnswers[answerKey] ?? "";
                       return (
                         <div
@@ -373,7 +374,9 @@ function parseApprovalDecisionQuestion(
   };
 }
 
-function parseApprovalDecisionOptions(value: unknown): ApprovalDecisionOption[] {
+function parseApprovalDecisionOptions(
+  value: unknown
+): ApprovalDecisionOption[] {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -422,7 +425,8 @@ function composeApprovalDecisionNote(
 ) {
   const sections = questions
     .map((question, index) => {
-      const answer = answers[approvalDecisionAnswerKey(question, index)]?.trim();
+      const answer =
+        answers[approvalDecisionAnswerKey(question, index)]?.trim();
       if (!answer) {
         return null;
       }
@@ -445,7 +449,10 @@ function validateApprovalDecision(
   answers: Record<string, string>,
   additionalContext: string
 ) {
-  if (approval?.status !== "pending" || approval.approval_type !== "agent_decision") {
+  if (
+    approval?.status !== "pending" ||
+    approval.approval_type !== "agent_decision"
+  ) {
     return null;
   }
 

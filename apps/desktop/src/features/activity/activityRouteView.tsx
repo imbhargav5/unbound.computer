@@ -12,11 +12,11 @@ type ActivityFeedTarget = { kind: "issue"; issueId: string };
 
 interface ActivityFeedItem {
   id: string;
+  subtitle: string;
+  target: ActivityFeedTarget;
   timestamp: Date;
   title: string;
-  subtitle: string;
   trailingLabel: string;
-  target: ActivityFeedTarget;
 }
 
 type BirdsEyeIssueLike = Pick<
@@ -205,10 +205,7 @@ function issueModelLabel(
   return agentModelLabelById(agents, issue.assignee_agent_id);
 }
 
-function agentModelLabelById(
-  agents: AgentRecord[],
-  agentId?: string | null
-) {
+function agentModelLabelById(agents: AgentRecord[], agentId?: string | null) {
   if (!agentId) {
     return "Unknown model";
   }

@@ -22,17 +22,13 @@ describe("buildSessionConversationTimeline", () => {
       }
 
       if (Array.isArray(testCase.expect.roles)) {
-        expect(
-          uniqueRoles(rows),
-          testCase.id
-        ).toEqual(testCase.expect.roles);
+        expect(uniqueRoles(rows), testCase.id).toEqual(testCase.expect.roles);
       }
 
       if (Array.isArray(testCase.expect.blockTypes)) {
-        expect(
-          uniqueSemanticBlockTypes(rows),
-          testCase.id
-        ).toEqual(testCase.expect.blockTypes);
+        expect(uniqueSemanticBlockTypes(rows), testCase.id).toEqual(
+          testCase.expect.blockTypes
+        );
       }
     }
   });
@@ -63,7 +59,7 @@ describe("buildSessionConversationTimeline", () => {
         }),
         message("4", 4, {
           type: "stderr",
-          message: "Auth(TokenRefreshFailed(\"invalid_grant\"))",
+          message: 'Auth(TokenRefreshFailed("invalid_grant"))',
         }),
       ],
       "codex"
@@ -197,7 +193,9 @@ function uniqueSemanticBlockTypes(
   return Array.from(new Set(flattenSemanticBlockTypes(rows)));
 }
 
-function uniqueRoles(rows: ReturnType<typeof buildSessionConversationTimeline>) {
+function uniqueRoles(
+  rows: ReturnType<typeof buildSessionConversationTimeline>
+) {
   return Array.from(new Set(rows.map((row) => row.role)));
 }
 
@@ -206,9 +204,7 @@ function fixtureMessages(events: Array<Record<string, unknown>>) {
     message(
       `fixture-${index + 1}`,
       index + 1,
-      Object.prototype.hasOwnProperty.call(event, "raw_json")
-        ? event.raw_json
-        : event
+      Object.hasOwn(event, "raw_json") ? event.raw_json : event
     )
   );
 }
@@ -219,8 +215,7 @@ function message(
   content: unknown
 ): SessionMessage {
   return {
-    content:
-      typeof content === "string" ? content : JSON.stringify(content),
+    content: typeof content === "string" ? content : JSON.stringify(content),
     id,
     sequence_number: sequenceNumber,
     session_id: "session-1",

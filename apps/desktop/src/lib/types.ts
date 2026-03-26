@@ -1,13 +1,13 @@
 export interface DesktopCompatibilityRange {
-  min_version: string;
   max_version: string;
+  min_version: string;
   strict: boolean;
 }
 
 export interface DaemonVersionInfo {
   daemon_version: string;
-  protocol_version: number;
   desktop_compatibility: DesktopCompatibilityRange;
+  protocol_version: number;
 }
 
 export type BootstrapState =
@@ -17,32 +17,32 @@ export type BootstrapState =
   | "daemon_unavailable";
 
 export interface DesktopBootstrapStatus {
-  state: BootstrapState;
-  message: string;
-  expected_app_version: string;
   base_dir: string;
-  socket_path: string;
-  searched_paths: string[];
-  resolved_daemon_path: string | null;
   daemon_info: DaemonVersionInfo | null;
+  expected_app_version: string;
+  message: string;
+  resolved_daemon_path: string | null;
+  searched_paths: string[];
+  socket_path: string;
+  state: BootstrapState;
 }
 
 export interface ToolCapabilities {
   installed: boolean;
-  path?: string | null;
   models?: string[] | null;
+  path?: string | null;
 }
 
 export interface CliCapabilities {
   claude: ToolCapabilities;
-  gh: ToolCapabilities;
   codex: ToolCapabilities;
+  gh: ToolCapabilities;
   ollama: ToolCapabilities;
 }
 
 export interface CapabilitiesMetadata {
-  schema_version: number;
   collected_at: string;
+  schema_version: number;
 }
 
 export interface RuntimeCapabilities {
@@ -51,13 +51,7 @@ export interface RuntimeCapabilities {
 }
 
 export interface DesktopSettings {
-  preferred_company_id?: string | null;
-  preferred_repository_id?: string | null;
-  preferred_view?: string | null;
-  show_raw_message_json: boolean;
-  last_repository_path?: string | null;
-  theme_mode?: "system" | "light" | "dark" | null;
-  font_size_preset?: "small" | "medium" | "large" | null;
+  birds_eye_canvas?: Record<string, BirdsEyeCanvasCompanyState> | null;
   dashboard_project_views?: Record<
     string,
     {
@@ -69,7 +63,13 @@ export interface DesktopSettings {
       }> | null;
     }
   > | null;
-  birds_eye_canvas?: Record<string, BirdsEyeCanvasCompanyState> | null;
+  font_size_preset?: "small" | "medium" | "large" | null;
+  last_repository_path?: string | null;
+  preferred_company_id?: string | null;
+  preferred_repository_id?: string | null;
+  preferred_view?: string | null;
+  show_raw_message_json: boolean;
+  theme_mode?: "system" | "light" | "dark" | null;
 }
 
 export interface BirdsEyeCanvasViewportState {
@@ -91,8 +91,8 @@ export interface BirdsEyeCanvasWorktreeTileState {
 }
 
 export interface BirdsEyeCanvasFocusTargetState {
-  kind: "repo" | "worktree" | "chat" | "tile";
   issue_id?: string | null;
+  kind: "repo" | "worktree" | "chat" | "tile";
   project_id: string;
   worktree_key?: string | null;
 }
@@ -105,105 +105,105 @@ export interface BirdsEyeCanvasCompanyState {
 }
 
 export interface Company {
-  id: string;
-  name: string;
-  description?: string | null;
-  status?: string | null;
-  issue_prefix?: string | null;
-  issue_counter?: number | null;
-  budget_monthly_cents?: number | null;
-  spent_monthly_cents?: number | null;
-  require_board_approval_for_new_agents?: boolean | null;
   brand_color?: string | null;
+  budget_monthly_cents?: number | null;
   ceo_agent_id?: string | null;
   created_at?: string | null;
+  description?: string | null;
+  id: string;
+  issue_counter?: number | null;
+  issue_prefix?: string | null;
+  name: string;
+  require_board_approval_for_new_agents?: boolean | null;
+  spent_monthly_cents?: number | null;
+  status?: string | null;
   updated_at?: string | null;
   [key: string]: unknown;
 }
 
 export interface AgentRecord {
-  id: string;
-  company_id?: string | null;
-  name: string;
-  slug?: string | null;
-  role?: string | null;
-  title?: string | null;
-  icon?: string | null;
-  status?: string | null;
-  adapter_type?: string | null;
   adapter_config?: Record<string, unknown> | null;
-  runtime_config?: Record<string, unknown> | null;
+  adapter_type?: string | null;
+  budget_monthly_cents?: number | null;
+  capabilities?: string | null;
+  company_id?: string | null;
+  created_at?: string | null;
+  home_path?: string | null;
+  icon?: string | null;
+  id: string;
+  instructions_path?: string | null;
+  last_heartbeat_at?: string | null;
+  metadata?: Record<string, unknown> | null;
+  name: string;
   permissions?: Record<string, unknown> | null;
   reports_to?: string | null;
-  home_path?: string | null;
-  instructions_path?: string | null;
-  budget_monthly_cents?: number | null;
+  role?: string | null;
+  runtime_config?: Record<string, unknown> | null;
+  slug?: string | null;
   spent_monthly_cents?: number | null;
-  last_heartbeat_at?: string | null;
-  capabilities?: string | null;
-  metadata?: Record<string, unknown> | null;
-  created_at?: string | null;
+  status?: string | null;
+  title?: string | null;
   updated_at?: string | null;
   [key: string]: unknown;
 }
 
 export interface AgentRunRecord {
-  id: string;
-  company_id: string;
   agent_id: string;
-  issue_id?: string | null;
-  invocation_source: string;
-  trigger_detail?: string | null;
-  wake_reason?: string | null;
-  status: string;
-  started_at?: string | null;
-  finished_at?: string | null;
-  error?: string | null;
-  wakeup_request_id?: string | null;
-  exit_code?: number | null;
-  signal?: string | null;
-  usage_json?: unknown;
-  result_json?: unknown;
-  session_id_before?: string | null;
-  session_id_after?: string | null;
-  log_store?: string | null;
-  log_ref?: string | null;
-  log_bytes?: number | null;
-  log_sha256?: string | null;
-  log_compressed?: boolean | null;
-  stdout_excerpt?: string | null;
-  stderr_excerpt?: string | null;
-  error_code?: string | null;
-  external_run_id?: string | null;
+  company_id: string;
   context_snapshot?: unknown;
   created_at: string;
+  error?: string | null;
+  error_code?: string | null;
+  exit_code?: number | null;
+  external_run_id?: string | null;
+  finished_at?: string | null;
+  id: string;
+  invocation_source: string;
+  issue_id?: string | null;
+  log_bytes?: number | null;
+  log_compressed?: boolean | null;
+  log_ref?: string | null;
+  log_sha256?: string | null;
+  log_store?: string | null;
+  result_json?: unknown;
+  session_id_after?: string | null;
+  session_id_before?: string | null;
+  signal?: string | null;
+  started_at?: string | null;
+  status: string;
+  stderr_excerpt?: string | null;
+  stdout_excerpt?: string | null;
+  trigger_detail?: string | null;
   updated_at: string;
+  usage_json?: unknown;
+  wake_reason?: string | null;
+  wakeup_request_id?: string | null;
 }
 
 export interface AgentRunEventRecord {
-  id: number;
-  company_id: string;
-  run_id: string;
   agent_id: string;
-  seq: number;
-  event_type: string;
-  stream?: string | null;
-  level?: string | null;
   color?: string | null;
+  company_id: string;
+  created_at: string;
+  event_type: string;
+  id: number;
+  level?: string | null;
   message?: string | null;
   payload?: unknown;
-  created_at: string;
+  run_id: string;
+  seq: number;
+  stream?: string | null;
 }
 
 export interface IssueRunCardUpdateRecord {
+  agent_id: string;
   issue_id: string;
   issue_status: string;
+  last_activity_at: string;
+  last_event_type?: string | null;
   run_id: string;
-  agent_id: string;
   run_status: string;
   summary?: string | null;
-  last_event_type?: string | null;
-  last_activity_at: string;
 }
 
 export interface AgentLiveRunCountRecord {
@@ -213,278 +213,278 @@ export interface AgentLiveRunCountRecord {
 
 export interface AgentRunLogChunk {
   content: string;
-  next_offset: number;
   done: boolean;
+  next_offset: number;
 }
 
 export interface GoalRecord {
-  id: string;
   company_id?: string | null;
-  title: string;
-  description?: string | null;
-  level?: string | null;
-  status?: string | null;
-  parent_id?: string | null;
-  owner_agent_id?: string | null;
   created_at?: string | null;
+  description?: string | null;
+  id: string;
+  level?: string | null;
+  owner_agent_id?: string | null;
+  parent_id?: string | null;
+  status?: string | null;
+  title: string;
   updated_at?: string | null;
   [key: string]: unknown;
 }
 
 export interface ProjectWorkspaceRecord {
-  id: string;
   company_id?: string | null;
-  project_id?: string | null;
-  name: string;
-  cwd?: string | null;
-  repo_url?: string | null;
-  repo_ref?: string | null;
-  metadata?: Record<string, unknown> | null;
-  is_primary?: boolean | null;
   created_at?: string | null;
+  cwd?: string | null;
+  id: string;
+  is_primary?: boolean | null;
+  metadata?: Record<string, unknown> | null;
+  name: string;
+  project_id?: string | null;
+  repo_ref?: string | null;
+  repo_url?: string | null;
   updated_at?: string | null;
   [key: string]: unknown;
 }
 
 export interface ProjectRecord {
-  id: string;
-  company_id?: string | null;
-  goal_id?: string | null;
-  title?: string | null;
-  name: string;
-  description?: string | null;
-  status: string;
-  lead_agent_id?: string | null;
-  target_date?: string | null;
-  color?: string | null;
-  execution_workspace_policy?: Record<string, unknown> | null;
   archived_at?: string | null;
+  color?: string | null;
+  company_id?: string | null;
   created_at?: string | null;
-  updated_at?: string | null;
+  description?: string | null;
+  execution_workspace_policy?: Record<string, unknown> | null;
+  goal_id?: string | null;
+  id: string;
+  lead_agent_id?: string | null;
+  name: string;
   primary_workspace?: ProjectWorkspaceRecord | null;
+  status: string;
+  target_date?: string | null;
+  title?: string | null;
+  updated_at?: string | null;
   [key: string]: unknown;
 }
 
 export interface IssueRecord {
-  id: string;
-  company_id: string;
-  project_id?: string | null;
-  goal_id?: string | null;
-  parent_id?: string | null;
-  title: string;
-  description?: string | null;
-  status: string;
-  priority: string;
+  assignee_adapter_overrides?: Record<string, unknown> | null;
   assignee_agent_id?: string | null;
   assignee_user_id?: string | null;
+  billing_code?: string | null;
+  cancelled_at?: string | null;
   checkout_run_id?: string | null;
-  execution_run_id?: string | null;
-  execution_agent_name_key?: string | null;
-  execution_locked_at?: string | null;
+  company_id: string;
+  completed_at?: string | null;
+  created_at: string;
   created_by_agent_id?: string | null;
   created_by_user_id?: string | null;
-  issue_number?: number | null;
-  identifier?: string | null;
-  request_depth: number;
-  billing_code?: string | null;
-  assignee_adapter_overrides?: Record<string, unknown> | null;
+  description?: string | null;
+  execution_agent_name_key?: string | null;
+  execution_locked_at?: string | null;
+  execution_run_id?: string | null;
   execution_workspace_settings?: Record<string, unknown> | null;
-  started_at?: string | null;
-  completed_at?: string | null;
-  cancelled_at?: string | null;
+  goal_id?: string | null;
   hidden_at?: string | null;
-  workspace_session_id?: string | null;
-  created_at: string;
+  id: string;
+  identifier?: string | null;
+  issue_number?: number | null;
+  parent_id?: string | null;
+  priority: string;
+  project_id?: string | null;
+  request_depth: number;
+  started_at?: string | null;
+  status: string;
+  title: string;
   updated_at: string;
+  workspace_session_id?: string | null;
   [key: string]: unknown;
 }
 
 export interface IssueCommentRecord {
-  id: string;
-  company_id: string;
-  issue_id: string;
   author_agent_id?: string | null;
   author_user_id?: string | null;
-  target_agent_id?: string | null;
   body: string;
+  company_id: string;
   created_at: string;
+  id: string;
+  issue_id: string;
+  target_agent_id?: string | null;
   updated_at: string;
   [key: string]: unknown;
 }
 
 export interface IssueAttachmentRecord {
-  id: string;
-  company_id: string;
-  issue_id: string;
   asset_id: string;
-  issue_comment_id?: string | null;
-  provider: string;
-  object_key: string;
-  content_type: string;
   byte_size: number;
-  sha256: string;
-  original_filename?: string | null;
+  company_id: string;
+  content_type: string;
+  created_at: string;
   created_by_agent_id?: string | null;
   created_by_user_id?: string | null;
+  id: string;
+  issue_comment_id?: string | null;
+  issue_id: string;
   local_path: string;
-  created_at: string;
+  object_key: string;
+  original_filename?: string | null;
+  provider: string;
+  sha256: string;
   updated_at: string;
   [key: string]: unknown;
 }
 
 export interface ApprovalRecord {
-  id: string;
-  company_id?: string | null;
   approval_type?: string | null;
+  company_id?: string | null;
+  created_at?: string | null;
+  decided_at?: string | null;
+  decided_by_user_id?: string | null;
+  decision_note?: string | null;
+  id: string;
+  payload?: Record<string, unknown> | null;
   requested_by_agent_id?: string | null;
   requested_by_user_id?: string | null;
   status?: string | null;
-  payload?: Record<string, unknown> | null;
-  decision_note?: string | null;
-  decided_by_user_id?: string | null;
-  decided_at?: string | null;
-  created_at?: string | null;
   updated_at?: string | null;
   [key: string]: unknown;
 }
 
 export interface WorkspaceRecord {
-  id: string;
-  session_id: string;
-  repository_id: string;
-  company_id?: string | null;
-  project_id?: string | null;
-  issue_id?: string | null;
   agent_id?: string | null;
-  title: string;
-  status?: string | null;
-  workspace_type?: string | null;
-  workspace_status?: string | null;
-  workspace_repo_path?: string | null;
-  workspace_branch?: string | null;
-  workspace_metadata?: Record<string, unknown> | null;
+  agent_name?: string | null;
+  company_id?: string | null;
+  created_at?: string | null;
+  id: string;
+  issue_id?: string | null;
   issue_identifier?: string | null;
   issue_title?: string | null;
-  project_name?: string | null;
-  agent_name?: string | null;
-  created_at?: string | null;
   last_accessed_at?: string | null;
+  project_id?: string | null;
+  project_name?: string | null;
+  repository_id: string;
+  session_id: string;
+  status?: string | null;
+  title: string;
   updated_at?: string | null;
+  workspace_branch?: string | null;
+  workspace_metadata?: Record<string, unknown> | null;
+  workspace_repo_path?: string | null;
+  workspace_status?: string | null;
+  workspace_type?: string | null;
   [key: string]: unknown;
 }
 
 export interface CompanySnapshot {
-  company: Company;
   agents: AgentRecord[];
-  goals: GoalRecord[];
-  projects: ProjectRecord[];
-  issues: IssueRecord[];
   approvals: ApprovalRecord[];
+  company: Company;
+  goals: GoalRecord[];
+  issues: IssueRecord[];
+  projects: ProjectRecord[];
   workspaces: WorkspaceRecord[];
 }
 
 export interface DashboardOverviewChatRecord {
-  id: string;
-  project_id: string;
-  title: string;
-  status: string;
-  priority: string;
-  assignee_agent_id?: string | null;
   assignee_adapter_overrides?: Record<string, unknown> | null;
-  execution_workspace_settings?: Record<string, unknown> | null;
-  identifier?: string | null;
-  created_at: string;
-  updated_at: string;
+  assignee_agent_id?: string | null;
   child_issue_count: number;
+  created_at: string;
+  execution_workspace_settings?: Record<string, unknown> | null;
+  id: string;
+  identifier?: string | null;
+  priority: string;
+  project_id: string;
   run_update?: IssueRunCardUpdateRecord | null;
+  status: string;
+  title: string;
+  updated_at: string;
 }
 
 export interface DashboardOverviewRecord {
   agents: AgentRecord[];
+  chats: DashboardOverviewChatRecord[];
   projects: ProjectRecord[];
   workspaces: WorkspaceRecord[];
-  chats: DashboardOverviewChatRecord[];
 }
 
 export interface RepositoryRecord {
-  id: string;
-  path: string;
-  name: string;
-  is_git_repository?: boolean;
   default_branch?: string | null;
+  id: string;
+  is_git_repository?: boolean;
+  name: string;
+  path: string;
   [key: string]: unknown;
 }
 
 export interface SessionRecord {
+  claude_session_id?: string | null;
   id: string;
-  repository_id: string;
-  title: string;
-  status?: string;
   is_worktree?: boolean;
-  worktree_path?: string | null;
   provider?: string | null;
   provider_session_id?: string | null;
-  claude_session_id?: string | null;
+  repository_id: string;
+  status?: string;
+  title: string;
+  worktree_path?: string | null;
   [key: string]: unknown;
 }
 
 export interface SessionMessage {
-  id: string;
-  session_id: string;
-  sequence_number: number | string;
   content: unknown;
+  id: string;
+  sequence_number: number | string;
+  session_id: string;
 }
 
 export interface FileEntry {
+  has_children: boolean;
+  is_dir: boolean;
   name: string;
   path: string;
-  is_dir: boolean;
-  has_children: boolean;
 }
 
 export interface FileReadResult {
   content: string;
   is_truncated: boolean;
+  read_only_reason?: string | null;
   revision?: unknown;
   total_lines?: number;
-  read_only_reason?: string | null;
 }
 
 export interface GitStatusFile {
-  path: string;
-  status?: string | null;
-  staged?: boolean;
   additions?: number;
   deletions?: number;
+  path: string;
+  staged?: boolean;
+  status?: string | null;
   [key: string]: unknown;
 }
 
 export interface GitStatusResult {
-  files: GitStatusFile[];
   branch?: string | null;
+  files: GitStatusFile[];
   is_clean?: boolean;
 }
 
 export interface GitDiffResult {
-  file_path: string;
-  diff: string;
-  is_binary: boolean;
-  is_truncated: boolean;
   additions: number;
   deletions: number;
+  diff: string;
+  file_path: string;
+  is_binary: boolean;
+  is_truncated: boolean;
 }
 
 export interface GitCommit {
-  oid: string;
-  short_oid: string;
-  message: string;
-  summary: string;
-  author_name: string;
   author_email: string;
+  author_name: string;
   author_time: number;
   committer_name: string;
   committer_time: number;
+  message: string;
+  oid: string;
   parent_oids: string[];
+  short_oid: string;
+  summary: string;
 }
 
 export interface GitLogResult {
@@ -494,30 +494,29 @@ export interface GitLogResult {
 }
 
 export interface GitBranch {
-  name: string;
-  is_current: boolean;
-  is_remote: boolean;
-  upstream?: string | null;
   ahead: number;
   behind: number;
   head_oid: string;
+  is_current: boolean;
+  is_remote: boolean;
+  name: string;
+  upstream?: string | null;
 }
 
 export interface GitBranchesResult {
+  current?: string | null;
   local: GitBranch[];
   remote: GitBranch[];
-  current?: string | null;
 }
 
 export interface GitWorktreeRecord {
-  name: string;
-  path: string;
   branch?: string | null;
   head_oid?: string | null;
+  name: string;
+  path: string;
 }
 
 export interface SessionStreamPayload {
-  session_id: string;
   event: {
     event_type?: string;
     session_id?: string;
@@ -525,4 +524,5 @@ export interface SessionStreamPayload {
     sequence?: number;
     [key: string]: unknown;
   };
+  session_id: string;
 }
