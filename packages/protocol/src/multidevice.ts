@@ -51,7 +51,7 @@ export function createRoleAnnouncement(
   deviceId: string,
   role: DeviceRole,
   accountId: string,
-  capabilities?: RoleAnnouncement["capabilities"]
+  capabilities?: RoleAnnouncement["capabilities"],
 ): RoleAnnouncement {
   return {
     type: "ROLE_ANNOUNCEMENT",
@@ -109,7 +109,7 @@ export interface CreateStreamChunkOptions {
  * Create a stream chunk message
  */
 export function createStreamChunk(
-  options: CreateStreamChunkOptions
+  options: CreateStreamChunkOptions,
 ): StreamChunk {
   return {
     type: "STREAM_CHUNK",
@@ -160,7 +160,7 @@ export interface CreateViewerKeyExchangeOptions {
  * Create a viewer key exchange message
  */
 export function createViewerKeyExchange(
-  options: CreateViewerKeyExchangeOptions
+  options: CreateViewerKeyExchangeOptions,
 ): ViewerKeyExchange {
   return {
     type: "VIEWER_KEY_EXCHANGE",
@@ -238,7 +238,7 @@ export interface CreateRemoteControlOptions {
  * Create a remote control message
  */
 export function createRemoteControl(
-  options: CreateRemoteControlOptions
+  options: CreateRemoteControlOptions,
 ): RemoteControl {
   return {
     type: "REMOTE_CONTROL",
@@ -272,7 +272,7 @@ export function createRemoteControlAck(
   action: RemoteControlAction,
   sessionId: string,
   success: boolean,
-  error?: string
+  error?: string,
 ): RemoteControlAck {
   return {
     type: "REMOTE_CONTROL_ACK",
@@ -313,7 +313,7 @@ export function validateMultiDeviceMessage(data: unknown): MultiDeviceMessage {
  * Safe parse a multi-device message
  */
 export function parseMultiDeviceMessage(
-  data: unknown
+  data: unknown,
 ):
   | { success: true; data: MultiDeviceMessage }
   | { success: false; error: z.ZodError } {

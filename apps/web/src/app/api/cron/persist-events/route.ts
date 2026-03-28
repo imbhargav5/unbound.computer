@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       console.error("[Cron] Missing required environment variables");
       return NextResponse.json(
         { error: "Configuration error" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     console.error("[Cron] Error persisting events:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

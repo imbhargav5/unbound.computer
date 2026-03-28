@@ -8,7 +8,7 @@ import { PHASE_DEVELOPMENT_SERVER } from "next/dist/shared/lib/constants";
 
 export default async function config(
   phase: string,
-  defaults: { defaultConfig: NextConfig }
+  defaults: { defaultConfig: NextConfig },
 ) {
   const nextConfig: NextConfig = {
     pageExtensions: ["js", "jsx", "ts", "tsx", "md", "mdx"],

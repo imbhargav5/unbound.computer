@@ -18,7 +18,7 @@ export function ApprovalsRouteView({
 }) {
   const decisionQuestions = useMemo(
     () => extractApprovalDecisionQuestions(currentApproval),
-    [currentApproval]
+    [currentApproval],
   );
   const [decisionAnswers, setDecisionAnswers] = useState<
     Record<string, string>
@@ -36,9 +36,9 @@ export function ApprovalsRouteView({
       composeApprovalDecisionNote(
         decisionQuestions,
         decisionAnswers,
-        additionalDecisionContext
+        additionalDecisionContext,
       ),
-    [additionalDecisionContext, decisionAnswers, decisionQuestions]
+    [additionalDecisionContext, decisionAnswers, decisionQuestions],
   );
   const decisionValidationError = useMemo(
     () =>
@@ -46,14 +46,14 @@ export function ApprovalsRouteView({
         currentApproval,
         decisionQuestions,
         decisionAnswers,
-        additionalDecisionContext
+        additionalDecisionContext,
       ),
     [
       additionalDecisionContext,
       currentApproval,
       decisionAnswers,
       decisionQuestions,
-    ]
+    ],
   );
 
   return (
@@ -156,7 +156,7 @@ export function ApprovalsRouteView({
                     {decisionQuestions.map((question, index) => {
                       const answerKey = approvalDecisionAnswerKey(
                         question,
-                        index
+                        index,
                       );
                       const selectedAnswer = decisionAnswers[answerKey] ?? "";
                       return (
@@ -316,7 +316,7 @@ function ApprovalQueueRow({
 }
 
 function extractApprovalDecisionQuestions(
-  approval: ApprovalRecord | null
+  approval: ApprovalRecord | null,
 ): ApprovalDecisionQuestion[] {
   const payload = approval?.payload;
   if (!payload || typeof payload !== "object") {
@@ -340,7 +340,7 @@ function extractApprovalDecisionQuestions(
 }
 
 function parseApprovalDecisionQuestion(
-  value: unknown
+  value: unknown,
 ): ApprovalDecisionQuestion | null {
   if (!value || typeof value !== "object") {
     return null;
@@ -375,7 +375,7 @@ function parseApprovalDecisionQuestion(
 }
 
 function parseApprovalDecisionOptions(
-  value: unknown
+  value: unknown,
 ): ApprovalDecisionOption[] {
   if (!Array.isArray(value)) {
     return [];
@@ -413,7 +413,7 @@ function parseApprovalDecisionOptions(
 
 function approvalDecisionAnswerKey(
   question: ApprovalDecisionQuestion,
-  index: number
+  index: number,
 ) {
   return question.id ?? `question-${index}`;
 }
@@ -421,7 +421,7 @@ function approvalDecisionAnswerKey(
 function composeApprovalDecisionNote(
   questions: ApprovalDecisionQuestion[],
   answers: Record<string, string>,
-  additionalContext: string
+  additionalContext: string,
 ) {
   const sections = questions
     .map((question, index) => {
@@ -447,7 +447,7 @@ function validateApprovalDecision(
   approval: ApprovalRecord | null,
   questions: ApprovalDecisionQuestion[],
   answers: Record<string, string>,
-  additionalContext: string
+  additionalContext: string,
 ) {
   if (
     approval?.status !== "pending" ||

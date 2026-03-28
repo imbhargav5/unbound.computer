@@ -48,7 +48,7 @@ export const generateUnkeyTokenAction = authActionClient.action(
       key,
       createdAt: insertKeyResponse.created_at,
     };
-  }
+  },
 );
 
 const revokeUnkeyTokenSchema = z.object({

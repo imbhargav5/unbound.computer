@@ -32,6 +32,6 @@ export async function GET() {
     JSON.stringify({ message: "Refreshed", user, refreshResponse }),
     {
       headers: { "Content-Type": "application/json" },
-    }
+    },
   );
 }

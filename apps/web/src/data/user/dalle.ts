@@ -41,13 +41,13 @@ export const generateImageAction = authActionClient
               return result.data;
             }
             throw new Error("failed to upload");
-          })
-        )
+          }),
+        ),
       );
 
       const [successfulUploads, failedUploads] = partition(
         await uploadActionResults,
-        (result) => result.status === "fulfilled"
+        (result) => result.status === "fulfilled",
       );
 
       if (failedUploads.length > 0) {
@@ -141,9 +141,9 @@ export const uploadOpenAiImageAction = authActionClient
       const supabaseFileUrl = urlJoin(
         process.env.NEXT_PUBLIC_SUPABASE_URL,
         "/storage/v1/object/public/public-user-assets",
-        filePath
+        filePath,
       );
 
       return supabaseFileUrl;
-    }
+    },
   );

@@ -57,7 +57,7 @@ export async function createSupabaseUnkeyClient(req: NextRequest) {
           Authorization: "Bearer " + jwt,
         },
       },
-    }
+    },
   );
 
   return client;

@@ -35,7 +35,7 @@ function resolveAblyRestEndpoint(): string {
 export type Capability = Record<string, string[]>;
 
 function parseAblyApiKey(
-  rawApiKey: string
+  rawApiKey: string,
 ): { keyName: string; keySecret: string } | null {
   const separatorIndex = rawApiKey.indexOf(":");
   if (separatorIndex <= 0 || separatorIndex >= rawApiKey.length - 1) {
@@ -51,7 +51,7 @@ function parseAblyApiKey(
 export function buildAblyTokenRequestBody(
   keyName: string,
   requesterUserId: string,
-  capability: Capability
+  capability: Capability,
 ) {
   return {
     keyName,
@@ -92,10 +92,10 @@ function parseAblyErrorBody(rawBody: string): string {
 
 export function buildMobileCapability(
   deviceIds: string[],
-  requesterDeviceId: string
+  requesterDeviceId: string,
 ): Capability {
   const normalizedIds = new Set(
-    deviceIds.map((deviceId) => deviceId.toLowerCase())
+    deviceIds.map((deviceId) => deviceId.toLowerCase()),
   );
   normalizedIds.add(requesterDeviceId.toLowerCase());
 
@@ -113,7 +113,7 @@ export function buildMobileCapability(
 }
 
 export function buildDaemonNagatoCapability(
-  requesterDeviceId: string
+  requesterDeviceId: string,
 ): Capability {
   const normalizedRequester = requesterDeviceId.toLowerCase();
   return {
@@ -122,7 +122,7 @@ export function buildDaemonNagatoCapability(
 }
 
 export function buildDaemonFalcoCapability(
-  requesterDeviceId: string
+  requesterDeviceId: string,
 ): Capability {
   const normalizedRequester = requesterDeviceId.toLowerCase();
   return {
@@ -137,7 +137,7 @@ export function buildAudienceCapability(
   audience: AblyTokenAudience,
   deviceIds: string[],
   requesterDeviceId: string,
-  userId: string
+  userId: string,
 ): Capability {
   switch (audience) {
     case "mobile":
@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
     if (!apiKey) {
       return NextResponse.json(
         { error: "Ably API key is not configured on server" },
-        { status: 500, headers: corsHeaders }
+        { status: 500, headers: corsHeaders },
       );
     }
 
@@ -167,7 +167,7 @@ export async function POST(req: NextRequest) {
     if (!parsedApiKey) {
       return NextResponse.json(
         { error: "Ably API key format is invalid" },
-        { status: 500, headers: corsHeaders }
+        { status: 500, headers: corsHeaders },
       );
     }
 
@@ -179,7 +179,7 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json(
         { error: "Unauthorized" },
-        { status: 401, headers: corsHeaders }
+        { status: 401, headers: corsHeaders },
       );
     }
 
@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
     if (!parseResult.success) {
       return NextResponse.json(
         { error: "Invalid request body", details: parseResult.error.issues },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: corsHeaders },
       );
     }
 
@@ -205,14 +205,14 @@ export async function POST(req: NextRequest) {
     if (requesterDeviceError || !requesterDevice) {
       return NextResponse.json(
         { error: "Device not found" },
-        { status: 404, headers: corsHeaders }
+        { status: 404, headers: corsHeaders },
       );
     }
 
     if (requesterDevice.user_id !== user.id) {
       return NextResponse.json(
         { error: "Forbidden" },
-        { status: 403, headers: corsHeaders }
+        { status: 403, headers: corsHeaders },
       );
     }
 
@@ -224,7 +224,7 @@ export async function POST(req: NextRequest) {
     if (userDevicesError || !userDevices) {
       return NextResponse.json(
         { error: "Failed to load user devices" },
-        { status: 500, headers: corsHeaders }
+        { status: 500, headers: corsHeaders },
       );
     }
 
@@ -232,7 +232,7 @@ export async function POST(req: NextRequest) {
       audience,
       userDevices.map((device) => String(device.id)),
       requesterDeviceId,
-      user.id
+      user.id,
     );
 
     const tokenRequestResponse = await fetch(
@@ -241,14 +241,14 @@ export async function POST(req: NextRequest) {
         method: "POST",
         headers: {
           Authorization: `Basic ${Buffer.from(
-            `${parsedApiKey.keyName}:${parsedApiKey.keySecret}`
+            `${parsedApiKey.keyName}:${parsedApiKey.keySecret}`,
           ).toString("base64")}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(
-          buildAblyTokenRequestBody(parsedApiKey.keyName, user.id, capability)
+          buildAblyTokenRequestBody(parsedApiKey.keyName, user.id, capability),
         ),
-      }
+      },
     );
 
     if (!tokenRequestResponse.ok) {
@@ -260,7 +260,7 @@ export async function POST(req: NextRequest) {
           statusText: tokenRequestResponse.statusText,
           details: errorBody,
         },
-        { status: 502, headers: corsHeaders }
+        { status: 502, headers: corsHeaders },
       );
     }
 
@@ -274,7 +274,7 @@ export async function POST(req: NextRequest) {
     ) {
       return NextResponse.json(
         { error: "Ably token response is invalid" },
-        { status: 502, headers: corsHeaders }
+        { status: 502, headers: corsHeaders },
       );
     }
 
@@ -282,7 +282,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       { error: String(error) },
-      { status: 500, headers: corsHeaders }
+      { status: 500, headers: corsHeaders },
     );
   }
 }

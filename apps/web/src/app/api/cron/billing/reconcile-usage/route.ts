@@ -21,7 +21,7 @@ function validateCronAuthorization(request: NextRequest): {
       ok: false,
       response: NextResponse.json(
         { error: "Configuration error" },
-        { status: 500 }
+        { status: 500 },
       ),
     };
   }
@@ -68,11 +68,11 @@ async function handleReconcileRequest(request: NextRequest) {
 
     console.error(
       "[Billing Usage Reconcile Cron] Reconciliation failed",
-      error
+      error,
     );
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

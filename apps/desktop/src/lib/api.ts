@@ -34,7 +34,7 @@ import type {
 
 async function invokeCommand<T>(
   command: string,
-  args?: Record<string, unknown>
+  args?: Record<string, unknown>,
 ) {
   return invoke<T>(command, args);
 }
@@ -121,7 +121,7 @@ export const boardListIssueRunCardUpdates = (companyId: string) =>
     "board_list_issue_run_card_updates",
     {
       companyId,
-    }
+    },
   );
 
 export const boardAddIssueComment = (params: Record<string, unknown>) =>
@@ -154,7 +154,7 @@ export const boardGetAgentRun = (runId: string) =>
 export const boardListAgentRunEvents = (
   runId: string,
   afterSeq?: number,
-  limit?: number
+  limit?: number,
 ) =>
   invokeCommand<AgentRunEventRecord[]>("board_list_agent_run_events", {
     runId,
@@ -165,7 +165,7 @@ export const boardListAgentRunEvents = (
 export const boardReadAgentRunLog = (
   runId: string,
   offset = 0,
-  limitBytes = 16_384
+  limitBytes = 16_384,
 ) =>
   invokeCommand<AgentRunLogChunk>("board_read_agent_run_log", {
     runId,
@@ -176,7 +176,7 @@ export const boardReadAgentRunLog = (
 export const boardInvokeAgentRun = (
   agentId: string,
   issueId?: string,
-  prompt?: string
+  prompt?: string,
 ) =>
   invokeCommand<AgentRunRecord>("board_invoke_agent_run", {
     agentId,
@@ -225,7 +225,7 @@ export const repositoryUpdateSettings = (params: Record<string, unknown>) =>
 export const repositoryListFiles = (
   sessionId: string,
   relativePath = "",
-  includeHidden = false
+  includeHidden = false,
 ) =>
   invokeCommand<FileEntry[]>("repository_list_files", {
     sessionId,
@@ -236,7 +236,7 @@ export const repositoryListFiles = (
 export const repositoryReadFile = (
   sessionId: string,
   relativePath: string,
-  maxBytes?: number
+  maxBytes?: number,
 ) =>
   invokeCommand<FileReadResult>("repository_read_file", {
     sessionId,
@@ -249,7 +249,7 @@ export const repositoryWriteFile = (
   relativePath: string,
   content: string,
   expectedRevision?: unknown,
-  force?: boolean
+  force?: boolean,
 ) =>
   invokeCommand<Record<string, unknown>>("repository_write_file", {
     sessionId,
@@ -266,7 +266,7 @@ export const repositoryReplaceFileRange = (
   endLineExclusive: number,
   replacement: string,
   expectedRevision?: unknown,
-  force?: boolean
+  force?: boolean,
 ) =>
   invokeCommand<Record<string, unknown>>("repository_replace_file_range", {
     sessionId,
@@ -301,7 +301,7 @@ export const agentSend = (
   sessionId: string,
   content: string,
   provider?: string,
-  permissionMode?: string
+  permissionMode?: string,
 ) =>
   invokeCommand<Record<string, unknown>>("agent_send", {
     sessionId,
@@ -323,7 +323,7 @@ export const agentStop = (sessionId: string) =>
 export const claudeSend = (
   sessionId: string,
   content: string,
-  permissionMode?: string
+  permissionMode?: string,
 ) =>
   invokeCommand<Record<string, unknown>>("claude_send", {
     sessionId,
@@ -344,7 +344,7 @@ export const claudeStop = (sessionId: string) =>
 export const terminalRun = (
   sessionId: string,
   command: string,
-  workingDir?: string
+  workingDir?: string,
 ) =>
   invokeCommand<Record<string, unknown>>("terminal_run", {
     sessionId,
@@ -383,7 +383,7 @@ export const gitBranches = (sessionId?: string, repositoryId?: string) =>
 export const gitWorktrees = (
   sessionId?: string,
   repositoryId?: string,
-  path?: string
+  path?: string,
 ) =>
   invokeCommand<GitWorktreeRecord[]>("git_worktrees", {
     sessionId,
@@ -396,7 +396,7 @@ export const gitDiffFile = (
   sessionId?: string,
   repositoryId?: string,
   path?: string,
-  maxLines?: number
+  maxLines?: number,
 ) =>
   invokeCommand<GitDiffResult>("git_diff_file", {
     filePath,
@@ -454,16 +454,16 @@ export const sessionUnsubscribe = (sessionId: string) =>
   invokeCommand<void>("session_unsubscribe", { sessionId });
 
 export const listenToSessionEvents = (
-  handler: (payload: SessionStreamPayload) => void
+  handler: (payload: SessionStreamPayload) => void,
 ) =>
   listen<SessionStreamPayload>("daemon-session-event", (event) =>
-    handler(event.payload)
+    handler(event.payload),
   );
 
 export const listenToSessionStreamErrors = (
-  handler: (payload: { session_id: string; message: string }) => void
+  handler: (payload: { session_id: string; message: string }) => void,
 ) =>
   listen<{ session_id: string; message: string }>(
     "daemon-session-stream-error",
-    (event) => handler(event.payload)
+    (event) => handler(event.payload),
   );

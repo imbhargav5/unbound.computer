@@ -10,7 +10,7 @@ export async function GET(
   req: NextRequest,
   props: {
     params: Promise<unknown>;
-  }
+  },
 ) {
   const params = await props.params;
   const token = paramsSchema.parse(params)?.token;

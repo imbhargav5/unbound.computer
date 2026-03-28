@@ -36,7 +36,7 @@ export const getRoadmap = async () => {
       *,
       marketing_feedback_comments!thread_id(count),
       marketing_feedback_thread_reactions!thread_id(count)
-    `
+    `,
     )
     .in("status", ["planned", "in_progress", "completed"])
     .eq("added_to_roadmap", true)
@@ -60,10 +60,10 @@ export const getRoadmap = async () => {
   // Filter items based on their status
   const plannedCards = roadmapArray.filter((item) => item.status === "planned");
   const inProgress = roadmapArray.filter(
-    (item) => item.status === "in_progress"
+    (item) => item.status === "in_progress",
   );
   const completedCards = roadmapArray.filter(
-    (item) => item.status === "completed"
+    (item) => item.status === "completed",
   );
 
   return {

@@ -5,7 +5,7 @@ import type { UserNotificationPayloadType } from "@/utils/zod-schemas/notificati
 
 export const createNotification = async (
   userId: string,
-  payload: UserNotificationPayloadType
+  payload: UserNotificationPayloadType,
 ) => {
   const supabaseClient = await createSupabaseUserServerActionClient();
   const { data: notification, error } = await supabaseClient
@@ -19,7 +19,7 @@ export const createNotification = async (
 };
 
 export async function createMultipleNotifications(
-  notifications: Array<{ userId: string; payload: Json }>
+  notifications: Array<{ userId: string; payload: Json }>,
 ) {
   const supabaseClient = await createSupabaseUserServerActionClient();
   const { data: notificationsData, error } = await supabaseClient
@@ -28,7 +28,7 @@ export async function createMultipleNotifications(
       notifications.map(({ userId, payload }) => ({
         user_id: userId,
         payload,
-      }))
+      })),
     );
 
   if (error) throw error;

@@ -35,7 +35,7 @@ type OnboardingAction =
 
 function onboardingReducer(
   state: OnboardingState,
-  action: OnboardingAction
+  action: OnboardingAction,
 ): OnboardingState {
   switch (action.type) {
     case "COMPLETE_STEP": {
@@ -101,7 +101,7 @@ type OnboardingContextType = {
 };
 
 const OnboardingContext = createContext<OnboardingContextType | undefined>(
-  undefined
+  undefined,
 );
 
 export function useOnboarding() {
@@ -132,7 +132,7 @@ export function OnboardingProvider({
   });
 
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>(
-    userProfile.avatar_url ?? undefined
+    userProfile.avatar_url ?? undefined,
   );
 
   const goToStep = useCallback((step: OnboardingStep) => {
@@ -218,7 +218,7 @@ export function OnboardingProvider({
         setAvatarUrl(userProfile.avatar_url ?? undefined);
       }
     },
-    [userProfile.avatar_url]
+    [userProfile.avatar_url],
   );
 
   const value: OnboardingContextType = useMemo(
@@ -246,7 +246,7 @@ export function OnboardingProvider({
       updateProfile,
       updateAvatar,
       uploadAvatar,
-    ]
+    ],
   );
 
   return (

@@ -132,11 +132,11 @@ function worktreeIsClean() {
 function resolveRepo() {
   const remote = capture("git", ["remote", "get-url", "origin"]);
   const match = remote.match(
-    /(?:git@github\.com:|https:\/\/github\.com\/)(.+?)(?:\.git)?$/
+    /(?:git@github\.com:|https:\/\/github\.com\/)(.+?)(?:\.git)?$/,
   );
   if (!match) {
     die(
-      "Could not resolve the GitHub repo from the origin remote. Pass --repo OWNER/REPO."
+      "Could not resolve the GitHub repo from the origin remote. Pass --repo OWNER/REPO.",
     );
   }
   return match[1];
@@ -153,7 +153,7 @@ function latestSemverTagVersion() {
     ["tag", "--list", "v*", "--sort=-version:refname"],
     {
       allowFailure: true,
-    }
+    },
   );
 
   return (
@@ -204,7 +204,7 @@ function getVersionFiles() {
   files.push(
     "apps/desktop/src-tauri/tauri.conf.json",
     "apps/desktop/src-tauri/Cargo.toml",
-    "apps/desktop/src-tauri/Cargo.lock"
+    "apps/desktop/src-tauri/Cargo.lock",
   );
 
   for (const path of [
@@ -246,20 +246,20 @@ function syncVersionFiles(nextVersion) {
   updateTextVersion(
     "apps/desktop/src-tauri/Cargo.toml",
     /^version = "\d+\.\d+\.\d+"$/m,
-    `version = "${nextVersion}"`
+    `version = "${nextVersion}"`,
   );
 
   updateTextVersion(
     "apps/desktop/src-tauri/Cargo.lock",
     /(\[\[package\]\]\s+name = "unbound-desktop"\s+version = ")\d+\.\d+\.\d+(")/m,
-    `$1${nextVersion}$2`
+    `$1${nextVersion}$2`,
   );
 
   if (existsSync("apps/daemon/Cargo.toml")) {
     updateTextVersion(
       "apps/daemon/Cargo.toml",
       /^version = "\d+\.\d+\.\d+"$/m,
-      `version = "${nextVersion}"`
+      `version = "${nextVersion}"`,
     );
   }
 
@@ -267,7 +267,7 @@ function syncVersionFiles(nextVersion) {
     updateTextVersion(
       "apps/cli-new/Cargo.toml",
       /^version = "\d+\.\d+\.\d+"$/m,
-      `version = "${nextVersion}"`
+      `version = "${nextVersion}"`,
     );
   }
 
@@ -275,7 +275,7 @@ function syncVersionFiles(nextVersion) {
     updateTextVersion(
       "packages/observability/Cargo.toml",
       /^version = "\d+\.\d+\.\d+"$/m,
-      `version = "${nextVersion}"`
+      `version = "${nextVersion}"`,
     );
   }
 }
@@ -331,7 +331,7 @@ async function selectReleaseType(baseVersion) {
     typeof process.stdin.setRawMode !== "function"
   ) {
     die(
-      "Interactive release selection requires a TTY. Pass --release-type patch, minor, or major."
+      "Interactive release selection requires a TTY. Pass --release-type patch, minor, or major.",
     );
   }
 
@@ -362,7 +362,7 @@ async function selectReleaseType(baseVersion) {
         "",
         ...choices.map(
           (choice, index) =>
-            `${index === selectedIndex ? ">" : " "} ${choice.label}`
+            `${index === selectedIndex ? ">" : " "} ${choice.label}`,
         ),
       ];
 
@@ -450,13 +450,13 @@ async function main() {
   const ref = args.ref || currentBranch;
   if (ref !== currentBranch) {
     die(
-      `Current branch is ${currentBranch}, but --ref was ${ref}. Checkout ${ref} before dispatching.`
+      `Current branch is ${currentBranch}, but --ref was ${ref}. Checkout ${ref} before dispatching.`,
     );
   }
 
   if (!worktreeIsClean()) {
     die(
-      "Git worktree is dirty. Commit or stash your changes before dispatching a release."
+      "Git worktree is dirty. Commit or stash your changes before dispatching a release.",
     );
   }
 
@@ -474,7 +474,7 @@ async function main() {
 
   console.log(`Current package.json version: ${packageVersion}`);
   console.log(
-    `Latest local release tag: ${latestTagVersion ? `v${latestTagVersion}` : "none"}`
+    `Latest local release tag: ${latestTagVersion ? `v${latestTagVersion}` : "none"}`,
   );
   console.log(`Using base version from ${versionSource}: ${baseVersion}`);
   console.log(`Selected release type: ${releaseType}`);
@@ -495,7 +495,7 @@ async function main() {
   console.log(
     createdVersionCommit
       ? `Created version bump commit for ${nextVersion}.`
-      : "Version files already matched the release version."
+      : "Version files already matched the release version.",
   );
   console.log(`Pushing ${ref} to origin...`);
   run("git", ["push", "origin", ref]);
@@ -530,7 +530,7 @@ async function main() {
   console.log("");
   console.log("Workflow dispatched.");
   console.log(
-    `Check status with: gh run list --repo ${repo} --workflow release.yml --limit 5`
+    `Check status with: gh run list --repo ${repo} --workflow release.yml --limit 5`,
   );
 }
 

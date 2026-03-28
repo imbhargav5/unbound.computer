@@ -23,7 +23,7 @@ export function useUnseenNotificationIds(userClaims: UserClaimsSchemaType) {
       initialData: [],
       refetchOnWindowFocus: false,
     },
-    queryClient
+    queryClient,
   );
 
   useEffect(() => {
@@ -40,7 +40,7 @@ export function useUnseenNotificationIds(userClaims: UserClaimsSchemaType) {
         },
         () => {
           refetch();
-        }
+        },
       )
       .on(
         "postgres_changes",
@@ -52,7 +52,7 @@ export function useUnseenNotificationIds(userClaims: UserClaimsSchemaType) {
         },
         () => {
           refetch();
-        }
+        },
       )
       .subscribe();
 

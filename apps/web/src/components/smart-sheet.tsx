@@ -26,7 +26,7 @@ export function SmartSheet({ children, className, ...props }: SmartSheetProps) {
             ? ""
             : "w-[400px] max-w-none! sm:w-[540px] md:w-[640px] lg:w-[800px] xl:w-[1000px]",
           "bg-muted",
-          className
+          className,
         )}
         side={sheetDirection}
       >
@@ -36,7 +36,7 @@ export function SmartSheet({ children, className, ...props }: SmartSheetProps) {
         <div
           className={cn(
             isMobile ? "overflow-y-auto pb-20" : "",
-            isMobile ? "" : "max-h-full overflow-y-auto pb-20"
+            isMobile ? "" : "max-h-full overflow-y-auto pb-20",
           )}
           style={{
             maxHeight: isMobile ? "calc(100svh - 100px)" : undefined,

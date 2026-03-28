@@ -5,7 +5,7 @@ export type MiddlewareUser = UserClaimsSchemaType | null;
 
 export type MiddlewareFunction = (
   request: NextRequest,
-  maybeUser: MiddlewareUser
+  maybeUser: MiddlewareUser,
 ) => Promise<[NextResponse, MiddlewareUser]>;
 
 export interface MiddlewareConfig {

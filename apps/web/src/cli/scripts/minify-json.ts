@@ -42,7 +42,7 @@ function processJson(content: string): void {
       console.log("\n✓ JSON minified and copied to clipboard!");
     } else {
       console.log(
-        "\n✓ JSON minified (clipboard copy failed, outputting below):"
+        "\n✓ JSON minified (clipboard copy failed, outputting below):",
       );
       console.log("\n" + minified);
     }
@@ -50,7 +50,7 @@ function processJson(content: string): void {
     console.log(`\nOriginal size: ${content.length} bytes`);
     console.log(`Minified size: ${minified.length} bytes`);
     console.log(
-      `Saved: ${content.length - minified.length} bytes (${Math.round((1 - minified.length / content.length) * 100)}%)`
+      `Saved: ${content.length - minified.length} bytes (${Math.round((1 - minified.length / content.length) * 100)}%)`,
     );
   } catch (error) {
     if (error instanceof SyntaxError) {

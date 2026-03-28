@@ -28,7 +28,7 @@ interface GitResult {
  */
 export async function git(
   args: string[],
-  options: GitExecOptions = {}
+  options: GitExecOptions = {},
 ): Promise<GitResult> {
   const { cwd, env, timeout = 30_000 } = options;
 
@@ -51,7 +51,7 @@ export async function git(
     throw new GitError(
       `Git command failed: ${command}`,
       execError.stderr || execError.message,
-      args
+      args,
     );
   }
 }
@@ -119,7 +119,7 @@ export async function getHead(path: string): Promise<string> {
  */
 export async function getRemoteUrl(
   path: string,
-  remote = "origin"
+  remote = "origin",
 ): Promise<string | null> {
   try {
     const result = await git(["remote", "get-url", remote], { cwd: path });
@@ -146,7 +146,7 @@ export async function isDirty(path: string): Promise<boolean> {
  */
 export async function branchExists(
   path: string,
-  branchName: string
+  branchName: string,
 ): Promise<boolean> {
   try {
     await git(["rev-parse", "--verify", `refs/heads/${branchName}`], {
@@ -164,7 +164,7 @@ export async function branchExists(
 export async function createBranch(
   path: string,
   branchName: string,
-  startPoint?: string
+  startPoint?: string,
 ): Promise<void> {
   const args = ["branch", branchName];
   if (startPoint) {
@@ -179,7 +179,7 @@ export async function createBranch(
 export async function deleteBranch(
   path: string,
   branchName: string,
-  force = false
+  force = false,
 ): Promise<void> {
   const flag = force ? "-D" : "-d";
   await git(["branch", flag, branchName], { cwd: path });
@@ -221,7 +221,7 @@ export async function getDefaultBranch(path: string): Promise<string> {
 export async function isAncestor(
   path: string,
   ancestor: string,
-  descendant: string
+  descendant: string,
 ): Promise<boolean> {
   try {
     await git(["merge-base", "--is-ancestor", ancestor, descendant], {
@@ -239,7 +239,7 @@ export async function isAncestor(
 export async function fetch(
   path: string,
   remote = "origin",
-  prune = false
+  prune = false,
 ): Promise<void> {
   const args = ["fetch", remote];
   if (prune) {
@@ -255,7 +255,7 @@ export class GitError extends Error {
   constructor(
     message: string,
     public readonly stderr: string,
-    public readonly args: string[]
+    public readonly args: string[],
   ) {
     super(message);
     this.name = "GitError";

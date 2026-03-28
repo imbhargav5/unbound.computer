@@ -78,7 +78,7 @@ export const DallE = () => {
         });
         toastRef.current = undefined;
       },
-    }
+    },
   );
 
   const form = useForm<GenerateImageFormSchemaType>({

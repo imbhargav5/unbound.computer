@@ -8,7 +8,7 @@ async function StaticContent({ children }: { children: ReactNode }) {
     <header className="sticky top-0 z-10 h-[64px] w-full bg-background backdrop-blur-sm">
       <div
         className={cn(
-          "mx-auto flex h-full w-full items-center justify-between gap-2 border-b py-3 pr-6 pl-6 font-medium text-sm dark:border-gray-700/50"
+          "mx-auto flex h-full w-full items-center justify-between gap-2 border-b py-3 pr-6 pl-6 font-medium text-sm dark:border-gray-700/50",
         )}
       >
         <MobileSidebarTrigger />

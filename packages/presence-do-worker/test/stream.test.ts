@@ -53,18 +53,18 @@ describe("presence-do-worker stream behavior", () => {
       (
         await dispatchHeartbeat(
           mf,
-          makeHeartbeat({ seq: 1, sent_at_ms: now, ttl_ms: 12_000 })
+          makeHeartbeat({ seq: 1, sent_at_ms: now, ttl_ms: 12_000 }),
         )
-      ).status
+      ).status,
     ).toBe(204);
 
     expect(
       (
         await dispatchHeartbeat(
           mf,
-          makeHeartbeat({ seq: 2, sent_at_ms: now + 5, ttl_ms: 12_000 })
+          makeHeartbeat({ seq: 2, sent_at_ms: now + 5, ttl_ms: 12_000 }),
         )
-      ).status
+      ).status,
     ).toBe(204);
 
     const token = makePresenceReadToken(defaultUserId, defaultDeviceId);
@@ -81,7 +81,7 @@ describe("presence-do-worker stream behavior", () => {
     const token1 = makePresenceReadToken(defaultUserId, defaultDeviceId);
     const token2 = makePresenceReadToken(
       defaultUserId,
-      "123e4567-e89b-12d3-a456-426614174099"
+      "123e4567-e89b-12d3-a456-426614174099",
     );
 
     const stream1 = await openStream(mf, defaultUserId, token1);
@@ -89,7 +89,7 @@ describe("presence-do-worker stream behavior", () => {
 
     const response = await dispatchHeartbeat(
       mf,
-      makeHeartbeat({ seq: 1, sent_at_ms: Date.now() })
+      makeHeartbeat({ seq: 1, sent_at_ms: Date.now() }),
     );
     expect(response.status).toBe(204);
 
@@ -107,7 +107,7 @@ describe("presence-do-worker stream behavior", () => {
 
   it("requires bearer token for stream", async () => {
     const response = await mf.dispatchFetch(
-      `http://example.com/api/v1/mobile/presence/stream?user_id=${defaultUserId}`
+      `http://example.com/api/v1/mobile/presence/stream?user_id=${defaultUserId}`,
     );
 
     expect(response.status).toBe(401);
@@ -120,7 +120,7 @@ describe("presence-do-worker stream behavior", () => {
         headers: {
           Authorization: "Bearer not-a-valid-token",
         },
-      }
+      },
     );
 
     expect(response.status).toBe(403);
@@ -137,7 +137,7 @@ describe("presence-do-worker stream behavior", () => {
         headers: {
           Authorization: `Bearer ${token}`,
         },
-      }
+      },
     );
 
     expect(response.status).toBe(403);
@@ -156,7 +156,7 @@ describe("presence-do-worker stream behavior", () => {
         headers: {
           Authorization: `Bearer ${token}`,
         },
-      }
+      },
     );
 
     expect(response.status).toBe(403);
@@ -171,7 +171,7 @@ describe("presence-do-worker stream behavior", () => {
         headers: {
           Authorization: `Bearer ${token}`,
         },
-      }
+      },
     );
 
     expect(response.status).toBe(403);

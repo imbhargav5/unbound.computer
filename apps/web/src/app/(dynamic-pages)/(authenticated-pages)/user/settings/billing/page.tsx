@@ -23,23 +23,23 @@ type BillingSettingsModel = {
 };
 
 function selectUpgradeOption(
-  subscriptionProducts: ProductAndPrice[]
+  subscriptionProducts: ProductAndPrice[],
 ): BillingUpgradeOption | null {
   const recurringProducts = subscriptionProducts
     .filter(
       ({ price }) =>
         Boolean(price.active) &&
         Boolean(price.recurring_interval) &&
-        price.recurring_interval !== "one-time"
+        price.recurring_interval !== "one-time",
     )
     .sort(
       (a, b) =>
         (a.price.amount ?? Number.MAX_SAFE_INTEGER) -
-        (b.price.amount ?? Number.MAX_SAFE_INTEGER)
+        (b.price.amount ?? Number.MAX_SAFE_INTEGER),
     );
 
   const preferred = recurringProducts.find(
-    ({ price }) => (price.amount ?? 0) > 0
+    ({ price }) => (price.amount ?? 0) > 0,
   );
   const selected = preferred ?? recurringProducts[0];
 
@@ -59,7 +59,7 @@ async function getBillingSettingsModel(): Promise<BillingSettingsModel> {
   const subscriptionProductsByInterval =
     await stripePaymentGateway.anonScope.listAllSubscriptionProducts();
   const subscriptionProducts = Object.values(
-    subscriptionProductsByInterval
+    subscriptionProductsByInterval,
   ).flat();
   const upgradeOption = selectUpgradeOption(subscriptionProducts);
 

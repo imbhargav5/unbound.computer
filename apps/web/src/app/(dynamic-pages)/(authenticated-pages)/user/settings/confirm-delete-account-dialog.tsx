@@ -38,7 +38,7 @@ export const ConfirmDeleteAccountDialog = () => {
         "Account deletion request created. Please check your email.",
         {
           id: toastRef.current,
-        }
+        },
       );
       toastRef.current = undefined;
       setIsSuccessDialogOpen(true);

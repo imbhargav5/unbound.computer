@@ -12,7 +12,7 @@ export function ChangelogTagPill({ tag, className }: ChangelogTagPillProps) {
       className={cn(
         "rounded-full border px-2.5 py-1 text-xs",
         getTagColor(tag),
-        className
+        className,
       )}
     >
       {tag}

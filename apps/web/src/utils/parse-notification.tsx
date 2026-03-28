@@ -21,7 +21,7 @@ type NormalizedNotification = {
 );
 
 export const parseNotification = (
-  notificationPayload: unknown
+  notificationPayload: unknown,
 ): NormalizedNotification => {
   try {
     const notification =

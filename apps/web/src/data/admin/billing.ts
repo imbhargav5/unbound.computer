@@ -37,6 +37,6 @@ export const adminToggleProductVisibilityAction = adminActionClient
     // Toggle the visibility of the product in the super admin scope
     await stripeGateway.superAdminScope.toggleProductVisibility(
       product_id,
-      is_visible_in_ui
+      is_visible_in_ui,
     );
   });

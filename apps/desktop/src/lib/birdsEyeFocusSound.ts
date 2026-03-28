@@ -11,7 +11,7 @@ let birdsEyeFocusBufferPromise: Promise<AudioBuffer | null> | null = null;
 export function shouldPlayBirdsEyeFocusSound(
   previousRowId: string | null,
   nextRowId: string | null,
-  cause: BirdsEyeFocusChangeCause
+  cause: BirdsEyeFocusChangeCause,
 ) {
   return (
     previousRowId !== nextRowId &&

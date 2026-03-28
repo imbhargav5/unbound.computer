@@ -13,5 +13,5 @@ export const supabaseAnonClient = createClient<Database>(
       persistSession: false,
       detectSessionInUrl: false,
     },
-  }
+  },
 );

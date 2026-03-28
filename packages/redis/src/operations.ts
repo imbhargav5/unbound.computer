@@ -39,7 +39,7 @@ export async function get<T>(key: string): Promise<T | null> {
 export async function set(
   key: string,
   value: unknown,
-  options?: SetOptions
+  options?: SetOptions,
 ): Promise<void> {
   const client = getRedisClient();
   if (options?.ex) {

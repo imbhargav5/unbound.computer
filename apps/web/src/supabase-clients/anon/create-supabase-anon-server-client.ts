@@ -26,6 +26,6 @@ export const createSupabaseAnonServerClient = async () => {
         persistSession: false,
         detectSessionInUrl: false,
       },
-    }
+    },
   );
 };

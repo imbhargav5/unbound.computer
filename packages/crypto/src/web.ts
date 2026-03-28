@@ -46,7 +46,7 @@ export function generateSessionToken(): string {
  */
 export function deriveWebSessionKey(
   masterKey: Uint8Array,
-  webSessionId: string
+  webSessionId: string,
 ): Uint8Array {
   return deriveKey(masterKey, `unbound-web-session:${webSessionId}`);
 }
@@ -62,7 +62,7 @@ export function deriveWebSessionKey(
 export function createWebSessionQRData(
   sessionId: string,
   publicKey: string,
-  expiresAt: number
+  expiresAt: number,
 ): string {
   const data = {
     version: 1,

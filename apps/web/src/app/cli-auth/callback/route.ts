@@ -44,7 +44,7 @@ export async function GET(request: Request) {
       errorUrl.searchParams.set("error", "missing_parameters");
       errorUrl.searchParams.set(
         "description",
-        "Missing required parameters: code or login_id"
+        "Missing required parameters: code or login_id",
       );
       return NextResponse.redirect(errorUrl);
     }
@@ -63,7 +63,7 @@ export async function GET(request: Request) {
       errorUrl.searchParams.set("error", "session_exchange_failed");
       errorUrl.searchParams.set(
         "description",
-        sessionError?.message || "Failed to create session"
+        sessionError?.message || "Failed to create session",
       );
       return NextResponse.redirect(errorUrl);
     }
@@ -78,7 +78,7 @@ export async function GET(request: Request) {
       access_token: session.access_token,
       refresh_token: session.refresh_token,
       expires_at: new Date(
-        Date.now() + session.expires_in * 1000
+        Date.now() + session.expires_in * 1000,
       ).toISOString(),
     });
 
@@ -88,7 +88,7 @@ export async function GET(request: Request) {
       errorUrl.searchParams.set("error", "storage_failed");
       errorUrl.searchParams.set(
         "description",
-        "Failed to store authentication tokens"
+        "Failed to store authentication tokens",
       );
       return NextResponse.redirect(errorUrl);
     }
@@ -103,7 +103,7 @@ export async function GET(request: Request) {
     errorUrl.searchParams.set("error", "internal_error");
     errorUrl.searchParams.set(
       "description",
-      "An unexpected error occurred during authentication"
+      "An unexpected error occurred during authentication",
     );
     return NextResponse.redirect(errorUrl);
   }

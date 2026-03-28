@@ -60,7 +60,7 @@ export const Password = ({
                 "flex w-full justify-center rounded-lg border border-transparent px-4 py-3 font-medium text-sm text-white shadow-xs focus:outline-hidden focus:ring-2 focus:ring-offset-2 dark:text-black",
                 isLoading
                   ? "bg-yellow-300 dark:bg-yellow-700"
-                  : "bg-black hover:bg-gray-900 dark:bg-white dark:hover:bg-gray-100"
+                  : "bg-black hover:bg-gray-900 dark:bg-white dark:hover:bg-gray-100",
               )}
               disabled
               type="submit"
@@ -73,7 +73,7 @@ export const Password = ({
                 "flex w-full justify-center rounded-lg border border-transparent px-4 py-2 font-medium text-sm text-white shadow-xs focus:outline-hidden focus:ring-2 focus:ring-offset-2 dark:text-black",
                 isLoading
                   ? "bg-yellow-300 dark:bg-yellow-700"
-                  : "bg-black hover:bg-gray-900 dark:bg-white dark:hover:bg-gray-100"
+                  : "bg-black hover:bg-gray-900 dark:bg-white dark:hover:bg-gray-100",
               )}
               type="submit"
             >

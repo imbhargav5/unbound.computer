@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json(
         { error: "Unauthorized" },
-        { status: 401, headers: corsHeaders }
+        { status: 401, headers: corsHeaders },
       );
     }
 
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     if (!parseResult.success) {
       return NextResponse.json(
         { error: "Invalid request body", details: parseResult.error.issues },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: corsHeaders },
       );
     }
 
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     if (error) {
       return NextResponse.json(
         { error: error.message },
-        { status: 500, headers: corsHeaders }
+        { status: 500, headers: corsHeaders },
       );
     }
 
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       { error: String(error) },
-      { status: 500, headers: corsHeaders }
+      { status: 500, headers: corsHeaders },
     );
   }
 }
@@ -100,7 +100,7 @@ export async function PATCH(req: NextRequest) {
     if (!user) {
       return NextResponse.json(
         { error: "Unauthorized" },
-        { status: 401, headers: corsHeaders }
+        { status: 401, headers: corsHeaders },
       );
     }
 
@@ -110,7 +110,7 @@ export async function PATCH(req: NextRequest) {
     if (!sessionId) {
       return NextResponse.json(
         { error: "sessionId query parameter is required" },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: corsHeaders },
       );
     }
 
@@ -120,7 +120,7 @@ export async function PATCH(req: NextRequest) {
     if (!parseResult.success) {
       return NextResponse.json(
         { error: "Invalid request body", details: parseResult.error.issues },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: corsHeaders },
       );
     }
 
@@ -153,7 +153,7 @@ export async function PATCH(req: NextRequest) {
     if (error) {
       return NextResponse.json(
         { error: error.message },
-        { status: 500, headers: corsHeaders }
+        { status: 500, headers: corsHeaders },
       );
     }
 
@@ -161,7 +161,7 @@ export async function PATCH(req: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       { error: String(error) },
-      { status: 500, headers: corsHeaders }
+      { status: 500, headers: corsHeaders },
     );
   }
 }
@@ -179,7 +179,7 @@ export async function GET(req: NextRequest) {
     if (!user) {
       return NextResponse.json(
         { error: "Unauthorized" },
-        { status: 401, headers: corsHeaders }
+        { status: 401, headers: corsHeaders },
       );
     }
 
@@ -203,7 +203,7 @@ export async function GET(req: NextRequest) {
         *,
         repository:repositories(id, name, local_path, remote_url),
         device:devices(id, name, device_type)
-      `
+      `,
       )
       .eq("user_id", user.id)
       .order("session_started_at", { ascending: false });
@@ -225,7 +225,7 @@ export async function GET(req: NextRequest) {
     if (error) {
       return NextResponse.json(
         { error: error.message },
-        { status: 500, headers: corsHeaders }
+        { status: 500, headers: corsHeaders },
       );
     }
 
@@ -233,7 +233,7 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       { error: String(error) },
-      { status: 500, headers: corsHeaders }
+      { status: 500, headers: corsHeaders },
     );
   }
 }

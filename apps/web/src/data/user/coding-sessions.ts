@@ -20,7 +20,7 @@ export async function getActiveCodingSessions() {
         parent:repositories!parent_repository_id(id, name)
       ),
       device:devices(id, name, device_type)
-    `
+    `,
     )
     .eq("user_id", user.sub)
     .eq("status", "active")
@@ -47,7 +47,7 @@ export async function getSessionHistory(limit = 20) {
       *,
       repository:repositories(id, name, remote_url),
       device:devices(id, name, device_type)
-    `
+    `,
     )
     .eq("user_id", user.sub)
     .order("session_started_at", { ascending: false })
@@ -93,7 +93,7 @@ export async function getSessionsByRepository(repositoryId: string) {
       `
       *,
       device:devices(id, name, device_type)
-    `
+    `,
     )
     .eq("user_id", user.sub)
     .eq("repository_id", repositoryId)
@@ -119,7 +119,7 @@ export async function getSessionsByDevice(deviceId: string) {
       `
       *,
       repository:repositories(id, name, remote_url)
-    `
+    `,
     )
     .eq("user_id", user.sub)
     .eq("device_id", deviceId)

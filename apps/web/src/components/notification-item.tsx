@@ -62,7 +62,7 @@ export function NotificationItem({
         "relative flex w-full items-start gap-4 p-4",
         isRead ? "bg-muted/50" : "bg-card",
         "transition-colors duration-200 hover:bg-accent/10",
-        href && "cursor-pointer"
+        href && "cursor-pointer",
       )}
       onMouseOver={onHover}
     >

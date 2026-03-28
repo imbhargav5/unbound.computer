@@ -212,11 +212,10 @@ export class ClaudeProcess extends EventEmitter {
   override on(event: "stderr", listener: (chunk: StreamChunk) => void): this;
   override on(
     event: "exit",
-    listener: (code: number | null, signal: string | null) => void
+    listener: (code: number | null, signal: string | null) => void,
   ): this;
   override on(event: "error", listener: (error: Error) => void): this;
   override on(event: "spawn", listener: () => void): this;
-  // biome-ignore lint/suspicious/noExplicitAny: Required for EventEmitter overload compatibility
   override on(event: string, listener: (...args: any[]) => void): this {
     return super.on(event, listener);
   }
@@ -225,11 +224,10 @@ export class ClaudeProcess extends EventEmitter {
   override once(event: "stderr", listener: (chunk: StreamChunk) => void): this;
   override once(
     event: "exit",
-    listener: (code: number | null, signal: string | null) => void
+    listener: (code: number | null, signal: string | null) => void,
   ): this;
   override once(event: "error", listener: (error: Error) => void): this;
   override once(event: "spawn", listener: () => void): this;
-  // biome-ignore lint/suspicious/noExplicitAny: Required for EventEmitter overload compatibility
   override once(event: string, listener: (...args: any[]) => void): this {
     return super.once(event, listener);
   }
@@ -239,11 +237,10 @@ export class ClaudeProcess extends EventEmitter {
   override emit(
     event: "exit",
     code: number | null,
-    signal: string | null
+    signal: string | null,
   ): boolean;
   override emit(event: "error", error: Error): boolean;
   override emit(event: "spawn"): boolean;
-  // biome-ignore lint/suspicious/noExplicitAny: Required for EventEmitter overload compatibility
   override emit(event: string, ...args: any[]): boolean {
     return super.emit(event, ...args);
   }
@@ -255,7 +252,7 @@ export class ClaudeProcess extends EventEmitter {
 export function createClaudeProcess(
   command: string,
   args: string[],
-  options: SpawnOptions
+  options: SpawnOptions,
 ): ClaudeProcess {
   return new ClaudeProcess(command, args, options);
 }
@@ -264,7 +261,7 @@ export function createClaudeProcess(
  * Check if Claude Code is installed
  */
 export async function isClaudeInstalled(
-  command = "claude"
+  command = "claude",
 ): Promise<{ installed: boolean; version?: string }> {
   return new Promise((resolve) => {
     const proc = spawn(command, ["--version"], {

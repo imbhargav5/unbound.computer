@@ -14,7 +14,7 @@ export const readNotification = async (notificationId: string) => {
 };
 
 export const readAllNotifications = async (
-  userId: string
+  userId: string,
 ): Promise<SAPayload<DBTable<"user_notifications">[]>> => {
   const { data: notifications, error } = await supabaseUserClientComponent
     .from("user_notifications")
@@ -48,7 +48,7 @@ export const seeNotification = async (notificationId: string) => {
 export const getPaginatedNotifications = async (
   userId: string,
   pageNumber: number,
-  limit: number
+  limit: number,
 ): Promise<[number, Array<DBTable<"user_notifications">>]> => {
   const { data: notifications, error } = await supabaseUserClientComponent
     .from("user_notifications")

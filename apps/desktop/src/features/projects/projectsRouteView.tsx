@@ -34,7 +34,7 @@ export function ProjectsRouteView({
   onOpenCreateProject: () => void;
   onUpdateProjectDefaultNewChatArea: (
     projectId: string,
-    defaultNewChatArea: ProjectDefaultNewChatArea
+    defaultNewChatArea: ProjectDefaultNewChatArea,
   ) => Promise<void>;
 }) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -54,7 +54,7 @@ export function ProjectsRouteView({
     setIsSavingProjectSettings(false);
     setProjectSettingsError(null);
     setProjectDefaultNewChatAreaDraft(
-      projectDefaultNewChatArea(currentProject)
+      projectDefaultNewChatArea(currentProject),
     );
   }, [
     currentProject?.execution_workspace_policy,
@@ -99,7 +99,7 @@ export function ProjectsRouteView({
     } catch (error) {
       setProjectDefaultNewChatAreaDraft(previousValue);
       setProjectSettingsError(
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       );
     } finally {
       setIsSavingProjectSettings(false);
@@ -217,7 +217,7 @@ export function ProjectsRouteView({
                           disabled={isSavingProjectSettings}
                           onChange={(event) =>
                             void handleProjectDefaultNewChatAreaChange(
-                              event.target.value
+                              event.target.value,
                             )
                           }
                           value={projectDefaultNewChatAreaDraft}
@@ -376,7 +376,7 @@ export function DeleteProjectDialogView({
 }
 
 function normalizeProjectDefaultNewChatArea(
-  value: string
+  value: string,
 ): ProjectDefaultNewChatArea {
   return value === "new_worktree" ? "new_worktree" : "repo_root";
 }
@@ -385,7 +385,7 @@ function projectDefaultNewChatArea(project: ProjectRecord | null | undefined) {
   return normalizeProjectDefaultNewChatArea(
     project?.execution_workspace_policy === "new_worktree"
       ? "new_worktree"
-      : "repo_root"
+      : "repo_root",
   );
 }
 

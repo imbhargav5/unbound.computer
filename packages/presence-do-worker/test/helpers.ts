@@ -70,12 +70,12 @@ function base64UrlEncode(input: string | Buffer) {
 
 export function createPresenceToken(
   payload: Record<string, unknown>,
-  options?: { signingKey?: string }
+  options?: { signingKey?: string },
 ) {
   const key = options?.signingKey ?? signingKey;
   const encodedPayload = base64UrlEncode(JSON.stringify(payload));
   const signature = base64UrlEncode(
-    createHmac("sha256", key).update(encodedPayload).digest()
+    createHmac("sha256", key).update(encodedPayload).digest(),
   );
   return `${encodedPayload}.${signature}`;
 }
@@ -116,7 +116,7 @@ export async function disposeMiniflare(mf: Miniflare | undefined) {
 }
 
 export function makeHeartbeat(
-  overrides: Partial<HeartbeatPayload> = {}
+  overrides: Partial<HeartbeatPayload> = {},
 ): HeartbeatPayload {
   return {
     schema_version: 1,
@@ -134,7 +134,7 @@ export function makeHeartbeat(
 export async function dispatchHeartbeat(
   mf: Miniflare,
   payload: HeartbeatPayload,
-  options?: { token?: string; rawBody?: string; headers?: HeadersInit }
+  options?: { token?: string; rawBody?: string; headers?: HeadersInit },
 ) {
   const headers: HeadersInit = {
     "Content-Type": "application/json",
@@ -152,14 +152,14 @@ export async function dispatchHeartbeat(
       method: "POST",
       headers,
       body: options?.rawBody ?? JSON.stringify(payload),
-    }
+    },
   );
 }
 
 export function makePresenceReadToken(
   userId: string,
   deviceId: string,
-  overrides: Partial<Record<string, unknown>> = {}
+  overrides: Partial<Record<string, unknown>> = {},
 ) {
   const now = Date.now();
   return createPresenceToken({
@@ -176,7 +176,7 @@ export function makePresenceReadToken(
 export async function openStream(
   mf: Miniflare,
   userId: string,
-  token: string
+  token: string,
 ): Promise<{
   response: Response;
   reader: ReadableStreamDefaultReader<Uint8Array>;
@@ -187,7 +187,7 @@ export async function openStream(
       headers: {
         Authorization: `Bearer ${token}`,
       },
-    }
+    },
   );
 
   const reader = response.body?.getReader();
@@ -201,7 +201,7 @@ export async function openStream(
 
 export async function readSseEvent(
   reader: ReadableStreamDefaultReader<Uint8Array>,
-  timeoutMs = 750
+  timeoutMs = 750,
 ): Promise<Record<string, unknown>> {
   const timeout = new Promise<"timeout">((resolve) => {
     setTimeout(() => resolve("timeout"), timeoutMs);
@@ -227,10 +227,10 @@ export async function readSseEvent(
 
 export async function readDebugState(
   mf: Miniflare,
-  userId = defaultUserId
+  userId = defaultUserId,
 ): Promise<DebugState> {
   const response = await mf.dispatchFetch(
-    `http://example.com/debug/presence?user_id=${userId}`
+    `http://example.com/debug/presence?user_id=${userId}`,
   );
 
   expect(response.status).toBe(200);
@@ -244,7 +244,7 @@ export async function waitUntil<T>(
     intervalMs?: number;
     predicate?: (value: T) => boolean;
     description?: string;
-  }
+  },
 ): Promise<T> {
   const timeoutMs = options?.timeoutMs ?? 1500;
   const intervalMs = options?.intervalMs ?? 20;
@@ -263,6 +263,6 @@ export async function waitUntil<T>(
 
   throw new Error(
     options?.description ??
-      `waitUntil timed out after ${timeoutMs}ms (last value: ${JSON.stringify(lastValue)})`
+      `waitUntil timed out after ${timeoutMs}ms (last value: ${JSON.stringify(lastValue)})`,
   );
 }

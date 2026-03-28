@@ -91,7 +91,7 @@ export class MultiDeviceSessionManager {
    */
   addParticipant(
     sessionId: string,
-    options: AddParticipantOptions
+    options: AddParticipantOptions,
   ): SessionParticipant {
     const session = this.sessions.get(sessionId);
     if (!session) {
@@ -106,13 +106,13 @@ export class MultiDeviceSessionManager {
     const participantPublicKey = fromBase64(options.devicePublicKey);
     const pairwiseSecret = computePairwiseSecret(
       this.hostPrivateKey,
-      participantPublicKey
+      participantPublicKey,
     );
 
     // Derive session-specific key for this participant
     const sessionKey = deriveSessionKeyFromPair(
       pairwiseSecret.secret,
-      sessionId
+      sessionId,
     );
 
     const participant: SessionParticipant = {
@@ -175,7 +175,7 @@ export class MultiDeviceSessionManager {
   encryptForParticipant(
     sessionId: string,
     deviceId: string,
-    plaintext: Uint8Array
+    plaintext: Uint8Array,
   ): EncryptedParticipantMessage {
     const session = this.sessions.get(sessionId);
     if (!session) {
@@ -205,7 +205,7 @@ export class MultiDeviceSessionManager {
    */
   broadcastToParticipants(
     sessionId: string,
-    plaintext: Uint8Array
+    plaintext: Uint8Array,
   ): BroadcastResult {
     const session = this.sessions.get(sessionId);
     if (!session) {
@@ -225,7 +225,7 @@ export class MultiDeviceSessionManager {
         const encrypted = this.encryptForParticipant(
           sessionId,
           deviceId,
-          plaintext
+          plaintext,
         );
         messages.set(deviceId, encrypted);
       } catch {
@@ -344,7 +344,7 @@ export class MultiDeviceSessionManager {
    */
   getActiveSessions(): MultiDeviceSession[] {
     return Array.from(this.sessions.values()).filter(
-      (s) => s.state === "active"
+      (s) => s.state === "active",
     );
   }
 
@@ -362,7 +362,7 @@ export class MultiDeviceSessionManager {
  * Create a multi-device session manager
  */
 export function createSessionManager(
-  options: SessionManagerOptions
+  options: SessionManagerOptions,
 ): MultiDeviceSessionManager {
   return new MultiDeviceSessionManager(options);
 }

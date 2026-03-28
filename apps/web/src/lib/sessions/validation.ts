@@ -17,7 +17,7 @@ export interface SessionValidationResult {
 export async function validateSessionLimits(
   supabase: SupabaseClient<Database>,
   userId: string,
-  deviceId: string
+  deviceId: string,
 ): Promise<SessionValidationResult> {
   // Check user's active session count
   const { count: userSessionCount, error: userError } = await supabase
@@ -66,7 +66,7 @@ export async function validateSessionLimits(
 export async function validateDeviceOwnership(
   supabase: SupabaseClient<Database>,
   userId: string,
-  deviceId: string
+  deviceId: string,
 ): Promise<SessionValidationResult> {
   const { data: device, error } = await supabase
     .from("devices")
@@ -100,7 +100,7 @@ export async function validateDeviceOwnership(
 export async function validateRepositoryOwnership(
   supabase: SupabaseClient<Database>,
   userId: string,
-  repositoryId: string
+  repositoryId: string,
 ): Promise<SessionValidationResult> {
   const { data: repo, error } = await supabase
     .from("repositories")
@@ -135,7 +135,7 @@ export async function validateSessionForOperation(
   supabase: SupabaseClient<Database>,
   userId: string,
   sessionId: string,
-  allowedStatuses: string[]
+  allowedStatuses: string[],
 ): Promise<{
   valid: boolean;
   session?: CodingSession;

@@ -58,7 +58,7 @@ export function CodeBlock({
                 {showLineNumbers && (
                   <span
                     className={cn(
-                      "mr-4 inline-block w-8 select-none text-right text-muted-foreground"
+                      "mr-4 inline-block w-8 select-none text-right text-muted-foreground",
                     )}
                   >
                     {i + 1}

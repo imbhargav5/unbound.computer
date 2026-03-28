@@ -7,7 +7,7 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const applicableMiddlewares = middlewareList.filter((m) =>
-    matchesPath(m.matcher, pathname)
+    matchesPath(m.matcher, pathname),
   );
 
   let response: NextResponse | undefined;

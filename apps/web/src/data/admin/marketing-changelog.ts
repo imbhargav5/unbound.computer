@@ -144,7 +144,7 @@ export async function getAllChangelogs() {
       `
       *,
       marketing_changelog_author_relationship(author_id)
-    `
+    `,
     )
     .order("created_at", { ascending: false });
 
@@ -160,7 +160,7 @@ export async function getChangelogById(id: string) {
       `
       *,
       marketing_changelog_author_relationship(author_id)
-    `
+    `,
     )
     .eq("id", id)
     .single();
@@ -185,7 +185,7 @@ export async function cachedGetAllChangelogs() {
       `
       *,
       marketing_changelog_author_relationship(author_id)
-    `
+    `,
     )
     .order("created_at", { ascending: false });
 

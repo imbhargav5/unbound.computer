@@ -35,7 +35,7 @@ export function VideoFrameSelector({
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractionError, setExtractionError] = useState<string | null>(null);
   const [selectedFrameIndex, setSelectedFrameIndex] = useState<number | null>(
-    null
+    null,
   );
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -160,7 +160,7 @@ export function VideoFrameSelector({
   };
 
   const handleCustomUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
+    event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -261,7 +261,7 @@ export function VideoFrameSelector({
                   selectedFrameIndex === index
                     ? "border-primary ring-2 ring-primary ring-offset-2"
                     : "border-transparent",
-                  isUploading && selectedFrameIndex !== index && "opacity-50"
+                  isUploading && selectedFrameIndex !== index && "opacity-50",
                 )}
                 disabled={isUploading}
                 key={frame.timestamp}

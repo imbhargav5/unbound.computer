@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     if (!parseResult.success) {
       return NextResponse.json(
         { error: "Invalid request query", details: parseResult.error.issues },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: corsHeaders },
       );
     }
 
@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
         commandsLimit: window.commandsLimit,
         commandsUsed,
       }),
-      { headers: corsHeaders }
+      { headers: corsHeaders },
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -62,27 +62,27 @@ export async function GET(req: NextRequest) {
     if (message === "Unauthorized") {
       return NextResponse.json(
         { error: "Unauthorized" },
-        { status: 401, headers: corsHeaders }
+        { status: 401, headers: corsHeaders },
       );
     }
 
     if (message === "Device not found") {
       return NextResponse.json(
         { error: "Device not found" },
-        { status: 404, headers: corsHeaders }
+        { status: 404, headers: corsHeaders },
       );
     }
 
     if (message === "Forbidden") {
       return NextResponse.json(
         { error: "Forbidden" },
-        { status: 403, headers: corsHeaders }
+        { status: 403, headers: corsHeaders },
       );
     }
 
     return NextResponse.json(
       { error: message },
-      { status: 500, headers: corsHeaders }
+      { status: 500, headers: corsHeaders },
     );
   }
 }

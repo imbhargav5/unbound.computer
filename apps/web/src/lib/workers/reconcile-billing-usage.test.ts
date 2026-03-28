@@ -11,7 +11,7 @@ beforeAll(async () => {
 });
 
 function buildCounterIdentity(
-  overrides?: Partial<UsageCounterUpsertRow>
+  overrides?: Partial<UsageCounterUpsertRow>,
 ): UsageCounterUpsertRow {
   return {
     gateway_name: "stripe",
@@ -90,7 +90,7 @@ describe("buildCounterRepairPlan", () => {
           gateway_customer_id: "cus_orphan",
           usage_count: 0,
         }),
-      ])
+      ]),
     );
   });
 });

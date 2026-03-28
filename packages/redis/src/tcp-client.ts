@@ -23,7 +23,7 @@ let client: Redis | null = null;
  * ```
  */
 export function createRedisTCPClient(
-  env: Record<string, string | undefined>
+  env: Record<string, string | undefined>,
 ): Redis {
   if (client) {
     return client;
@@ -113,7 +113,7 @@ export function createRedisTCPClient(
 export function getRedisTCPClient(): Redis {
   if (!client) {
     throw new Error(
-      "Redis TCP client not initialized. Call createRedisTCPClient(env) first."
+      "Redis TCP client not initialized. Call createRedisTCPClient(env) first.",
     );
   }
   return client;

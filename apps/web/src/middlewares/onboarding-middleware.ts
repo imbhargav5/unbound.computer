@@ -18,7 +18,7 @@ export const dashboardOnboardingMiddleware: MiddlewareConfig = {
     if (shouldOnboardUser(maybeUser)) {
       middlewareLogger.log(
         "User should onboard. Redirecting to onboarding.",
-        req.nextUrl.pathname
+        req.nextUrl.pathname,
       );
       return [NextResponse.redirect(toSiteURL("/onboarding")), maybeUser];
     }
@@ -40,7 +40,7 @@ export const onboardingRedirectMiddleware: MiddlewareConfig = {
     if (!shouldOnboardUser(maybeUser)) {
       middlewareLogger.log(
         "User should not onboard. Redirecting to dashboard.",
-        req.nextUrl.pathname
+        req.nextUrl.pathname,
       );
       return [NextResponse.redirect(toSiteURL("/dashboard")), maybeUser];
     }

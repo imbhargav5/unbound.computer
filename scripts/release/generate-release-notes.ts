@@ -60,7 +60,7 @@ function getPreviousTag(currentTag: string | null): string | null {
       // Fallback: if current tag not found in list, try to get tag before it by commit ancestry
       const prevTag = execSync(
         `git describe --tags --abbrev=0 --match 'v*' ${currentTag}^ 2>/dev/null`,
-        { encoding: "utf-8" }
+        { encoding: "utf-8" },
       ).trim();
       return prevTag || null;
     }
@@ -70,7 +70,7 @@ function getPreviousTag(currentTag: string | null): string | null {
       "git describe --tags --abbrev=0 --match 'v*' 2>/dev/null",
       {
         encoding: "utf-8",
-      }
+      },
     ).trim();
     return tag || null;
   } catch {
@@ -80,7 +80,7 @@ function getPreviousTag(currentTag: string | null): string | null {
 
 function getCommitsBetweenTags(
   fromTag: string | null,
-  toTag: string | null
+  toTag: string | null,
 ): Commit[] {
   let range: string;
   if (fromTag && toTag) {
@@ -110,7 +110,7 @@ function getCommitsBetweenTags(
 
       // Parse conventional commit format: type(scope): description
       const conventionalMatch = subject.match(
-        /^(\w+)(?:\(([^)]+)\))?:\s*(.+)$/
+        /^(\w+)(?:\(([^)]+)\))?:\s*(.+)$/,
       );
 
       if (conventionalMatch) {
@@ -163,7 +163,7 @@ function getRepoUrl(): string {
 function formatReleaseNotes(
   commits: Commit[],
   newVersion: string | null,
-  lastTag: string | null
+  lastTag: string | null,
 ): string {
   const repoUrl = getRepoUrl();
 
@@ -237,7 +237,7 @@ function formatReleaseNotes(
     lines.push("---");
     lines.push("");
     lines.push(
-      `**Full Changelog**: [${lastTag}...v${newVersion}](${repoUrl}/compare/${lastTag}...v${newVersion})`
+      `**Full Changelog**: [${lastTag}...v${newVersion}](${repoUrl}/compare/${lastTag}...v${newVersion})`,
     );
   }
 

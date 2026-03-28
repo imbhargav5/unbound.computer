@@ -5,7 +5,7 @@ type TimeoutCallback = () => void;
 export function useTimeout(
   callback: TimeoutCallback,
   delay: number | null,
-  options: { enabled?: boolean } = { enabled: true }
+  options: { enabled?: boolean } = { enabled: true },
 ) {
   const savedCallback = useRef<TimeoutCallback | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);

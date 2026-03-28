@@ -5,7 +5,7 @@ import { getPageImage, source } from "@/app/source";
 
 export async function GET(
   _req: Request,
-  { params }: { params: Promise<{ slug: string[] }> }
+  { params }: { params: Promise<{ slug: string[] }> },
 ) {
   const { slug } = await params;
   const page = source.getPage(slug.slice(0, -1));
@@ -20,7 +20,7 @@ export async function GET(
     {
       width: 1200,
       height: 630,
-    }
+    },
   );
 }
 

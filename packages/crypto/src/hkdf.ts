@@ -23,7 +23,7 @@ export function generateMasterKey(): Uint8Array {
 export function deriveSessionKey(
   masterKey: Uint8Array,
   sessionId: string,
-  salt?: Uint8Array
+  salt?: Uint8Array,
 ): Uint8Array {
   if (masterKey.length !== KEY_SIZE.MASTER_KEY) {
     throw new Error(`Master Key must be ${KEY_SIZE.MASTER_KEY} bytes`);
@@ -35,7 +35,7 @@ export function deriveSessionKey(
     masterKey,
     salt ?? new Uint8Array(0),
     info,
-    KEY_SIZE.SESSION_KEY
+    KEY_SIZE.SESSION_KEY,
   );
 }
 
@@ -52,7 +52,7 @@ export function deriveKey(
   sharedSecret: Uint8Array,
   info: string,
   salt?: Uint8Array,
-  length = KEY_SIZE.SESSION_KEY
+  length = KEY_SIZE.SESSION_KEY,
 ): Uint8Array {
   const infoBytes = new TextEncoder().encode(info);
   return hkdf(
@@ -60,6 +60,6 @@ export function deriveKey(
     sharedSecret,
     salt ?? new Uint8Array(0),
     infoBytes,
-    length
+    length,
   );
 }

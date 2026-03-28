@@ -1,7 +1,13 @@
 {
   "name": "@unbound/database",
-  "private": true,
   "version": "0.0.20",
+  "private": true,
+  "files": [
+    "lib/database.types.ts"
+  ],
+  "exports": {
+    "./types": "./lib/database.types.ts"
+  },
   "scripts": {
     "start": "supabase start",
     "stop": "supabase stop",
@@ -17,11 +23,5 @@
   },
   "devDependencies": {
     "@unbound/typescript-config": "workspace:*"
-  },
-  "exports": {
-    "./types": "./lib/database.types.ts"
-  },
-  "files": [
-    "lib/database.types.ts"
-  ]
+  }
 }

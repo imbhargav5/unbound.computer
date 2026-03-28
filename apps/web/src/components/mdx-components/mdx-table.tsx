@@ -9,7 +9,7 @@ export function MdxTable({
       <table
         className={cn(
           className,
-          "w-full table-auto border-collapse border-gray-200 dark:border-gray-700"
+          "w-full table-auto border-collapse border-gray-200 dark:border-gray-700",
         )}
         {...props}
       />
@@ -25,7 +25,7 @@ export function MdxTableHeader({
     <th
       className={cn(
         className,
-        "px-6 py-3 text-left font-medium text-gray-500 text-xs uppercase tracking-wider dark:text-gray-400"
+        "px-6 py-3 text-left font-medium text-gray-500 text-xs uppercase tracking-wider dark:text-gray-400",
       )}
       style={{ wordWrap: "break-word" }}
       {...props}
@@ -41,7 +41,7 @@ export function MdxTableCell({
     <td
       className={cn(
         className,
-        "px-6 py-4 text-gray-900 text-sm dark:text-gray-100"
+        "px-6 py-4 text-gray-900 text-sm dark:text-gray-100",
       )}
       style={{ wordWrap: "break-word" }}
       {...props}

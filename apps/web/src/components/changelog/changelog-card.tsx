@@ -15,7 +15,7 @@ export function ChangelogCard({ item }: ChangelogCardProps) {
   const mediaType = resolveMediaType(
     item.media_type,
     mediaSource,
-    Boolean(item.cover_image)
+    Boolean(item.cover_image),
   );
 
   return (
@@ -68,7 +68,7 @@ export function ChangelogCard({ item }: ChangelogCardProps) {
 
 function inferMediaType(
   mediaSource: string | null,
-  isCoverImage: boolean
+  isCoverImage: boolean,
 ): ChangelogMediaType | null {
   if (!mediaSource) {
     return null;
@@ -90,7 +90,7 @@ function inferMediaType(
 function resolveMediaType(
   mediaType: string | null,
   mediaSource: string | null,
-  isCoverImage: boolean
+  isCoverImage: boolean,
 ): ChangelogMediaType | null {
   if (isChangelogMediaType(mediaType)) {
     return mediaType;
@@ -100,7 +100,7 @@ function resolveMediaType(
 }
 
 function isChangelogMediaType(
-  value: string | null
+  value: string | null,
 ): value is ChangelogMediaType {
   return value === "image" || value === "video" || value === "gif";
 }

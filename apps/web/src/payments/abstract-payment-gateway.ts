@@ -5,7 +5,7 @@ export class PaymentGatewayError extends Error {
   constructor(
     message: string,
     public code: string,
-    public gateway: string
+    public gateway: string,
   ) {
     super(message, {
       cause: {
@@ -95,42 +95,42 @@ export abstract class PaymentGateway {
   abstract db: {
     createCustomer(
       customerData: Partial<DBTable<"billing_customers">>,
-      userId: string
+      userId: string,
     ): Promise<DBTable<"billing_customers">>;
     getCustomerByCustomerId(
-      customerId: string
+      customerId: string,
     ): Promise<DBTable<"billing_customers">>;
     getCustomerByUserId(
-      userId: string
+      userId: string,
     ): Promise<DBTable<"billing_customers"> | null>;
     hasCustomer(customerId: string): Promise<boolean>;
     updateCustomer(
       customerId: string,
-      updateData: Partial<DBTable<"billing_customers">>
+      updateData: Partial<DBTable<"billing_customers">>,
     ): Promise<DBTable<"billing_customers">>;
     deleteCustomer(customerId: string): Promise<void>;
     listCustomers(
-      options?: PaginationOptions
+      options?: PaginationOptions,
     ): Promise<PaginatedResponse<DBTable<"billing_customers">>>;
     // Subscription methods
     getSubscriptionsByCustomerId(
-      customerId: string
+      customerId: string,
     ): Promise<SubscriptionData[]>;
     getSubscriptionsByUserId(userId: string): Promise<SubscriptionData[]>;
     getSubscription(subscriptionId: string): Promise<SubscriptionData>;
     listSubscriptions(
       customerId: string,
-      options?: PaginationOptions
+      options?: PaginationOptions,
     ): Promise<PaginatedResponse<SubscriptionData>>;
     // Invoice methods
     getInvoice(invoiceId: string): Promise<InvoiceData>;
     listInvoicesByCustomerId(
       customerId: string,
-      options?: PaginationOptions
+      options?: PaginationOptions,
     ): Promise<PaginatedResponse<InvoiceData>>;
     listInvoicesByUserId(
       userId: string,
-      options?: PaginationOptions
+      options?: PaginationOptions,
     ): Promise<PaginatedResponse<InvoiceData>>;
     // Product methods
     getProduct(productId: string): Promise<ProductData>;
@@ -139,10 +139,10 @@ export abstract class PaymentGateway {
 
   abstract util: {
     createCustomerForUser(
-      userId: string
+      userId: string,
     ): Promise<DBTable<"billing_customers">>;
     getCustomerByUserId(
-      userId: string
+      userId: string,
     ): Promise<DBTable<"billing_customers"> | null>;
     supportsFeature(featureName: string): boolean;
     isTestMode(): boolean;
@@ -153,12 +153,12 @@ export abstract class PaymentGateway {
    */
   abstract gateway: {
     createGatewayCustomer(
-      userData: Partial<CustomerData>
+      userData: Partial<CustomerData>,
     ): Promise<CustomerData>;
     // Webhook methods
     handleGatewayWebhook(
       body: string | Buffer,
-      signature: string
+      signature: string,
     ): Promise<void>;
   };
   abstract anonScope: {
@@ -174,12 +174,12 @@ export abstract class PaymentGateway {
   };
   abstract userScope: {
     getUserSubscriptions(
-      userId: string
+      userId: string,
     ): Promise<DBTable<"billing_subscriptions">[]>;
     getUserOneTimePurchases(userId: string): Promise<OneTimePaymentData[]>;
     getUserInvoices(userId: string): Promise<PaginatedResponse<InvoiceData>>;
     getUserPaymentMethods(
-      userId: string
+      userId: string,
     ): Promise<DBTable<"billing_payment_methods">[]>;
     getUserCustomer(userId: string): Promise<DBTable<"billing_customers">>;
     // Checkout methods
@@ -197,7 +197,7 @@ export abstract class PaymentGateway {
     // Customer portal methods
     createGatewayCustomerPortalSession(
       userId: string,
-      returnUrl: string
+      returnUrl: string,
     ): Promise<CustomerPortalData>;
   };
   abstract superAdminScope: {
@@ -205,13 +205,13 @@ export abstract class PaymentGateway {
     syncCustomers(): Promise<void>;
     toggleProductVisibility(
       productId: string,
-      isVisible: boolean
+      isVisible: boolean,
     ): Promise<void>;
     listAllProducts(): Promise<ProductData[]>;
     getCurrentMRR(): Promise<number>;
     getSubscriptionsByMonthBetween(
       startDate: Date,
-      endDate: Date
+      endDate: Date,
     ): Promise<{ month: Date; subscriptions: number }[]>;
     getCurrentRevenueByProduct(): Promise<
       { productId: string; revenue: number }[]

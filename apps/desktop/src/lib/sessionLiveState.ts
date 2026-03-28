@@ -47,14 +47,14 @@ const emptySnapshotByKey = new Map<string, DesktopSessionStateSnapshot>();
 
 function emptySnapshotKey(
   sessionId: string | null,
-  provider: SessionConversationProvider
+  provider: SessionConversationProvider,
 ) {
   return `${sessionId ?? "missing-session"}:${provider}`;
 }
 
 function createEmptySnapshot(
   sessionId: string,
-  provider: SessionConversationProvider
+  provider: SessionConversationProvider,
 ): DesktopSessionStateSnapshot {
   return {
     conversationRows: [],
@@ -89,7 +89,7 @@ class DesktopSessionLiveState {
   constructor(
     private readonly sessionId: string,
     provider: SessionConversationProvider,
-    api: DesktopSessionLiveStateApi
+    api: DesktopSessionLiveStateApi,
   ) {
     this.api = api;
     this.snapshot = createEmptySnapshot(sessionId, provider);
@@ -214,7 +214,7 @@ class DesktopSessionLiveState {
         isLoadingMessages: false,
         latestCompletionSummary: deriveLatestSessionCompletionSummary(
           messages,
-          provider
+          provider,
         ),
         messages,
         runtimeStatus,
@@ -247,11 +247,11 @@ class DesktopSessionLiveState {
     this.updateSnapshot({
       conversationRows: buildSessionConversationTimeline(
         this.snapshot.messages,
-        provider
+        provider,
       ),
       latestCompletionSummary: deriveLatestSessionCompletionSummary(
         this.snapshot.messages,
-        provider
+        provider,
       ),
       provider,
     });
@@ -271,7 +271,7 @@ export class DesktopSessionStateManager {
   private readonly states = new Map<string, DesktopSessionLiveState>();
 
   constructor(
-    api: DesktopSessionLiveStateApi = defaultDesktopSessionLiveStateApi
+    api: DesktopSessionLiveStateApi = defaultDesktopSessionLiveStateApi,
   ) {
     this.api = api;
   }
@@ -289,7 +289,7 @@ export class DesktopSessionStateManager {
 
   emptySnapshot(
     sessionId: string | null,
-    provider: SessionConversationProvider
+    provider: SessionConversationProvider,
   ) {
     const key = emptySnapshotKey(sessionId, provider);
     const cached = emptySnapshotByKey.get(key);
@@ -299,7 +299,7 @@ export class DesktopSessionStateManager {
 
     const snapshot = createEmptySnapshot(
       sessionId ?? "missing-session",
-      provider
+      provider,
     );
     emptySnapshotByKey.set(key, snapshot);
     return snapshot;
@@ -317,11 +317,11 @@ export class DesktopSessionStateManager {
 export function useDesktopSessionLiveState(
   manager: DesktopSessionStateManager,
   sessionId: string | null,
-  provider: SessionConversationProvider
+  provider: SessionConversationProvider,
 ) {
   const liveState = useMemo(
     () => (sessionId ? manager.stateFor(sessionId, provider) : null),
-    [manager, provider, sessionId]
+    [manager, provider, sessionId],
   );
 
   useEffect(() => {
@@ -337,15 +337,15 @@ export function useDesktopSessionLiveState(
 
   const emptySnapshot = useMemo(
     () => manager.emptySnapshot(sessionId, provider),
-    [manager, provider, sessionId]
+    [manager, provider, sessionId],
   );
   const getSnapshot = useCallback(
     () => liveState?.getSnapshot() ?? emptySnapshot,
-    [emptySnapshot, liveState]
+    [emptySnapshot, liveState],
   );
   const subscribe = useMemo(
     () => liveState?.subscribe ?? noopSubscribe,
-    [liveState]
+    [liveState],
   );
 
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);

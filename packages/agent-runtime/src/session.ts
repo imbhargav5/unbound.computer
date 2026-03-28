@@ -40,7 +40,7 @@ export class Session extends EventEmitter {
   constructor(
     config: SessionConfig,
     claudeCommand = "claude",
-    claudeArgs: string[] = ["--dangerously-skip-permissions"]
+    claudeArgs: string[] = ["--dangerously-skip-permissions"],
   ) {
     super();
     this.config = config;
@@ -373,15 +373,14 @@ export class Session extends EventEmitter {
   // Type-safe event methods
   override on(
     event: "stateChange",
-    listener: (data: StateChangeData) => void
+    listener: (data: StateChangeData) => void,
   ): this;
   override on(event: "output", listener: (content: string) => void): this;
   override on(event: "error", listener: (error: Error) => void): this;
   override on(
     event: "exit",
-    listener: (code: number | null, signal: string | null) => void
+    listener: (code: number | null, signal: string | null) => void,
   ): this;
-  // biome-ignore lint/suspicious/noExplicitAny: Required for EventEmitter overload compatibility
   override on(event: string, listener: (...args: any[]) => void): this {
     return super.on(event, listener);
   }
@@ -393,7 +392,7 @@ export class Session extends EventEmitter {
 export function createSession(
   config: SessionConfig,
   claudeCommand?: string,
-  claudeArgs?: string[]
+  claudeArgs?: string[],
 ): Session {
   return new Session(config, claudeCommand, claudeArgs);
 }
@@ -404,11 +403,11 @@ export function createSession(
 export function createSessionWithId(
   config: Omit<SessionConfig, "sessionId">,
   claudeCommand?: string,
-  claudeArgs?: string[]
+  claudeArgs?: string[],
 ): Session {
   return new Session(
     { ...config, sessionId: randomUUID() },
     claudeCommand,
-    claudeArgs
+    claudeArgs,
   );
 }

@@ -45,21 +45,21 @@ export function StatsRouteView({
   const workspaces = snapshot?.workspaces ?? [];
   const issueById = useMemo(
     () => new Map(issues.map((issue) => [issue.id, issue])),
-    [issues]
+    [issues],
   );
   const visibleConversations = useMemo(
     () =>
       issues.filter(
-        (issue) => !issue.hidden_at && isRootConversationIssue(issue)
+        (issue) => !issue.hidden_at && isRootConversationIssue(issue),
       ),
-    [issues]
+    [issues],
   );
   const queuedMessages = useMemo(
     () =>
       issues.filter(
-        (issue) => !(issue.hidden_at || isRootConversationIssue(issue))
+        (issue) => !(issue.hidden_at || isRootConversationIssue(issue)),
       ),
-    [issues]
+    [issues],
   );
   const modelSummaries = useMemo(() => {
     const summaries = new Map<
@@ -90,7 +90,7 @@ export function StatsRouteView({
 
     for (const issue of visibleConversations) {
       ensureSummary(issueModelLabel(issue, agents)).conversationIds.add(
-        issue.id
+        issue.id,
       );
     }
 
@@ -101,7 +101,7 @@ export function StatsRouteView({
       ensureSummary(
         issue
           ? issueModelLabel(issue, agents)
-          : agentModelLabelById(agents, workspace.agent_id)
+          : agentModelLabelById(agents, workspace.agent_id),
       ).workspaceCount += 1;
     }
 
@@ -110,7 +110,7 @@ export function StatsRouteView({
       const summary = ensureSummary(
         issue
           ? issueModelLabel(issue, agents)
-          : agentModelLabelById(agents, update.agent_id)
+          : agentModelLabelById(agents, update.agent_id),
       );
       summary.conversationIds.add(update.issue_id);
       if (update.run_status === "queued" || update.run_status === "running") {
@@ -161,9 +161,9 @@ export function StatsRouteView({
       }))
       .filter(
         (
-          entry
+          entry,
         ): entry is { issue: IssueRecord; update: IssueRunCardUpdateRecord } =>
-          entry.issue !== null && entry.issue.hidden_at == null
+          entry.issue !== null && entry.issue.hidden_at == null,
       )
       .sort((left, right) => {
         const leftDate =
@@ -175,7 +175,7 @@ export function StatsRouteView({
       .slice(0, 6);
   }, [issueById, issueRunCardUpdatesByIssueId]);
   const activeModelCount = modelSummaries.filter(
-    (summary) => summary.activeRunCount > 0
+    (summary) => summary.activeRunCount > 0,
   ).length;
 
   return (
@@ -302,7 +302,7 @@ export function StatsRouteView({
                       ? `${summary.activeRunCount} live`
                       : summary.latestActivityAt
                         ? formatRelativeIssueDate(
-                            summary.latestActivityAt.toISOString()
+                            summary.latestActivityAt.toISOString(),
                           )
                         : "Idle"}
                   </span>
@@ -363,7 +363,7 @@ export function StatsRouteView({
                       workspace.issue_id
                         ? issueModelLabel(
                             issueById.get(workspace.issue_id) ?? null,
-                            agents
+                            agents,
                           )
                         : agentModelLabelById(agents, workspace.agent_id),
                     ]
@@ -467,7 +467,7 @@ function formatRelativeIssueDate(value: string | null | undefined) {
 
 function formatCompactIssueTimestamp(
   value: string | null | undefined,
-  now = new Date()
+  now = new Date(),
 ) {
   const date = parseIssueDate(value);
   if (!date) {
@@ -489,10 +489,10 @@ function formatCompactIssueTimestamp(
   const startOfDate = new Date(
     date.getFullYear(),
     date.getMonth(),
-    date.getDate()
+    date.getDate(),
   );
   const dayDelta = Math.round(
-    (startOfNow.getTime() - startOfDate.getTime()) / (24 * 60 * 60 * 1000)
+    (startOfNow.getTime() - startOfDate.getTime()) / (24 * 60 * 60 * 1000),
   );
 
   if (dayDelta === 1) {
@@ -523,7 +523,7 @@ function parseIssueDate(value: string | null | undefined) {
 
 function issueModelLabel(
   issue: BirdsEyeIssueLike | null | undefined,
-  agents: AgentRecord[]
+  agents: AgentRecord[],
 ) {
   const runtimeOverrides = objectFromUnknown(issue?.assignee_adapter_overrides);
   if (Object.keys(runtimeOverrides).length > 0) {
@@ -555,7 +555,7 @@ function agentModelLabel(agent: AgentRecord) {
 }
 
 function runtimeModelLabel(
-  runtimeConfig: Record<string, unknown> | null | undefined
+  runtimeConfig: Record<string, unknown> | null | undefined,
 ) {
   const configuredModel = stringFromUnknown(runtimeConfig?.model).trim();
   if (configuredModel && configuredModel.toLowerCase() !== "default") {
@@ -564,13 +564,13 @@ function runtimeModelLabel(
 
   return providerLabelForRuntimeConfig(
     stringFromUnknown(runtimeConfig?.command),
-    configuredModel
+    configuredModel,
   );
 }
 
 function providerLabelForRuntimeConfig(
   command: string | null | undefined,
-  model: string | null | undefined
+  model: string | null | undefined,
 ) {
   const provider = detectAgentCliProvider(command, model);
   if (provider === "codex") {
@@ -584,7 +584,7 @@ function providerLabelForRuntimeConfig(
 
 function detectAgentCliProvider(
   command: string | null | undefined,
-  model: string | null | undefined
+  model: string | null | undefined,
 ) {
   const normalizedCommand = String(command ?? "").toLowerCase();
   const normalizedModel = String(model ?? "").toLowerCase();

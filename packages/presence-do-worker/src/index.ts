@@ -54,7 +54,7 @@ interface Env {
 function jsonResponse(
   body: unknown,
   status: number,
-  extraHeaders?: HeadersInit
+  extraHeaders?: HeadersInit,
 ) {
   return new Response(JSON.stringify(body), {
     status,
@@ -96,7 +96,7 @@ function base64UrlToBytes(input: string): Uint8Array {
 
 async function verifyPresenceToken(
   token: string,
-  signingKey: string
+  signingKey: string,
 ): Promise<PresenceTokenPayload | null> {
   const [payloadPart, signaturePart] = token.split(".");
   if (!(payloadPart && signaturePart)) return null;
@@ -107,7 +107,7 @@ async function verifyPresenceToken(
     encoder.encode(signingKey),
     { name: "HMAC", hash: "SHA-256" },
     false,
-    ["verify"]
+    ["verify"],
   );
 
   const signatureBytes = base64UrlToBytes(signaturePart);
@@ -115,7 +115,7 @@ async function verifyPresenceToken(
     "HMAC",
     key,
     signatureBytes as unknown as BufferSource,
-    encoder.encode(payloadPart)
+    encoder.encode(payloadPart),
   );
   if (!ok) return null;
 
@@ -154,7 +154,7 @@ interface PresencePayloadValidationFailure {
 }
 
 function validatePresencePayload(
-  input: unknown
+  input: unknown,
 ): PresencePayloadValidationSuccess | PresencePayloadValidationFailure {
   if (!input || typeof input !== "object") {
     return {
@@ -254,16 +254,16 @@ export default {
         return jsonResponse(
           buildPresenceError(
             "unavailable",
-            "Debug endpoint disabled in production"
+            "Debug endpoint disabled in production",
           ),
-          403
+          403,
         );
       }
       const userId = normalizeIdentifier(url.searchParams.get("user_id"));
       if (!userId) {
         return jsonResponse(
           buildPresenceError("invalid_payload", "Missing user_id query param"),
-          400
+          400,
         );
       }
       const id = env.PRESENCE_DO.idFromName(userId);
@@ -282,7 +282,7 @@ export default {
         if (!userId) {
           return jsonResponse(
             buildPresenceError("invalid_payload", "Missing user_id"),
-            400
+            400,
           );
         }
       } else {
@@ -290,13 +290,13 @@ export default {
           const body = await request.clone().json();
           if (body && typeof body === "object" && "user_id" in body) {
             userId = normalizeIdentifier(
-              (body as { user_id?: string }).user_id
+              (body as { user_id?: string }).user_id,
             );
           }
         } catch {
           return jsonResponse(
             buildPresenceError("invalid_payload", "Invalid JSON payload"),
-            400
+            400,
           );
         }
       }
@@ -304,7 +304,7 @@ export default {
       if (!userId) {
         return jsonResponse(
           buildPresenceError("invalid_payload", "Missing user_id"),
-          400
+          400,
         );
       }
 
@@ -315,7 +315,7 @@ export default {
 
     return jsonResponse(
       buildPresenceError("unavailable", "Route not found"),
-      404
+      404,
     );
   },
 } satisfies ExportedHandler<Env>;
@@ -346,7 +346,7 @@ export class PresenceDurableObject {
     this.state = state;
     this.env = env;
     this.keepAliveFlushMs = parseKeepAliveFlushMs(
-      env.PRESENCE_DO_KEEPALIVE_FLUSH_MS
+      env.PRESENCE_DO_KEEPALIVE_FLUSH_MS,
     );
   }
 
@@ -371,7 +371,7 @@ export class PresenceDurableObject {
 
     return jsonResponse(
       buildPresenceError("unavailable", "Route not found"),
-      404
+      404,
     );
   }
 
@@ -411,9 +411,9 @@ export class PresenceDurableObject {
       return jsonResponse(
         buildPresenceError(
           "unavailable",
-          "Presence DO ingest token is not configured"
+          "Presence DO ingest token is not configured",
         ),
-        503
+        503,
       );
     }
 
@@ -422,7 +422,7 @@ export class PresenceDurableObject {
       logEvent("presence.do.heartbeat.unauthorized");
       return jsonResponse(
         buildPresenceError("unauthorized", "Unauthorized"),
-        401
+        401,
       );
     }
 
@@ -432,7 +432,7 @@ export class PresenceDurableObject {
     } catch {
       return jsonResponse(
         buildPresenceError("invalid_payload", "Invalid JSON payload"),
-        400
+        400,
       );
     }
 
@@ -443,7 +443,7 @@ export class PresenceDurableObject {
       });
       return jsonResponse(
         buildPresenceError(validation.error, validation.details),
-        400
+        400,
       );
     }
 
@@ -461,7 +461,7 @@ export class PresenceDurableObject {
       });
       return jsonResponse(
         buildPresenceError("invalid_payload", "Non-monotonic seq"),
-        409
+        409,
       );
     }
 
@@ -505,9 +505,9 @@ export class PresenceDurableObject {
       return jsonResponse(
         buildPresenceError(
           "unavailable",
-          "Presence DO token signing key is not configured"
+          "Presence DO token signing key is not configured",
         ),
-        503
+        503,
       );
     }
 
@@ -516,7 +516,7 @@ export class PresenceDurableObject {
       logEvent("presence.do.stream.unauthorized");
       return jsonResponse(
         buildPresenceError("unauthorized", "Unauthorized"),
-        401
+        401,
       );
     }
 
@@ -525,7 +525,7 @@ export class PresenceDurableObject {
       logEvent("presence.do.stream.invalid_token");
       return jsonResponse(
         buildPresenceError("forbidden", "Invalid token"),
-        403
+        403,
       );
     }
 
@@ -536,7 +536,7 @@ export class PresenceDurableObject {
       });
       return jsonResponse(
         buildPresenceError("forbidden", "Token expired"),
-        403
+        403,
       );
     }
 
@@ -546,7 +546,7 @@ export class PresenceDurableObject {
       });
       return jsonResponse(
         buildPresenceError("forbidden", "Insufficient scope"),
-        403
+        403,
       );
     }
 
@@ -558,7 +558,7 @@ export class PresenceDurableObject {
       });
       return jsonResponse(
         buildPresenceError("forbidden", "Token user mismatch"),
-        403
+        403,
       );
     }
 
@@ -577,8 +577,8 @@ export class PresenceDurableObject {
         for (const record of this.recordsByDevice.values()) {
           controller.enqueue(
             encoder.encode(
-              `data: ${JSON.stringify(this.toStreamPayload(record))}\n\n`
-            )
+              `data: ${JSON.stringify(this.toStreamPayload(record))}\n\n`,
+            ),
           );
         }
 
@@ -628,20 +628,20 @@ export class PresenceDurableObject {
         next_alarm_ms: this.computeNextAlarmMs(),
         stats: this.stats,
       },
-      200
+      200,
     );
   }
 
   private isKeepAlive(
     existing: PresenceStorageRecord | undefined,
-    payload: PresencePayload
+    payload: PresencePayload,
   ) {
     return Boolean(
       existing &&
-        existing.status === "online" &&
-        payload.status === "online" &&
-        payload.ttl_ms === existing.ttl_ms &&
-        payload.source === existing.source
+      existing.status === "online" &&
+      payload.status === "online" &&
+      payload.ttl_ms === existing.ttl_ms &&
+      payload.source === existing.source,
     );
   }
 
@@ -689,7 +689,7 @@ export class PresenceDurableObject {
 
   private async flushDueKeepAlive(now: number) {
     for (const [deviceId, deadline] of Array.from(
-      this.flushDeadlineByDevice.entries()
+      this.flushDeadlineByDevice.entries(),
     )) {
       if (deadline > now) continue;
 
@@ -760,7 +760,7 @@ export class PresenceDurableObject {
 
   private toStreamPayload(
     record: PresenceStorageRecord,
-    sentAtMs = record.sent_at_ms
+    sentAtMs = record.sent_at_ms,
   ): PresencePayload {
     return {
       schema_version: record.schema_version,

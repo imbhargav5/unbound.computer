@@ -110,7 +110,7 @@ export function SessionConversation({
           <Textarea
             className={cn(
               "min-h-[44px] resize-none",
-              status !== "active" && "cursor-not-allowed opacity-50"
+              status !== "active" && "cursor-not-allowed opacity-50",
             )}
             disabled={status !== "active" || !isConnected}
             onChange={(e) => setInput(e.target.value)}

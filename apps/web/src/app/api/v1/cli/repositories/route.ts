@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json(
         { error: "Unauthorized" },
-        { status: 401, headers: corsHeaders }
+        { status: 401, headers: corsHeaders },
       );
     }
 
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     if (!parseResult.success) {
       return NextResponse.json(
         { error: "Invalid request body", details: parseResult.error.issues },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: corsHeaders },
       );
     }
 
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
         },
         {
           onConflict: "device_id,local_path",
-        }
+        },
       )
       .select()
       .single();
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     if (error) {
       return NextResponse.json(
         { error: error.message },
-        { status: 500, headers: corsHeaders }
+        { status: 500, headers: corsHeaders },
       );
     }
 
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       { error: String(error) },
-      { status: 500, headers: corsHeaders }
+      { status: 500, headers: corsHeaders },
     );
   }
 }
@@ -108,7 +108,7 @@ export async function GET(req: NextRequest) {
     if (!user) {
       return NextResponse.json(
         { error: "Unauthorized" },
-        { status: 401, headers: corsHeaders }
+        { status: 401, headers: corsHeaders },
       );
     }
 
@@ -127,7 +127,7 @@ export async function GET(req: NextRequest) {
         active_sessions:agent_coding_sessions!repository_id(
           id, status, session_started_at, current_branch
         )
-      `
+      `,
       )
       .eq("user_id", user.id)
       .eq("is_worktree", false)
@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
     if (error) {
       return NextResponse.json(
         { error: error.message },
-        { status: 500, headers: corsHeaders }
+        { status: 500, headers: corsHeaders },
       );
     }
 
@@ -151,7 +151,7 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       { error: String(error) },
-      { status: 500, headers: corsHeaders }
+      { status: 500, headers: corsHeaders },
     );
   }
 }

@@ -28,7 +28,7 @@ export async function POST(_req: NextRequest) {
     if (userError || !user) {
       return NextResponse.json(
         { error: "Unauthorized - please login first" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 

@@ -19,11 +19,11 @@ describe("pairwise crypto", () => {
 
       const secretFromA = computePairwiseSecret(
         keyPairA.privateKey,
-        keyPairB.publicKey
+        keyPairB.publicKey,
       );
       const secretFromB = computePairwiseSecret(
         keyPairB.privateKey,
-        keyPairA.publicKey
+        keyPairA.publicKey,
       );
 
       expect(secretFromA.secret).toHaveLength(KEY_SIZE.SESSION_KEY);
@@ -36,11 +36,11 @@ describe("pairwise crypto", () => {
 
       const secretFromA = computePairwiseSecret(
         keyPairA.privateKey,
-        keyPairB.publicKey
+        keyPairB.publicKey,
       );
       const secretFromB = computePairwiseSecret(
         keyPairB.privateKey,
-        keyPairA.publicKey
+        keyPairA.publicKey,
       );
 
       // ECDH is symmetric: ECDH(priv_A, pub_B) === ECDH(priv_B, pub_A)
@@ -54,15 +54,15 @@ describe("pairwise crypto", () => {
 
       const secretAB = computePairwiseSecret(
         keyPairA.privateKey,
-        keyPairB.publicKey
+        keyPairB.publicKey,
       );
       const secretAC = computePairwiseSecret(
         keyPairA.privateKey,
-        keyPairC.publicKey
+        keyPairC.publicKey,
       );
       const secretBC = computePairwiseSecret(
         keyPairB.privateKey,
-        keyPairC.publicKey
+        keyPairC.publicKey,
       );
 
       expect(secretAB.secret).not.toEqual(secretAC.secret);
@@ -76,11 +76,11 @@ describe("pairwise crypto", () => {
 
       const secret1 = computePairwiseSecret(
         keyPairA.privateKey,
-        keyPairB.publicKey
+        keyPairB.publicKey,
       );
       const secret2 = computePairwiseSecret(
         keyPairA.privateKey,
-        keyPairB.publicKey
+        keyPairB.publicKey,
       );
 
       expect(secret1.secret).toEqual(secret2.secret);
@@ -93,12 +93,12 @@ describe("pairwise crypto", () => {
       const keyPairB = generateKeyPair();
       const pairwiseSecret = computePairwiseSecret(
         keyPairA.privateKey,
-        keyPairB.publicKey
+        keyPairB.publicKey,
       );
 
       const sessionKey = deriveSessionKeyFromPair(
         pairwiseSecret,
-        "test-session-id"
+        "test-session-id",
       );
 
       expect(sessionKey).toHaveLength(KEY_SIZE.SESSION_KEY);
@@ -110,11 +110,11 @@ describe("pairwise crypto", () => {
 
       const secretFromA = computePairwiseSecret(
         keyPairA.privateKey,
-        keyPairB.publicKey
+        keyPairB.publicKey,
       );
       const secretFromB = computePairwiseSecret(
         keyPairB.privateKey,
-        keyPairA.publicKey
+        keyPairA.publicKey,
       );
 
       const sessionId = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
@@ -130,7 +130,7 @@ describe("pairwise crypto", () => {
       const keyPairB = generateKeyPair();
       const pairwiseSecret = computePairwiseSecret(
         keyPairA.privateKey,
-        keyPairB.publicKey
+        keyPairB.publicKey,
       );
 
       const key1 = deriveSessionKeyFromPair(pairwiseSecret, "session-1");
@@ -144,19 +144,19 @@ describe("pairwise crypto", () => {
       const keyPairB = generateKeyPair();
       const pairwiseSecret = computePairwiseSecret(
         keyPairA.privateKey,
-        keyPairB.publicKey
+        keyPairB.publicKey,
       );
       const sessionId = "test-session";
 
       const key1 = deriveSessionKeyFromPair(
         pairwiseSecret,
         sessionId,
-        PAIRWISE_CONTEXT.SESSION
+        PAIRWISE_CONTEXT.SESSION,
       );
       const key2 = deriveSessionKeyFromPair(
         pairwiseSecret,
         sessionId,
-        PAIRWISE_CONTEXT.MESSAGE
+        PAIRWISE_CONTEXT.MESSAGE,
       );
 
       expect(key1).not.toEqual(key2);
@@ -167,16 +167,16 @@ describe("pairwise crypto", () => {
       const keyPairB = generateKeyPair();
       const pairwiseSecret = computePairwiseSecret(
         keyPairA.privateKey,
-        keyPairB.publicKey
+        keyPairB.publicKey,
       );
 
       const keyFromObject = deriveSessionKeyFromPair(
         pairwiseSecret,
-        "test-session"
+        "test-session",
       );
       const keyFromRaw = deriveSessionKeyFromPair(
         pairwiseSecret.secret,
-        "test-session"
+        "test-session",
       );
 
       expect(keyFromObject).toEqual(keyFromRaw);
@@ -186,7 +186,7 @@ describe("pairwise crypto", () => {
       const invalidSecret = new Uint8Array(16); // Too short
 
       expect(() =>
-        deriveSessionKeyFromPair(invalidSecret, "test-session")
+        deriveSessionKeyFromPair(invalidSecret, "test-session"),
       ).toThrow("Pairwise secret must be 32 bytes");
     });
   });
@@ -197,7 +197,7 @@ describe("pairwise crypto", () => {
       const keyPairB = generateKeyPair();
       const pairwiseSecret = computePairwiseSecret(
         keyPairA.privateKey,
-        keyPairB.publicKey
+        keyPairB.publicKey,
       );
 
       const messageKey = deriveMessageKey(pairwiseSecret, "control");
@@ -210,7 +210,7 @@ describe("pairwise crypto", () => {
       const keyPairB = generateKeyPair();
       const pairwiseSecret = computePairwiseSecret(
         keyPairA.privateKey,
-        keyPairB.publicKey
+        keyPairB.publicKey,
       );
 
       const controlKey = deriveMessageKey(pairwiseSecret, "control");
@@ -227,7 +227,7 @@ describe("pairwise crypto", () => {
       const keyPairB = generateKeyPair();
       const pairwiseSecret = computePairwiseSecret(
         keyPairA.privateKey,
-        keyPairB.publicKey
+        keyPairB.publicKey,
       );
 
       const key0 = deriveMessageKey(pairwiseSecret, "control", 0);
@@ -244,7 +244,7 @@ describe("pairwise crypto", () => {
       const keyPairB = generateKeyPair();
       const pairwiseSecret = computePairwiseSecret(
         keyPairA.privateKey,
-        keyPairB.publicKey
+        keyPairB.publicKey,
       );
 
       const key1 = deriveMessageKey(pairwiseSecret, "control", 0);
@@ -257,7 +257,7 @@ describe("pairwise crypto", () => {
       const invalidSecret = new Uint8Array(64); // Too long
 
       expect(() => deriveMessageKey(invalidSecret, "control")).toThrow(
-        "Pairwise secret must be 32 bytes"
+        "Pairwise secret must be 32 bytes",
       );
     });
   });
@@ -297,7 +297,7 @@ describe("pairwise crypto", () => {
       const sessionKey = deriveWebSessionKeyFromDevice(
         deviceKeyPair.privateKey,
         webKeyPair.publicKey,
-        "web-session-123"
+        "web-session-123",
       );
 
       expect(sessionKey).toHaveLength(KEY_SIZE.SESSION_KEY);
@@ -311,12 +311,12 @@ describe("pairwise crypto", () => {
       const keyFromDevice = deriveWebSessionKeyFromDevice(
         deviceKeyPair.privateKey,
         webKeyPair.publicKey,
-        sessionId
+        sessionId,
       );
       const keyFromWeb = deriveWebSessionKeyFromDevice(
         webKeyPair.privateKey,
         deviceKeyPair.publicKey,
-        sessionId
+        sessionId,
       );
 
       // Both should derive the same key due to ECDH symmetry
@@ -330,12 +330,12 @@ describe("pairwise crypto", () => {
       const key1 = deriveWebSessionKeyFromDevice(
         deviceKeyPair.privateKey,
         webKeyPair.publicKey,
-        "session-1"
+        "session-1",
       );
       const key2 = deriveWebSessionKeyFromDevice(
         deviceKeyPair.privateKey,
         webKeyPair.publicKey,
-        "session-2"
+        "session-2",
       );
 
       expect(key1).not.toEqual(key2);
@@ -350,12 +350,12 @@ describe("pairwise crypto", () => {
       const key1 = deriveWebSessionKeyFromDevice(
         deviceKeyPair.privateKey,
         webKeyPair1.publicKey,
-        sessionId
+        sessionId,
       );
       const key2 = deriveWebSessionKeyFromDevice(
         deviceKeyPair.privateKey,
         webKeyPair2.publicKey,
-        sessionId
+        sessionId,
       );
 
       expect(key1).not.toEqual(key2);

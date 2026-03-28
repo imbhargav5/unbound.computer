@@ -32,7 +32,7 @@ export function createEnvelope(
   type: z.infer<typeof MessageTypeSchema>,
   sessionId: string,
   senderId: string,
-  payload: string
+  payload: string,
 ): RelayEnvelope {
   return {
     type,
@@ -54,7 +54,7 @@ export function validateEnvelope(data: unknown): RelayEnvelope {
  * Safe parse a relay envelope
  */
 export function parseEnvelope(
-  data: unknown
+  data: unknown,
 ):
   | { success: true; data: RelayEnvelope }
   | { success: false; error: z.ZodError } {

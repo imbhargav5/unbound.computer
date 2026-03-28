@@ -31,7 +31,7 @@ function main() {
     console.log("[generate-env-local] Copied .env.local.example to .env.local");
   } else {
     throw new Error(
-      `[generate-env-local] .env.local.example not found at ${envExamplePath}`
+      `[generate-env-local] .env.local.example not found at ${envExamplePath}`,
     );
   }
 
@@ -59,7 +59,7 @@ function main() {
     console.error("[generate-env-local] stdout:", err.stdout);
     console.error("[generate-env-local] stderr:", err.stderr);
     throw new Error(
-      "[generate-env-local] Supabase is not running. Start it with: cd apps/database && pnpm supabase start"
+      "[generate-env-local] Supabase is not running. Start it with: cd apps/database && pnpm supabase start",
     );
   }
 
@@ -70,36 +70,36 @@ function main() {
 
   console.log(
     "[generate-env-local] PUBLISHABLE_KEY found:",
-    publishableKey ? "yes" : "no"
+    publishableKey ? "yes" : "no",
   );
   console.log(
     "[generate-env-local] SECRET_KEY found:",
-    secretKey ? "yes" : "no"
+    secretKey ? "yes" : "no",
   );
   console.log("[generate-env-local] DB_URL found:", dbUrl ? "yes" : "no");
 
   if (!(publishableKey && secretKey && dbUrl)) {
     throw new Error(
-      "[generate-env-local] Failed to extract Supabase keys/URL from status output"
+      "[generate-env-local] Failed to extract Supabase keys/URL from status output",
     );
   }
 
   let envContent = fs.readFileSync(envLocalPath, "utf-8");
   envContent = envContent.replace(
     /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=.*/,
-    `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${publishableKey}`
+    `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${publishableKey}`,
   );
   envContent = envContent.replace(
     /SUPABASE_SECRET_KEY=.*/,
-    `SUPABASE_SECRET_KEY=${secretKey}`
+    `SUPABASE_SECRET_KEY=${secretKey}`,
   );
   envContent = envContent.replace(
     /SUPABASE_POSTGRES_DB_URL=.*/,
-    `SUPABASE_POSTGRES_DB_URL=${dbUrl}`
+    `SUPABASE_POSTGRES_DB_URL=${dbUrl}`,
   );
   fs.writeFileSync(envLocalPath, envContent);
   console.log(
-    "[generate-env-local] Updated .env.local with Supabase keys and DB URL"
+    "[generate-env-local] Updated .env.local with Supabase keys and DB URL",
   );
 }
 

@@ -24,7 +24,7 @@ export const UserAvatar = ({
       queryKey: ["user-avatar-url", userId],
       queryFn: () => getUserAvatarUrlClient(userId),
     },
-    queryClient
+    queryClient,
   );
   let imageSource = fallbackSource;
   if (avatarUrl) {

@@ -23,7 +23,7 @@ export function useMobileMenu() {
       }
       router.push(`${pathname}?${params.toString()}`, { scroll: false });
     },
-    [router, pathname, searchParams]
+    [router, pathname, searchParams],
   );
 
   const toggle = useCallback(() => setIsOpen(!isOpen), [setIsOpen, isOpen]);

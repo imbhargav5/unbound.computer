@@ -69,7 +69,7 @@ export const uploadImageAction = adminActionClient
     const supabaseFileUrl = urlJoin(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       "/storage/v1/object/public/changelog-assets",
-      filePath
+      filePath,
     );
 
     return {
@@ -219,7 +219,7 @@ export const sendLoginLinkAction = adminActionClient
 
         // user_application_settings is a 1:1 relation but types as array due to Supabase typing
         const userSettings = Array.isArray(
-          userProfile.user_application_settings
+          userProfile.user_application_settings,
         )
           ? userProfile.user_application_settings[0]
           : userProfile.user_application_settings;
@@ -237,11 +237,11 @@ export const sendLoginLinkAction = adminActionClient
             logoUrl={urlJoin(
               process.env.NEXT_PUBLIC_SUPABASE_URL,
               "/storage/v1/object/public/marketing-assets",
-              "unbound-logo.png"
+              "unbound-logo.png",
             )}
             signInUrl={url.toString()}
             userName={userName ?? "User"}
-          />
+          />,
         );
 
         if (process.env.NODE_ENV === "development") {
@@ -369,7 +369,7 @@ export const uploadBlogImageAction = adminActionClient
     const supabaseFileUrl = urlJoin(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       "/storage/v1/object/public/marketing-assets",
-      filePath
+      filePath,
     );
 
     return { status: "success", data: supabaseFileUrl };

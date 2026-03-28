@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
             500,
             undefined,
             undefined,
-            error
+            error,
           );
 
     console.error("Error processing Stripe webhook", {
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(
       { error: normalizedError.message },
-      { status: normalizedError.statusCode }
+      { status: normalizedError.statusCode },
     );
   }
 }

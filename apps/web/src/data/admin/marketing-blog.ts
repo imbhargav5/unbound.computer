@@ -55,7 +55,7 @@ export const createBlogPostAction = adminActionClient
  * Revalidates the cache path to ensure the updated post is reflected in the UI.
  */
 export async function updateBlogPostAction(
-  input: z.infer<typeof updateMarketingBlogPostActionSchema>
+  input: z.infer<typeof updateMarketingBlogPostActionSchema>,
 ): Promise<{ data?: DBTable<"marketing_blog_posts">; error?: string }> {
   // Parse with Zod internally
   const parsed = updateMarketingBlogPostActionSchema.safeParse(input);
@@ -116,7 +116,7 @@ export const deleteBlogPostAction = adminActionClient
     const { data: postData } = await supabaseAdminClient
       .from("marketing_blog_posts")
       .select(
-        "slug, status, marketing_blog_post_tags_relationship(marketing_tags(slug)), marketing_blog_author_posts(author_id)"
+        "slug, status, marketing_blog_post_tags_relationship(marketing_tags(slug)), marketing_blog_author_posts(author_id)",
       )
       .eq("id", id)
       .single();
@@ -182,7 +182,7 @@ export const updateBlogPostAuthorsAction = adminActionClient
       .single();
 
     const oldAuthorIds = new Set(
-      postData?.marketing_blog_author_posts?.map((rel) => rel.author_id) || []
+      postData?.marketing_blog_author_posts?.map((rel) => rel.author_id) || [],
     );
 
     const { error: deleteError } = await supabaseAdminClient
@@ -244,7 +244,7 @@ export const updateBlogPostTagsAction = adminActionClient
     const { data: postData } = await supabaseAdminClient
       .from("marketing_blog_posts")
       .select(
-        "status, slug, marketing_blog_post_tags_relationship(marketing_tags(id, slug))"
+        "status, slug, marketing_blog_post_tags_relationship(marketing_tags(id, slug))",
       )
       .eq("id", postId)
       .single();
@@ -252,7 +252,7 @@ export const updateBlogPostTagsAction = adminActionClient
     const oldTagSlugs = new Set(
       postData?.marketing_blog_post_tags_relationship
         ?.map((rel) => rel.marketing_tags?.slug)
-        .filter(Boolean) || []
+        .filter(Boolean) || [],
     );
 
     const { error: deleteError } = await supabaseAdminClient
@@ -329,7 +329,7 @@ export async function getAllBlogPosts() {
       *,
       marketing_blog_author_posts(author_id),
       marketing_blog_post_tags_relationship(tag_id)
-    `
+    `,
     )
     .order("created_at", { ascending: false });
 
@@ -354,7 +354,7 @@ export async function getBlogPostById(id: string) {
       *,
       marketing_blog_author_posts(author_id),
       marketing_blog_post_tags_relationship(tag_id)
-    `
+    `,
     )
     .eq("id", id)
     .single();
@@ -379,7 +379,7 @@ export async function cachedGetAllBlogPosts() {
       *,
       marketing_blog_author_posts(author_id),
       marketing_blog_post_tags_relationship(tag_id)
-    `
+    `,
     )
     .order("created_at", { ascending: false });
 

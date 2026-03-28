@@ -27,7 +27,7 @@ export function useNotificationsDialog() {
       }
       router.push(`${pathname}?${params.toString()}`, { scroll: false });
     },
-    [router, pathname, searchParams]
+    [router, pathname, searchParams],
   );
 
   return {

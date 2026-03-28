@@ -43,9 +43,9 @@ export function ActivityRouteView({
         issues,
         issueCommentsByIssueId,
         issueRunCardUpdatesByIssueId,
-        agents
+        agents,
       ),
-    [agents, issueCommentsByIssueId, issueRunCardUpdatesByIssueId, issues]
+    [agents, issueCommentsByIssueId, issueRunCardUpdatesByIssueId, issues],
   );
 
   return (
@@ -107,7 +107,7 @@ function buildActivityFeedItems(
   issues: IssueRecord[],
   issueCommentsByIssueId: Record<string, IssueCommentRecord[]>,
   issueRunCardUpdatesByIssueId: Record<string, IssueRunCardUpdateRecord>,
-  agents: AgentRecord[]
+  agents: AgentRecord[],
 ) {
   const visibleIssues = issues.filter((issue) => !issue.hidden_at);
   const issueById = new Map(visibleIssues.map((issue) => [issue.id, issue]));
@@ -126,7 +126,7 @@ function buildActivityFeedItems(
   });
 
   const runItems: ActivityFeedItem[] = Object.values(
-    issueRunCardUpdatesByIssueId
+    issueRunCardUpdatesByIssueId,
   ).flatMap((update) => {
     const issue = issueById.get(update.issue_id);
     if (!issue) {
@@ -152,7 +152,7 @@ function buildActivityFeedItems(
 
 function issueCommentAuthorLabel(
   agents: AgentRecord[],
-  comment: IssueCommentRecord
+  comment: IssueCommentRecord,
 ) {
   if (comment.author_agent_id) {
     return agentModelLabelById(agents, comment.author_agent_id);
@@ -191,7 +191,7 @@ function issueRunCardUpdateSummary(update: IssueRunCardUpdateRecord) {
 
 function issueModelLabel(
   issue: BirdsEyeIssueLike | null | undefined,
-  agents: AgentRecord[]
+  agents: AgentRecord[],
 ) {
   const runtimeOverrides = objectFromUnknown(issue?.assignee_adapter_overrides);
   if (Object.keys(runtimeOverrides).length > 0) {
@@ -223,7 +223,7 @@ function agentModelLabel(agent: AgentRecord) {
 }
 
 function runtimeModelLabel(
-  runtimeConfig: Record<string, unknown> | null | undefined
+  runtimeConfig: Record<string, unknown> | null | undefined,
 ) {
   const configuredModel = stringFromUnknown(runtimeConfig?.model).trim();
   if (configuredModel && configuredModel.toLowerCase() !== "default") {
@@ -232,13 +232,13 @@ function runtimeModelLabel(
 
   return providerLabelForRuntimeConfig(
     stringFromUnknown(runtimeConfig?.command),
-    configuredModel
+    configuredModel,
   );
 }
 
 function providerLabelForRuntimeConfig(
   command: string | null | undefined,
-  model: string | null | undefined
+  model: string | null | undefined,
 ) {
   const provider = detectAgentCliProvider(command, model);
   if (provider === "codex") {
@@ -252,7 +252,7 @@ function providerLabelForRuntimeConfig(
 
 function detectAgentCliProvider(
   command: string | null | undefined,
-  model: string | null | undefined
+  model: string | null | undefined,
 ) {
   const normalizedCommand = String(command ?? "").toLowerCase();
   const normalizedModel = String(model ?? "").toLowerCase();

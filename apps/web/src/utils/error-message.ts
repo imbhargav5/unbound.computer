@@ -8,7 +8,7 @@ type AuthFormErrorReturnType = {
 };
 
 export function handleSupabaseAuthEmailPasswordFormErrors(
-  error: AuthError
+  error: AuthError,
 ): AuthFormErrorReturnType {
   switch (error.code) {
     case "invalid_credentials":
@@ -57,7 +57,7 @@ export function handleSupabaseAuthEmailPasswordFormErrors(
 }
 
 export function handleSupabaseAuthSignUpErrors(
-  error: AuthError
+  error: AuthError,
 ): AuthFormErrorReturnType {
   switch (error.code) {
     case "user_already_exists":
@@ -94,7 +94,7 @@ export function handleSupabaseAuthSignUpErrors(
 }
 
 export function handleSupabaseAuthPasswordSignUpErrors(
-  error: AuthError
+  error: AuthError,
 ): AuthFormErrorReturnType {
   console.log("--------------------------------");
   console.log("error", error);
@@ -136,7 +136,7 @@ export function handleSupabaseAuthPasswordSignUpErrors(
 }
 
 export function handleSupabaseAuthPasswordResetErrors(
-  error: AuthError
+  error: AuthError,
 ): AuthFormErrorReturnType {
   switch (error.code) {
     case "user_not_found":
@@ -159,7 +159,7 @@ export function handleSupabaseAuthPasswordResetErrors(
 }
 
 export function handleSupabaseAuthGeneralErrors(
-  error: AuthError
+  error: AuthError,
 ): AuthFormErrorReturnType {
   switch (error.code) {
     case "auth_session_missing":
@@ -193,7 +193,7 @@ export function handleSupabaseAuthGeneralErrors(
 }
 
 export function handleSupabaseAuthSignInErrors(
-  error: AuthError
+  error: AuthError,
 ): AuthFormErrorReturnType {
   if (!error.code && error.message) {
     return { message: error.message };
@@ -224,7 +224,7 @@ export function handleSupabaseAuthSignInErrors(
 }
 
 export function handleSupabaseAuthMagicLinkErrors(
-  error: AuthError
+  error: AuthError,
 ): AuthFormErrorReturnType {
   switch (error.code) {
     case "user_not_found":
@@ -254,7 +254,7 @@ export function handleSupabaseAuthMagicLinkErrors(
 }
 
 export function handleSupabaseAuthResetPasswordErrors(
-  error: AuthError
+  error: AuthError,
 ): AuthFormErrorReturnType {
   switch (error.code) {
     case "user_not_found":
@@ -298,7 +298,7 @@ export function handleFlattenedValidationErrors(flattenedErrors: {
     if (keys.length === 1) {
       // find first field that has errors
       const field = keys.find(
-        (key) => flattenedErrors.fieldErrors?.[key]?.length
+        (key) => flattenedErrors.fieldErrors?.[key]?.length,
       );
       if (field) {
         return { message: flattenedErrors.fieldErrors[field].join("\n") };
@@ -360,7 +360,7 @@ function handleTypedValidationErrors(errors: any): {
     }
     // If there are multiple field errors, concatenate them
     const allErrors = keys.flatMap(
-      (key) => flattenedErrors.fieldErrors?.[key] || []
+      (key) => flattenedErrors.fieldErrors?.[key] || [],
     );
     if (allErrors.length > 0) {
       return { message: allErrors.join("\n") };
@@ -387,7 +387,7 @@ function handleTypedValidationErrors(errors: any): {
  */
 export function getSafeActionErrorMessage(
   error: SafeActionError,
-  fallbackMessage?: string
+  fallbackMessage?: string,
 ): string {
   if (error.serverError) {
     return typeof error.serverError === "string"

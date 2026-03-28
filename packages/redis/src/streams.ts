@@ -49,7 +49,7 @@ export interface XReadOptions {
 export async function xadd(
   key: string,
   data: Record<string, string>,
-  options?: XAddOptions
+  options?: XAddOptions,
 ): Promise<string> {
   const client = getRedisClient();
 
@@ -87,7 +87,7 @@ export async function xadd(
  */
 export async function xread(
   streams: Record<string, string>,
-  options?: XReadOptions
+  options?: XReadOptions,
 ): Promise<Array<{ stream: string; messages: StreamMessage[] }>> {
   const client = getRedisClient();
 
@@ -149,7 +149,7 @@ export async function xrange(
   key: string,
   start: string,
   end: string,
-  count?: number
+  count?: number,
 ): Promise<StreamMessage[]> {
   const client = getRedisClient();
 
@@ -182,7 +182,7 @@ export async function xrevrange(
   key: string,
   start: string,
   end: string,
-  count?: number
+  count?: number,
 ): Promise<StreamMessage[]> {
   const client = getRedisClient();
 

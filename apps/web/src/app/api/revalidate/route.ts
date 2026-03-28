@@ -10,7 +10,7 @@ const searchParamsSchema = z.object({
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const { path, type } = searchParamsSchema.parse(
-    Object.fromEntries(searchParams)
+    Object.fromEntries(searchParams),
   );
   revalidatePath(path, type);
   return NextResponse.json({ revalidated: true, now: Date.now() });

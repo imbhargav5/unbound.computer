@@ -85,8 +85,7 @@ function getSpacingValue(space: SpacingValue): string {
 
 // Stack - Vertical spacing between elements
 interface StackProps
-  extends SpacingProps,
-    React.HTMLAttributes<HTMLDivElement> {
+  extends SpacingProps, React.HTMLAttributes<HTMLDivElement> {
   align?: "start" | "center" | "end" | "stretch";
   gap?: SpacingValue;
   justify?: "start" | "center" | "end" | "between" | "around" | "evenly";
@@ -140,7 +139,7 @@ export function Stack({
         "flex flex-col",
         alignMap[align],
         justifyMap[justify],
-        className
+        className,
       )}
       style={{ gap: getSpacingValue(gap) }}
       {...props}
@@ -207,7 +206,7 @@ export function HStack({
         wrap && "flex-wrap",
         alignMap[align],
         justifyMap[justify],
-        className
+        className,
       )}
       style={{ gap: getSpacingValue(gap) }}
       {...props}
@@ -295,7 +294,7 @@ export function Grid({
         columnsClasses,
         alignMap[align],
         justifyMap[justify],
-        className
+        className,
       )}
       style={{
         gap: gap !== undefined ? getSpacingValue(gap) : undefined,
@@ -370,8 +369,7 @@ export function Spacer({
 
 // Container - Centered container with max-width
 interface ContainerProps
-  extends SpacingProps,
-    React.HTMLAttributes<HTMLDivElement> {
+  extends SpacingProps, React.HTMLAttributes<HTMLDivElement> {
   centered?: boolean;
   maxWidth?: keyof typeof sizeTokens | string;
   padding?: SpacingValue;
@@ -507,8 +505,7 @@ export function Box({ children, padding = 4, className, ...props }: BoxProps) {
 
 // Center - Centers children horizontally and vertically
 interface CenterProps
-  extends SpacingProps,
-    React.HTMLAttributes<HTMLDivElement> {
+  extends SpacingProps, React.HTMLAttributes<HTMLDivElement> {
   inline?: boolean;
 }
 
@@ -548,7 +545,7 @@ export function Center({
       className={cn(
         inline ? "inline-flex" : "flex",
         "items-center justify-center",
-        className
+        className,
       )}
       {...props}
     >
@@ -604,7 +601,7 @@ export function Divider({
       className={cn(
         "border-0 opacity-20",
         isVertical ? "h-auto w-px" : "h-px w-auto",
-        className
+        className,
       )}
       style={{
         backgroundColor: color,
@@ -630,8 +627,7 @@ export function Divider({
 
 // AspectRatio - A component that maintains a specific aspect ratio
 interface AspectRatioProps
-  extends SpacingProps,
-    React.HTMLAttributes<HTMLDivElement> {
+  extends SpacingProps, React.HTMLAttributes<HTMLDivElement> {
   ratio?: number;
 }
 

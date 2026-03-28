@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     if (!isSupabaseUserClaimAppAdmin(claims)) {
       return NextResponse.json(
         { error: "Admin access required" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     if (!(mediaCategory && ["blog", "changelog"].includes(mediaCategory))) {
       return NextResponse.json(
         { error: "Invalid media type. Must be 'blog' or 'changelog'" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
           error:
             "Invalid file type. Allowed: JPEG, PNG, WebP, GIF, MP4, WebM, MOV",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
         {
           error: `File too large. Max size: ${maxSize / (1024 * 1024)}MB`,
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
     const publicUrl = urlJoin(
       process.env.NEXT_PUBLIC_SUPABASE_URL || "",
       "/storage/v1/object/public/marketing-assets",
-      storagePath
+      storagePath,
     );
 
     // 9. Determine media type for response
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
     console.error("Media upload error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

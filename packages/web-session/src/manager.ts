@@ -118,7 +118,7 @@ export class WebSessionManager {
         body: JSON.stringify({
           publicKey: publicKeyBase64,
         }),
-      }
+      },
     );
 
     if (!response.ok) {
@@ -148,7 +148,7 @@ export class WebSessionManager {
     this.storage.set(STORAGE_KEYS.SESSION_TOKEN, data.sessionToken);
     this.storage.set(
       STORAGE_KEYS.PRIVATE_KEY,
-      toBase64(ephemeralKeyPair.privateKey)
+      toBase64(ephemeralKeyPair.privateKey),
     );
     this.storage.set(STORAGE_KEYS.EXPIRES_AT, data.expiresAt);
 
@@ -164,7 +164,7 @@ export class WebSessionManager {
    * Polls the status endpoint until authorized or timeout
    */
   async waitForAuthorization(
-    onStatusChange?: (status: WebSessionStatusResponse) => void
+    onStatusChange?: (status: WebSessionStatusResponse) => void,
   ): Promise<void> {
     if (!this.session) {
       throw new Error("No session initialized");
@@ -232,7 +232,7 @@ export class WebSessionManager {
       {
         method: "GET",
         credentials: "include",
-      }
+      },
     );
 
     if (!response.ok) {
@@ -248,7 +248,7 @@ export class WebSessionManager {
    * Decrypts and stores the session key
    */
   private async handleAuthorization(
-    status: WebSessionStatusResponse
+    status: WebSessionStatusResponse,
   ): Promise<void> {
     if (!this.session) {
       throw new Error("No session initialized");
@@ -266,13 +266,13 @@ export class WebSessionManager {
       const responderPubKeyBytes = fromBase64(responderPublicKey);
       const sharedSecret = computeSharedSecret(
         this.session.ephemeralKeyPair.privateKey,
-        responderPubKeyBytes
+        responderPubKeyBytes,
       );
 
       // Derive decryption key
       const decryptionKey = deriveKey(
         sharedSecret,
-        `web-session-auth:${this.session.id}`
+        `web-session-auth:${this.session.id}`,
       );
 
       // Decrypt the session key (format: nonce + ciphertext)
@@ -301,7 +301,7 @@ export class WebSessionManager {
 
       // Calculate idle expiry time
       this.session.idleExpiresAt = new Date(
-        Date.now() + this.session.maxIdleSeconds * 1000
+        Date.now() + this.session.maxIdleSeconds * 1000,
       );
 
       this.storage.set(STORAGE_KEYS.SESSION_KEY, toBase64(sessionKey));
@@ -384,7 +384,7 @@ export class WebSessionManager {
 
     this.session.lastActivityAt = new Date();
     this.session.idleExpiresAt = new Date(
-      Date.now() + this.session.maxIdleSeconds * 1000
+      Date.now() + this.session.maxIdleSeconds * 1000,
     );
   }
 
@@ -503,7 +503,7 @@ export class WebSessionManager {
           },
           credentials: "include",
           body: JSON.stringify({ reason }),
-        }
+        },
       );
     } finally {
       this.destroy();
@@ -551,7 +551,7 @@ export class WebSessionManager {
     // If restored and authorized, start idle timeout check
     if (this.session.state === "authorized" && this.options.enableIdleTimeout) {
       this.session.idleExpiresAt = new Date(
-        now.getTime() + this.session.maxIdleSeconds * 1000
+        now.getTime() + this.session.maxIdleSeconds * 1000,
       );
       this.startIdleTimeoutCheck();
     }
@@ -591,7 +591,7 @@ export class WebSessionManager {
       {
         method: "PATCH",
         credentials: "include",
-      }
+      },
     );
   }
 

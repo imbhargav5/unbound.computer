@@ -52,7 +52,7 @@ function updateCargoToml(filepath: string, newVersion: string): void {
   if (content.includes("[workspace.package]")) {
     content = content.replace(
       /(\[workspace\.package\][\s\S]*?version\s*=\s*")[\d.]+(")/,
-      `$1${newVersion}$2`
+      `$1${newVersion}$2`,
     );
   }
 
@@ -60,7 +60,7 @@ function updateCargoToml(filepath: string, newVersion: string): void {
   if (content.includes("[package]")) {
     content = content.replace(
       /(\[package\][\s\S]*?version\s*=\s*")[\d.]+(")/,
-      `$1${newVersion}$2`
+      `$1${newVersion}$2`,
     );
   }
 
@@ -127,7 +127,7 @@ function main() {
   const newVersion = bumpVersion(currentVersion, releaseType);
 
   console.log(
-    `Bumping version: ${currentVersion} -> ${newVersion} (${releaseType})`
+    `Bumping version: ${currentVersion} -> ${newVersion} (${releaseType})`,
   );
   console.log("");
 

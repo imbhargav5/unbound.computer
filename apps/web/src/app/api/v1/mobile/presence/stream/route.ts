@@ -28,11 +28,11 @@ function base64UrlEncode(input: string | Buffer): string {
 
 function createPresenceToken(
   payload: Record<string, unknown>,
-  signingKey: string
+  signingKey: string,
 ): string {
   const encodedPayload = base64UrlEncode(JSON.stringify(payload));
   const signature = base64UrlEncode(
-    createHmac("sha256", signingKey).update(encodedPayload).digest()
+    createHmac("sha256", signingKey).update(encodedPayload).digest(),
   );
   return `${encodedPayload}.${signature}`;
 }
@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
         {
           status: 401,
           headers: corsHeaders,
-        }
+        },
       );
     }
 
@@ -63,9 +63,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(
         buildPresenceError(
           "unavailable",
-          "Presence DO base URL is not configured"
+          "Presence DO base URL is not configured",
         ),
-        { status: 503, headers: corsHeaders }
+        { status: 503, headers: corsHeaders },
       );
     }
 
@@ -74,21 +74,21 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(
         buildPresenceError(
           "unavailable",
-          "Presence DO token signing key is not configured"
+          "Presence DO token signing key is not configured",
         ),
-        { status: 503, headers: corsHeaders }
+        { status: 503, headers: corsHeaders },
       );
     }
 
     const requestUrl = new URL(req.url);
     const userId = normalizePresenceIdentifier(
-      requestUrl.searchParams.get("user_id") ?? ""
+      requestUrl.searchParams.get("user_id") ?? "",
     );
 
     if (!userId) {
       return NextResponse.json(
         buildPresenceError("invalid_payload", "Missing user_id"),
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: corsHeaders },
       );
     }
 
@@ -110,12 +110,12 @@ export async function GET(req: NextRequest) {
         exp_ms: issuedAtMs + TOKEN_TTL_MS,
         issued_at_ms: issuedAtMs,
       },
-      signingKey
+      signingKey,
     );
 
     const upstreamUrl = new URL(
       "/api/v1/mobile/presence/stream",
-      presenceBaseUrl
+      presenceBaseUrl,
     );
     upstreamUrl.searchParams.set("user_id", userId);
 
@@ -131,7 +131,7 @@ export async function GET(req: NextRequest) {
       return new NextResponse(
         errorBody ||
           JSON.stringify(
-            buildPresenceError("unavailable", "Presence stream unavailable")
+            buildPresenceError("unavailable", "Presence stream unavailable"),
           ),
         {
           status: upstreamResponse.status,
@@ -141,7 +141,7 @@ export async function GET(req: NextRequest) {
               upstreamResponse.headers.get("Content-Type") ??
               "application/json",
           },
-        }
+        },
       );
     }
 

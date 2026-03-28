@@ -48,7 +48,7 @@ export interface StreamData {
 export async function xaddPipelined(
   streamKey: string,
   events: StreamData[],
-  options: XAddOptions = {}
+  options: XAddOptions = {},
 ): Promise<string[]> {
   const redis = getRedisTCPClient();
   const pipeline = redis.pipeline();
@@ -90,7 +90,7 @@ function addXaddToPipeline(
   pipeline: ChainableCommander,
   streamKey: string,
   data: StreamData,
-  options: XAddOptions
+  options: XAddOptions,
 ): void {
   const args: (string | number)[] = [streamKey];
 
@@ -138,7 +138,7 @@ function addXaddToPipeline(
 export async function xaddSingle(
   streamKey: string,
   data: StreamData,
-  options: XAddOptions = {}
+  options: XAddOptions = {},
 ): Promise<string> {
   const redis = getRedisTCPClient();
   const args: (string | number)[] = [streamKey];

@@ -148,5 +148,5 @@ const userPrivateDataScopes = ["userPrivate"] as const;
 
 export const userPrivateCache = createCache(
   userPrivateDataSchema,
-  userPrivateDataScopes
+  userPrivateDataScopes,
 );

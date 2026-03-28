@@ -49,7 +49,7 @@ describe("presence-do-worker auth and payload validation", () => {
           Authorization: `Bearer ${ingestToken}`,
         },
         body: "{not-json",
-      }
+      },
     );
 
     expect(response.status).toBe(400);
@@ -60,7 +60,7 @@ describe("presence-do-worker auth and payload validation", () => {
   it("rejects invalid schema version", async () => {
     const response = await dispatchHeartbeat(
       mf,
-      makeHeartbeat({ schema_version: 2 })
+      makeHeartbeat({ schema_version: 2 }),
     );
 
     expect(response.status).toBe(400);
@@ -72,7 +72,7 @@ describe("presence-do-worker auth and payload validation", () => {
       makeHeartbeat({
         user_id: defaultUserId.toUpperCase(),
         device_id: defaultDeviceId.toUpperCase(),
-      })
+      }),
     );
 
     expect(response.status).toBe(400);
@@ -89,7 +89,7 @@ describe("presence-do-worker auth and payload validation", () => {
           ...makeHeartbeat(),
           status: "unknown",
         }),
-      }
+      },
     );
 
     expect(response.status).toBe(400);
@@ -98,7 +98,7 @@ describe("presence-do-worker auth and payload validation", () => {
   it("rejects empty source", async () => {
     const response = await dispatchHeartbeat(
       mf,
-      makeHeartbeat({ source: "   " })
+      makeHeartbeat({ source: "   " }),
     );
 
     expect(response.status).toBe(400);
@@ -107,7 +107,7 @@ describe("presence-do-worker auth and payload validation", () => {
   it("rejects negative sent_at_ms", async () => {
     const response = await dispatchHeartbeat(
       mf,
-      makeHeartbeat({ sent_at_ms: -1 })
+      makeHeartbeat({ sent_at_ms: -1 }),
     );
 
     expect(response.status).toBe(400);
@@ -130,13 +130,13 @@ describe("presence-do-worker auth and payload validation", () => {
 
     const first = await dispatchHeartbeat(
       mf,
-      makeHeartbeat({ seq: 1, sent_at_ms: sentAt })
+      makeHeartbeat({ seq: 1, sent_at_ms: sentAt }),
     );
     expect(first.status).toBe(204);
 
     const stale = await dispatchHeartbeat(
       mf,
-      makeHeartbeat({ seq: 1, sent_at_ms: sentAt })
+      makeHeartbeat({ seq: 1, sent_at_ms: sentAt }),
     );
 
     expect(stale.status).toBe(409);
@@ -149,14 +149,14 @@ describe("presence-do-worker auth and payload validation", () => {
       (
         await dispatchHeartbeat(
           mf,
-          makeHeartbeat({ seq: 1, sent_at_ms: sentAt })
+          makeHeartbeat({ seq: 1, sent_at_ms: sentAt }),
         )
-      ).status
+      ).status,
     ).toBe(204);
 
     const response = await dispatchHeartbeat(
       mf,
-      makeHeartbeat({ seq: 2, sent_at_ms: sentAt })
+      makeHeartbeat({ seq: 2, sent_at_ms: sentAt }),
     );
 
     expect(response.status).toBe(204);
@@ -169,14 +169,14 @@ describe("presence-do-worker auth and payload validation", () => {
       (
         await dispatchHeartbeat(
           mf,
-          makeHeartbeat({ seq: 7, sent_at_ms: sentAt })
+          makeHeartbeat({ seq: 7, sent_at_ms: sentAt }),
         )
-      ).status
+      ).status,
     ).toBe(204);
 
     const response = await dispatchHeartbeat(
       mf,
-      makeHeartbeat({ seq: 7, sent_at_ms: sentAt + 1 })
+      makeHeartbeat({ seq: 7, sent_at_ms: sentAt + 1 }),
     );
 
     expect(response.status).toBe(204);

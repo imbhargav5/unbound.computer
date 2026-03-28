@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     if (!parseResult.success) {
       return NextResponse.json(
         { error: "Invalid request body", details: parseResult.error.issues },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -59,12 +59,12 @@ export async function POST(req: NextRequest) {
     const deviceCheck = await validateDeviceOwnership(
       supabase,
       user.id,
-      deviceId
+      deviceId,
     );
     if (!deviceCheck.valid) {
       return NextResponse.json(
         { error: deviceCheck.error, code: deviceCheck.code },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -72,12 +72,12 @@ export async function POST(req: NextRequest) {
     const repoCheck = await validateRepositoryOwnership(
       supabase,
       user.id,
-      repositoryId
+      repositoryId,
     );
     if (!repoCheck.valid) {
       return NextResponse.json(
         { error: repoCheck.error, code: repoCheck.code },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -85,12 +85,12 @@ export async function POST(req: NextRequest) {
     const limitsCheck = await validateSessionLimits(
       supabase,
       user.id,
-      deviceId
+      deviceId,
     );
     if (!limitsCheck.valid) {
       return NextResponse.json(
         { error: limitsCheck.error, code: limitsCheck.code },
-        { status: 429 }
+        { status: 429 },
       );
     }
 
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
         *,
         repository:repositories(id, name, remote_url, local_path),
         device:devices(id, name, device_type)
-      `
+      `,
       )
       .single();
 
@@ -162,7 +162,7 @@ export async function GET(req: NextRequest) {
         : null;
     const limit = Math.min(
       Number.parseInt(searchParams.get("limit") ?? "50", 10),
-      100
+      100,
     );
 
     let query = supabase
@@ -172,7 +172,7 @@ export async function GET(req: NextRequest) {
         *,
         repository:repositories(id, name, remote_url, local_path),
         device:devices(id, name, device_type)
-      `
+      `,
       )
       .eq("user_id", user.id)
       .order("session_started_at", { ascending: false })

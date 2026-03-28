@@ -12,7 +12,7 @@ async function OnboardingFlowWrapper() {
   const userProfile = await getUserProfile(userClaims.sub);
 
   const onboardingStatus = authUserMetadataSchema.parse(
-    userClaims.user_metadata
+    userClaims.user_metadata,
   );
 
   return (

@@ -32,7 +32,7 @@ export default function UserSettingsClientLayout({
         icon: <CreditCard />,
       },
     ],
-    []
+    [],
   );
 
   return (

@@ -159,7 +159,7 @@ async function flushAsync() {
 function message(
   id: string,
   sequenceNumber: number,
-  content: unknown
+  content: unknown,
 ): SessionMessage {
   return {
     content: typeof content === "string" ? content : JSON.stringify(content),

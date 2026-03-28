@@ -285,11 +285,14 @@ pnpm supabase db push # Apply migrations
 ### Code Quality
 
 ```sh
-# Lint and format (TypeScript/JavaScript)
-npx ultracite fix
+# Lint TypeScript and JavaScript
+pnpm oxlint
 
-# Check for issues
-npx ultracite check
+# Format code
+pnpm oxfmt:write
+
+# Check formatting
+pnpm oxfmt
 
 # Rust
 cd apps/daemon && cargo clippy

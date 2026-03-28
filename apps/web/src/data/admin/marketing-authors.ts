@@ -174,7 +174,7 @@ export const uploadMarketingAuthorImageAction = adminActionClient
     const supabaseFileUrl = urlJoin(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       "/storage/v1/object/public/marketing-assets",
-      filePath
+      filePath,
     );
 
     return supabaseFileUrl;

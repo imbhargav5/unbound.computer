@@ -93,14 +93,14 @@ type NormalizedPayload =
   | { kind: "text"; value: string };
 
 export function buildConversationTimeline(
-  messages: SessionMessage[]
+  messages: SessionMessage[],
 ): ConversationRow[] {
   const orderedMessages = messages
     .slice()
     .sort(
       (left, right) =>
         normalizeSequenceNumber(left.sequence_number) -
-        normalizeSequenceNumber(right.sequence_number)
+        normalizeSequenceNumber(right.sequence_number),
     );
 
   const rows: ConversationRow[] = [];
@@ -138,7 +138,7 @@ export function buildConversationTimeline(
     if (!messageType) {
       const questionBlocks = parseQuestionBlocksFromPayload(
         payload,
-        message.id
+        message.id,
       );
       if (questionBlocks.length > 0) {
         rows.push({
@@ -206,8 +206,8 @@ export function buildConversationTimeline(
           row.blocks.push(
             ...parseQuestionBlocks(
               inputValue,
-              `${message.id}-question-${blockIndex}`
-            )
+              `${message.id}-question-${blockIndex}`,
+            ),
           );
           return;
         }
@@ -217,7 +217,7 @@ export function buildConversationTimeline(
             inputValue,
             `${message.id}-todo-${blockIndex}`,
             toolUseId,
-            toolParentId
+            toolParentId,
           );
           if (!todoList) {
             return;
@@ -227,7 +227,7 @@ export function buildConversationTimeline(
             updateTodoAtAnchor(
               rows,
               todoAnchors.get(mergeKey) ?? null,
-              todoList
+              todoList,
             );
             return;
           }
@@ -243,14 +243,14 @@ export function buildConversationTimeline(
           const activity = createSubAgentActivity(
             inputValue,
             `${message.id}-subagent-${blockIndex}`,
-            toolUseId
+            toolUseId,
           );
           const pendingTools = pendingChildTools.get(toolUseId) ?? [];
           if (pendingTools.length > 0) {
             activity.tools = mergeTools(activity.tools, pendingTools);
             activity.status = deriveSubAgentStatus(
               activity.tools,
-              activity.status
+              activity.status,
             );
             pendingChildTools.delete(toolUseId);
           }
@@ -267,7 +267,7 @@ export function buildConversationTimeline(
           toolUseId,
           toolParentId,
           inputValue,
-          `${message.id}-tool-${blockIndex}`
+          `${message.id}-tool-${blockIndex}`,
         );
 
         if (toolParentId) {
@@ -296,7 +296,7 @@ export function buildConversationTimeline(
           rowIndex,
           toolAnchors,
           subAgentAnchors,
-          todoAnchors
+          todoAnchors,
         );
       }
       continue;
@@ -360,7 +360,7 @@ export function buildConversationTimeline(
                 detail: outputText || tool.detail,
                 output: outputText || tool.output,
                 status: isError ? "failed" : "completed",
-              })
+              }),
             );
 
           if (!didUpdateTool && outputText) {
@@ -420,7 +420,7 @@ function registerAnchorsForRow(
   rowIndex: number,
   toolAnchors: Map<string, ToolAnchor>,
   subAgentAnchors: Map<string, BlockAnchor>,
-  todoAnchors: Map<string, BlockAnchor>
+  todoAnchors: Map<string, BlockAnchor>,
 ) {
   const row = rows[rowIndex];
   row.blocks.forEach((block, blockIndex) => {
@@ -467,7 +467,7 @@ function appendToolToSubAgent(
   rows: ConversationRow[],
   anchor: BlockAnchor,
   tool: ConversationTool,
-  toolAnchors: Map<string, ToolAnchor>
+  toolAnchors: Map<string, ToolAnchor>,
 ) {
   const row = rows[anchor.rowIndex];
   const block = row?.blocks[anchor.blockIndex];
@@ -488,7 +488,7 @@ function appendToolToSubAgent(
 
   if (tool.toolUseId) {
     const toolIndex = nextTools.findIndex(
-      (entry) => entry.toolUseId === tool.toolUseId
+      (entry) => entry.toolUseId === tool.toolUseId,
     );
     if (toolIndex >= 0) {
       toolAnchors.set(tool.toolUseId, {
@@ -504,7 +504,7 @@ function appendToolToSubAgent(
 function updateToolAtAnchor(
   rows: ConversationRow[],
   anchor: ToolAnchor | null,
-  update: (tool: ConversationTool) => ConversationTool
+  update: (tool: ConversationTool) => ConversationTool,
 ) {
   if (!anchor) {
     return false;
@@ -549,7 +549,7 @@ function updateToolAtAnchor(
 function updateTodoAtAnchor(
   rows: ConversationRow[],
   anchor: BlockAnchor | null,
-  todoList: ConversationTodoList
+  todoList: ConversationTodoList,
 ) {
   if (!anchor) {
     return;
@@ -574,7 +574,7 @@ function createConversationTool(
   toolUseId: string | null,
   parentToolUseId: string | null,
   inputValue: unknown,
-  fallbackId: string
+  fallbackId: string,
 ): ConversationTool {
   const input = stringifyValue(inputValue);
   const output = null;
@@ -596,7 +596,7 @@ function createConversationTool(
 function createSubAgentActivity(
   inputValue: unknown,
   fallbackId: string,
-  parentToolUseId: string
+  parentToolUseId: string,
 ): ConversationSubAgent {
   const input = coerceRecord(inputValue);
   return {
@@ -612,7 +612,7 @@ function createSubAgentActivity(
 
 function parseQuestionBlocks(
   inputValue: unknown,
-  idPrefix: string
+  idPrefix: string,
 ): ConversationBlock[] {
   const input = coerceRecord(inputValue);
   const rawQuestions = Array.isArray(input?.questions)
@@ -639,7 +639,7 @@ function parseQuestionBlocks(
 
 function parseQuestionBlocksFromPayload(
   payload: Record<string, unknown>,
-  messageId: string
+  messageId: string,
 ) {
   const toolName =
     readString(payload.name) ?? readString(payload.tool_name) ?? null;
@@ -648,13 +648,13 @@ function parseQuestionBlocksFromPayload(
   }
   return parseQuestionBlocks(
     payload.input ?? payload.args ?? payload.arguments,
-    messageId
+    messageId,
   );
 }
 
 function parseQuestion(
   value: unknown,
-  fallbackId: string
+  fallbackId: string,
 ): ConversationQuestion | null {
   const record = coerceRecord(value);
   const question =
@@ -670,7 +670,7 @@ function parseQuestion(
 
   return {
     allowsMultiSelect: Boolean(
-      record.multi_select ?? record.allows_multi_select ?? record.multiSelect
+      record.multi_select ?? record.allows_multi_select ?? record.multiSelect,
     ),
     allowsTextInput:
       record.allows_text_input == null && record.allow_text_input == null
@@ -686,7 +686,7 @@ function parseQuestion(
 }
 
 function parseQuestionOption(
-  value: unknown
+  value: unknown,
 ): ConversationQuestionOption | null {
   if (typeof value === "string") {
     const label = sanitizeText(value);
@@ -723,7 +723,7 @@ function parseTodoList(
   inputValue: unknown,
   fallbackId: string,
   toolUseId: string | null,
-  parentToolUseId: string | null
+  parentToolUseId: string | null,
 ): ConversationTodoList | null {
   const input = coerceRecord(inputValue);
   const directTodos = readArray(input?.todos);
@@ -747,7 +747,7 @@ function parseTodoList(
 
 function parseTodoItem(
   value: unknown,
-  fallbackId: string
+  fallbackId: string,
 ): ConversationTodoItem | null {
   const record = coerceRecord(value);
   const content =
@@ -792,7 +792,7 @@ function collectToolResultText(block: Record<string, unknown>) {
 
 function deriveSubAgentStatus(
   tools: ConversationTool[],
-  fallback: ConversationToolStatus
+  fallback: ConversationToolStatus,
 ): ConversationToolStatus {
   if (tools.some((tool) => tool.status === "failed")) {
     return "failed";
@@ -808,7 +808,7 @@ function deriveSubAgentStatus(
 
 function mergeTools(
   existing: ConversationTool[],
-  incoming: ConversationTool[]
+  incoming: ConversationTool[],
 ): ConversationTool[] {
   if (incoming.length === 0) {
     return existing.slice();

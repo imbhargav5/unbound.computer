@@ -1,0 +1,28 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 80,
+  "ignorePatterns": [
+    ".claude/**",
+    ".cursor/**",
+    ".github/**",
+    "docs/**",
+    "mockups/**",
+    "pnpm-lock.yaml",
+    "**/.build/**",
+    "**/build/**",
+    "**/*.md",
+    "**/*.mdx",
+    "**/*.toml",
+    "**/.source/**",
+    "**/.pnp.loader.mjs",
+    "**/Fixtures/**",
+    "**/Resources/PreviewFixtures/**",
+    "**/dist/**",
+    "**/target/**",
+    "apps/daemon/**",
+    "apps/desktop/src-tauri/gen/schemas/**",
+    "apps/ios/**",
+    "apps/macos/**",
+    "packages/transport-reliability/generated/**"
+  ]
+}

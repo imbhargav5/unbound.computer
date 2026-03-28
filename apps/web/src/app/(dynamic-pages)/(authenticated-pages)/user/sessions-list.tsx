@@ -51,7 +51,7 @@ function getStatusIcon(status: string) {
 }
 
 function getStatusVariant(
-  status: string
+  status: string,
 ): "default" | "secondary" | "outline" | "destructive" {
   switch (status) {
     case "active":
@@ -141,7 +141,7 @@ export function SessionsList({ sessions }: { sessions: CodingSession[] }) {
                           new Date(session.session_ended_at),
                           {
                             addSuffix: true,
-                          }
+                          },
                         )}
                       </span>
                     </>

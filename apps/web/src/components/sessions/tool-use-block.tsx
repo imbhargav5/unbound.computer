@@ -57,14 +57,14 @@ export function ToolUseBlock({ toolUse }: ToolUseBlockProps) {
           <Badge
             className={cn(
               "text-xs",
-              toolUse.status === "running" && "animate-pulse"
+              toolUse.status === "running" && "animate-pulse",
             )}
             variant="outline"
           >
             <span
               className={cn(
                 "mr-1.5 h-1.5 w-1.5 rounded-full",
-                getStatusColor()
+                getStatusColor(),
               )}
             />
             {toolUse.status}

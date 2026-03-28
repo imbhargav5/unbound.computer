@@ -1,7 +1,7 @@
 import { supabaseAdminClient } from "./supabase-admin-client";
 
 export async function superAdminGetUserIdByEmail(
-  email: string
+  email: string,
 ): Promise<string | null> {
   const { data, error } = await supabaseAdminClient
     .from("user_application_settings")

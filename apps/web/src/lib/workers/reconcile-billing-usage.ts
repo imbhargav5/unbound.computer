@@ -143,7 +143,7 @@ export function buildCounterRepairPlan({
   for (const counter of counters) {
     existingUsageByKey.set(
       getCounterKey(counter),
-      Number(counter.usage_count ?? 0)
+      Number(counter.usage_count ?? 0),
     );
   }
 
@@ -234,7 +234,7 @@ export function buildCommandLimitsByKey({
         subscriptions,
       })
         ? PAID_PLAN_COMMAND_LIMIT
-        : FREE_PLAN_COMMAND_LIMIT
+        : FREE_PLAN_COMMAND_LIMIT,
     );
   }
 
@@ -277,25 +277,25 @@ export async function reconcileBillingUsageCounters(): Promise<BillingUsageRecon
       supabaseAdminClient
         .from("billing_usage_events")
         .select(
-          "gateway_name,gateway_customer_id,usage_type,request_id,quantity,period_start,period_end"
+          "gateway_name,gateway_customer_id,usage_type,request_id,quantity,period_start,period_end",
         )
         .eq("gateway_name", STRIPE_GATEWAY_NAME)
         .eq("usage_type", REMOTE_COMMANDS_USAGE_TYPE),
       supabaseAdminClient
         .from("billing_usage_counters")
         .select(
-          "gateway_name,gateway_customer_id,usage_type,period_start,period_end,usage_count"
+          "gateway_name,gateway_customer_id,usage_type,period_start,period_end,usage_count",
         )
         .eq("gateway_name", STRIPE_GATEWAY_NAME)
         .eq("usage_type", REMOTE_COMMANDS_USAGE_TYPE),
       supabaseAdminClient
         .from("billing_subscriptions")
         .select(
-          "gateway_customer_id,status,current_period_start,current_period_end"
+          "gateway_customer_id,status,current_period_start,current_period_end",
         )
         .eq("gateway_name", STRIPE_GATEWAY_NAME)
         .in("status", ["active", "trialing"]),
-    ]
+    ],
   );
 
   if (eventsResult.error) {
@@ -349,7 +349,7 @@ export async function reconcileBillingUsageCounters(): Promise<BillingUsageRecon
           {
             onConflict:
               "gateway_name,gateway_customer_id,usage_type,period_start,period_end",
-          }
+          },
         );
 
       if (error) {

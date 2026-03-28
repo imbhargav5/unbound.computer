@@ -9,7 +9,7 @@ export const anonGetBlogPostById = async (postId: string) => {
   const { data, error } = await supabaseAnonClient
     .from("marketing_blog_posts")
     .select(
-      "*, marketing_blog_author_posts(*, marketing_blog_author_profiles(*))"
+      "*, marketing_blog_author_posts(*, marketing_blog_author_profiles(*))",
     )
     .eq("id", postId)
     .single();
@@ -39,7 +39,7 @@ export const anonGetPublishedBlogPostBySlug = async (slug: string) => {
   const { data, error } = await supabaseAnonClient
     .from("marketing_blog_posts")
     .select(
-      "*, marketing_blog_author_posts(*, marketing_author_profiles(*)), marketing_blog_post_tags_relationship(*, marketing_tags(*))"
+      "*, marketing_blog_author_posts(*, marketing_author_profiles(*)), marketing_blog_post_tags_relationship(*, marketing_tags(*))",
     )
     .eq("slug", slug)
     .eq("status", "published")
@@ -89,7 +89,7 @@ export const anonGetPublishedBlogPostsByTagSlug = async (tagSlug: string) => {
   }
 
   const postIds = blogPostTagRelationships.map(
-    (relationship) => relationship.blog_post_id
+    (relationship) => relationship.blog_post_id,
   );
 
   const { data, error } = await supabaseAnonClient
@@ -120,7 +120,7 @@ export const anonGetBlogPostsByAuthorId = async (authorId: string) => {
 };
 
 export const anonGetAllBlogPosts = async (
-  supabaseClient: AppSupabaseClient
+  supabaseClient: AppSupabaseClient,
 ) => {
   const { data, error } = await supabaseAnonClient
     .from("marketing_blog_posts")
@@ -233,7 +233,7 @@ export async function cachedGetPublishedBlogPostBySlug(slug: string) {
   const { data, error } = await supabase
     .from("marketing_blog_posts")
     .select(
-      "*, marketing_blog_author_posts(*, marketing_author_profiles(*)), marketing_blog_post_tags_relationship(*, marketing_tags(*))"
+      "*, marketing_blog_author_posts(*, marketing_author_profiles(*)), marketing_blog_post_tags_relationship(*, marketing_tags(*))",
     )
     .eq("slug", slug)
     .eq("status", "published")
@@ -295,7 +295,7 @@ export async function cachedGetPublishedBlogPostsByTagSlug(tagSlug: string) {
   }
 
   const postIds = blogPostTagRelationships.map(
-    (relationship) => relationship.blog_post_id
+    (relationship) => relationship.blog_post_id,
   );
 
   const { data, error } = await supabase

@@ -81,7 +81,7 @@ export function validateSessionCommand(data: unknown): SessionCommand {
  * Safe parse a session command
  */
 export function parseSessionCommand(
-  data: unknown
+  data: unknown,
 ):
   | { success: true; data: SessionCommand }
   | { success: false; error: z.ZodError } {

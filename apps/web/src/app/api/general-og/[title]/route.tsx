@@ -29,7 +29,7 @@ const paramsSchema = z.object({
 
 export async function GET(
   request: Request,
-  props: { params: Promise<unknown> }
+  props: { params: Promise<unknown> },
 ): Promise<ImageResponse> {
   const params = await props.params;
   const { title } = paramsSchema.parse(params);
@@ -40,7 +40,7 @@ export async function GET(
     getImageSrcFromPath(new URL("./og-base.png", import.meta.url)),
   ]);
   const interSemiBold = fetch(
-    new URL("@/fonts/inter/Inter-SemiBold.ttf", import.meta.url)
+    new URL("@/fonts/inter/Inter-SemiBold.ttf", import.meta.url),
   ).then((res) => res.arrayBuffer());
 
   const titleClassName = title.length > 30 ? "text-6xl" : "text-8xl";
@@ -73,6 +73,6 @@ export async function GET(
           weight: 400,
         },
       ],
-    }
+    },
   );
 }

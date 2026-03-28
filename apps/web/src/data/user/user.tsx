@@ -79,7 +79,7 @@ export const getUserAvatarUrl = async (userId: string) => {
 export const uploadPublicUserAvatar = async (
   formData: FormData,
   fileName: string,
-  fileOptions?: SupabaseFileUploadOptions | undefined
+  fileOptions?: SupabaseFileUploadOptions | undefined,
 ): Promise<string> => {
   const file = formData.get("file");
   if (!file) {
@@ -109,7 +109,7 @@ export const uploadPublicUserAvatar = async (
   const supabaseFileUrl = urlJoin(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     "/storage/v1/object/public/public-user-assets",
-    filePath
+    filePath,
   );
 
   return supabaseFileUrl;
@@ -137,7 +137,7 @@ export const uploadPublicUserAvatarAction = authActionClient
       const profilePictureURL = await uploadPublicUserAvatar(
         formData,
         fileName,
-        fileOptions
+        fileOptions,
       );
 
       const actionResponse = await updateProfilePictureUrlAction({
@@ -150,7 +150,7 @@ export const uploadPublicUserAvatarAction = authActionClient
 
       console.log("actionResponse", actionResponse);
       throw new Error("Updating profile picture url failed");
-    }
+    },
   );
 
 const updateProfilePictureUrlSchema = z.object({
@@ -213,7 +213,7 @@ export const updateUserProfileNameAndAvatarAction = authActionClient
         const updateUserMetadataResponse = await supabaseClient.auth.updateUser(
           {
             data: updateUserMetadataPayload,
-          }
+          },
         );
 
         if (updateUserMetadataResponse.error) {
@@ -227,7 +227,7 @@ export const updateUserProfileNameAndAvatarAction = authActionClient
         userId: user.sub,
       });
       return data;
-    }
+    },
   );
 
 const updateUserProfilePictureSchema = z.object({
@@ -279,7 +279,7 @@ export async function acceptTermsOfService(): Promise<boolean> {
 }
 
 export const acceptTermsOfServiceAction = authActionClient.action(
-  async (): Promise<boolean> => await acceptTermsOfService()
+  async (): Promise<boolean> => await acceptTermsOfService(),
 );
 
 // Define the action to request account deletion
@@ -311,10 +311,10 @@ export const requestAccountDeletionAction = authActionClient.action(
       <ConfirmAccountDeletionEmail
         appName={PRODUCT_NAME}
         deletionConfirmationLink={toSiteURL(
-          `/confirm-delete-user/${data.token}`
+          `/confirm-delete-user/${data.token}`,
         )}
         userName={userFullName}
-      />
+      />,
     );
 
     await sendEmail({
@@ -325,7 +325,7 @@ export const requestAccountDeletionAction = authActionClient.action(
     });
 
     return data;
-  }
+  },
 );
 
 const updateUserFullNameSchema = z.object({

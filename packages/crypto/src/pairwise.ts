@@ -46,7 +46,7 @@ export interface PairwiseSecret {
  */
 export function computePairwiseSecret(
   myPrivateKey: Uint8Array,
-  theirPublicKey: Uint8Array
+  theirPublicKey: Uint8Array,
 ): PairwiseSecret {
   const secret = computeSharedSecret(myPrivateKey, theirPublicKey);
   return { secret };
@@ -68,7 +68,7 @@ export function computePairwiseSecret(
 export function deriveSessionKeyFromPair(
   pairwiseSecret: PairwiseSecret | Uint8Array,
   sessionId: string,
-  context: string = PAIRWISE_CONTEXT.SESSION
+  context: string = PAIRWISE_CONTEXT.SESSION,
 ): Uint8Array {
   const secret =
     pairwiseSecret instanceof Uint8Array
@@ -98,7 +98,7 @@ export function deriveSessionKeyFromPair(
 export function deriveMessageKey(
   pairwiseSecret: PairwiseSecret | Uint8Array,
   purpose: string,
-  counter = 0
+  counter = 0,
 ): Uint8Array {
   const secret =
     pairwiseSecret instanceof Uint8Array
@@ -111,7 +111,7 @@ export function deriveMessageKey(
 
   // Include counter in info for key rotation
   const info = new TextEncoder().encode(
-    `${PAIRWISE_CONTEXT.MESSAGE}:${purpose}:${counter}`
+    `${PAIRWISE_CONTEXT.MESSAGE}:${purpose}:${counter}`,
   );
 
   return hkdf(sha256, secret, new Uint8Array(0), info, KEY_SIZE.SESSION_KEY);
@@ -144,7 +144,7 @@ export function generateSessionKey(): Uint8Array {
 export function deriveWebSessionKeyFromDevice(
   devicePrivateKey: Uint8Array,
   webPublicKey: Uint8Array,
-  sessionId: string
+  sessionId: string,
 ): Uint8Array {
   // Compute ephemeral shared secret with web client
   const sharedSecret = computeSharedSecret(devicePrivateKey, webPublicKey);
@@ -167,7 +167,7 @@ export function deriveWebSessionKeyFromDevice(
  */
 export function orderDeviceIds(
   deviceId1: string,
-  deviceId2: string
+  deviceId2: string,
 ): [string, string] {
   return deviceId1 < deviceId2
     ? [deviceId1, deviceId2]

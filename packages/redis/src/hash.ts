@@ -32,7 +32,7 @@ export async function hget<T>(key: string, field: string): Promise<T | null> {
 export async function hset(
   key: string,
   field: string,
-  value: unknown
+  value: unknown,
 ): Promise<void> {
   const client = getRedisClient();
   await client.hset(key, { [field]: value });
@@ -68,7 +68,7 @@ export async function hdel(key: string, ...fields: string[]): Promise<number> {
  * ```
  */
 export async function hgetall<T>(
-  key: string
+  key: string,
 ): Promise<Record<string, T> | null> {
   const client = getRedisClient();
   const result = await client.hgetall<Record<string, T>>(key);
@@ -91,7 +91,7 @@ export async function hgetall<T>(
  */
 export async function hmset(
   key: string,
-  data: Record<string, unknown>
+  data: Record<string, unknown>,
 ): Promise<void> {
   const client = getRedisClient();
   await client.hset(key, data);

@@ -42,7 +42,7 @@ export function useReadAllNotifications(userClaims: UserClaimsSchemaType) {
             } else {
               toast.error(
                 `Failed to mark all notifications as read ${String(error)}`,
-                { id: context.toastId }
+                { id: context.toastId },
               );
             }
           } catch (_err) {
@@ -54,6 +54,6 @@ export function useReadAllNotifications(userClaims: UserClaimsSchemaType) {
         }
       },
     },
-    queryClient
+    queryClient,
   );
 }

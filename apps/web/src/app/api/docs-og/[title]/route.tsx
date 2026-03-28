@@ -29,7 +29,7 @@ const paramsSchema = z.object({
 
 export async function GET(
   request: Request,
-  props: { params: Promise<unknown> }
+  props: { params: Promise<unknown> },
 ): Promise<ImageResponse> {
   const params = await props.params;
   console.log(params);
@@ -40,7 +40,7 @@ export async function GET(
   ]);
 
   const interSemiBold = fetch(
-    new URL("@/fonts/inter/Inter-SemiBold.ttf", import.meta.url)
+    new URL("@/fonts/inter/Inter-SemiBold.ttf", import.meta.url),
   ).then((res) => res.arrayBuffer());
   return new ImageResponse(
     <div
@@ -70,6 +70,6 @@ export async function GET(
           weight: 400,
         },
       ],
-    }
+    },
   );
 }

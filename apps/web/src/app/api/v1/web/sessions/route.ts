@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
 
     const limit = Math.min(
       Number.parseInt(searchParams.get("limit") ?? "20", 10),
-      100
+      100,
     );
 
     let query = supabase
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
           name,
           device_type
         )
-      `
+      `,
       )
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })

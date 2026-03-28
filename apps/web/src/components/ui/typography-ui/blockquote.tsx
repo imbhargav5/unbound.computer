@@ -7,7 +7,7 @@ export function Blockquote({
 }: ComponentProps<"blockquote">) {
   const classNames = cn(
     "mt-6 border-slate-300 border-l-2 pl-6 text-slate-800 italic dark:border-slate-600 dark:text-slate-200",
-    className
+    className,
   );
   return <blockquote className={classNames} {...rest} />;
 }

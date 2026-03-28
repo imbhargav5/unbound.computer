@@ -11,5 +11,5 @@ export const supabaseAdminClient = createClient<Database>(
     global: {
       fetch,
     },
-  }
+  },
 );

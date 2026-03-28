@@ -65,7 +65,7 @@ export function SignUp({ next }: SignUpProps) {
         });
         toastRef.current = undefined;
       },
-    }
+    },
   );
 
   // Magic Link
@@ -79,13 +79,13 @@ export function SignUp({ next }: SignUpProps) {
       });
       toastRef.current = undefined;
       setEmailSentSuccessMessage(
-        "We sent you a magic link. Click it to create your account."
+        "We sent you a magic link. Click it to create your account.",
       );
     },
     onError: ({ error }) => {
       const errorMessage = getSafeActionErrorMessage(
         error,
-        "Failed to send magic link"
+        "Failed to send magic link",
       );
       toast.error(errorMessage, { id: toastRef.current });
       toastRef.current = undefined;
@@ -185,7 +185,7 @@ export function SignUp({ next }: SignUpProps) {
                   <Mail
                     className={cn(
                       "absolute top-1/2 left-3 size-4 -translate-y-1/2 transition-colors duration-200",
-                      focusedField === "email" ? "text-white" : "text-white/40"
+                      focusedField === "email" ? "text-white" : "text-white/40",
                     )}
                   />
                   <FormControl>

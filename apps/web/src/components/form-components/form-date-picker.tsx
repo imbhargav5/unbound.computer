@@ -46,7 +46,7 @@ export function FormDatePicker<TFieldValues extends FieldValues>({
                 <Button
                   className={cn(
                     "w-[240px] pl-3 text-left font-normal",
-                    !field.value && "text-muted-foreground"
+                    !field.value && "text-muted-foreground",
                   )}
                   id={id}
                   variant={"outline"}

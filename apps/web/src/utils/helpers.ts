@@ -35,7 +35,7 @@ export const getUserAvatarUrl = ({
     "https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp";
   if (!email) return placeholderAvatarUrl;
   const fallbackAvatarUrl = `https://www.gravatar.com/avatar/${MD5(
-    email
+    email,
   )}?d=mp`;
   const isProfileAvatarUrlValid =
     profileAvatarUrl && profileAvatarUrl.length > 0;
@@ -45,7 +45,7 @@ export const getUserAvatarUrl = ({
 };
 
 export const getPublicUserAvatarUrl = (
-  possibleAvatarUrl?: string | null | undefined
+  possibleAvatarUrl?: string | null | undefined,
 ) => {
   const placeholderAvatarUrl =
     "https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp";

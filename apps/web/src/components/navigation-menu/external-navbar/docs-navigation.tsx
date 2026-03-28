@@ -34,7 +34,7 @@ export function DocsNavigation({ className, setIsOpen }: NavigationProps) {
                       "block w-full",
                       link.href === pathname
                         ? "font-semibold text-primary before:bg-neutral-500 dark:text-white dark:underline dark:before:bg-neutral-400"
-                        : "text-neutral-600 before:hidden before:bg-neutral-300 hover:text-neutral-600 hover:before:block dark:text-neutral-300 dark:hover:text-neutral-300 dark:before:bg-neutral-700"
+                        : "text-neutral-600 before:hidden before:bg-neutral-300 hover:text-neutral-600 hover:before:block dark:text-neutral-300 dark:hover:text-neutral-300 dark:before:bg-neutral-700",
                     )}
                     href={link.href}
                   >

@@ -12,7 +12,7 @@ export const UserFullName = ({ userId }: { userId: string }) => {
       queryKey: ["user-full-name", userId],
       queryFn: () => getUserFullNameClient(userId),
     },
-    queryClient
+    queryClient,
   );
   return <T.Subtle className="text-xs">{userFullName ?? "User"}</T.Subtle>;
 };

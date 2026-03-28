@@ -31,9 +31,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         buildPresenceError(
           "unavailable",
-          "Presence DO environment is not configured"
+          "Presence DO environment is not configured",
         ),
-        { status: 503, headers: corsHeaders }
+        { status: 503, headers: corsHeaders },
       );
     }
 
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
         {
           status: 401,
           headers: corsHeaders,
-        }
+        },
       );
     }
 
@@ -52,13 +52,13 @@ export async function POST(req: NextRequest) {
     if (!payload) {
       return NextResponse.json(
         buildPresenceError("invalid_payload", "Missing request body"),
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: corsHeaders },
       );
     }
 
     const upstreamUrl = new URL(
       "/api/v1/daemon/presence/heartbeat",
-      presenceBaseUrl
+      presenceBaseUrl,
     );
 
     const upstreamResponse = await fetch(upstreamUrl, {

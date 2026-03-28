@@ -30,7 +30,7 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
   }
 
   const handleImageUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
+    event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = event.target.files?.[0];
     if (file && onImageUpload) {
@@ -46,7 +46,7 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
   };
 
   const handleVideoUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
+    event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = event.target.files?.[0];
     if (file && onVideoUpload) {
@@ -71,7 +71,7 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
             "disabled:cursor-not-allowed disabled:opacity-50",
             editor.isActive("bold")
               ? "bg-accent text-accent-foreground"
-              : "text-foreground"
+              : "text-foreground",
           )}
           disabled={!editor.can().chain().focus().toggleBold().run()}
           onClick={() => editor.chain().focus().toggleBold().run()}
@@ -86,7 +86,7 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
             "disabled:cursor-not-allowed disabled:opacity-50",
             editor.isActive("italic")
               ? "bg-accent text-accent-foreground"
-              : "text-foreground"
+              : "text-foreground",
           )}
           disabled={!editor.can().chain().focus().toggleItalic().run()}
           onClick={() => editor.chain().focus().toggleItalic().run()}
@@ -101,7 +101,7 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
             "disabled:cursor-not-allowed disabled:opacity-50",
             editor.isActive("strike")
               ? "bg-accent text-accent-foreground"
-              : "text-foreground"
+              : "text-foreground",
           )}
           disabled={!editor.can().chain().focus().toggleStrike().run()}
           onClick={() => editor.chain().focus().toggleStrike().run()}
@@ -116,7 +116,7 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
             "disabled:cursor-not-allowed disabled:opacity-50",
             editor.isActive("code")
               ? "bg-accent text-accent-foreground"
-              : "text-foreground"
+              : "text-foreground",
           )}
           disabled={!editor.can().chain().focus().toggleCode().run()}
           onClick={() => editor.chain().focus().toggleCode().run()}
@@ -129,7 +129,7 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
             "rounded-md px-2 py-1 font-medium text-sm transition-colors",
             "border border-border bg-background hover:bg-accent",
             "disabled:cursor-not-allowed disabled:opacity-50",
-            "text-foreground"
+            "text-foreground",
           )}
           onClick={() => editor.chain().focus().unsetAllMarks().run()}
           type="button"
@@ -141,7 +141,7 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
             "rounded-md px-2 py-1 font-medium text-sm transition-colors",
             "border border-border bg-background hover:bg-accent",
             "disabled:cursor-not-allowed disabled:opacity-50",
-            "text-foreground"
+            "text-foreground",
           )}
           onClick={() => editor.chain().focus().clearNodes().run()}
           type="button"
@@ -155,7 +155,7 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
             "disabled:cursor-not-allowed disabled:opacity-50",
             editor.isActive("paragraph")
               ? "bg-accent text-accent-foreground"
-              : "text-foreground"
+              : "text-foreground",
           )}
           onClick={() => editor.chain().focus().setParagraph().run()}
           type="button"
@@ -169,7 +169,7 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
             "disabled:cursor-not-allowed disabled:opacity-50",
             editor.isActive("heading", { level: 1 })
               ? "bg-accent text-accent-foreground"
-              : "text-foreground"
+              : "text-foreground",
           )}
           onClick={() =>
             editor.chain().focus().toggleHeading({ level: 1 }).run()
@@ -185,7 +185,7 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
             "disabled:cursor-not-allowed disabled:opacity-50",
             editor.isActive("heading", { level: 2 })
               ? "bg-accent text-accent-foreground"
-              : "text-foreground"
+              : "text-foreground",
           )}
           onClick={() =>
             editor.chain().focus().toggleHeading({ level: 2 }).run()
@@ -201,7 +201,7 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
             "disabled:cursor-not-allowed disabled:opacity-50",
             editor.isActive("heading", { level: 3 })
               ? "bg-accent text-accent-foreground"
-              : "text-foreground"
+              : "text-foreground",
           )}
           onClick={() =>
             editor.chain().focus().toggleHeading({ level: 3 }).run()
@@ -217,7 +217,7 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
             "disabled:cursor-not-allowed disabled:opacity-50",
             editor.isActive("heading", { level: 4 })
               ? "bg-accent text-accent-foreground"
-              : "text-foreground"
+              : "text-foreground",
           )}
           onClick={() =>
             editor.chain().focus().toggleHeading({ level: 4 }).run()
@@ -233,7 +233,7 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
             "disabled:cursor-not-allowed disabled:opacity-50",
             editor.isActive("heading", { level: 5 })
               ? "bg-accent text-accent-foreground"
-              : "text-foreground"
+              : "text-foreground",
           )}
           onClick={() =>
             editor.chain().focus().toggleHeading({ level: 5 }).run()
@@ -249,7 +249,7 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
             "disabled:cursor-not-allowed disabled:opacity-50",
             editor.isActive("heading", { level: 6 })
               ? "bg-accent text-accent-foreground"
-              : "text-foreground"
+              : "text-foreground",
           )}
           onClick={() =>
             editor.chain().focus().toggleHeading({ level: 6 }).run()
@@ -266,7 +266,7 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
             "disabled:cursor-not-allowed disabled:opacity-50",
             editor.isActive("codeBlock")
               ? "bg-accent text-accent-foreground"
-              : "text-foreground"
+              : "text-foreground",
           )}
           onClick={() => editor.chain().focus().toggleCodeBlock().run()}
           type="button"
@@ -280,7 +280,7 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
             "disabled:cursor-not-allowed disabled:opacity-50",
             editor.isActive("blockquote")
               ? "bg-accent text-accent-foreground"
-              : "text-foreground"
+              : "text-foreground",
           )}
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
           type="button"
@@ -292,7 +292,7 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
             "rounded-md px-2 py-1 font-medium text-sm transition-colors",
             "border border-border bg-background hover:bg-accent",
             "disabled:cursor-not-allowed disabled:opacity-50",
-            "text-foreground"
+            "text-foreground",
           )}
           onClick={() => editor.chain().focus().setHorizontalRule().run()}
           type="button"
@@ -304,7 +304,7 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
             "rounded-md px-2 py-1 font-medium text-sm transition-colors",
             "border border-border bg-background hover:bg-accent",
             "disabled:cursor-not-allowed disabled:opacity-50",
-            "text-foreground"
+            "text-foreground",
           )}
           onClick={() => editor.chain().focus().setHardBreak().run()}
           type="button"
@@ -316,7 +316,7 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
             "rounded-md px-2 py-1 font-medium text-sm transition-colors",
             "border border-border bg-background hover:bg-accent",
             "disabled:cursor-not-allowed disabled:opacity-50",
-            "text-foreground"
+            "text-foreground",
           )}
           disabled={!editor.can().chain().focus().undo().run()}
           onClick={() => editor.chain().focus().undo().run()}
@@ -329,7 +329,7 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
             "rounded-md px-2 py-1 font-medium text-sm transition-colors",
             "border border-border bg-background hover:bg-accent",
             "disabled:cursor-not-allowed disabled:opacity-50",
-            "text-foreground"
+            "text-foreground",
           )}
           disabled={!editor.can().chain().focus().redo().run()}
           onClick={() => editor.chain().focus().redo().run()}
@@ -344,7 +344,7 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
             "disabled:cursor-not-allowed disabled:opacity-50",
             editor.isActive("textStyle", { color: "#958DF1" })
               ? "bg-accent text-accent-foreground"
-              : "text-foreground"
+              : "text-foreground",
           )}
           onClick={() => editor.chain().focus().setColor("#958DF1").run()}
           type="button"
@@ -358,7 +358,7 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
                 "rounded-md px-2 py-1 font-medium text-sm transition-colors",
                 "border border-border bg-background hover:bg-accent",
                 "disabled:cursor-not-allowed disabled:opacity-50",
-                "text-foreground"
+                "text-foreground",
               )}
               onClick={() => imageInputRef.current?.click()}
               title="Insert image"
@@ -382,7 +382,7 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
                 "rounded-md px-2 py-1 font-medium text-sm transition-colors",
                 "border border-border bg-background hover:bg-accent",
                 "disabled:cursor-not-allowed disabled:opacity-50",
-                "text-foreground"
+                "text-foreground",
               )}
               onClick={() => videoInputRef.current?.click()}
               title="Insert video"
@@ -407,7 +407,6 @@ const MenuBar = ({ onImageUpload, onVideoUpload }: MenuBarProps) => {
 interface TiptapProps {
   initialContent: JSONContent;
   onImageUpload?: (file: File) => Promise<string>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onUpdate: (props: any) => void;
   onVideoUpload?: (file: File) => Promise<string>;
 }

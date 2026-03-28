@@ -98,7 +98,7 @@ export function BillingUsagePanel({
         });
         toastRef.current = undefined;
       },
-    }
+    },
   );
 
   const usageProgress = useMemo(() => {
@@ -107,7 +107,7 @@ export function BillingUsagePanel({
     }
     return Math.min(
       100,
-      Math.max(0, (usageStatus.commandsUsed / usageStatus.commandsLimit) * 100)
+      Math.max(0, (usageStatus.commandsUsed / usageStatus.commandsLimit) * 100),
     );
   }, [usageStatus]);
 
@@ -145,7 +145,7 @@ export function BillingUsagePanel({
             <div
               className={cn(
                 "flex items-center gap-2 font-medium text-sm",
-                enforcement?.className
+                enforcement?.className,
               )}
             >
               <EnforcementIcon className="size-4" />

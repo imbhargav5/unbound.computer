@@ -144,7 +144,7 @@ export function AvatarPickerDialog({
                     "relative aspect-square overflow-hidden rounded-lg border-2 transition-all hover:scale-105",
                     selectedAvatar === avatar.url
                       ? "border-primary ring-2 ring-primary/20"
-                      : "border-transparent hover:border-muted-foreground/30"
+                      : "border-transparent hover:border-muted-foreground/30",
                   )}
                   key={`${avatar.style}-${avatar.seed}`}
                   onClick={() => setSelectedAvatar(avatar.url)}
@@ -235,7 +235,7 @@ export function AvatarPickerDialog({
                   "cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors",
                   isDragging
                     ? "border-primary bg-primary/5"
-                    : "border-muted-foreground/25 hover:border-muted-foreground/50"
+                    : "border-muted-foreground/25 hover:border-muted-foreground/50",
                 )}
                 onClick={() => uploadInputRef.current?.click()}
                 onDragLeave={handleDragLeave}

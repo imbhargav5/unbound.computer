@@ -75,7 +75,7 @@ export interface SessionCompletionSummary {
 
 export function buildSessionConversationTimeline(
   messages: SessionMessage[],
-  provider: SessionConversationProvider
+  provider: SessionConversationProvider,
 ): SessionConversationRow[] {
   if (provider === "codex") {
     return buildCodexConversationTimeline(messages);
@@ -85,7 +85,7 @@ export function buildSessionConversationTimeline(
   const resultMessageIds = new Set(
     normalizedMessages
       .filter((message) => isClaudeResultMessage(message))
-      .map((message) => message.id)
+      .map((message) => message.id),
   );
   const baseRows = dedupeSessionConversationRows(
     buildConversationTimeline(normalizedMessages)
@@ -94,9 +94,9 @@ export function buildSessionConversationTimeline(
           ...row,
           provider:
             provider === "custom" ? ("custom" as const) : ("claude" as const),
-        })
+        }),
       )
-      .filter((row) => !resultMessageIds.has(row.messageId))
+      .filter((row) => !resultMessageIds.has(row.messageId)),
   );
   const compactBoundaryRows = normalizedMessages
     .map((message) => buildClaudeSystemRow(message, provider))
@@ -114,7 +114,7 @@ export function buildSessionConversationTimeline(
 
 export function deriveLatestSessionCompletionSummary(
   messages: SessionMessage[],
-  provider: SessionConversationProvider
+  provider: SessionConversationProvider,
 ): SessionCompletionSummary | null {
   if (provider === "codex") {
     return deriveCodexCompletionSummary(messages);
@@ -124,7 +124,7 @@ export function deriveLatestSessionCompletionSummary(
 }
 
 export function sessionConversationBlockSemanticType(
-  block: SessionConversationBlock
+  block: SessionConversationBlock,
 ) {
   switch (block.kind) {
     case "tool":
@@ -151,7 +151,7 @@ function buildCodexConversationTimeline(messages: SessionMessage[]) {
     .sort(
       (left, right) =>
         normalizeSequenceNumber(left.sequence_number) -
-        normalizeSequenceNumber(right.sequence_number)
+        normalizeSequenceNumber(right.sequence_number),
     );
 
   for (const message of orderedMessages) {
@@ -194,7 +194,7 @@ function buildCodexConversationTimeline(messages: SessionMessage[]) {
 
     const questionBlocks = parseQuestionBlocksFromUnknown(
       payload,
-      `${message.id}-question`
+      `${message.id}-question`,
     );
     if (questionBlocks.length > 0) {
       row.blocks.push(...questionBlocks);
@@ -313,7 +313,7 @@ function deriveCodexCompletionSummary(messages: SessionMessage[]) {
     .sort(
       (left, right) =>
         normalizeSequenceNumber(left.sequence_number) -
-        normalizeSequenceNumber(right.sequence_number)
+        normalizeSequenceNumber(right.sequence_number),
     );
 
   for (let index = orderedMessages.length - 1; index >= 0; index -= 1) {
@@ -368,7 +368,7 @@ function normalizeClaudeMessages(messages: SessionMessage[]) {
     const payload = normalized.value;
     const messageType = readString(payload.type)?.toLowerCase();
     const canonicalAssistantId = sanitizeText(
-      readString(readRecord(payload.message)?.id)
+      readString(readRecord(payload.message)?.id),
     );
     if (messageType === "assistant" && canonicalAssistantId) {
       return {
@@ -390,11 +390,12 @@ function normalizeClaudeMessages(messages: SessionMessage[]) {
         contentBlocks.length > 0 &&
         contentBlocks.every(
           (block) =>
-            readString(readRecord(block)?.type)?.toLowerCase() === "tool_result"
+            readString(readRecord(block)?.type)?.toLowerCase() ===
+            "tool_result",
         );
 
       const parentToolUseId = sanitizeText(
-        readString(payload.parent_tool_use_id)
+        readString(payload.parent_tool_use_id),
       );
       if (onlyToolResults || parentToolUseId) {
         return {
@@ -415,7 +416,7 @@ function normalizeClaudeMessages(messages: SessionMessage[]) {
 
 function buildClaudeSystemRow(
   message: SessionMessage,
-  provider: SessionConversationProvider
+  provider: SessionConversationProvider,
 ) {
   const normalized = normalizeMessageContent(message.content);
   if (normalized.kind !== "object") {
@@ -447,7 +448,7 @@ function buildClaudeSystemRow(
 
 function buildClaudeResultRow(
   message: SessionMessage,
-  provider: SessionConversationProvider
+  provider: SessionConversationProvider,
 ) {
   const normalized = normalizeMessageContent(message.content);
   if (normalized.kind !== "object") {
@@ -496,7 +497,7 @@ function deriveClaudeCompletionSummary(messages: SessionMessage[]) {
     .sort(
       (left, right) =>
         normalizeSequenceNumber(left.sequence_number) -
-        normalizeSequenceNumber(right.sequence_number)
+        normalizeSequenceNumber(right.sequence_number),
     );
 
   for (let index = orderedMessages.length - 1; index >= 0; index -= 1) {
@@ -636,7 +637,7 @@ function normalizeMessageContent(value: unknown) {
 
 function parseQuestionBlocksFromUnknown(
   value: unknown,
-  idPrefix: string
+  idPrefix: string,
 ): SessionConversationBlock[] {
   const request = findQuestionRequest(value, 0);
   if (!request) {
@@ -653,7 +654,7 @@ function parseQuestionBlocksFromUnknown(
 
 function findQuestionRequest(
   value: unknown,
-  depth: number
+  depth: number,
 ): { input: unknown } | null {
   if (depth > 6 || value == null) {
     return null;
@@ -678,7 +679,11 @@ function findQuestionRequest(
     readString(record.name)?.toLowerCase() ??
     readString(record.tool_name)?.toLowerCase() ??
     null;
-  if (toolName === "request_user_input") {
+  if (
+    toolName === "request_user_input" ||
+    toolName === "askuserquestion" ||
+    toolName === "ask_user_question"
+  ) {
     return {
       input:
         record.input ??
@@ -708,14 +713,14 @@ function normalizeQuestionInput(inputValue: unknown): ConversationQuestion[] {
 
   return rawQuestions
     .map((question, index) =>
-      parseQuestion(question, `codex-question-${index}`)
+      parseQuestion(question, `codex-question-${index}`),
     )
     .filter((question): question is ConversationQuestion => question !== null);
 }
 
 function parseQuestion(
   value: unknown,
-  fallbackId: string
+  fallbackId: string,
 ): ConversationQuestion | null {
   const record = readRecord(value);
   const question =
@@ -731,7 +736,7 @@ function parseQuestion(
 
   return {
     allowsMultiSelect: Boolean(
-      record.multi_select ?? record.allows_multi_select ?? record.multiSelect
+      record.multi_select ?? record.allows_multi_select ?? record.multiSelect,
     ),
     allowsTextInput:
       record.allows_text_input == null && record.allow_text_input == null
@@ -747,7 +752,7 @@ function parseQuestion(
 }
 
 function parseQuestionOption(
-  value: unknown
+  value: unknown,
 ): ConversationQuestionOption | null {
   if (typeof value === "string") {
     const label = sanitizeText(value);

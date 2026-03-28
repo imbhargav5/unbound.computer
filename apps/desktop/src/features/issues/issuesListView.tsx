@@ -59,7 +59,7 @@ export function IssuesListView({
             {issues.map((issue) => {
               const isSelected = selectedIssueId === issue.id;
               const normalizedIssueStatus = normalizeBoardIssueValue(
-                issue.status
+                issue.status,
               );
               return (
                 <button
@@ -158,7 +158,7 @@ function normalizeBoardIssueValue(value: string | null | undefined) {
 
 function formatCompactIssueTimestamp(
   value: string | null | undefined,
-  now = new Date()
+  now = new Date(),
 ) {
   const date = parseIssueDate(value);
   if (!date) {
@@ -180,10 +180,10 @@ function formatCompactIssueTimestamp(
   const startOfDate = new Date(
     date.getFullYear(),
     date.getMonth(),
-    date.getDate()
+    date.getDate(),
   );
   const dayDelta = Math.round(
-    (startOfNow.getTime() - startOfDate.getTime()) / (24 * 60 * 60 * 1000)
+    (startOfNow.getTime() - startOfDate.getTime()) / (24 * 60 * 60 * 1000),
   );
 
   if (dayDelta === 1) {

@@ -17,7 +17,7 @@ export function MdxCode({ className, ...props }: MdxCodeProps) {
         className,
         languageProp
           ? ""
-          : "border border-gray-700 bg-purple-100 p-1 dark:border-purple-600 dark:bg-transparent"
+          : "border border-gray-700 bg-purple-100 p-1 dark:border-purple-600 dark:bg-transparent",
       )}
       {...props}
     />

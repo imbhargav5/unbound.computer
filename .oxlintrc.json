@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": [
+    "**/.source/**",
+    "**/.pnp.loader.mjs",
+    "apps/desktop/src-tauri/gen/schemas/**",
+    "packages/transport-reliability/generated/**"
+  ],
+  "rules": {
+    "eslint/no-unassigned-vars": "off",
+    "eslint/no-unused-vars": "off",
+    "eslint/no-useless-catch": "off",
+    "unicorn/no-new-array": "off",
+    "unicorn/no-single-promise-in-promise-methods": "off",
+    "unicorn/no-useless-fallback-in-spread": "off"
+  }
+}

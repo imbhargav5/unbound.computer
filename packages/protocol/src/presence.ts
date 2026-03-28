@@ -29,7 +29,7 @@ export function validatePresenceMessage(data: unknown): PresenceMessage {
  * Safe parse a presence message
  */
 export function parsePresenceMessage(
-  data: unknown
+  data: unknown,
 ):
   | { success: true; data: PresenceMessage }
   | { success: false; error: z.ZodError } {
@@ -46,7 +46,7 @@ export function parsePresenceMessage(
 export function createPresenceMessage(
   status: PresenceStatus,
   deviceId: string,
-  deviceName?: string
+  deviceName?: string,
 ): PresenceMessage {
   return {
     status,

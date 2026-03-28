@@ -25,7 +25,7 @@ export const ChannelForEventType = {
  * Returns null for LOCAL_EXECUTION_COMMAND events (not sent to relay)
  */
 export function getChannelForEvent(
-  event: z.infer<typeof UnboundEvent>
+  event: z.infer<typeof UnboundEvent>,
 ): Channel | null {
   if ("plane" in event) {
     if (event.plane === "HANDSHAKE") {

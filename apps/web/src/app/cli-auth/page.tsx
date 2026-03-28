@@ -69,7 +69,7 @@ function CLIAuthContent() {
     // Validate login_id parameter
     if (!loginId) {
       setError(
-        "Missing login_id parameter. Please try running 'unbound login' again."
+        "Missing login_id parameter. Please try running 'unbound login' again.",
       );
     }
   }, [loginId]);
@@ -106,7 +106,7 @@ function CLIAuthContent() {
       // Browser will redirect to OAuth provider
     } catch (err) {
       setError(
-        `Unexpected error: ${err instanceof Error ? err.message : String(err)}`
+        `Unexpected error: ${err instanceof Error ? err.message : String(err)}`,
       );
       setLoading(false);
     }

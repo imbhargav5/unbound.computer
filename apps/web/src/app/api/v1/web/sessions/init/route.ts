@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     if (!parseResult.success) {
       return NextResponse.json(
         { error: "Invalid request body", details: parseResult.error.issues },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     if (!rateLimitCheck.valid) {
       return NextResponse.json(
         { error: rateLimitCheck.error, code: rateLimitCheck.code },
-        { status: 429 }
+        { status: 429 },
       );
     }
 
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
 
     // Calculate expiration (5 minutes for pending)
     const expiresAt = new Date(
-      Date.now() + WEB_SESSION_EXPIRY.PENDING_MINUTES * 60 * 1000
+      Date.now() + WEB_SESSION_EXPIRY.PENDING_MINUTES * 60 * 1000,
     );
 
     // Get client IP
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
     const qrData = createWebSessionQRData(
       session.id,
       publicKey,
-      expiresAt.getTime()
+      expiresAt.getTime(),
     );
 
     return NextResponse.json(
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
         qrData, // Display as QR code
         expiresAt: session.expires_at,
       },
-      { status: 201 }
+      { status: 201 },
     );
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });

@@ -25,7 +25,7 @@ export function createSupabaseMobileClient(req: NextRequest) {
           Authorization: `Bearer ${token}`,
         },
       },
-    }
+    },
   );
 
   return client;

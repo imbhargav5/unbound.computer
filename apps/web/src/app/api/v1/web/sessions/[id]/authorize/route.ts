@@ -43,7 +43,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     if (!parseResult.success) {
       return NextResponse.json(
         { error: "Invalid request body", details: parseResult.error.issues },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -54,12 +54,12 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const deviceCheck = await validateDeviceForWebAuth(
       supabase,
       user.id,
-      deviceId
+      deviceId,
     );
     if (!deviceCheck.valid) {
       return NextResponse.json(
         { error: deviceCheck.error, code: deviceCheck.code },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -67,18 +67,18 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const sessionCheck = await validateWebSessionForAuth(
       supabase,
       user.id,
-      sessionId
+      sessionId,
     );
     if (!sessionCheck.valid) {
       return NextResponse.json(
         { error: sessionCheck.error, code: sessionCheck.code },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Calculate new expiration (24 hours from authorization)
     const newExpiresAt = new Date(
-      Date.now() + WEB_SESSION_EXPIRY.ACTIVE_HOURS * 60 * 60 * 1000
+      Date.now() + WEB_SESSION_EXPIRY.ACTIVE_HOURS * 60 * 60 * 1000,
     );
 
     // Authorize the session
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           name,
           device_type
         )
-      `
+      `,
       )
       .single();
 

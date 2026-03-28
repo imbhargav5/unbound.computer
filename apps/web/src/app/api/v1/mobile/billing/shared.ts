@@ -48,7 +48,7 @@ function endOfCurrentMonthUtc(now: Date): Date {
 
 export function computeEnforcementState(
   commandsUsed: number,
-  commandsLimit: number
+  commandsLimit: number,
 ): EnforcementState {
   if (commandsUsed >= commandsLimit) {
     return "over_quota";
@@ -143,7 +143,7 @@ export async function ensureStripeBillingCustomer(userId: string) {
 }
 
 export async function getBillingWindow(
-  gatewayCustomerId: string
+  gatewayCustomerId: string,
 ): Promise<BillingWindow> {
   const { data: subscription, error } = await supabaseAdminClient
     .from("billing_subscriptions")
@@ -206,7 +206,7 @@ export async function recordBillingUsageEvent({
       p_quantity: quantity,
       p_event_timestamp: occurredAt ?? new Date().toISOString(),
       p_metadata: {},
-    }
+    },
   );
 
   if (error) {

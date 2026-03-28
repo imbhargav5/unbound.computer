@@ -11,7 +11,7 @@ export const authMiddleware: MiddlewareConfig = {
   middleware: async (request, maybeUser) => {
     middlewareLogger.log(
       "middleware protected paths",
-      request.nextUrl.pathname
+      request.nextUrl.pathname,
     );
 
     const { supabase, supabaseResponse } =
@@ -24,7 +24,7 @@ export const authMiddleware: MiddlewareConfig = {
       middlewareLogger.log(
         "Error getting claims",
         claimsError.message,
-        request.nextUrl.pathname
+        request.nextUrl.pathname,
       );
       return [NextResponse.redirect(toSiteURL("/login")), maybeUser];
     }
@@ -32,7 +32,7 @@ export const authMiddleware: MiddlewareConfig = {
     if (!claimsData?.claims) {
       middlewareLogger.log(
         "User is not logged in. Redirecting to login.",
-        request.nextUrl.pathname
+        request.nextUrl.pathname,
       );
       return [NextResponse.redirect(toSiteURL("/login")), maybeUser];
     }
@@ -41,7 +41,7 @@ export const authMiddleware: MiddlewareConfig = {
 
     middlewareLogger.log(
       "User is logged in. Continuing.",
-      request.nextUrl.pathname
+      request.nextUrl.pathname,
     );
 
     return [supabaseResponse, userClaims];

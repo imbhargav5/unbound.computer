@@ -70,7 +70,7 @@ export class SessionManager extends EventEmitter {
     const session = createSession(
       sessionConfig,
       this.config.claudeCommand,
-      this.config.claudeArgs
+      this.config.claudeArgs,
     );
 
     // Set up session event handlers
@@ -114,7 +114,7 @@ export class SessionManager extends EventEmitter {
    * Create and start a session
    */
   async createAndStartSession(
-    config: SessionConfig
+    config: SessionConfig,
   ): Promise<SessionResult<Session>> {
     const createResult = this.createSession(config);
     if (!createResult.success) {
@@ -261,7 +261,7 @@ export class SessionManager extends EventEmitter {
     return {
       total: sessions.length,
       active: states.filter(
-        (s) => s === SessionState.RUNNING || s === SessionState.PAUSED
+        (s) => s === SessionState.RUNNING || s === SessionState.PAUSED,
       ).length,
       running: states.filter((s) => s === SessionState.RUNNING).length,
       paused: states.filter((s) => s === SessionState.PAUSED).length,
@@ -364,25 +364,24 @@ export class SessionManager extends EventEmitter {
   // Type-safe event methods
   override on(
     event: "sessionCreated",
-    listener: (sessionId: string) => void
+    listener: (sessionId: string) => void,
   ): this;
   override on(
     event: "sessionStarted",
-    listener: (sessionId: string) => void
+    listener: (sessionId: string) => void,
   ): this;
   override on(
     event: "sessionEnded",
-    listener: (sessionId: string, state: SessionState) => void
+    listener: (sessionId: string, state: SessionState) => void,
   ): this;
   override on(
     event: "sessionError",
-    listener: (sessionId: string, error: Error) => void
+    listener: (sessionId: string, error: Error) => void,
   ): this;
   override on(
     event: "output",
-    listener: (sessionId: string, content: string) => void
+    listener: (sessionId: string, content: string) => void,
   ): this;
-  // biome-ignore lint/suspicious/noExplicitAny: Required for EventEmitter overload compatibility
   override on(event: string, listener: (...args: any[]) => void): this {
     return super.on(event, listener);
   }
@@ -392,7 +391,7 @@ export class SessionManager extends EventEmitter {
  * Create a session manager
  */
 export function createSessionManager(
-  config?: Partial<SessionManagerConfig>
+  config?: Partial<SessionManagerConfig>,
 ): SessionManager {
   return new SessionManager(config);
 }

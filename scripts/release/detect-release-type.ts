@@ -48,7 +48,7 @@ function main() {
   let files: string[];
   try {
     files = readdirSync(releasesDir).filter(
-      (f) => f.endsWith(".md") && f !== "README.md"
+      (f) => f.endsWith(".md") && f !== "README.md",
     );
   } catch {
     console.log("none");

@@ -36,7 +36,7 @@ export function getPublicKey(privateKey: Uint8Array): Uint8Array {
  */
 export function computeSharedSecret(
   privateKey: Uint8Array,
-  theirPublicKey: Uint8Array
+  theirPublicKey: Uint8Array,
 ): Uint8Array {
   if (privateKey.length !== KEY_SIZE.X25519_PRIVATE) {
     throw new Error(`Private key must be ${KEY_SIZE.X25519_PRIVATE} bytes`);

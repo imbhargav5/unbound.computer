@@ -7,7 +7,7 @@ import type { z } from "zod";
  * Workaround for https://github.com/react-hook-form/resolvers/issues/813
  */
 export function zodResolver<T extends z.ZodType<FieldValues>>(
-  schema: T
+  schema: T,
 ): Resolver<z.infer<T>> {
   type ZodResolverInput = Parameters<typeof baseZodResolver>[0];
   return baseZodResolver(schema as ZodResolverInput) as unknown as Resolver<

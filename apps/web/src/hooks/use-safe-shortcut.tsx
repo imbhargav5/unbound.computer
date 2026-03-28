@@ -35,7 +35,7 @@ function isInputElementOrEditable(element: HTMLElement): boolean {
 export function useSafeShortcut(
   key: string,
   callback: (e: KeyboardEvent) => void,
-  options?: UseSafeShortcutOptions
+  options?: UseSafeShortcutOptions,
 ) {
   useKey(
     key,
@@ -50,6 +50,6 @@ export function useSafeShortcut(
       event.preventDefault();
       callback(event);
     },
-    options
+    options,
   );
 }

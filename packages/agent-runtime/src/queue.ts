@@ -125,7 +125,7 @@ export class MessageQueue extends EventEmitter {
    */
   getOrdered(): SessionMessage[] {
     return Array.from(this.messages.values()).sort(
-      (a, b) => a.sequence - b.sequence
+      (a, b) => a.sequence - b.sequence,
     );
   }
 
@@ -271,25 +271,24 @@ export class MessageQueue extends EventEmitter {
   // Type-safe event methods
   override on(
     event: "enqueue",
-    listener: (message: SessionMessage) => void
+    listener: (message: SessionMessage) => void,
   ): this;
   override on(
     event: "dequeue",
-    listener: (message: SessionMessage) => void
+    listener: (message: SessionMessage) => void,
   ): this;
   override on(
     event: "acknowledge",
-    listener: (messageId: string) => void
+    listener: (messageId: string) => void,
   ): this;
   override on(
     event: "retry",
-    listener: (message: SessionMessage) => void
+    listener: (message: SessionMessage) => void,
   ): this;
   override on(
     event: "drop",
-    listener: (message: SessionMessage, reason: string) => void
+    listener: (message: SessionMessage, reason: string) => void,
   ): this;
-  // biome-ignore lint/suspicious/noExplicitAny: Required for EventEmitter overload compatibility
   override on(event: string, listener: (...args: any[]) => void): this {
     return super.on(event, listener);
   }
@@ -300,7 +299,7 @@ export class MessageQueue extends EventEmitter {
  */
 export function createMessageQueue(
   sessionId: string,
-  config?: Partial<QueueConfig>
+  config?: Partial<QueueConfig>,
 ): MessageQueue {
   return new MessageQueue(sessionId, config);
 }

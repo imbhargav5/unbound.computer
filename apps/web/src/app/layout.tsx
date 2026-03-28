@@ -9,7 +9,7 @@ export const generateMetadata = async () => ({
   title: "Unbound",
   description: "Unbound",
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ?? "https://unbound.computer"
+    process.env.NEXT_PUBLIC_SITE_URL ?? "https://unbound.computer",
   ),
 });
 

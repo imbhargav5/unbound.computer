@@ -16,7 +16,7 @@ const exchangeRateMap = {
 };
 
 function isValidCurrency(
-  currency: string
+  currency: string,
 ): currency is keyof typeof exchangeRateMap {
   return Object.keys(exchangeRateMap).includes(currency);
 }
@@ -40,7 +40,7 @@ export function convertAmountToUSD(amount: number, currency: string): number {
  */
 export function normalizePriceAndCurrency(
   amount: number,
-  currency: string
+  currency: string,
 ): number {
   if (currency?.toLowerCase() === "usd") {
     return amount / 100;

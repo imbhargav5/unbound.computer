@@ -12,7 +12,7 @@ export async function GET(
   _req: NextRequest,
   props: {
     params: Promise<{ invitationId: string }>;
-  }
+  },
 ) {
   const params = await props.params;
   const { success } = paramsSchema.safeParse(params);
@@ -34,7 +34,7 @@ export async function GET(
     const url = new URL(toSiteURL("/login"));
     url.searchParams.append(
       "next",
-      `/user/invitations/${encodeURIComponent(invitationId)}`
+      `/user/invitations/${encodeURIComponent(invitationId)}`,
     );
     url.searchParams.append("nextActionType", "invitationPending");
     return NextResponse.redirect(url.toString());
@@ -42,7 +42,7 @@ export async function GET(
 
   if (typeof invitationId === "string") {
     return NextResponse.redirect(
-      toSiteURL(`/user/invitations/${invitationId}`)
+      toSiteURL(`/user/invitations/${invitationId}`),
     );
   }
   return NextResponse.json({

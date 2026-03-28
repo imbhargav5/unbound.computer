@@ -1,10 +1,7 @@
 export { AckFrame } from "./ack";
 export { AnyEvent, UnboundEvent } from "./any-event";
 export { BaseUnboundEvent } from "./base";
-export {
-  ChannelForEventType,
-  getChannelForEvent,
-} from "./channel-mapping";
+export { ChannelForEventType, getChannelForEvent } from "./channel-mapping";
 export {
   HandshakeBaseEvent,
   HandshakeEvent,

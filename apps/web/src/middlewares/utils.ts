@@ -14,7 +14,7 @@ import type { UserClaimsSchemaType } from "../utils/zod-schemas/user-claims-sche
  */
 export function matchesPath(
   matcher: string | string[],
-  pathname: string
+  pathname: string,
 ): boolean {
   const matchers = Array.isArray(matcher) ? matcher : [matcher];
   return matchers.some((m) => {

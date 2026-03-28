@@ -53,7 +53,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     if (!parseResult.success) {
       return NextResponse.json(
         { error: "Invalid request body", details: parseResult.error.issues },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -64,13 +64,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       supabase,
       user.id,
       sessionId,
-      [SESSION_STATUS.ACTIVE, SESSION_STATUS.PAUSED]
+      [SESSION_STATUS.ACTIVE, SESSION_STATUS.PAUSED],
     );
 
     if (!validation.valid) {
       return NextResponse.json(
         { error: validation.error, code: validation.code },
-        { status: validation.code === "SESSION_NOT_FOUND" ? 404 : 400 }
+        { status: validation.code === "SESSION_NOT_FOUND" ? 404 : 400 },
       );
     }
 
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         *,
         repository:repositories(id, name, remote_url, local_path, worktree_branch),
         device:devices(id, name, device_type)
-      `
+      `,
       )
       .single();
 

@@ -63,6 +63,6 @@ export function useMinDelayCondition({
       clearTimeoutSafely();
       hasRunRef.current = false;
     },
-    [clearTimeoutSafely]
+    [clearTimeoutSafely],
   );
 }

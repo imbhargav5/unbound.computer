@@ -37,18 +37,18 @@ describe("presence-do-worker cold start behavior", () => {
       (
         await dispatchHeartbeat(
           mf1,
-          makeHeartbeat({ seq: 1, sent_at_ms: baseSentAt, ttl_ms: 20_000 })
+          makeHeartbeat({ seq: 1, sent_at_ms: baseSentAt, ttl_ms: 20_000 }),
         )
-      ).status
+      ).status,
     ).toBe(204);
 
     expect(
       (
         await dispatchHeartbeat(
           mf1,
-          makeHeartbeat({ seq: 2, sent_at_ms: baseSentAt + 2, ttl_ms: 20_000 })
+          makeHeartbeat({ seq: 2, sent_at_ms: baseSentAt + 2, ttl_ms: 20_000 }),
         )
-      ).status
+      ).status,
     ).toBe(204);
 
     const beforeRestart = await readDebugState(mf1);
@@ -76,13 +76,13 @@ describe("presence-do-worker cold start behavior", () => {
 
     const replayedKeepAlive = await dispatchHeartbeat(
       mf2,
-      makeHeartbeat({ seq: 2, sent_at_ms: baseSentAt + 2, ttl_ms: 20_000 })
+      makeHeartbeat({ seq: 2, sent_at_ms: baseSentAt + 2, ttl_ms: 20_000 }),
     );
     expect(replayedKeepAlive.status).toBe(204);
 
     const stale = await dispatchHeartbeat(
       mf2,
-      makeHeartbeat({ seq: 1, sent_at_ms: baseSentAt + 1, ttl_ms: 20_000 })
+      makeHeartbeat({ seq: 1, sent_at_ms: baseSentAt + 1, ttl_ms: 20_000 }),
     );
     expect(stale.status).toBe(409);
   });

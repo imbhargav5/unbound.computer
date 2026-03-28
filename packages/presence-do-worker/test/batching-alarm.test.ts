@@ -32,9 +32,9 @@ describe("presence-do-worker keep-alive batching and alarm behavior", () => {
       (
         await dispatchHeartbeat(
           mf,
-          makeHeartbeat({ seq: 1, sent_at_ms: baseSentAt, ttl_ms: 5000 })
+          makeHeartbeat({ seq: 1, sent_at_ms: baseSentAt, ttl_ms: 5000 }),
         )
-      ).status
+      ).status,
     ).toBe(204);
 
     for (let seq = 2; seq <= 5; seq += 1) {
@@ -42,9 +42,9 @@ describe("presence-do-worker keep-alive batching and alarm behavior", () => {
         (
           await dispatchHeartbeat(
             mf,
-            makeHeartbeat({ seq, sent_at_ms: baseSentAt + seq, ttl_ms: 5000 })
+            makeHeartbeat({ seq, sent_at_ms: baseSentAt + seq, ttl_ms: 5000 }),
           )
-        ).status
+        ).status,
       ).toBe(204);
     }
 
@@ -69,18 +69,18 @@ describe("presence-do-worker keep-alive batching and alarm behavior", () => {
       (
         await dispatchHeartbeat(
           mf,
-          makeHeartbeat({ seq: 1, sent_at_ms: baseSentAt, ttl_ms: 3000 })
+          makeHeartbeat({ seq: 1, sent_at_ms: baseSentAt, ttl_ms: 3000 }),
         )
-      ).status
+      ).status,
     ).toBe(204);
 
     expect(
       (
         await dispatchHeartbeat(
           mf,
-          makeHeartbeat({ seq: 2, sent_at_ms: baseSentAt + 2, ttl_ms: 3000 })
+          makeHeartbeat({ seq: 2, sent_at_ms: baseSentAt + 2, ttl_ms: 3000 }),
         )
-      ).status
+      ).status,
     ).toBe(204);
 
     const firstDirty = await readDebugState(mf);
@@ -92,9 +92,9 @@ describe("presence-do-worker keep-alive batching and alarm behavior", () => {
       (
         await dispatchHeartbeat(
           mf,
-          makeHeartbeat({ seq: 3, sent_at_ms: baseSentAt + 3, ttl_ms: 3000 })
+          makeHeartbeat({ seq: 3, sent_at_ms: baseSentAt + 3, ttl_ms: 3000 }),
         )
-      ).status
+      ).status,
     ).toBe(204);
 
     const secondDirty = await readDebugState(mf);
@@ -108,17 +108,17 @@ describe("presence-do-worker keep-alive batching and alarm behavior", () => {
       (
         await dispatchHeartbeat(
           mf,
-          makeHeartbeat({ seq: 1, sent_at_ms: baseSentAt, ttl_ms: 12_000 })
+          makeHeartbeat({ seq: 1, sent_at_ms: baseSentAt, ttl_ms: 12_000 }),
         )
-      ).status
+      ).status,
     ).toBe(204);
     expect(
       (
         await dispatchHeartbeat(
           mf,
-          makeHeartbeat({ seq: 2, sent_at_ms: baseSentAt + 2, ttl_ms: 12_000 })
+          makeHeartbeat({ seq: 2, sent_at_ms: baseSentAt + 2, ttl_ms: 12_000 }),
         )
-      ).status
+      ).status,
     ).toBe(204);
 
     const afterKeepAlive = await readDebugState(mf);
@@ -133,9 +133,9 @@ describe("presence-do-worker keep-alive batching and alarm behavior", () => {
             status: "offline",
             seq: 3,
             sent_at_ms: baseSentAt + 3,
-          })
+          }),
         )
-      ).status
+      ).status,
     ).toBe(204);
 
     const afterOffline = await readDebugState(mf);
@@ -150,17 +150,17 @@ describe("presence-do-worker keep-alive batching and alarm behavior", () => {
             status: "online",
             seq: 4,
             sent_at_ms: baseSentAt + 4,
-          })
+          }),
         )
-      ).status
+      ).status,
     ).toBe(204);
     expect(
       (
         await dispatchHeartbeat(
           mf,
-          makeHeartbeat({ seq: 5, sent_at_ms: baseSentAt + 5, ttl_ms: 15_000 })
+          makeHeartbeat({ seq: 5, sent_at_ms: baseSentAt + 5, ttl_ms: 15_000 }),
         )
-      ).status
+      ).status,
     ).toBe(204);
     expect(
       (
@@ -171,9 +171,9 @@ describe("presence-do-worker keep-alive batching and alarm behavior", () => {
             sent_at_ms: baseSentAt + 6,
             ttl_ms: 15_000,
             source: "daemon-alt",
-          })
+          }),
         )
-      ).status
+      ).status,
     ).toBe(204);
 
     const finalState = await readDebugState(mf);
@@ -192,24 +192,24 @@ describe("presence-do-worker keep-alive batching and alarm behavior", () => {
       (
         await dispatchHeartbeat(
           mf,
-          makeHeartbeat({ seq: 1, sent_at_ms: baseSentAt, ttl_ms: 5000 })
+          makeHeartbeat({ seq: 1, sent_at_ms: baseSentAt, ttl_ms: 5000 }),
         )
-      ).status
+      ).status,
     ).toBe(204);
     expect(
       (
         await dispatchHeartbeat(
           mf,
-          makeHeartbeat({ seq: 2, sent_at_ms: baseSentAt + 2, ttl_ms: 5000 })
+          makeHeartbeat({ seq: 2, sent_at_ms: baseSentAt + 2, ttl_ms: 5000 }),
         )
-      ).status
+      ).status,
     ).toBe(204);
 
     const withFlush = await readDebugState(mf);
     expect(withFlush.next_flush_ms).not.toBeNull();
     expect(withFlush.next_expiry_ms).not.toBeNull();
     expect(withFlush.next_alarm_ms).toBe(
-      Math.min(withFlush.next_flush_ms!, withFlush.next_expiry_ms!)
+      Math.min(withFlush.next_flush_ms!, withFlush.next_expiry_ms!),
     );
 
     const secondDevice = "123e4567-e89b-12d3-a456-426614174055";
@@ -222,17 +222,17 @@ describe("presence-do-worker keep-alive batching and alarm behavior", () => {
             seq: 1,
             sent_at_ms: baseSentAt + 3,
             ttl_ms: 40,
-          })
+          }),
         )
-      ).status
+      ).status,
     ).toBe(204);
 
     const withEarlyExpiry = await readDebugState(mf);
     expect(withEarlyExpiry.next_alarm_ms).toBe(
       Math.min(
         withEarlyExpiry.next_flush_ms ?? Number.POSITIVE_INFINITY,
-        withEarlyExpiry.next_expiry_ms ?? Number.POSITIVE_INFINITY
-      )
+        withEarlyExpiry.next_expiry_ms ?? Number.POSITIVE_INFINITY,
+      ),
     );
   });
 
@@ -243,9 +243,9 @@ describe("presence-do-worker keep-alive batching and alarm behavior", () => {
       (
         await dispatchHeartbeat(
           mf,
-          makeHeartbeat({ status: "online", seq: 1, sent_at_ms: baseSentAt })
+          makeHeartbeat({ status: "online", seq: 1, sent_at_ms: baseSentAt }),
         )
-      ).status
+      ).status,
     ).toBe(204);
 
     expect(
@@ -256,9 +256,9 @@ describe("presence-do-worker keep-alive batching and alarm behavior", () => {
             status: "offline",
             seq: 2,
             sent_at_ms: baseSentAt + 1,
-          })
+          }),
         )
-      ).status
+      ).status,
     ).toBe(204);
 
     const state = await readDebugState(mf);
@@ -276,9 +276,9 @@ describe("presence-do-worker keep-alive batching and alarm behavior", () => {
       (
         await dispatchHeartbeat(
           mf,
-          makeHeartbeat({ seq: 1, sent_at_ms: baseSentAt, ttl_ms: 45 })
+          makeHeartbeat({ seq: 1, sent_at_ms: baseSentAt, ttl_ms: 45 }),
         )
-      ).status
+      ).status,
     ).toBe(204);
 
     const online = await readSseEvent(stream.reader, 1000);
@@ -309,9 +309,9 @@ describe("presence-do-worker keep-alive batching and alarm behavior", () => {
             seq: 1,
             sent_at_ms: now,
             ttl_ms: 80,
-          })
+          }),
         )
-      ).status
+      ).status,
     ).toBe(204);
 
     expect(
@@ -323,9 +323,9 @@ describe("presence-do-worker keep-alive batching and alarm behavior", () => {
             seq: 1,
             sent_at_ms: now + 1,
             ttl_ms: 1000,
-          })
+          }),
         )
-      ).status
+      ).status,
     ).toBe(204);
 
     expect(
@@ -337,9 +337,9 @@ describe("presence-do-worker keep-alive batching and alarm behavior", () => {
             seq: 2,
             sent_at_ms: now + 2,
             ttl_ms: 1000,
-          })
+          }),
         )
-      ).status
+      ).status,
     ).toBe(204);
 
     const state = await readDebugState(mf);

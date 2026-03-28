@@ -35,7 +35,7 @@ export class StripeWebhookProcessingError extends Error {
     public readonly statusCode: number,
     public readonly eventId?: string,
     public readonly eventType?: string,
-    public readonly cause?: unknown
+    public readonly cause?: unknown,
   ) {
     super(message);
     this.name = "StripeWebhookProcessingError";
@@ -65,7 +65,7 @@ export class StripePaymentGateway implements PaymentGateway {
   db = {
     createCustomer: async (
       userData: Partial<DBTable<"billing_customers">>,
-      userId: string
+      userId: string,
     ): Promise<DBTable<"billing_customers">> => {
       const { billing_email } = userData;
       try {
@@ -100,7 +100,7 @@ export class StripePaymentGateway implements PaymentGateway {
     },
 
     getCustomerByCustomerId: async (
-      customerId: string
+      customerId: string,
     ): Promise<DBTable<"billing_customers">> => {
       const { data, error } = await supabaseAdminClient
         .from("billing_customers")
@@ -115,7 +115,7 @@ export class StripePaymentGateway implements PaymentGateway {
     },
 
     getCustomerByUserId: async (
-      userId: string
+      userId: string,
     ): Promise<DBTable<"billing_customers">> => {
       const { data, error } = await supabaseAdminClient
         .from("billing_customers")
@@ -143,7 +143,7 @@ export class StripePaymentGateway implements PaymentGateway {
 
     updateCustomer: async (
       customerId: string,
-      updateData: Partial<DBTable<"billing_customers">>
+      updateData: Partial<DBTable<"billing_customers">>,
     ): Promise<DBTable<"billing_customers">> => {
       const { data, error } = await supabaseAdminClient
         .from("billing_customers")
@@ -171,7 +171,7 @@ export class StripePaymentGateway implements PaymentGateway {
     },
 
     listCustomers: async (
-      options?: PaginationOptions
+      options?: PaginationOptions,
     ): Promise<PaginatedResponse<DBTable<"billing_customers">>> => {
       const { data, error, count } = await supabaseAdminClient
         .from("billing_customers")
@@ -181,7 +181,7 @@ export class StripePaymentGateway implements PaymentGateway {
           options?.startingAfter ? Number.parseInt(options.startingAfter) : 0,
           options?.limit
             ? Number.parseInt(options.startingAfter || "0") + options.limit - 1
-            : 9999
+            : 9999,
         );
 
       if (error) throw error;
@@ -197,7 +197,7 @@ export class StripePaymentGateway implements PaymentGateway {
     },
 
     getSubscriptionsByCustomerId: async (
-      customerId: string
+      customerId: string,
     ): Promise<SubscriptionData[]> => {
       const { data, error } = await supabaseAdminClient
         .from("billing_subscriptions")
@@ -209,7 +209,7 @@ export class StripePaymentGateway implements PaymentGateway {
       return data;
     },
     getSubscriptionsByUserId: async (
-      userId: string
+      userId: string,
     ): Promise<SubscriptionData[]> => {
       let customer: DBTable<"billing_customers"> | undefined;
       try {
@@ -232,7 +232,7 @@ export class StripePaymentGateway implements PaymentGateway {
     },
 
     getSubscription: async (
-      subscriptionId: string
+      subscriptionId: string,
     ): Promise<SubscriptionData> => {
       const { data, error } = await supabaseAdminClient
         .from("billing_subscriptions")
@@ -250,7 +250,7 @@ export class StripePaymentGateway implements PaymentGateway {
 
     listSubscriptions: async (
       customerId: string,
-      options?: PaginationOptions
+      options?: PaginationOptions,
     ): Promise<PaginatedResponse<SubscriptionData>> => {
       const { data, error, count } = await supabaseAdminClient
         .from("billing_subscriptions")
@@ -261,7 +261,7 @@ export class StripePaymentGateway implements PaymentGateway {
           options?.startingAfter ? Number.parseInt(options.startingAfter) : 0,
           options?.limit
             ? Number.parseInt(options.startingAfter || "0") + options.limit - 1
-            : 9999
+            : 9999,
         );
 
       if (error) throw error;
@@ -291,7 +291,7 @@ export class StripePaymentGateway implements PaymentGateway {
 
     listInvoicesByCustomerId: async (
       customerId: string,
-      options?: PaginationOptions
+      options?: PaginationOptions,
     ): Promise<PaginatedResponse<InvoiceData>> => {
       const { data, error, count } = await supabaseAdminClient
         .from("billing_invoices")
@@ -302,7 +302,7 @@ export class StripePaymentGateway implements PaymentGateway {
           options?.startingAfter ? Number.parseInt(options.startingAfter) : 0,
           options?.limit
             ? Number.parseInt(options.startingAfter || "0") + options.limit - 1
-            : 9999
+            : 9999,
         );
 
       if (error) throw error;
@@ -319,7 +319,7 @@ export class StripePaymentGateway implements PaymentGateway {
 
     listInvoicesByUserId: async (
       userId: string,
-      options?: PaginationOptions
+      options?: PaginationOptions,
     ): Promise<PaginatedResponse<InvoiceData>> => {
       let customer: DBTable<"billing_customers"> | undefined;
       try {
@@ -342,7 +342,7 @@ export class StripePaymentGateway implements PaymentGateway {
       }
       return this.db.listInvoicesByCustomerId(
         customer.gateway_customer_id,
-        options
+        options,
       );
     },
 
@@ -379,12 +379,12 @@ export class StripePaymentGateway implements PaymentGateway {
     },
 
     getOneTimePurchasesByCustomerId: async (
-      customerId: string
+      customerId: string,
     ): Promise<OneTimePaymentData[]> => {
       const { data, error } = await supabaseAdminClient
         .from("billing_one_time_payments")
         .select(
-          " *, billing_products(*), billing_prices(*), billing_invoices(*)"
+          " *, billing_products(*), billing_prices(*), billing_invoices(*)",
         )
         .eq("gateway_customer_id", customerId)
         .eq("gateway_name", this.getName());
@@ -393,7 +393,7 @@ export class StripePaymentGateway implements PaymentGateway {
     },
 
     getUserOneTimePurchases: async (
-      userId: string
+      userId: string,
     ): Promise<OneTimePaymentData[]> => {
       let customer: DBTable<"billing_customers"> | undefined;
       try {
@@ -406,12 +406,12 @@ export class StripePaymentGateway implements PaymentGateway {
         return [];
       }
       return this.db.getOneTimePurchasesByCustomerId(
-        customer.gateway_customer_id
+        customer.gateway_customer_id,
       );
     },
 
     getUserPaymentMethods: async (
-      userId: string
+      userId: string,
     ): Promise<DBTable<"billing_payment_methods">[]> => {
       const customer = await this.util.getCustomerByUserId(userId);
       if (!customer) {
@@ -445,14 +445,14 @@ export class StripePaymentGateway implements PaymentGateway {
       throw new PaymentGatewayError(
         `StripePaymentGatewayError: ${error.message}`,
         "500",
-        this.getName()
+        this.getName(),
       );
     },
     isTestMode: () =>
       process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.includes("pk_test") ??
       false,
     createCustomerForUser: async (
-      userId: string
+      userId: string,
     ): Promise<DBTable<"billing_customers">> => {
       try {
         const { data: user, error: userError } =
@@ -465,7 +465,7 @@ export class StripePaymentGateway implements PaymentGateway {
           {
             billing_email: maybeEmail,
           },
-          userId
+          userId,
         );
       } catch (error) {
         console.log("error", error);
@@ -474,7 +474,7 @@ export class StripePaymentGateway implements PaymentGateway {
     },
 
     getCustomerByUserId: async (
-      userId: string
+      userId: string,
     ): Promise<DBTable<"billing_customers"> | null> => {
       const { data, error } = await supabaseAdminClient
         .from("billing_customers")
@@ -507,7 +507,7 @@ export class StripePaymentGateway implements PaymentGateway {
 
   gateway = {
     createGatewayCustomer: async (
-      userData: Partial<CustomerData>
+      userData: Partial<CustomerData>,
     ): Promise<CustomerData> => {
       const customer = await this.stripe.customers.create(userData);
       const customerEmail = customer.email;
@@ -523,13 +523,13 @@ export class StripePaymentGateway implements PaymentGateway {
 
     handleGatewayWebhook: async (
       body: string | Buffer,
-      signature: string
+      signature: string,
     ): Promise<void> => {
       const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
       if (!webhookSecret) {
         throw new StripeWebhookProcessingError(
           "Stripe webhook secret is not configured",
-          500
+          500,
         );
       }
 
@@ -538,7 +538,7 @@ export class StripePaymentGateway implements PaymentGateway {
         event = this.stripe.webhooks.constructEvent(
           body,
           signature,
-          webhookSecret
+          webhookSecret,
         );
       } catch (error) {
         throw new StripeWebhookProcessingError(
@@ -546,7 +546,7 @@ export class StripePaymentGateway implements PaymentGateway {
           400,
           undefined,
           undefined,
-          error
+          error,
         );
       }
 
@@ -556,7 +556,7 @@ export class StripePaymentGateway implements PaymentGateway {
           case "customer.subscription.updated":
           case "customer.subscription.deleted":
             await this.handleSubscriptionChange(
-              event.data.object as Stripe.Subscription
+              event.data.object as Stripe.Subscription,
             );
             return;
           case "invoice.paid":
@@ -565,7 +565,7 @@ export class StripePaymentGateway implements PaymentGateway {
             return;
           case "customer.updated":
             await this.handleCustomerUpdate(
-              event.data.object as Stripe.Customer
+              event.data.object as Stripe.Customer,
             );
             return;
           case "product.created":
@@ -588,12 +588,12 @@ export class StripePaymentGateway implements PaymentGateway {
           500,
           event.id,
           event.type,
-          error
+          error,
         );
       }
     },
     getSubscription: async (
-      subscriptionId: string
+      subscriptionId: string,
     ): Promise<GatewaySubscriptionData> => {
       const subscription =
         await this.stripe.subscriptions.retrieve(subscriptionId);
@@ -605,7 +605,7 @@ export class StripePaymentGateway implements PaymentGateway {
   };
 
   private async getBillingCustomerByGatewayCustomerId(
-    gatewayCustomerId: string
+    gatewayCustomerId: string,
   ): Promise<DBTable<"billing_customers"> | null> {
     const { data, error } = await supabaseAdminClient
       .from("billing_customers")
@@ -634,7 +634,7 @@ export class StripePaymentGateway implements PaymentGateway {
         },
         {
           onConflict: "gateway_name,gateway_customer_id",
-        }
+        },
       )
       .select("*")
       .single();
@@ -649,7 +649,7 @@ export class StripePaymentGateway implements PaymentGateway {
       | Stripe.Customer
       | Stripe.DeletedCustomer
       | null
-      | undefined
+      | undefined,
   ): Promise<Stripe.Customer | null> {
     if (!customerReference) return null;
     if (typeof customerReference === "string") {
@@ -671,7 +671,7 @@ export class StripePaymentGateway implements PaymentGateway {
       | Stripe.Customer
       | Stripe.DeletedCustomer
       | null
-      | undefined
+      | undefined,
   ): Promise<DBTable<"billing_customers">> {
     const stripeCustomer = await this.fetchStripeCustomer(customerReference);
     if (!stripeCustomer) {
@@ -679,7 +679,7 @@ export class StripePaymentGateway implements PaymentGateway {
     }
 
     const existingCustomer = await this.getBillingCustomerByGatewayCustomerId(
-      stripeCustomer.id
+      stripeCustomer.id,
     );
     const metadataUserId = stripeCustomer.metadata?.user_id?.trim() || null;
     const fallbackUserId = stripeCustomer.email
@@ -703,7 +703,7 @@ export class StripePaymentGateway implements PaymentGateway {
 
   private async handleSubscriptionChange(subscription: Stripe.Subscription) {
     const billingCustomer = await this.ensureBillingCustomerLink(
-      subscription.customer
+      subscription.customer,
     );
     const stripeCustomerId = billingCustomer.gateway_customer_id;
 
@@ -725,10 +725,10 @@ export class StripePaymentGateway implements PaymentGateway {
             typeof product === "string" ? product : product.id,
           status: subscription.status,
           current_period_start: new Date(
-            firstItem.current_period_start * 1000
+            firstItem.current_period_start * 1000,
           ).toISOString(),
           current_period_end: new Date(
-            firstItem.current_period_end * 1000
+            firstItem.current_period_end * 1000,
           ).toISOString(),
           currency: subscription.currency,
           is_trial: subscription.trial_end !== null,
@@ -738,7 +738,7 @@ export class StripePaymentGateway implements PaymentGateway {
         },
         {
           onConflict: "gateway_name,gateway_subscription_id",
-        }
+        },
       );
 
     if (error) throw error;
@@ -746,7 +746,7 @@ export class StripePaymentGateway implements PaymentGateway {
 
   private async handleInvoiceChange(invoice: Stripe.Invoice) {
     const billingCustomer = await this.ensureBillingCustomerLink(
-      invoice.customer
+      invoice.customer,
     );
     const customerId = billingCustomer.gateway_customer_id;
 
@@ -777,7 +777,7 @@ export class StripePaymentGateway implements PaymentGateway {
       },
       {
         onConflict: "gateway_name,gateway_invoice_id",
-      }
+      },
     );
 
     if (error) throw error;
@@ -860,7 +860,7 @@ export class StripePaymentGateway implements PaymentGateway {
             const invoiceCharge = charges.data.find(
               (charge) =>
                 ("invoice" in charge && charge.invoice === invoice.id) ||
-                charge.metadata?.invoice_id === invoice.id
+                charge.metadata?.invoice_id === invoice.id,
             );
 
             if (invoiceCharge) {
@@ -921,7 +921,7 @@ export class StripePaymentGateway implements PaymentGateway {
       },
       {
         onConflict: "gateway_product_id,gateway_name",
-      }
+      },
     );
 
     if (error) throw error;
@@ -941,7 +941,7 @@ export class StripePaymentGateway implements PaymentGateway {
       },
       {
         onConflict: "gateway_name,gateway_price_id",
-      }
+      },
     );
 
     if (error) throw error;
@@ -1027,7 +1027,7 @@ export class StripePaymentGateway implements PaymentGateway {
 
       const groupedProductsAndPrices = groupBy(
         productsAndPrices,
-        "price.recurring_interval"
+        "price.recurring_interval",
       );
 
       return groupedProductsAndPrices;
@@ -1077,7 +1077,7 @@ export class StripePaymentGateway implements PaymentGateway {
      * @returns A promise that resolves to an array of billing payment data.
      */
     getUserOneTimePurchases: async (
-      userId: string
+      userId: string,
     ): Promise<OneTimePaymentData[]> => this.db.getUserOneTimePurchases(userId),
 
     /**
@@ -1087,7 +1087,7 @@ export class StripePaymentGateway implements PaymentGateway {
      * @returns A promise that resolves to a paginated response of billing invoice data.
      */
     getUserInvoices: async (
-      userId: string
+      userId: string,
     ): Promise<PaginatedResponse<InvoiceData>> =>
       this.db.listInvoicesByUserId(userId),
 
@@ -1098,7 +1098,7 @@ export class StripePaymentGateway implements PaymentGateway {
      * @returns A promise that resolves to an array of PaymentMethodData.
      */
     getUserPaymentMethods: async (
-      userId: string
+      userId: string,
     ): Promise<DBTable<"billing_payment_methods">[]> =>
       this.db.getUserPaymentMethods(userId),
 
@@ -1109,7 +1109,7 @@ export class StripePaymentGateway implements PaymentGateway {
      * @returns A promise that resolves to the billing customer data.
      */
     getUserCustomer: async (
-      userId: string
+      userId: string,
     ): Promise<DBTable<"billing_customers">> =>
       this.db.getCustomerByUserId(userId),
 
@@ -1178,7 +1178,7 @@ export class StripePaymentGateway implements PaymentGateway {
 
     createGatewayCustomerPortalSession: async (
       userId: string,
-      returnUrl: string
+      returnUrl: string,
     ): Promise<CustomerPortalData> => {
       const customer = await this.util.getCustomerByUserId(userId);
       if (!customer) {
@@ -1218,12 +1218,12 @@ export class StripePaymentGateway implements PaymentGateway {
         for (const customer of customers) {
           if (stripeCustomerMap.has(customer.billing_email)) {
             const stripeCustomerId = stripeCustomerMap.get(
-              customer.billing_email
+              customer.billing_email,
             );
             if (stripeCustomerId) {
               await this.db.updateCustomer(stripeCustomerId, {
                 gateway_customer_id: stripeCustomerMap.get(
-                  customer.billing_email
+                  customer.billing_email,
                 ),
               });
             }
@@ -1234,14 +1234,14 @@ export class StripePaymentGateway implements PaymentGateway {
           if (
             stripeCustomer.email &&
             !customers.some(
-              (customer) => customer.billing_email === stripeCustomer.email
+              (customer) => customer.billing_email === stripeCustomer.email,
             )
           ) {
             await this.db.createCustomer(
               {
                 billing_email: stripeCustomer.email,
               },
-              stripeCustomer.metadata.user_id
+              stripeCustomer.metadata.user_id,
             );
           }
         }
@@ -1270,8 +1270,8 @@ export class StripePaymentGateway implements PaymentGateway {
 
       const validStripePrices = stripePrices.data.filter((stripePrice) =>
         productsToUpsert.some(
-          (product) => product.gateway_product_id === stripePrice.product
-        )
+          (product) => product.gateway_product_id === stripePrice.product,
+        ),
       );
       const { error: upsertError } = await supabaseAdminClient
         .from("billing_products")
@@ -1305,7 +1305,7 @@ export class StripePaymentGateway implements PaymentGateway {
 
     toggleProductVisibility: async (
       productId: string,
-      isVisible: boolean
+      isVisible: boolean,
     ): Promise<void> => {
       await supabaseAdminClient
         .from("billing_products")
@@ -1326,7 +1326,7 @@ export class StripePaymentGateway implements PaymentGateway {
       if (pricesError) throw pricesError;
 
       const priceIds = subscriptionPrices.map(
-        (price) => price.gateway_price_id
+        (price) => price.gateway_price_id,
       );
       const { data: invoices, error: invoicesError } = await supabaseAdminClient
         .from("billing_invoices")
@@ -1341,7 +1341,7 @@ export class StripePaymentGateway implements PaymentGateway {
 
       const mrr = invoices.reduce((acc, invoice) => {
         const price = subscriptionPrices.find(
-          (p) => p.gateway_price_id === invoice.gateway_price_id
+          (p) => p.gateway_price_id === invoice.gateway_price_id,
         );
         if (!price) return acc;
 
@@ -1375,7 +1375,7 @@ export class StripePaymentGateway implements PaymentGateway {
 
     getRevenueBetween: async (
       startDate: Date,
-      endDate: Date
+      endDate: Date,
     ): Promise<number> => {
       const { data: invoices, error } = await supabaseAdminClient
         .from("billing_invoices")
@@ -1414,7 +1414,7 @@ export class StripePaymentGateway implements PaymentGateway {
 
     getOneTimePurchasesBetween: async (
       startDate: Date,
-      endDate: Date
+      endDate: Date,
     ): Promise<number> => {
       const { data: invoices, error } = await supabaseAdminClient
         .from("billing_one_time_payments")
@@ -1442,7 +1442,7 @@ export class StripePaymentGateway implements PaymentGateway {
 
       return this.superAdminScope.getOneTimePurchasesBetween(
         startDate,
-        endDate
+        endDate,
       );
     },
 
@@ -1454,13 +1454,13 @@ export class StripePaymentGateway implements PaymentGateway {
 
       return this.superAdminScope.getOneTimePurchasesBetween(
         startDate,
-        endDate
+        endDate,
       );
     },
 
     getRevenueByMonthBetween: async (
       startDate: Date,
-      endDate: Date
+      endDate: Date,
     ): Promise<{ month: Date; revenue: number }[]> => {
       const { data: invoices, error } = await supabaseAdminClient
         .from("billing_invoices")
@@ -1502,7 +1502,7 @@ export class StripePaymentGateway implements PaymentGateway {
 
     getSubscriberCountBetween: async (
       startDate: Date,
-      endDate: Date
+      endDate: Date,
     ): Promise<number> => {
       const { data: subscriptionPrices, error: pricesError } =
         await supabaseAdminClient
@@ -1512,7 +1512,7 @@ export class StripePaymentGateway implements PaymentGateway {
           .neq("recurring_interval", "one-time");
       if (pricesError) throw pricesError;
       const priceIds = subscriptionPrices.map(
-        (price) => price.gateway_price_id
+        (price) => price.gateway_price_id,
       );
       console.log("priceIds", priceIds);
       const { count: invoiceCount, error: invoicesError } =
@@ -1548,7 +1548,7 @@ export class StripePaymentGateway implements PaymentGateway {
 
     getSubscriptionsByMonthBetween: async (
       startDate: Date,
-      endDate: Date
+      endDate: Date,
     ): Promise<{ month: Date; subscriptions: number }[]> => {
       const { data: subscriptions, error } = await supabaseAdminClient
         .from("billing_subscriptions")
@@ -1594,7 +1594,7 @@ export class StripePaymentGateway implements PaymentGateway {
           `
           gateway_product_id,
           billing_prices (amount, currency)
-        `
+        `,
         )
         .eq("gateway_name", this.getName())
         .eq("status", "active");

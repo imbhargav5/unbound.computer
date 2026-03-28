@@ -54,7 +54,7 @@ export const createAdminNotification = async ({
     adminUserIdsToNotify.includes(excludedAdminUserId)
   ) {
     adminUserIdsToNotify = adminUserIdsToNotify?.filter(
-      (userId) => userId != excludedAdminUserId
+      (userId) => userId != excludedAdminUserId,
     );
   }
 
@@ -64,7 +64,7 @@ export const createAdminNotification = async ({
       adminUserIdsToNotify.map((userId) => ({
         user_id: userId,
         payload,
-      }))
+      })),
     );
   if (error) throw error;
   return notification;
@@ -107,7 +107,7 @@ export const updateUserAppMetadata = async ({
 }) => {
   const { data, error } = await supabaseAdminClient.auth.admin.updateUserById(
     userId,
-    { user_metadata: appMetadata }
+    { user_metadata: appMetadata },
   );
   if (error) {
     throw error;

@@ -40,7 +40,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           name,
           device_type
         )
-      `
+      `,
       )
       .eq("id", sessionId)
       .eq("user_id", user.id)

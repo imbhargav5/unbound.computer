@@ -116,7 +116,7 @@ export async function getDiskUsage(path: string): Promise<DiskUsage> {
   try {
     // Use du command on Unix-like systems
     const result = await execAsync(
-      `du -sb "${path}" 2>/dev/null || du -sk "${path}"`
+      `du -sb "${path}" 2>/dev/null || du -sk "${path}"`,
     );
     const parts = result.stdout.trim().split(/\s+/);
     let totalBytes = Number.parseInt(parts[0], 10);
@@ -161,7 +161,7 @@ function formatBytes(bytes: number): string {
  */
 export async function checkDiskSpace(
   path: string,
-  requiredBytes: number
+  requiredBytes: number,
 ): Promise<{ sufficient: boolean; available: number }> {
   const { exec } = await import("node:child_process");
   const { promisify } = await import("node:util");
@@ -170,7 +170,7 @@ export async function checkDiskSpace(
   try {
     // Use df command to get available space
     const result = await execAsync(
-      `df -B1 "${path}" 2>/dev/null || df -k "${path}"`
+      `df -B1 "${path}" 2>/dev/null || df -k "${path}"`,
     );
     const lines = result.stdout.trim().split("\n");
 

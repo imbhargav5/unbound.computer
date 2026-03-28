@@ -61,7 +61,7 @@ export const UpdatePassword = () => {
           {...register("password")}
           className={cn(
             "h-10 w-full rounded-md border bg-gray-50/10 px-3 py-3 placeholder-muted-foreground shadow-xs focus:border-blue-500 focus:outline-hidden focus:ring-blue-500 sm:text-sm dark:bg-gray-800/20",
-            errors.password ? "border-red-500" : null
+            errors.password ? "border-red-500" : null,
           )}
         />
         {errors.password ? (
@@ -73,7 +73,7 @@ export const UpdatePassword = () => {
           "flex w-full justify-center rounded-lg border border-transparent px-4 py-3 font-medium text-sm text-white shadow-xs focus:outline-hidden focus:ring-2 focus:ring-offset-2 dark:text-black",
           status === "executing"
             ? "bg-yellow-300 dark:bg-yellow-700"
-            : "bg-black hover:bg-gray-900 dark:bg-white dark:hover:bg-gray-100"
+            : "bg-black hover:bg-gray-900 dark:bg-white dark:hover:bg-gray-100",
         )}
         disabled={!isValid || status === "executing"}
         type="submit"

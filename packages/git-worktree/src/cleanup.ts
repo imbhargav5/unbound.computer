@@ -29,7 +29,7 @@ export interface CleanupResult {
 async function isMerged(
   repoPath: string,
   worktree: SessionWorktree,
-  targetBranch: string
+  targetBranch: string,
 ): Promise<boolean> {
   if (!worktree.branch) {
     return false;
@@ -47,7 +47,7 @@ async function isMerged(
  */
 async function isStale(
   worktree: SessionWorktree,
-  ttlMs: number
+  ttlMs: number,
 ): Promise<boolean> {
   const now = Date.now();
   const lastActivity = worktree.lastActivityAt.getTime();
@@ -60,7 +60,7 @@ async function isStale(
 export async function cleanupWorktrees(
   repoPath: string,
   config: WorktreeConfig,
-  options: CleanupOptions
+  options: CleanupOptions,
 ): Promise<WorktreeResult<CleanupResult>> {
   const {
     strategy,
@@ -107,7 +107,7 @@ export async function cleanupWorktrees(
           const merged = await isMerged(
             repoPath,
             worktree,
-            worktree.baseBranch || "main"
+            worktree.baseBranch || "main",
           );
           if (merged) {
             shouldClean = true;
@@ -184,7 +184,7 @@ export async function cleanupSessionWorktree(
   repoPath: string,
   config: WorktreeConfig,
   sessionId: string,
-  options: Omit<CleanupOptions, "strategy"> = {}
+  options: Omit<CleanupOptions, "strategy"> = {},
 ): Promise<WorktreeResult<void>> {
   const { dryRun = false, force = false } = options;
 
@@ -214,7 +214,7 @@ export async function cleanupSessionWorktree(
 export async function cleanupMergedWorktrees(
   repoPath: string,
   config: WorktreeConfig,
-  options: { dryRun?: boolean; force?: boolean } = {}
+  options: { dryRun?: boolean; force?: boolean } = {},
 ): Promise<WorktreeResult<CleanupResult>> {
   return cleanupWorktrees(repoPath, config, {
     strategy: "post-merge",
@@ -228,7 +228,7 @@ export async function cleanupMergedWorktrees(
 export async function cleanupStaleWorktrees(
   repoPath: string,
   config: WorktreeConfig,
-  options: { ttlMs?: number; dryRun?: boolean; force?: boolean } = {}
+  options: { ttlMs?: number; dryRun?: boolean; force?: boolean } = {},
 ): Promise<WorktreeResult<CleanupResult>> {
   return cleanupWorktrees(repoPath, config, {
     strategy: "timeout",
@@ -241,7 +241,7 @@ export async function cleanupStaleWorktrees(
  */
 export async function getCleanupCandidates(
   repoPath: string,
-  config: WorktreeConfig
+  config: WorktreeConfig,
 ): Promise<{
   merged: SessionWorktree[];
   stale: SessionWorktree[];
@@ -263,7 +263,7 @@ export async function getCleanupCandidates(
     const merged = await isMerged(
       repoPath,
       worktree,
-      worktree.baseBranch || "main"
+      worktree.baseBranch || "main",
     );
     if (merged) {
       candidates.merged.push(worktree);

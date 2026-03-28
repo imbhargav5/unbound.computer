@@ -548,7 +548,7 @@ function createEmptyBirdsEyeWorktreeTileState(): BirdsEyeWorktreeTileState {
 }
 
 function parseBirdsEyeCanvasState(
-  state: BirdsEyeCanvasCompanyState | null | undefined
+  state: BirdsEyeCanvasCompanyState | null | undefined,
 ): BirdsEyeCanvasState {
   const fallback = createDefaultBirdsEyeCanvasState();
   if (!state) {
@@ -572,7 +572,7 @@ function parseBirdsEyeCanvasState(
           x: typeof region?.x === "number" ? region.x : 0,
           y: typeof region?.y === "number" ? region.y : 0,
         },
-      ])
+      ]),
     ),
     viewport: {
       x:
@@ -596,23 +596,23 @@ function parseBirdsEyeCanvasState(
             activeIssueId: tileState?.active_issue_id ?? null,
             issueIds: Array.isArray(tileState?.issue_ids)
               ? tileState.issue_ids.filter(
-                  (issueId): issueId is string => typeof issueId === "string"
+                  (issueId): issueId is string => typeof issueId === "string",
                 )
               : [],
             lruIssueIds: Array.isArray(tileState?.lru_issue_ids)
               ? tileState.lru_issue_ids.filter(
-                  (issueId): issueId is string => typeof issueId === "string"
+                  (issueId): issueId is string => typeof issueId === "string",
                 )
               : [],
           },
-        ]
-      )
+        ],
+      ),
     ),
   };
 }
 
 function serializeBirdsEyeCanvasState(
-  state: BirdsEyeCanvasState
+  state: BirdsEyeCanvasState,
 ): BirdsEyeCanvasCompanyState {
   return {
     focused_target: state.focusedTarget
@@ -631,7 +631,7 @@ function serializeBirdsEyeCanvasState(
           x: region.x,
           y: region.y,
         },
-      ])
+      ]),
     ),
     viewport: {
       x: state.viewport.x,
@@ -646,7 +646,7 @@ function serializeBirdsEyeCanvasState(
           issue_ids: tileState.issueIds,
           lru_issue_ids: tileState.lruIssueIds,
         },
-      ])
+      ]),
     ),
   };
 }
@@ -675,7 +675,7 @@ function normalizeGitWorktreeRecords(value: unknown): GitWorktreeRecord[] {
         Boolean(entry) &&
         typeof entry === "object" &&
         typeof (entry as GitWorktreeRecord).path === "string" &&
-        typeof (entry as GitWorktreeRecord).name === "string"
+        typeof (entry as GitWorktreeRecord).name === "string",
     );
   }
 
@@ -685,7 +685,7 @@ function normalizeGitWorktreeRecords(value: unknown): GitWorktreeRecord[] {
     Array.isArray((value as { worktrees?: unknown }).worktrees)
   ) {
     return normalizeGitWorktreeRecords(
-      (value as { worktrees: unknown }).worktrees
+      (value as { worktrees: unknown }).worktrees,
     );
   }
 
@@ -753,14 +753,14 @@ function emptyProjectWorktreeState(): ProjectWorktreeState {
 
 function useDashboardProjectWorktrees(
   projects: ProjectRecord[],
-  requestedProjectIds: string[]
+  requestedProjectIds: string[],
 ) {
   const [stateByProjectId, setStateByProjectId] = useState<
     Record<string, ProjectWorktreeState>
   >({});
   const requestedProjectIdSet = useMemo(
     () => new Set(requestedProjectIds),
-    [requestedProjectIds]
+    [requestedProjectIds],
   );
   const requestedRepoEntries = useMemo(
     () =>
@@ -772,9 +772,9 @@ function useDashboardProjectWorktrees(
         .filter(
           (entry) =>
             entry.repoPath.length > 0 &&
-            requestedProjectIdSet.has(entry.projectId)
+            requestedProjectIdSet.has(entry.projectId),
         ),
-    [projects, requestedProjectIdSet]
+    [projects, requestedProjectIdSet],
   );
   const requestedRepoKey = requestedRepoEntries
     .map((entry) => `${entry.projectId}:${entry.repoPath}`)
@@ -802,7 +802,7 @@ function useDashboardProjectWorktrees(
           !(current.hasLoaded || current.isLoading)
         );
       }),
-    [requestedRepoEntries, stateByProjectId]
+    [requestedRepoEntries, stateByProjectId],
   );
   const pendingRepoKey = pendingRepoEntries
     .map((entry) => `${entry.projectId}:${entry.repoPath}`)
@@ -837,9 +837,9 @@ function useDashboardProjectWorktrees(
       pendingRepoEntries.map(async (entry) => ({
         projectId: entry.projectId,
         worktrees: normalizeGitWorktreeRecords(
-          await gitWorktrees(undefined, undefined, entry.repoPath)
+          await gitWorktrees(undefined, undefined, entry.repoPath),
         ),
-      }))
+      })),
     ).then((results) => {
       if (cancelled) {
         return;
@@ -918,7 +918,7 @@ function parseIssueExecutionWorkspaceSettings(value: unknown) {
 
 function defaultIssueRuntimeCommandForProvider(
   provider: AgentCliProvider,
-  dependencyCheck: RuntimeCapabilities | null
+  dependencyCheck: RuntimeCapabilities | null,
 ) {
   if (provider === "codex") {
     return dependencyCheck?.cli.codex.path?.trim() || "codex";
@@ -928,7 +928,7 @@ function defaultIssueRuntimeCommandForProvider(
 }
 
 function createDefaultIssueRuntimeDraft(
-  dependencyCheck: RuntimeCapabilities | null
+  dependencyCheck: RuntimeCapabilities | null,
 ): IssueRuntimeDraft {
   const defaultProvider =
     dependencyCheck?.cli.claude.installed ||
@@ -939,7 +939,7 @@ function createDefaultIssueRuntimeDraft(
   return {
     command: defaultIssueRuntimeCommandForProvider(
       defaultProvider,
-      dependencyCheck
+      dependencyCheck,
     ),
     model: "default",
     thinkingEffort: "auto",
@@ -958,7 +958,7 @@ function issueDialogDefaultsFromRuntimeDraft(
     | "planMode"
     | "skipPermissions"
     | "thinkingEffort"
-  >
+  >,
 ): IssueRuntimeDraft {
   return {
     command: runtimeDraft.command,
@@ -971,7 +971,7 @@ function issueDialogDefaultsFromRuntimeDraft(
 }
 
 function createBirdsEyeQuickCreateState(
-  dependencyCheck: RuntimeCapabilities | null
+  dependencyCheck: RuntimeCapabilities | null,
 ): BirdsEyeQuickCreateState {
   const runtimeDraft = createDefaultIssueRuntimeDraft(dependencyCheck);
   return {
@@ -996,7 +996,7 @@ function createBirdsEyeQuickCreateState(
 
 function createDefaultExecutorParams(
   companyId: string,
-  dependencyCheck: RuntimeCapabilities | null
+  dependencyCheck: RuntimeCapabilities | null,
 ) {
   const runtimeDraft = createDefaultIssueRuntimeDraft(dependencyCheck);
 
@@ -1042,7 +1042,7 @@ function parseIssueAdapterOverrides(value: unknown): IssueRuntimeDraft {
     model,
     thinkingEffort: stringFromUnknown(
       record?.thinkingEffort ?? record?.reasoningEffort,
-      "auto"
+      "auto",
     ),
     planMode:
       stringFromUnknown(record?.permissionMode) === "plan" ||
@@ -1061,7 +1061,7 @@ function issueAdapterOverridesFromDraft(
     | "planMode"
     | "skipPermissions"
     | "thinkingEffort"
-  >
+  >,
 ) {
   const command = normalizeOptionalDraftString(draft.command) ?? "claude";
   const model = normalizeOptionalDraftString(draft.model) ?? "default";
@@ -1089,7 +1089,7 @@ function issueExecutionWorkspaceSettingsFromDraft(
     | "workspaceWorktreeBranch"
     | "workspaceWorktreeName"
   >,
-  projectId?: string | null
+  projectId?: string | null,
 ) {
   if (!projectId?.trim()) {
     return null;
@@ -1126,7 +1126,7 @@ function existingWorktreeTargetValue(path: string) {
 
 function issueWorkspaceTargetSelectValue(
   mode: IssueWorkspaceTargetMode,
-  worktreePath: string
+  worktreePath: string,
 ) {
   if (mode === "new_worktree") {
     return "new_worktree";
@@ -1147,7 +1147,7 @@ function issueWorkspaceDraftPatchFromSelection(
     | "workspaceWorktreeBranch"
     | "workspaceWorktreeName"
     | "workspaceWorktreePath"
-  >
+  >,
 ): Partial<IssueEditDraft> {
   if (value === "new_worktree") {
     return {
@@ -1161,7 +1161,7 @@ function issueWorkspaceDraftPatchFromSelection(
   if (value.startsWith("existing:")) {
     const selectedPath = value.slice("existing:".length);
     const selectedWorktree = worktrees.find(
-      (worktree) => worktree.path === selectedPath
+      (worktree) => worktree.path === selectedPath,
     );
     return {
       workspaceTargetMode: "existing_worktree",
@@ -1316,7 +1316,7 @@ const defaultCompanyBrandColor = "#0F766E";
 
 export function App() {
   const [bootstrap, setBootstrap] = useState<DesktopBootstrapStatus | null>(
-    null
+    null,
   );
   const [settings, setSettings] = useState<DesktopSettings>(defaultSettings);
   const [selectedScreen, setSelectedScreen] = useState<AppScreen>("dashboard");
@@ -1325,7 +1325,7 @@ export function App() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [repositories, setRepositories] = useState<RepositoryRecord[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(
-    null
+    null,
   );
   const [selectedRepositoryId, setSelectedRepositoryId] = useState<
     string | null
@@ -1335,10 +1335,10 @@ export function App() {
   >(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(
-    null
+    null,
   );
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
-    null
+    null,
   );
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [selectedIssuesListTab, setSelectedIssuesListTab] =
@@ -1355,12 +1355,12 @@ export function App() {
     useState(false);
   const [agentRuns, setAgentRuns] = useState<AgentRunRecord[]>([]);
   const [selectedAgentRunId, setSelectedAgentRunId] = useState<string | null>(
-    null
+    null,
   );
   const [selectedAgentRun, setSelectedAgentRun] =
     useState<AgentRunRecord | null>(null);
   const [agentRunEvents, setAgentRunEvents] = useState<AgentRunEventRecord[]>(
-    []
+    [],
   );
   const [agentRunLogContent, setAgentRunLogContent] = useState("");
   const [agentRunLogOffset, setAgentRunLogOffset] = useState(0);
@@ -1381,12 +1381,12 @@ export function App() {
   >({});
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
-    null
+    null,
   );
   const [gitState, setGitState] = useState<GitStatusResult | null>(null);
   const [gitHistory, setGitHistory] = useState<GitLogResult | null>(null);
   const [branchState, setBranchState] = useState<GitBranchesResult | null>(
-    null
+    null,
   );
   const [fileEntries, setFileEntries] = useState<FileEntry[]>([]);
   const [currentDirectory, setCurrentDirectory] = useState("");
@@ -1410,10 +1410,10 @@ export function App() {
   const [companyDialogName, setCompanyDialogName] = useState("");
   const [companyDialogDescription, setCompanyDialogDescription] = useState("");
   const [companyDialogBrandColor, setCompanyDialogBrandColor] = useState(
-    defaultCompanyBrandColor
+    defaultCompanyBrandColor,
   );
   const [companyDialogError, setCompanyDialogError] = useState<string | null>(
-    null
+    null,
   );
   const [isCompanyDialogSaving, setIsCompanyDialogSaving] = useState(false);
   const [projectDialogRepoPath, setProjectDialogRepoPath] = useState("");
@@ -1421,7 +1421,7 @@ export function App() {
   const [projectDialogGoalId, setProjectDialogGoalId] = useState("");
   const [projectDialogTargetDate, setProjectDialogTargetDate] = useState("");
   const [projectDialogError, setProjectDialogError] = useState<string | null>(
-    null
+    null,
   );
   const [isProjectDialogSaving, setIsProjectDialogSaving] = useState(false);
   const [isCreateIssueDialogOpen, setIsCreateIssueDialogOpen] = useState(false);
@@ -1471,7 +1471,7 @@ export function App() {
     string | null
   >(null);
   const [issueDraft, setIssueDraft] = useState<IssueEditDraft>(
-    createEmptyIssueDraft()
+    createEmptyIssueDraft(),
   );
   const [isSavingIssue, setIsSavingIssue] = useState(false);
   const [issueEditorError, setIssueEditorError] = useState<string | null>(null);
@@ -1479,7 +1479,7 @@ export function App() {
   const [companyContextMenu, setCompanyContextMenu] =
     useState<CompanyContextMenuState | null>(null);
   const [companyBrandColorDraft, setCompanyBrandColorDraft] = useState(
-    defaultCompanyBrandColor
+    defaultCompanyBrandColor,
   );
   const [isSavingCompanyBrandColor, setIsSavingCompanyBrandColor] =
     useState(false);
@@ -1487,14 +1487,14 @@ export function App() {
     string | null
   >(null);
   const [agentConfigDraft, setAgentConfigDraft] = useState<AgentConfigDraft>(
-    createEmptyAgentConfigDraft()
+    createEmptyAgentConfigDraft(),
   );
   const [isSavingAgentConfig, setIsSavingAgentConfig] = useState(false);
   const [agentConfigError, setAgentConfigError] = useState<string | null>(null);
   const [dashboardCanvasOffset, setDashboardCanvasOffset] =
     useState<DashboardCanvasOffset>(defaultDashboardCanvasOffset);
   const [dashboardCanvasZoomIndex, setDashboardCanvasZoomIndex] = useState(
-    defaultDashboardCanvasZoomIndex
+    defaultDashboardCanvasZoomIndex,
   );
   const [isDashboardCanvasDragging, setIsDashboardCanvasDragging] =
     useState(false);
@@ -1504,7 +1504,7 @@ export function App() {
   const refreshTimeoutRef = useRef<number | null>(null);
   const sessionStateManager = useMemo(
     () => new DesktopSessionStateManager(),
-    []
+    [],
   );
   const dashboardCanvasViewportRef = useRef<HTMLDivElement | null>(null);
   const selectedAgentIdRef = useRef<string | null>(null);
@@ -1525,7 +1525,7 @@ export function App() {
     lastEventTime: 0,
   });
   const selectedRepository = repositories.find(
-    (repository) => repository.id === selectedRepositoryId
+    (repository) => repository.id === selectedRepositoryId,
   );
   const selectedCompany =
     companySnapshot?.company ??
@@ -1544,15 +1544,15 @@ export function App() {
     boardIssues.find((issue) => issue.id === selectedIssueId) ?? null;
   const visibleIssues = useMemo(
     () => issuesVisible(boardIssues, selectedIssuesListTab),
-    [boardIssues, selectedIssuesListTab]
+    [boardIssues, selectedIssuesListTab],
   );
   const dashboardPreviewChatSummary =
     dashboardOverviewChats.find(
-      (chat) => chat.id === dashboardIssuePreviewId
+      (chat) => chat.id === dashboardIssuePreviewId,
     ) ?? null;
   const activityVisibleIssues = useMemo(
     () => boardIssues.filter((issue) => !issue.hidden_at),
-    [boardIssues]
+    [boardIssues],
   );
   const activityVisibleIssueIdsKey = useMemo(
     () =>
@@ -1560,14 +1560,14 @@ export function App() {
         .map((issue) => issue.id)
         .sort()
         .join("|"),
-    [activityVisibleIssues]
+    [activityVisibleIssues],
   );
   const activityMissingCommentIssueIds = useMemo(
     () =>
       activityVisibleIssues
         .filter((issue) => issueCommentsByIssueId[issue.id] === undefined)
         .map((issue) => issue.id),
-    [activityVisibleIssues, issueCommentsByIssueId]
+    [activityVisibleIssues, issueCommentsByIssueId],
   );
   const issueSummaryText = useMemo(() => {
     const suffix =
@@ -1579,10 +1579,10 @@ export function App() {
       selectedIssue
         ? boardIssues.filter(
             (issue) =>
-              issue.parent_id === selectedIssue.id && issue.hidden_at == null
+              issue.parent_id === selectedIssue.id && issue.hidden_at == null,
           )
         : [],
-    [boardIssues, selectedIssue]
+    [boardIssues, selectedIssue],
   );
   const selectedIssueAttachments = selectedIssue
     ? (issueAttachmentsByIssueId[selectedIssue.id] ?? [])
@@ -1592,7 +1592,7 @@ export function App() {
     (dashboardPreviewChatSummary
       ? dashboardOverviewChatToIssueRecord(
           dashboardPreviewChatSummary,
-          selectedCompanyId
+          selectedCompanyId,
         )
       : null);
   const dashboardPreviewComments = dashboardPreviewIssue
@@ -1609,16 +1609,16 @@ export function App() {
     boardProjects.length > 0 ? boardProjects : dashboardOverviewProjects;
   const issueDialogProjectRepoPath =
     currentProjectsForCreation.find(
-      (project) => project.id === issueDialogProjectId
+      (project) => project.id === issueDialogProjectId,
     )?.primary_workspace?.cwd ?? null;
   const issueDialogWorktreeState = useProjectWorktrees(
-    issueDialogProjectRepoPath
+    issueDialogProjectRepoPath,
   );
   const issueDetailProjectRepoPath =
     boardProjects.find((project) => project.id === issueDraft.projectId)
       ?.primary_workspace?.cwd ?? null;
   const issueDetailWorktreeState = useProjectWorktrees(
-    issueDetailProjectRepoPath
+    issueDetailProjectRepoPath,
   );
   const boardAgents = companySnapshot?.agents ?? emptyAgentRecords;
   const currentCompanyAgents =
@@ -1633,16 +1633,16 @@ export function App() {
       buildDashboardProjectColumns(
         boardProjects,
         boardIssues.filter(
-          (issue) => !issue.hidden_at && isRootConversationIssue(issue)
+          (issue) => !issue.hidden_at && isRootConversationIssue(issue),
         ),
         boardAgents,
-        dashboardProjectViews
+        dashboardProjectViews,
       ),
-    [boardAgents, boardIssues, boardProjects, dashboardProjectViews]
+    [boardAgents, boardIssues, boardProjects, dashboardProjectViews],
   );
   const dashboardCanvasBounds = useMemo(
     () => buildDashboardCanvasBounds(dashboardProjectColumns),
-    [dashboardProjectColumns]
+    [dashboardProjectColumns],
   );
   const dashboardCanvasZoomScale =
     dashboardCanvasZoomLevels[dashboardCanvasZoomIndex] ?? 1;
@@ -1659,7 +1659,7 @@ export function App() {
     companySnapshot?.workspaces ?? emptyWorkspaceRecords;
   const selectedBoardWorkspace =
     companyWorkspaces.find(
-      (workspace) => workspace.id === selectedBoardWorkspaceId
+      (workspace) => workspace.id === selectedBoardWorkspaceId,
     ) ??
     companyWorkspaces[0] ??
     null;
@@ -1688,7 +1688,7 @@ export function App() {
     selectedAgentRun?.status === "running";
   const selectedCompanyCeo = findCompanyCeo(
     currentCompanyAgents,
-    selectedCompany?.ceo_agent_id ?? null
+    selectedCompany?.ceo_agent_id ?? null,
   );
   const hiddenExecutionAgentId =
     selectedCompany?.ceo_agent_id?.trim() ||
@@ -1701,9 +1701,9 @@ export function App() {
         currentCompanyAgents,
         typeof selectedCompany?.ceo_agent_id === "string"
           ? selectedCompany.ceo_agent_id
-          : null
+          : null,
       ),
-    [currentCompanyAgents, selectedCompany?.ceo_agent_id]
+    [currentCompanyAgents, selectedCompany?.ceo_agent_id],
   );
   const orderedSidebarProjects = useMemo(
     () =>
@@ -1713,33 +1713,50 @@ export function App() {
           : dashboardOverviewProjects),
       ].sort((left, right) =>
         (left.name ?? left.title ?? left.id).localeCompare(
-          right.name ?? right.title ?? right.id
-        )
+          right.name ?? right.title ?? right.id,
+        ),
       ),
-    [boardProjects, dashboardOverviewProjects]
+    [boardProjects, dashboardOverviewProjects],
   );
   const totalLiveAgentRuns = useMemo(
     () =>
       Object.values(liveAgentRunCountsByAgentId).reduce(
         (sum, count) => sum + count,
-        0
+        0,
       ),
-    [liveAgentRunCountsByAgentId]
+    [liveAgentRunCountsByAgentId],
   );
   const activeSession =
     sessions.find((session) => session.id === selectedSessionId) ?? null;
+  const selectedIssueWorkspaceSession =
+    sessions.find(
+      (session) => session.id === (selectedIssueWorkspace?.session_id ?? ""),
+    ) ?? null;
   const activeWorkspaceAgent =
     boardAgents.find(
-      (agent) => agent.id === selectedBoardWorkspace?.agent_id
+      (agent) => agent.id === selectedBoardWorkspace?.agent_id,
+    ) ?? null;
+  const selectedIssueWorkspaceAgent =
+    boardAgents.find(
+      (agent) => agent.id === selectedIssueWorkspace?.agent_id,
     ) ?? null;
   const activeWorkspaceProvider = detectWorkspaceAgentProvider(
     activeSession,
-    activeWorkspaceAgent
+    activeWorkspaceAgent,
+  );
+  const selectedIssueWorkspaceProvider = detectWorkspaceAgentProvider(
+    selectedIssueWorkspaceSession,
+    selectedIssueWorkspaceAgent,
   );
   const activeSessionLiveState = useDesktopSessionLiveState(
     sessionStateManager,
     activeSession?.id ?? null,
-    activeWorkspaceProvider
+    activeWorkspaceProvider,
+  );
+  const selectedIssueWorkspaceLiveState = useDesktopSessionLiveState(
+    sessionStateManager,
+    selectedIssueWorkspace?.session_id ?? null,
+    selectedIssueWorkspaceProvider,
   );
   const deferredMessages = useDeferredValue(activeSessionLiveState.messages);
   const activeSessionConversationRows = activeSessionLiveState.conversationRows;
@@ -1756,15 +1773,15 @@ export function App() {
   const hasUnpushedCommits = (currentBranch?.ahead ?? 0) > 0;
   const projectDialogDerivedName = useMemo(
     () => deriveProjectName(projectDialogRepoPath),
-    [projectDialogRepoPath]
+    [projectDialogRepoPath],
   );
   const issueStatusOptions = useMemo(
     () => mergeIssueOptions(canonicalIssueStatuses, issueDraft.status),
-    [issueDraft.status]
+    [issueDraft.status],
   );
   const selectableParentIssues = useMemo(
     () => boardIssues.filter((issue) => issue.id !== selectedIssue?.id),
-    [boardIssues, selectedIssue?.id]
+    [boardIssues, selectedIssue?.id],
   );
   const layout = boardRootLayout(selectedScreen);
   const clampDashboardOffset = (next: DashboardCanvasOffset) => {
@@ -1778,7 +1795,7 @@ export function App() {
       viewport.clientWidth,
       viewport.clientHeight,
       dashboardCanvasBounds,
-      dashboardCanvasZoomScale
+      dashboardCanvasZoomScale,
     );
   };
 
@@ -1826,7 +1843,7 @@ export function App() {
         setSelectedAgentRun(
           nextSelectedRunId
             ? (runs.find((run) => run.id === nextSelectedRunId) ?? null)
-            : null
+            : null,
         );
         setAgentRunError(null);
       });
@@ -1854,7 +1871,7 @@ export function App() {
         boardListAgentRunEvents(
           runId,
           resetStreams ? undefined : agentRunEvents.at(-1)?.seq,
-          400
+          400,
         ),
         boardReadAgentRunLog(runId, resetStreams ? 0 : agentRunLogOffset),
       ]);
@@ -1870,8 +1887,8 @@ export function App() {
         setSelectedAgentRun(run);
         setAgentRuns((current) =>
           current.map((existingRun) =>
-            existingRun.id === run.id ? run : existingRun
-          )
+            existingRun.id === run.id ? run : existingRun,
+          ),
         );
         if (resetStreams) {
           setAgentRunEvents(events);
@@ -1898,7 +1915,7 @@ export function App() {
   };
 
   const performAgentRunAction = async (
-    operation: () => Promise<AgentRunRecord>
+    operation: () => Promise<AgentRunRecord>,
   ) => {
     setIsPerformingAgentRunAction(true);
 
@@ -2000,7 +2017,7 @@ export function App() {
       } catch (error) {
         if (!cancelled) {
           setStatusMessage(
-            error instanceof Error ? error.message : String(error)
+            error instanceof Error ? error.message : String(error),
           );
         }
       }
@@ -2076,7 +2093,7 @@ export function App() {
         companySnapshot.agents ?? [],
         typeof companySnapshot.company?.ceo_agent_id === "string"
           ? companySnapshot.company.ceo_agent_id
-          : null
+          : null,
       );
       if (
         !companyContextMenu.isLoadingAgents &&
@@ -2107,7 +2124,7 @@ export function App() {
     const loadMenuAgents = async () => {
       try {
         const snapshot = await boardCompanySnapshot(
-          companyContextMenu.companyId
+          companyContextMenu.companyId,
         );
         if (cancelled) {
           return;
@@ -2117,7 +2134,7 @@ export function App() {
           snapshot.agents ?? [],
           typeof snapshot.company?.ceo_agent_id === "string"
             ? snapshot.company.ceo_agent_id
-            : null
+            : null,
         );
         setCompanyContextMenu((current) => {
           if (!current || current.companyId !== companyContextMenu.companyId) {
@@ -2147,7 +2164,7 @@ export function App() {
           };
         });
         setStatusMessage(
-          error instanceof Error ? error.message : String(error)
+          error instanceof Error ? error.message : String(error),
         );
       }
     };
@@ -2183,7 +2200,7 @@ export function App() {
       } catch (error) {
         if (!cancelled) {
           setStatusMessage(
-            error instanceof Error ? error.message : String(error)
+            error instanceof Error ? error.message : String(error),
           );
         }
       }
@@ -2220,7 +2237,7 @@ export function App() {
       } catch (error) {
         if (!cancelled) {
           setStatusMessage(
-            error instanceof Error ? error.message : String(error)
+            error instanceof Error ? error.message : String(error),
           );
         }
       } finally {
@@ -2288,30 +2305,30 @@ export function App() {
     setIssueCommentsByIssueId((current) =>
       Object.fromEntries(
         Object.entries(current).filter(([issueId]) =>
-          nextIssues.some((issue) => issue.id === issueId)
-        )
-      )
+          nextIssues.some((issue) => issue.id === issueId),
+        ),
+      ),
     );
     setIssueAttachmentsByIssueId((current) =>
       Object.fromEntries(
         Object.entries(current).filter(([issueId]) =>
-          nextIssues.some((issue) => issue.id === issueId)
-        )
-      )
+          nextIssues.some((issue) => issue.id === issueId),
+        ),
+      ),
     );
     setIssueRunCardUpdatesByIssueId((current) =>
       Object.fromEntries(
         Object.entries(current).filter(([issueId]) =>
-          nextIssues.some((issue) => issue.id === issueId)
-        )
-      )
+          nextIssues.some((issue) => issue.id === issueId),
+        ),
+      ),
     );
   }, [companySnapshot]);
 
   useEffect(() => {
     if (bootstrap?.state !== "ready" || !selectedCompanyId) {
       setLiveAgentRunCountsByAgentId((current) =>
-        Object.keys(current).length === 0 ? current : {}
+        Object.keys(current).length === 0 ? current : {},
       );
       return;
     }
@@ -2332,17 +2349,17 @@ export function App() {
     const loadLiveAgentRunCounts = async () => {
       try {
         const counts = (await boardListAgentLiveRunCounts(
-          selectedCompanyId
+          selectedCompanyId,
         )) as AgentLiveRunCountRecord[];
         if (cancelled) {
           return;
         }
 
         const nextCounts = Object.fromEntries(
-          counts.map((entry) => [entry.agent_id, entry.live_count])
+          counts.map((entry) => [entry.agent_id, entry.live_count]),
         );
         const hasLiveRuns = Object.values(nextCounts).some(
-          (count) => count > 0
+          (count) => count > 0,
         );
 
         startTransition(() => {
@@ -2356,7 +2373,7 @@ export function App() {
         }
 
         setStatusMessage(
-          error instanceof Error ? error.message : String(error)
+          error instanceof Error ? error.message : String(error),
         );
         scheduleRefresh(5000);
       }
@@ -2375,14 +2392,14 @@ export function App() {
   useEffect(() => {
     if (bootstrap?.state !== "ready" || !selectedCompanyId) {
       setIssueRunCardUpdatesByIssueId((current) =>
-        Object.keys(current).length === 0 ? current : {}
+        Object.keys(current).length === 0 ? current : {},
       );
       return;
     }
 
     if (activityVisibleIssues.length === 0) {
       setIssueRunCardUpdatesByIssueId((current) =>
-        Object.keys(current).length === 0 ? current : {}
+        Object.keys(current).length === 0 ? current : {},
       );
       return;
     }
@@ -2403,18 +2420,18 @@ export function App() {
     const loadIssueRunCardUpdates = async () => {
       try {
         const updates = (await boardListIssueRunCardUpdates(
-          selectedCompanyId
+          selectedCompanyId,
         )) as IssueRunCardUpdateRecord[];
         if (cancelled) {
           return;
         }
 
         const nextUpdates = Object.fromEntries(
-          updates.map((update) => [update.issue_id, update])
+          updates.map((update) => [update.issue_id, update]),
         );
         const hasLiveUpdates = Object.values(nextUpdates).some(
           (update) =>
-            update.run_status === "queued" || update.run_status === "running"
+            update.run_status === "queued" || update.run_status === "running",
         );
 
         startTransition(() => {
@@ -2446,7 +2463,7 @@ export function App() {
         }
 
         setStatusMessage(
-          error instanceof Error ? error.message : String(error)
+          error instanceof Error ? error.message : String(error),
         );
         scheduleRefresh(5000);
       }
@@ -2486,7 +2503,7 @@ export function App() {
 
     let cancelled = false;
     setDashboardPreviewIssueDetail((current) =>
-      current?.id === dashboardIssuePreviewId ? current : null
+      current?.id === dashboardIssuePreviewId ? current : null,
     );
     setIsDashboardIssuePreviewLoading(true);
     setDashboardIssuePreviewError(null);
@@ -2517,7 +2534,7 @@ export function App() {
       } catch (error) {
         if (!cancelled) {
           setDashboardIssuePreviewError(
-            error instanceof Error ? error.message : String(error)
+            error instanceof Error ? error.message : String(error),
           );
         }
       } finally {
@@ -2542,7 +2559,7 @@ export function App() {
     if (
       dashboardIssuePreviewId &&
       !dashboardOverviewChats.some(
-        (chat) => chat.id === dashboardIssuePreviewId
+        (chat) => chat.id === dashboardIssuePreviewId,
       )
     ) {
       setDashboardIssuePreviewId(null);
@@ -2585,7 +2602,7 @@ export function App() {
           return {
             ...current,
             issues: current.issues.map((issue) =>
-              issue.id === detailIssue.id ? detailIssue : issue
+              issue.id === detailIssue.id ? detailIssue : issue,
             ),
           };
         });
@@ -2602,7 +2619,7 @@ export function App() {
       } catch (error) {
         if (!cancelled) {
           setStatusMessage(
-            error instanceof Error ? error.message : String(error)
+            error instanceof Error ? error.message : String(error),
           );
         }
       }
@@ -2743,8 +2760,8 @@ export function App() {
       const results = await Promise.allSettled(
         activityMissingCommentIssueIds.map(
           async (issueId) =>
-            [issueId, await boardListIssueComments(issueId)] as const
-        )
+            [issueId, await boardListIssueComments(issueId)] as const,
+        ),
       );
 
       if (cancelled) {
@@ -2852,7 +2869,7 @@ export function App() {
     const loadRepositorySessions = async () => {
       try {
         const nextSessions = (await sessionList(
-          selectedRepositoryId
+          selectedRepositoryId,
         )) as SessionRecord[];
         if (cancelled) {
           return;
@@ -2868,7 +2885,7 @@ export function App() {
             if (
               boardWorkspaceSessionId &&
               nextSessions.some(
-                (session) => session.id === boardWorkspaceSessionId
+                (session) => session.id === boardWorkspaceSessionId,
               )
             ) {
               return boardWorkspaceSessionId;
@@ -2885,7 +2902,7 @@ export function App() {
       } catch (error) {
         if (!cancelled) {
           setStatusMessage(
-            error instanceof Error ? error.message : String(error)
+            error instanceof Error ? error.message : String(error),
           );
         }
       }
@@ -2947,7 +2964,7 @@ export function App() {
       } catch (error) {
         if (!cancelled) {
           setStatusMessage(
-            error instanceof Error ? error.message : String(error)
+            error instanceof Error ? error.message : String(error),
           );
         }
       }
@@ -2999,7 +3016,7 @@ export function App() {
       .catch((error) => {
         if (!cancelled) {
           setStatusMessage(
-            error instanceof Error ? error.message : String(error)
+            error instanceof Error ? error.message : String(error),
           );
         }
       });
@@ -3084,7 +3101,7 @@ export function App() {
           gitStatus(sessionId),
           gitLog(sessionId),
           gitBranches(sessionId),
-        ]
+        ],
       );
       setFileEntries(nextFiles as FileEntry[]);
       setGitState(nextGit as GitStatusResult);
@@ -3152,7 +3169,7 @@ export function App() {
 
   const handleSelectCompanyScreen = (
     companyId: string,
-    screen: CompanyContextMenuScreen
+    screen: CompanyContextMenuScreen,
   ) => {
     if (screen === "dashboard") {
       handleSelectCompany(companyId);
@@ -3206,7 +3223,7 @@ export function App() {
 
   const handleOpenCompanyContextMenu = (
     event: MouseEvent<HTMLButtonElement>,
-    company: Company
+    company: Company,
   ) => {
     event.preventDefault();
     event.stopPropagation();
@@ -3220,16 +3237,16 @@ export function App() {
             companySnapshot.agents ?? [],
             typeof companySnapshot.company?.ceo_agent_id === "string"
               ? companySnapshot.company.ceo_agent_id
-              : null
+              : null,
           )
         : [];
     const nextX = Math.min(
       Math.max(event.clientX + 12, viewportPadding),
-      window.innerWidth - menuWidth - viewportPadding
+      window.innerWidth - menuWidth - viewportPadding,
     );
     const nextY = Math.min(
       Math.max(event.clientY - 8, viewportPadding),
-      window.innerHeight - menuHeight - viewportPadding
+      window.innerHeight - menuHeight - viewportPadding,
     );
 
     setCompanyContextMenu({
@@ -3244,7 +3261,7 @@ export function App() {
   };
 
   const handleDashboardCanvasPointerDown = (
-    event: PointerEvent<HTMLDivElement>
+    event: PointerEvent<HTMLDivElement>,
   ) => {
     if (event.button !== 0) {
       return;
@@ -3269,7 +3286,7 @@ export function App() {
   };
 
   const handleDashboardCanvasPointerMove = (
-    event: PointerEvent<HTMLDivElement>
+    event: PointerEvent<HTMLDivElement>,
   ) => {
     const panState = dashboardCanvasPanRef.current;
     if (!panState || panState.pointerId !== event.pointerId) {
@@ -3280,12 +3297,12 @@ export function App() {
       clampDashboardOffset({
         x: panState.originX + event.clientX - panState.startX,
         y: panState.originY + event.clientY - panState.startY,
-      })
+      }),
     );
   };
 
   const handleDashboardCanvasPointerEnd = (
-    event: PointerEvent<HTMLDivElement>
+    event: PointerEvent<HTMLDivElement>,
   ) => {
     if (dashboardCanvasPanRef.current?.pointerId !== event.pointerId) {
       return;
@@ -3336,7 +3353,7 @@ export function App() {
 
   const setDashboardCanvasZoom = (
     nextZoomIndex: number | ((currentZoomIndex: number) => number),
-    anchor?: DashboardCanvasOffset
+    anchor?: DashboardCanvasOffset,
   ) => {
     const viewport = dashboardCanvasViewportRef.current;
     if (!viewport) {
@@ -3346,8 +3363,8 @@ export function App() {
             ? nextZoomIndex(currentZoomIndex)
             : nextZoomIndex,
           0,
-          dashboardCanvasZoomLevels.length - 1
-        )
+          dashboardCanvasZoomLevels.length - 1,
+        ),
       );
       return;
     }
@@ -3358,7 +3375,7 @@ export function App() {
           ? nextZoomIndex(currentZoomIndex)
           : nextZoomIndex,
         0,
-        dashboardCanvasZoomLevels.length - 1
+        dashboardCanvasZoomLevels.length - 1,
       );
       if (safeZoomIndex === currentZoomIndex) {
         return currentZoomIndex;
@@ -3381,7 +3398,7 @@ export function App() {
           viewport.clientWidth,
           viewport.clientHeight,
           dashboardCanvasBounds,
-          nextZoomScale
+          nextZoomScale,
         );
       });
 
@@ -3391,11 +3408,11 @@ export function App() {
 
   const nudgeDashboardCanvasZoom = (
     zoomDelta: number,
-    anchor?: DashboardCanvasOffset
+    anchor?: DashboardCanvasOffset,
   ) => {
     setDashboardCanvasZoom(
       (currentZoomIndex) => currentZoomIndex + zoomDelta,
-      anchor
+      anchor,
     );
   };
 
@@ -3431,11 +3448,11 @@ export function App() {
   const handleProjectBoardGroupingChange = (
     projectId: string,
     viewId: string,
-    grouping: DashboardProjectGrouping
+    grouping: DashboardProjectGrouping,
   ) => {
     const currentProjectViews = dashboardProjectViews[projectId] ?? {};
     const currentSavedViews = dashboardProjectSavedViews(
-      currentProjectViews.saved_views
+      currentProjectViews.saved_views,
     );
 
     void applySettingsPatch({
@@ -3454,7 +3471,7 @@ export function App() {
                         ...savedView,
                         group_by: grouping,
                       }
-                    : savedView
+                    : savedView,
                 ),
               }),
         },
@@ -3464,11 +3481,11 @@ export function App() {
 
   const handleCreateProjectBoardView = async (
     projectId: string,
-    draft: DashboardProjectViewDraft
+    draft: DashboardProjectViewDraft,
   ) => {
     const currentProjectViews = dashboardProjectViews[projectId] ?? {};
     const currentSavedViews = dashboardProjectSavedViews(
-      currentProjectViews.saved_views
+      currentProjectViews.saved_views,
     );
 
     await applySettingsPatch({
@@ -3502,7 +3519,7 @@ export function App() {
 
   const handleUpdateProjectDefaultNewChatArea = async (
     projectId: string,
-    defaultNewChatArea: ProjectDefaultNewChatArea
+    defaultNewChatArea: ProjectDefaultNewChatArea,
   ) => {
     if (!selectedCompanyId) {
       return;
@@ -3515,13 +3532,13 @@ export function App() {
       execution_workspace_policy:
         projectExecutionWorkspacePolicyWithDefaultNewChatArea(
           currentProjectRecord,
-          defaultNewChatArea
+          defaultNewChatArea,
         ),
     });
     const snapshot = await boardCompanySnapshot(selectedCompanyId);
     setCompanySnapshot(snapshot);
     setStatusMessage(
-      `Updated ${updatedProject.name} default new chat area to ${projectDefaultNewChatAreaLabel(defaultNewChatArea)}.`
+      `Updated ${updatedProject.name} default new chat area to ${projectDefaultNewChatAreaLabel(defaultNewChatArea)}.`,
     );
   };
 
@@ -3579,7 +3596,7 @@ export function App() {
       }
     } catch (error) {
       setAgentConfigError(
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       );
     }
   };
@@ -3596,19 +3613,19 @@ export function App() {
       }
     } catch (error) {
       setAgentConfigError(
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       );
     }
   };
 
   const handleAgentConfigEnvVarChange = (
     envId: string,
-    patch: Partial<AgentConfigEnvVarDraft>
+    patch: Partial<AgentConfigEnvVarDraft>,
   ) => {
     setAgentConfigDraft((current) => ({
       ...current,
       envVars: current.envVars.map((envVar) =>
-        envVar.id === envId ? { ...envVar, ...patch } : envVar
+        envVar.id === envId ? { ...envVar, ...patch } : envVar,
       ),
     }));
   };
@@ -3637,22 +3654,22 @@ export function App() {
 
     try {
       const updatedAgent = await boardUpdateAgent(
-        buildAgentConfigUpdateParams(selectedAgent, agentConfigDraft)
+        buildAgentConfigUpdateParams(selectedAgent, agentConfigDraft),
       );
       setCompanySnapshot((current) =>
         current
           ? {
               ...current,
               agents: current.agents.map((agent) =>
-                agent.id === updatedAgent.id ? updatedAgent : agent
+                agent.id === updatedAgent.id ? updatedAgent : agent,
               ),
             }
-          : current
+          : current,
       );
       setAgentConfigDraft(createAgentConfigDraft(updatedAgent));
     } catch (error) {
       setAgentConfigError(
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       );
     } finally {
       setIsSavingAgentConfig(false);
@@ -3681,21 +3698,21 @@ export function App() {
               ...current,
               company: updatedCompany,
             }
-          : current
+          : current,
       );
       setCompanies((current) =>
         current.map((company) =>
           company.id === updatedCompany.id
             ? { ...company, ...updatedCompany }
-            : company
-        )
+            : company,
+        ),
       );
     } catch (error) {
       setCompanyBrandColorDraft(
-        normalizeHexColor(selectedCompany?.brand_color)
+        normalizeHexColor(selectedCompany?.brand_color),
       );
       setCompanyBrandColorError(
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       );
     } finally {
       setIsSavingCompanyBrandColor(false);
@@ -3730,7 +3747,7 @@ export function App() {
       }
     } catch (error) {
       setProjectDialogError(
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       );
     }
   };
@@ -3760,7 +3777,7 @@ export function App() {
 
       if (projectDialogTargetDate) {
         params.target_date = new Date(
-          `${projectDialogTargetDate}T00:00:00`
+          `${projectDialogTargetDate}T00:00:00`,
         ).toISOString();
       }
 
@@ -3772,7 +3789,7 @@ export function App() {
       handleCloseCreateProjectDialog();
     } catch (error) {
       setProjectDialogError(
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       );
       setIsProjectDialogSaving(false);
     }
@@ -3811,16 +3828,16 @@ export function App() {
     setIssueDialogProjectId(projectId);
     setIssueDialogError(null);
     setIssueDialogWorkspaceTargetMode(
-      nextWorkspaceDefaults.workspaceTargetMode ?? "main"
+      nextWorkspaceDefaults.workspaceTargetMode ?? "main",
     );
     setIssueDialogWorkspaceWorktreePath(
-      nextWorkspaceDefaults.workspaceWorktreePath ?? ""
+      nextWorkspaceDefaults.workspaceWorktreePath ?? "",
     );
     setIssueDialogWorkspaceWorktreeBranch(
-      nextWorkspaceDefaults.workspaceWorktreeBranch ?? ""
+      nextWorkspaceDefaults.workspaceWorktreeBranch ?? "",
     );
     setIssueDialogWorkspaceWorktreeName(
-      nextWorkspaceDefaults.workspaceWorktreeName ?? ""
+      nextWorkspaceDefaults.workspaceWorktreeName ?? "",
     );
   };
 
@@ -3832,11 +3849,11 @@ export function App() {
         workspaceWorktreeBranch: issueDialogWorkspaceWorktreeBranch,
         workspaceWorktreeName: issueDialogWorkspaceWorktreeName,
         workspaceWorktreePath: issueDialogWorkspaceWorktreePath,
-      }
+      },
     );
 
     setIssueDialogWorkspaceTargetMode(
-      (patch.workspaceTargetMode ?? "main") as IssueWorkspaceTargetMode
+      (patch.workspaceTargetMode ?? "main") as IssueWorkspaceTargetMode,
     );
     setIssueDialogWorkspaceWorktreePath(patch.workspaceWorktreePath ?? "");
     setIssueDialogWorkspaceWorktreeBranch(patch.workspaceWorktreeBranch ?? "");
@@ -3844,7 +3861,7 @@ export function App() {
   };
 
   const handleOpenCreateIssueDialog = (
-    defaults?: CreateIssueDialogDefaults
+    defaults?: CreateIssueDialogDefaults,
   ) => {
     const runtimeDraft = createDefaultIssueRuntimeDraft(dependencyCheck);
     resetIssueDialog();
@@ -3852,7 +3869,7 @@ export function App() {
       defaults?.projectId ?? currentProjectsForCreation[0]?.id ?? "";
     const nextProject =
       currentProjectsForCreation.find(
-        (project) => project.id === nextProjectId
+        (project) => project.id === nextProjectId,
       ) ?? null;
     const nextWorkspaceDefaults: Pick<
       IssueEditDraft,
@@ -3872,39 +3889,39 @@ export function App() {
     setIssueDialogMode(defaults?.dialogMode ?? "conversation");
     setIssueDialogPriority(defaults?.priority ?? "medium");
     setIssueDialogStatus(
-      normalizeBoardIssueValue(defaults?.status ?? "backlog")
+      normalizeBoardIssueValue(defaults?.status ?? "backlog"),
     );
     setIssueDialogProjectId(nextProjectId);
     setIssueDialogParentIssueId(defaults?.parentId ?? "");
     setIssueDialogCommand(defaults?.command ?? runtimeDraft.command);
     setIssueDialogModel(defaults?.model ?? runtimeDraft.model);
     setIssueDialogThinkingEffort(
-      defaults?.thinkingEffort ?? runtimeDraft.thinkingEffort
+      defaults?.thinkingEffort ?? runtimeDraft.thinkingEffort,
     );
     setIssueDialogPlanMode(defaults?.planMode ?? runtimeDraft.planMode);
     setIssueDialogEnableChrome(
-      defaults?.enableChrome ?? runtimeDraft.enableChrome
+      defaults?.enableChrome ?? runtimeDraft.enableChrome,
     );
     setIssueDialogSkipPermissions(
-      defaults?.skipPermissions ?? runtimeDraft.skipPermissions
+      defaults?.skipPermissions ?? runtimeDraft.skipPermissions,
     );
     setIssueDialogWorkspaceTargetMode(
-      nextWorkspaceDefaults.workspaceTargetMode ?? "main"
+      nextWorkspaceDefaults.workspaceTargetMode ?? "main",
     );
     setIssueDialogWorkspaceWorktreePath(
-      nextWorkspaceDefaults.workspaceWorktreePath ?? ""
+      nextWorkspaceDefaults.workspaceWorktreePath ?? "",
     );
     setIssueDialogWorkspaceWorktreeBranch(
-      nextWorkspaceDefaults.workspaceWorktreeBranch ?? ""
+      nextWorkspaceDefaults.workspaceWorktreeBranch ?? "",
     );
     setIssueDialogWorkspaceWorktreeName(
-      nextWorkspaceDefaults.workspaceWorktreeName ?? ""
+      nextWorkspaceDefaults.workspaceWorktreeName ?? "",
     );
     if (!nextProjectId && currentProjectsForCreation.length === 0) {
       setIssueDialogError(
         defaults?.dialogMode === "queuedMessage"
           ? "Create a project before queueing messages."
-          : "Create a project before creating a conversation."
+          : "Create a project before creating a conversation.",
       );
     }
     setIsCreateIssueDialogOpen(true);
@@ -3932,14 +3949,14 @@ export function App() {
       });
     } catch (error) {
       setIssueDialogError(
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       );
     }
   };
 
   const handleRemoveIssueDialogAttachment = (path: string) => {
     setIssueDialogAttachments((current) =>
-      current.filter((attachment) => attachment.path !== path)
+      current.filter((attachment) => attachment.path !== path),
     );
   };
 
@@ -3970,13 +3987,13 @@ export function App() {
     const trimmedProjectId = defaults.projectId?.trim() ?? "";
     const selectedProjectForDefaults =
       availableProjectsForCreation.find(
-        (project) => project.id === trimmedProjectId
+        (project) => project.id === trimmedProjectId,
       ) ?? null;
     if (!trimmedProjectId) {
       throw new Error(
         availableProjectsForCreation.length === 0
           ? "Create a project before creating a conversation."
-          : "Project is required."
+          : "Project is required.",
       );
     }
 
@@ -4027,7 +4044,7 @@ export function App() {
         : projectDefaultNewChatWorkspaceDefaults(selectedProjectForDefaults);
     const executionWorkspaceSettings = issueExecutionWorkspaceSettingsFromDraft(
       workspaceDefaults,
-      trimmedProjectId
+      trimmedProjectId,
     );
     if (executionWorkspaceSettings) {
       params.execution_workspace_settings = executionWorkspaceSettings;
@@ -4044,16 +4061,16 @@ export function App() {
             company_id: createdIssue.company_id,
             issue_id: createdIssue.id,
             local_file_path: attachment.path,
-          })
-        )
+          }),
+        ),
       );
 
       uploadedAttachments = uploadResults.flatMap((result) =>
-        result.status === "fulfilled" ? [result.value] : []
+        result.status === "fulfilled" ? [result.value] : [],
       );
 
       const failedUploads = uploadResults.filter(
-        (result) => result.status === "rejected"
+        (result) => result.status === "rejected",
       );
       if (failedUploads.length > 0) {
         const firstFailure = failedUploads[0];
@@ -4095,18 +4112,18 @@ export function App() {
 
     if (!hiddenExecutionAgentId) {
       setStatusMessage(
-        `${createdIssue.identifier ?? createdIssue.title} created, but this space does not have a default local executor yet.`
+        `${createdIssue.identifier ?? createdIssue.title} created, but this space does not have a default local executor yet.`,
       );
     } else if (attachmentUploadMessage) {
       setStatusMessage(
-        `${createdIssue.identifier ?? createdIssue.title} saved, but one or more attachments failed to upload: ${attachmentUploadMessage}`
+        `${createdIssue.identifier ?? createdIssue.title} saved, but one or more attachments failed to upload: ${attachmentUploadMessage}`,
       );
     } else if (!navigateToDetail) {
       setStatusMessage(
         `${createdIssue.identifier ?? createdIssue.title} created in ${issueProjectLabel(
           availableProjectsForCreation,
-          createdIssue.project_id
-        )}.`
+          createdIssue.project_id,
+        )}.`,
       );
     }
 
@@ -4128,7 +4145,7 @@ export function App() {
           ? issueDialogMode === "queuedMessage"
             ? "Create a project before queueing messages."
             : "Create a project before creating a conversation."
-          : "Project is required."
+          : "Project is required.",
       );
       return;
     }
@@ -4160,7 +4177,7 @@ export function App() {
       handleCloseCreateIssueDialog();
     } catch (error) {
       setIssueDialogError(
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       );
       setIsIssueDialogSaving(false);
     }
@@ -4180,7 +4197,7 @@ export function App() {
 
   const handleOpenDashboardIssuePreview = (issueId: string) => {
     setDashboardPreviewIssueDetail((current) =>
-      current?.id === issueId ? current : null
+      current?.id === issueId ? current : null,
     );
     setDashboardIssuePreviewId(issueId);
     setDashboardIssuePreviewError(null);
@@ -4195,7 +4212,7 @@ export function App() {
 
   const handleCreateBirdsEyeChat = async (
     title: string,
-    defaults: CreateIssueDialogDefaults
+    defaults: CreateIssueDialogDefaults,
   ) =>
     createIssueWithDefaults({
       ...defaults,
@@ -4227,7 +4244,7 @@ export function App() {
             ...snapshot,
             issues: snapshot.issues.some((issue) => issue.id === detailIssue.id)
               ? snapshot.issues.map((issue) =>
-                  issue.id === detailIssue.id ? detailIssue : issue
+                  issue.id === detailIssue.id ? detailIssue : issue,
                 )
               : snapshot.issues.concat(detailIssue),
           }
@@ -4269,7 +4286,7 @@ export function App() {
 
   const renderDashboardIssueTile = (
     issueId: string,
-    onClose: () => void
+    onClose: () => void,
   ): ReactNode => {
     if (
       !selectedIssue ||
@@ -4315,7 +4332,7 @@ export function App() {
         onRevealRepo={() => {
           if (selectedIssueWorkspace?.workspace_repo_path) {
             void desktopRevealInFinder(
-              selectedIssueWorkspace.workspace_repo_path
+              selectedIssueWorkspace.workspace_repo_path,
             );
           }
         }}
@@ -4339,7 +4356,7 @@ export function App() {
             boardProjects.length > 0
               ? boardProjects
               : dashboardOverviewProjects,
-            projectId
+            projectId,
           )
         }
         projects={
@@ -4347,9 +4364,9 @@ export function App() {
         }
         prompt={prompt}
         runtimeStatusValue={
-          selectedIssueWorkspace?.session_id === activeSession?.id
-            ? stringifyStatus(activeRuntimeStatusState)
-            : "waiting"
+          selectedIssueWorkspace?.session_id
+            ? stringifyStatus(selectedIssueWorkspaceLiveState.runtimeStatus)
+            : "idle"
         }
         selectableParentIssues={selectableParentIssues}
         selectedDiff={
@@ -4367,24 +4384,20 @@ export function App() {
             ? selectedFilePath
             : null
         }
-        session={
-          selectedIssueWorkspace?.session_id === activeSession?.id
-            ? activeSession
-            : null
-        }
+        session={selectedIssueWorkspaceSession}
         sessionErrorMessage={
-          selectedIssueWorkspace?.session_id === activeSession?.id
-            ? activeSessionLiveState.errorMessage
+          selectedIssueWorkspace?.session_id
+            ? selectedIssueWorkspaceLiveState.errorMessage
             : null
         }
         sessionLoading={
-          selectedIssueWorkspace?.session_id === activeSession?.id
-            ? activeSessionLiveState.isLoadingMessages
+          selectedIssueWorkspace?.session_id
+            ? selectedIssueWorkspaceLiveState.isLoadingMessages
             : false
         }
         sessionRows={
-          selectedIssueWorkspace?.session_id === activeSession?.id
-            ? activeSessionConversationRows
+          selectedIssueWorkspace?.session_id
+            ? selectedIssueWorkspaceLiveState.conversationRows
             : []
         }
         statusLabel={issueStatusLabel}
@@ -4431,14 +4444,14 @@ export function App() {
     const nextTask = issueUpdateQueueRef.current.then(task, task);
     issueUpdateQueueRef.current = nextTask.then(
       () => undefined,
-      () => undefined
+      () => undefined,
     );
     return nextTask;
   }
 
   const applyIssueUpdateToSnapshot = (
     updatedIssue: IssueRecord,
-    options?: { removeFromSnapshot?: boolean }
+    options?: { removeFromSnapshot?: boolean },
   ) => {
     setCompanySnapshot((current) => {
       if (!current) {
@@ -4448,7 +4461,7 @@ export function App() {
       const nextIssues = options?.removeFromSnapshot
         ? current.issues.filter((entry) => entry.id !== updatedIssue.id)
         : current.issues.map((entry) =>
-            entry.id === updatedIssue.id ? updatedIssue : entry
+            entry.id === updatedIssue.id ? updatedIssue : entry,
           );
 
       return {
@@ -4460,7 +4473,7 @@ export function App() {
 
   const syncIssueDraftFromUpdate = (
     updatedIssue: IssueRecord,
-    patch: Partial<IssueEditDraft>
+    patch: Partial<IssueEditDraft>,
   ) => {
     const nextDraftPatch: Partial<IssueEditDraft> = {};
 
@@ -4492,7 +4505,7 @@ export function App() {
     ) {
       Object.assign(
         nextDraftPatch,
-        parseIssueAdapterOverrides(updatedIssue.assignee_adapter_overrides)
+        parseIssueAdapterOverrides(updatedIssue.assignee_adapter_overrides),
       );
     }
     if (Object.hasOwn(patch, "parentId")) {
@@ -4507,8 +4520,8 @@ export function App() {
       Object.assign(
         nextDraftPatch,
         parseIssueExecutionWorkspaceSettings(
-          updatedIssue.execution_workspace_settings
-        )
+          updatedIssue.execution_workspace_settings,
+        ),
       );
     }
 
@@ -4525,7 +4538,7 @@ export function App() {
   const handlePersistIssuePatch = async (
     issue: IssueRecord,
     patch: Partial<IssueEditDraft>,
-    options?: { hiddenAt?: string | null }
+    options?: { hiddenAt?: string | null },
   ) =>
     enqueueIssueUpdate(async () => {
       const shouldValidateIssueStatus =
@@ -4537,7 +4550,7 @@ export function App() {
           Object.hasOwn(patch, "assigneeAgentId")
             ? patch.assigneeAgentId
             : issueDraft.assigneeAgentId,
-          boardAgents
+          boardAgents,
         );
         if (validationMessage) {
           return null;
@@ -4633,7 +4646,7 @@ export function App() {
               workspaceWorktreeName:
                 patch.workspaceWorktreeName ?? issueDraft.workspaceWorktreeName,
             },
-            patch.projectId ?? issueDraft.projectId
+            patch.projectId ?? issueDraft.projectId,
           );
       }
 
@@ -4657,14 +4670,14 @@ export function App() {
 
         if (isHidden) {
           setStatusMessage(
-            `${updatedIssue.identifier ?? updatedIssue.title} hidden.`
+            `${updatedIssue.identifier ?? updatedIssue.title} hidden.`,
           );
         }
 
         return updatedIssue;
       } catch (error) {
         setIssueEditorError(
-          error instanceof Error ? error.message : String(error)
+          error instanceof Error ? error.message : String(error),
         );
         return null;
       } finally {
@@ -4709,7 +4722,7 @@ export function App() {
         [issue.id]: attachments as IssueAttachmentRecord[],
       }));
       setStatusMessage(
-        `${attachment.original_filename ?? fileName(path)} attached to ${issue.identifier ?? issue.title}.`
+        `${attachment.original_filename ?? fileName(path)} attached to ${issue.identifier ?? issue.title}.`,
       );
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : String(error));
@@ -4719,7 +4732,7 @@ export function App() {
   };
 
   const handleRevealIssueAttachment = async (
-    attachment: IssueAttachmentRecord
+    attachment: IssueAttachmentRecord,
   ) => {
     try {
       await desktopRevealInFinder(attachment.local_path);
@@ -4730,7 +4743,7 @@ export function App() {
 
   const handleApproveApproval = async (
     approvalId: string,
-    decisionNote?: string
+    decisionNote?: string,
   ) => {
     if (!selectedCompanyId) {
       return;
@@ -4762,7 +4775,7 @@ export function App() {
     try {
       const entries = await repositoryListFiles(
         selectedSessionId,
-        relativePath
+        relativePath,
       );
       setCurrentDirectory(relativePath);
       setFileEntries(entries as FileEntry[]);
@@ -4820,7 +4833,7 @@ export function App() {
         trimmedContent,
         activeWorkspaceProvider === "custom"
           ? undefined
-          : activeWorkspaceProvider
+          : activeWorkspaceProvider,
       );
       sessionStateManager.handleSessionEvent({
         event: {},
@@ -4901,13 +4914,13 @@ export function App() {
       if (!createdCompany.ceo_agent_id?.trim()) {
         try {
           await boardCreateAgent(
-            createDefaultExecutorParams(createdCompany.id, dependencyCheck)
+            createDefaultExecutorParams(createdCompany.id, dependencyCheck),
           );
         } catch (error) {
           setStatusMessage(
             `Space created, but the default executor could not be prepared: ${
               error instanceof Error ? error.message : String(error)
-            }`
+            }`,
           );
         }
       }
@@ -4963,7 +4976,7 @@ export function App() {
       resetCompanyDialog();
     } catch (error) {
       setCompanyDialogError(
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       );
       setIsCompanyDialogSaving(false);
     }
@@ -4996,7 +5009,7 @@ export function App() {
 
   const persistBirdsEyeCanvasState = async (
     companyId: string,
-    canvasState: BirdsEyeCanvasState
+    canvasState: BirdsEyeCanvasState,
   ) => {
     const nextSettings = mergeDesktopSettings({
       ...settings,
@@ -5038,19 +5051,19 @@ export function App() {
 
   const handleStageFile = async (file: GitStatusFile) => {
     await runGitMutation(() =>
-      gitStage([file.path], selectedSessionId ?? undefined)
+      gitStage([file.path], selectedSessionId ?? undefined),
     );
   };
 
   const handleUnstageFile = async (file: GitStatusFile) => {
     await runGitMutation(() =>
-      gitUnstage([file.path], selectedSessionId ?? undefined)
+      gitUnstage([file.path], selectedSessionId ?? undefined),
     );
   };
 
   const handleDiscardFile = async (file: GitStatusFile) => {
     await runGitMutation(() =>
-      gitDiscard([file.path], selectedSessionId ?? undefined)
+      gitDiscard([file.path], selectedSessionId ?? undefined),
     );
   };
 
@@ -5085,7 +5098,7 @@ export function App() {
       gitPush({
         session_id: selectedSessionId,
         branch: currentBranchName,
-      })
+      }),
     );
   };
 
@@ -5147,7 +5160,7 @@ export function App() {
               className="secondary-button"
               onClick={() =>
                 void desktopOpenExternal(
-                  "https://github.com/unbound-computer/unbound"
+                  "https://github.com/unbound-computer/unbound",
                 )
               }
               type="button"
@@ -5266,7 +5279,7 @@ export function App() {
                   onClick={() =>
                     handleSelectCompanyScreen(
                       companyContextMenu.companyId,
-                      item.screen
+                      item.screen,
                     )
                   }
                   role="menuitem"
@@ -5510,8 +5523,8 @@ export function App() {
                   }
                   isWorking={isWorking}
                   latestCompletionSummary={
-                    selectedIssueWorkspace?.session_id === activeSession?.id
-                      ? activeSessionLiveState.latestCompletionSummary
+                    selectedIssueWorkspace?.session_id
+                      ? selectedIssueWorkspaceLiveState.latestCompletionSummary
                       : null
                   }
                   onAddAttachment={() =>
@@ -5534,7 +5547,7 @@ export function App() {
                   onRevealRepo={() => {
                     if (selectedIssueWorkspace?.workspace_repo_path) {
                       void desktopRevealInFinder(
-                        selectedIssueWorkspace.workspace_repo_path
+                        selectedIssueWorkspace.workspace_repo_path,
                       );
                     }
                   }}
@@ -5558,45 +5571,43 @@ export function App() {
                   projectLabel={(projectId) =>
                     issueProjectLabel(
                       companySnapshot?.projects ?? [],
-                      projectId
+                      projectId,
                     )
                   }
                   projects={companySnapshot?.projects ?? []}
                   prompt={prompt}
                   runtimeStatusValue={
-                    selectedIssueWorkspace?.session_id === activeSession?.id
-                      ? stringifyStatus(activeRuntimeStatusState)
-                      : "waiting"
+                    selectedIssueWorkspace?.session_id
+                      ? stringifyStatus(
+                          selectedIssueWorkspaceLiveState.runtimeStatus,
+                        )
+                      : "idle"
                   }
                   selectableParentIssues={selectableParentIssues}
                   selectedDiff={selectedDiff}
                   selectedFile={selectedFile}
                   selectedFilePath={selectedFilePath}
-                  session={
-                    selectedIssueWorkspace?.session_id === activeSession?.id
-                      ? activeSession
-                      : null
-                  }
+                  session={selectedIssueWorkspaceSession}
                   sessionErrorMessage={
-                    selectedIssueWorkspace?.session_id === activeSession?.id
-                      ? activeSessionLiveState.errorMessage
+                    selectedIssueWorkspace?.session_id
+                      ? selectedIssueWorkspaceLiveState.errorMessage
                       : null
                   }
                   sessionLoading={
-                    selectedIssueWorkspace?.session_id === activeSession?.id
-                      ? activeSessionLiveState.isLoadingMessages
+                    selectedIssueWorkspace?.session_id
+                      ? selectedIssueWorkspaceLiveState.isLoadingMessages
                       : false
                   }
                   sessionRows={
-                    selectedIssueWorkspace?.session_id === activeSession?.id
-                      ? activeSessionConversationRows
+                    selectedIssueWorkspace?.session_id
+                      ? selectedIssueWorkspaceLiveState.conversationRows
                       : []
                   }
                   statusLabel={issueStatusLabel}
                   terminalCommand={terminalCommand}
                   terminalContainerRef={terminalContainerRef}
                   terminalStatusValue={stringifyStatus(
-                    activeTerminalStatusState
+                    activeTerminalStatusState,
                   )}
                   workspace={selectedIssueWorkspace}
                   workspaceCenterTab={workspaceCenterTab}
@@ -5634,7 +5645,7 @@ export function App() {
                     ? boardIssues.filter(
                         (issue) =>
                           issue.project_id === selectedProject.id &&
-                          isRootConversationIssue(issue)
+                          isRootConversationIssue(issue),
                       ).length
                     : 0
                 }
@@ -5642,7 +5653,7 @@ export function App() {
                   selectedProject
                     ? companyWorkspaces.filter(
                         (workspace) =>
-                          workspace.project_id === selectedProject.id
+                          workspace.project_id === selectedProject.id,
                       ).length
                     : 0
                 }
@@ -5709,13 +5720,13 @@ export function App() {
                       <SummaryPill
                         label="Monthly Budget"
                         value={formatCents(
-                          selectedCompany?.budget_monthly_cents
+                          selectedCompany?.budget_monthly_cents,
                         )}
                       />
                       <SummaryPill
                         label="Monthly Spend"
                         value={formatCents(
-                          selectedCompany?.spent_monthly_cents
+                          selectedCompany?.spent_monthly_cents,
                         )}
                       />
                     </div>
@@ -5891,7 +5902,7 @@ export function App() {
                           }
                           options={desktopPreferredViewOptions}
                           value={preferredViewSelectValue(
-                            settings.preferred_view
+                            settings.preferred_view,
                           )}
                         />
                       </div>
@@ -6024,7 +6035,7 @@ export function App() {
           selectedProjectId={issueDialogProjectId}
           selectedWorkspaceTargetValue={issueWorkspaceTargetSelectValue(
             issueDialogWorkspaceTargetMode,
-            issueDialogWorkspaceWorktreePath
+            issueDialogWorkspaceWorktreePath,
           )}
           skipPermissions={issueDialogSkipPermissions}
           thinkingEffort={issueDialogThinkingEffort}
@@ -6061,22 +6072,22 @@ function OrgRouteView({
   const ceoAgentId = company?.ceo_agent_id ?? null;
   const agentMap = useMemo(
     () => new Map(agents.map((agent) => [agent.id, agent])),
-    [agents]
+    [agents],
   );
   const hierarchy = useMemo(
     () => buildOrgHierarchy(agents, projects, ceoAgentId),
-    [agents, projects, ceoAgentId]
+    [agents, projects, ceoAgentId],
   );
   const flattenedHierarchy = useMemo(
     () => flattenOrgHierarchy(hierarchy),
-    [hierarchy]
+    [hierarchy],
   );
   const managersCount = flattenedHierarchy.filter(
-    (node) => node.reports.length > 0
+    (node) => node.reports.length > 0,
   ).length;
   const ceo = useMemo(
     () => findCompanyCeo(agents, ceoAgentId),
-    [agents, ceoAgentId]
+    [agents, ceoAgentId],
   );
 
   return (
@@ -6174,7 +6185,7 @@ function OrgChartTreeItem({
           <span className="org-chart-provider">
             <span
               className={`org-status-dot ${normalizeAgentStatusTone(
-                node.agent.status
+                node.agent.status,
               )}`}
             />
             <small>{providerLabel}</small>
@@ -6400,7 +6411,7 @@ function AgentsRouteView({
   onConfigurationDraftChange: (patch: Partial<AgentConfigDraft>) => void;
   onConfigurationEnvVarChange: (
     envId: string,
-    patch: Partial<AgentConfigEnvVarDraft>
+    patch: Partial<AgentConfigEnvVarDraft>,
   ) => void;
   onRemoveEnvVar: (envId: string) => void;
   onRefreshRuns: () => void;
@@ -6418,7 +6429,7 @@ function AgentsRouteView({
     selectedAgent?.name ??
     "Agent";
   const agentHeaderStatusLabel = humanizeIssueValue(
-    selectedAgent?.status ?? "idle"
+    selectedAgent?.status ?? "idle",
   ).toLowerCase();
 
   return (
@@ -6462,7 +6473,7 @@ function AgentsRouteView({
                   />
                   <span
                     className={`agent-run-status-badge agent-page-header-status ${normalizeAgentStatusTone(
-                      selectedAgent.status
+                      selectedAgent.status,
                     )}`}
                   >
                     {agentHeaderStatusLabel}
@@ -6644,7 +6655,7 @@ function AgentConfigurationTab({
   onDraftChange: (patch: Partial<AgentConfigDraft>) => void;
   onEnvVarChange: (
     envId: string,
-    patch: Partial<AgentConfigEnvVarDraft>
+    patch: Partial<AgentConfigEnvVarDraft>,
   ) => void;
   onRemoveEnvVar: (envId: string) => void;
   onSave: () => void;
@@ -6654,12 +6665,12 @@ function AgentConfigurationTab({
   const adapterTypeOptions = mergeIssueOptions(["process"], draft.adapterType);
   const commandOptions = buildAgentCommandOptions(
     dependencyCheck,
-    draft.command
+    draft.command,
   );
   const modelOptions = buildAgentModelOptions(draft, dependencyCheck);
   const thinkingEffortOptions = mergeIssueOptions(
     ["auto", "low", "medium", "high"],
-    draft.thinkingEffort
+    draft.thinkingEffort,
   );
   const browserToggleLabel =
     provider === "codex" ? "Enable web search" : "Enable Chrome";
@@ -7339,7 +7350,7 @@ function AgentRunEventDetails({ event }: { event: AgentRunEventRecord }) {
           <span className="agent-run-structured-kicker">Run</span>
           <span
             className={`agent-run-structured-state ${agentRunEventStateTone(
-              success ? "completed" : event.event_type
+              success ? "completed" : event.event_type,
             )}`}
           >
             {agentRunEventStateLabel(success ? "completed" : event.event_type)}
@@ -7496,7 +7507,7 @@ function AgentRunsTabPanel({
                     <h2>{agentRunSummary(selectedRun)}</h2>
                     <p>
                       {agentRunInvocationSourceLabel(
-                        selectedRun.invocation_source
+                        selectedRun.invocation_source,
                       )}{" "}
                       · {formatRelativeAgentRunDate(selectedRun.created_at)}
                     </p>
@@ -7549,7 +7560,7 @@ function AgentRunsTabPanel({
                   <SummaryPill
                     label="Invocation"
                     value={agentRunInvocationSourceLabel(
-                      selectedRun.invocation_source
+                      selectedRun.invocation_source,
                     )}
                   />
                   <SummaryPill
@@ -7562,7 +7573,7 @@ function AgentRunsTabPanel({
                   <DetailRow
                     label="Started"
                     value={formatIssueDate(
-                      selectedRun.started_at ?? selectedRun.created_at
+                      selectedRun.started_at ?? selectedRun.created_at,
                     )}
                   />
                   <DetailRow
@@ -7572,7 +7583,7 @@ function AgentRunsTabPanel({
                   <DetailRow
                     label="Trigger detail"
                     value={agentRunTriggerDetailLabel(
-                      selectedRun.trigger_detail
+                      selectedRun.trigger_detail,
                     )}
                   />
                   <DetailRow
@@ -7770,7 +7781,7 @@ function ShadcnSelect<T extends string>({
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const selectedIndex = Math.max(
     options.findIndex((option) => option.value === value),
-    0
+    0,
   );
   const selectedOption = options[selectedIndex] ?? options[0] ?? null;
 
@@ -7821,7 +7832,7 @@ function ShadcnSelect<T extends string>({
   }, [isOpen, selectedIndex]);
 
   const handleTriggerKeyDown = (
-    event: ReactKeyboardEvent<HTMLButtonElement>
+    event: ReactKeyboardEvent<HTMLButtonElement>,
   ) => {
     if (
       event.key === "ArrowDown" ||
@@ -7836,7 +7847,7 @@ function ShadcnSelect<T extends string>({
 
   const handleOptionKeyDown = (
     event: ReactKeyboardEvent<HTMLButtonElement>,
-    index: number
+    index: number,
   ) => {
     if (event.key === "ArrowDown") {
       event.preventDefault();
@@ -7958,7 +7969,7 @@ function DashboardBirdsEyeRouteView({
   onCreateProject: () => void;
   onCreateQuickChat: (
     title: string,
-    defaults: CreateIssueDialogDefaults
+    defaults: CreateIssueDialogDefaults,
   ) => Promise<IssueRecord>;
   onOpenIssueDetail: (issueId: string) => void;
   onOpenIssuePreview: (issueId: string) => void;
@@ -7967,18 +7978,18 @@ function DashboardBirdsEyeRouteView({
   workspaces: WorkspaceRecord[];
 }) {
   const [expandedRowIds, setExpandedRowIds] = useState<Record<string, boolean>>(
-    {}
+    {},
   );
   const expandedProjectIds = useMemo(
     () =>
       projects
         .filter((project) => expandedRowIds[`project:${project.id}`] ?? false)
         .map((project) => project.id),
-    [expandedRowIds, projects]
+    [expandedRowIds, projects],
   );
   const projectWorktreesByProjectId = useDashboardProjectWorktrees(
     projects,
-    expandedProjectIds
+    expandedProjectIds,
   );
   const treeModel = useMemo(
     () =>
@@ -7997,20 +8008,20 @@ function DashboardBirdsEyeRouteView({
       projectWorktreesByProjectId,
       projects,
       workspaces,
-    ]
+    ],
   );
   const defaultQuickCreateState = useMemo(
     () => createBirdsEyeQuickCreateState(dependencyCheck),
-    [dependencyCheck]
+    [dependencyCheck],
   );
   const [focusedRowId, setFocusedRowId] = useState<string | null>(null);
   const [pendingFocusRowId, setPendingFocusRowId] = useState<string | null>(
-    null
+    null,
   );
   const [birdsEyeCanvasOffset, setBirdsEyeCanvasOffset] =
     useState<DashboardCanvasOffset>(defaultBirdsEyeCanvasOffset);
   const [birdsEyeCanvasZoomIndex, setBirdsEyeCanvasZoomIndex] = useState(
-    defaultBirdsEyeCanvasZoomIndex
+    defaultBirdsEyeCanvasZoomIndex,
   );
   const [isBirdsEyeCanvasDragging, setIsBirdsEyeCanvasDragging] =
     useState(false);
@@ -8078,15 +8089,15 @@ function DashboardBirdsEyeRouteView({
 
   const visibleRows = useMemo(
     () => flattenBirdsEyeTree(treeModel.projects, expandedRowIds),
-    [expandedRowIds, treeModel.projects]
+    [expandedRowIds, treeModel.projects],
   );
   const visibleRowLookup = useMemo(
     () => new Map(visibleRows.map((row) => [row.rowId, row])),
-    [visibleRows]
+    [visibleRows],
   );
   const focusedRowIndex = Math.max(
     visibleRows.findIndex((row) => row.rowId === focusedRowId),
-    0
+    0,
   );
   const focusedRow = visibleRows[focusedRowIndex] ?? null;
   const previewChat = previewIssue?.id
@@ -8096,7 +8107,7 @@ function DashboardBirdsEyeRouteView({
     return visibleRows
       .filter(
         (row): row is BirdsEyeVisibleRow & { node: BirdsEyeChatNode } =>
-          row.node.kind === "chat"
+          row.node.kind === "chat",
       )
       .slice()
       .sort((left, right) => {
@@ -8127,7 +8138,7 @@ function DashboardBirdsEyeRouteView({
     birdsEyeCanvasZoomLevels[birdsEyeCanvasZoomIndex] ?? 1;
   const setBirdsEyeFocusedRow = (
     nextRowId: string | null,
-    cause: BirdsEyeFocusChangeCause = "programmatic"
+    cause: BirdsEyeFocusChangeCause = "programmatic",
   ) => {
     const previousRowId = focusedRowIdRef.current;
     if (previousRowId === nextRowId) {
@@ -8277,7 +8288,7 @@ function DashboardBirdsEyeRouteView({
 
   const focusRowByIndex = (
     index: number,
-    cause: BirdsEyeFocusChangeCause = "programmatic"
+    cause: BirdsEyeFocusChangeCause = "programmatic",
   ) => {
     if (visibleRows.length === 0) {
       return;
@@ -8304,7 +8315,7 @@ function DashboardBirdsEyeRouteView({
   const focusSiblingRow = (
     row: BirdsEyeVisibleRow | null,
     direction: "previous" | "next",
-    cause: BirdsEyeFocusChangeCause = "programmatic"
+    cause: BirdsEyeFocusChangeCause = "programmatic",
   ) => {
     if (!row) {
       return;
@@ -8316,7 +8327,7 @@ function DashboardBirdsEyeRouteView({
     }
 
     const currentIndex = siblingRows.findIndex(
-      (entry) => entry.rowId === row.rowId
+      (entry) => entry.rowId === row.rowId,
     );
     if (currentIndex < 0) {
       return;
@@ -8353,7 +8364,7 @@ function DashboardBirdsEyeRouteView({
 
   const openRow = (
     row: BirdsEyeVisibleRow | null,
-    cause: BirdsEyeFocusChangeCause = "programmatic"
+    cause: BirdsEyeFocusChangeCause = "programmatic",
   ) => {
     if (!row) {
       return;
@@ -8384,7 +8395,7 @@ function DashboardBirdsEyeRouteView({
 
   const closeRow = (
     row: BirdsEyeVisibleRow | null,
-    cause: BirdsEyeFocusChangeCause = "programmatic"
+    cause: BirdsEyeFocusChangeCause = "programmatic",
   ) => {
     if (!row) {
       return;
@@ -8430,7 +8441,7 @@ function DashboardBirdsEyeRouteView({
   };
 
   const ensureQuickCreateFolderExpanded = (
-    folder: BirdsEyeFolderNode | null
+    folder: BirdsEyeFolderNode | null,
   ) => {
     if (!folder) {
       return;
@@ -8557,12 +8568,12 @@ function DashboardBirdsEyeRouteView({
       quickCreateState.sourceRowId ??
         quickCreateState.folderRowId ??
         focusedRow?.rowId ??
-        null
+        null,
     );
   };
 
   const handleBirdsEyeCanvasPointerDown = (
-    event: PointerEvent<HTMLDivElement>
+    event: PointerEvent<HTMLDivElement>,
   ) => {
     if (event.button !== 0) {
       return;
@@ -8571,7 +8582,7 @@ function DashboardBirdsEyeRouteView({
     const target = event.target as HTMLElement | null;
     if (
       target?.closest(
-        "button, a, input, textarea, select, label, [role='menu'], [role='menuitem']"
+        "button, a, input, textarea, select, label, [role='menu'], [role='menuitem']",
       )
     ) {
       return;
@@ -8591,7 +8602,7 @@ function DashboardBirdsEyeRouteView({
   };
 
   const handleBirdsEyeCanvasPointerMove = (
-    event: PointerEvent<HTMLDivElement>
+    event: PointerEvent<HTMLDivElement>,
   ) => {
     const panState = canvasPanRef.current;
     if (!panState || panState.pointerId !== event.pointerId) {
@@ -8605,7 +8616,7 @@ function DashboardBirdsEyeRouteView({
   };
 
   const handleBirdsEyeCanvasPointerEnd = (
-    event: PointerEvent<HTMLDivElement>
+    event: PointerEvent<HTMLDivElement>,
   ) => {
     if (canvasPanRef.current?.pointerId !== event.pointerId) {
       return;
@@ -8620,7 +8631,7 @@ function DashboardBirdsEyeRouteView({
 
   const setBirdsEyeCanvasZoom = (
     nextZoomIndex: number | ((currentZoomIndex: number) => number),
-    anchor?: DashboardCanvasOffset
+    anchor?: DashboardCanvasOffset,
   ) => {
     const viewport = canvasViewportRef.current;
     if (!viewport) {
@@ -8630,8 +8641,8 @@ function DashboardBirdsEyeRouteView({
             ? nextZoomIndex(currentZoomIndex)
             : nextZoomIndex,
           0,
-          birdsEyeCanvasZoomLevels.length - 1
-        )
+          birdsEyeCanvasZoomLevels.length - 1,
+        ),
       );
       return;
     }
@@ -8642,7 +8653,7 @@ function DashboardBirdsEyeRouteView({
           ? nextZoomIndex(currentZoomIndex)
           : nextZoomIndex,
         0,
-        birdsEyeCanvasZoomLevels.length - 1
+        birdsEyeCanvasZoomLevels.length - 1,
       );
       if (safeZoomIndex === currentZoomIndex) {
         return currentZoomIndex;
@@ -8669,7 +8680,7 @@ function DashboardBirdsEyeRouteView({
 
   const nudgeBirdsEyeCanvasZoom = (
     delta: number,
-    anchor?: DashboardCanvasOffset
+    anchor?: DashboardCanvasOffset,
   ) => {
     if (delta === 0) {
       return;
@@ -8677,7 +8688,7 @@ function DashboardBirdsEyeRouteView({
 
     setBirdsEyeCanvasZoom(
       (currentZoomIndex) => currentZoomIndex + delta,
-      anchor
+      anchor,
     );
   };
 
@@ -8685,7 +8696,7 @@ function DashboardBirdsEyeRouteView({
     const target = event.target as HTMLElement | null;
     if (
       target?.closest(
-        "input, textarea, select, .shadcn-select-content, [role='menu']"
+        "input, textarea, select, .shadcn-select-content, [role='menu']",
       )
     ) {
       return;
@@ -8820,7 +8831,7 @@ function DashboardBirdsEyeRouteView({
         keywords: "new project create",
         label: "New project",
         run: onCreateProject,
-      }
+      },
     );
 
     return actions;
@@ -8842,7 +8853,7 @@ function DashboardBirdsEyeRouteView({
     return commandActions.filter((action) =>
       `${action.label} ${action.description} ${action.keywords}`
         .toLowerCase()
-        .includes(query)
+        .includes(query),
     );
   }, [commandActions, commandPaletteQuery]);
 
@@ -8893,8 +8904,8 @@ function DashboardBirdsEyeRouteView({
             clampNumber(
               current + 1,
               0,
-              Math.max(filteredCommandActions.length - 1, 0)
-            )
+              Math.max(filteredCommandActions.length - 1, 0),
+            ),
           );
           return;
         }
@@ -8905,8 +8916,8 @@ function DashboardBirdsEyeRouteView({
             clampNumber(
               current - 1,
               0,
-              Math.max(filteredCommandActions.length - 1, 0)
-            )
+              Math.max(filteredCommandActions.length - 1, 0),
+            ),
           );
           return;
         }
@@ -9014,7 +9025,7 @@ function DashboardBirdsEyeRouteView({
       quickCreateState.folderRowId &&
       treeModel.rowById.get(quickCreateState.folderRowId)?.kind === "folder"
         ? (treeModel.rowById.get(
-            quickCreateState.folderRowId
+            quickCreateState.folderRowId,
           ) as BirdsEyeFolderNode)
         : null;
 
@@ -9032,7 +9043,7 @@ function DashboardBirdsEyeRouteView({
       ensureQuickCreateFolderExpanded(folderNode);
       const createdIssue = await onCreateQuickChat(
         quickCreateState.title,
-        quickCreateState.draft
+        quickCreateState.draft,
       );
       setPendingFocusRowId(`chat:${createdIssue.id}`);
       closeQuickCreate();
@@ -9256,7 +9267,7 @@ function DashboardBirdsEyeRouteView({
               >
                 <div className="birds-eye-tree" role="tree">
                   {treeModel.projects.map((project) =>
-                    renderBirdsEyeProjectGroup(project)
+                    renderBirdsEyeProjectGroup(project),
                   )}
                 </div>
               </div>
@@ -9364,7 +9375,7 @@ function GridDashboardBirdsEyeRouteView({
   onCreateProject: () => void;
   onCreateQuickChat: (
     title: string,
-    defaults: CreateIssueDialogDefaults
+    defaults: CreateIssueDialogDefaults,
   ) => Promise<IssueRecord>;
   onOpenIssueDetail: (issueId: string) => void;
   projects: ProjectRecord[];
@@ -9374,7 +9385,7 @@ function GridDashboardBirdsEyeRouteView({
 }) {
   const projectWorktreesByProjectId = useDashboardProjectWorktrees(
     projects,
-    projects.map((project) => project.id)
+    projects.map((project) => project.id),
   );
   const treeModel = useMemo(
     () =>
@@ -9393,7 +9404,7 @@ function GridDashboardBirdsEyeRouteView({
       projectWorktreesByProjectId,
       projects,
       workspaces,
-    ]
+    ],
   );
 
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -9409,8 +9420,8 @@ function GridDashboardBirdsEyeRouteView({
           folder,
           projectId: project.project.id,
           projectLabel: project.label,
-        }))
-      )
+        })),
+      ),
     );
   }, [treeModel.projects]);
 
@@ -9422,7 +9433,7 @@ function GridDashboardBirdsEyeRouteView({
           ? `${entry.chat.title} ${entry.folder.label} ${entry.projectLabel}`
               .toLowerCase()
               .includes(query)
-          : true
+          : true,
       )
       .map((entry) => ({
         description: `${entry.projectLabel} · ${entry.folder.label}`,
@@ -9472,7 +9483,7 @@ function GridDashboardBirdsEyeRouteView({
         if (event.key === "ArrowDown") {
           event.preventDefault();
           setCommandPaletteIndex((current) =>
-            Math.min(current + 1, Math.max(commandActions.length - 1, 0))
+            Math.min(current + 1, Math.max(commandActions.length - 1, 0)),
           );
           return;
         }
@@ -9555,7 +9566,7 @@ function GridDashboardBirdsEyeRouteView({
                           <span>
                             {folder.secondaryLabel ??
                               formatCompactIssueTimestamp(
-                                folder.lastActivityAt
+                                folder.lastActivityAt,
                               )}
                           </span>
                         </div>
@@ -9687,7 +9698,7 @@ function SpatialDashboardBirdsEyeRouteView({
   onCreateProject: () => void;
   onCreateQuickChat: (
     title: string,
-    defaults: CreateIssueDialogDefaults
+    defaults: CreateIssueDialogDefaults,
   ) => Promise<IssueRecord>;
   onOpenIssueDetail: (issueId: string) => void;
   projects: ProjectRecord[];
@@ -9697,7 +9708,7 @@ function SpatialDashboardBirdsEyeRouteView({
 }) {
   const projectWorktreesByProjectId = useDashboardProjectWorktrees(
     projects,
-    projects.map((project) => project.id)
+    projects.map((project) => project.id),
   );
   const treeModel = useMemo(
     () =>
@@ -9716,14 +9727,14 @@ function SpatialDashboardBirdsEyeRouteView({
       projectWorktreesByProjectId,
       projects,
       workspaces,
-    ]
+    ],
   );
   const incomingCanvasStateKey = useMemo(
     () => JSON.stringify(canvasState ?? null),
-    [canvasState]
+    [canvasState],
   );
   const [localCanvasState, setLocalCanvasState] = useState<BirdsEyeCanvasState>(
-    () => parseBirdsEyeCanvasState(canvasState)
+    () => parseBirdsEyeCanvasState(canvasState),
   );
   const [isHelpMenuOpen, setIsHelpMenuOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -9764,7 +9775,7 @@ function SpatialDashboardBirdsEyeRouteView({
   const [isViewportDragging, setIsViewportDragging] = useState(false);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const worktreeBoardObserversRef = useRef<Map<string, ResizeObserver>>(
-    new Map()
+    new Map(),
   );
   const repoDragRef = useRef<{
     originX: number;
@@ -9796,25 +9807,25 @@ function SpatialDashboardBirdsEyeRouteView({
       buildBirdsEyeCanvasModel(
         treeModel,
         localCanvasState,
-        measuredWorktreeHeights
+        measuredWorktreeHeights,
       ),
-    [localCanvasState, measuredWorktreeHeights, treeModel]
+    [localCanvasState, measuredWorktreeHeights, treeModel],
   );
   const normalizedCanvasStateKey = useMemo(
     () =>
       JSON.stringify(serializeBirdsEyeCanvasState(canvasModel.normalizedState)),
-    [canvasModel.normalizedState]
+    [canvasModel.normalizedState],
   );
   const localCanvasStateKey = useMemo(
     () => JSON.stringify(serializeBirdsEyeCanvasState(localCanvasState)),
-    [localCanvasState]
+    [localCanvasState],
   );
   const effectiveCanvasState = canvasModel.normalizedState;
   const canvasZoomScale =
     birdsEyeCanvasZoomLevels[effectiveCanvasState.viewport.zoomIndex] ?? 1;
   const defaultQuickCreateDraft = useMemo(
     () => createBirdsEyeQuickCreateState(dependencyCheck).draft,
-    [dependencyCheck]
+    [dependencyCheck],
   );
   const repoRegions = canvasModel.repoRegions;
   const folderByKey = useMemo(() => {
@@ -9829,9 +9840,9 @@ function SpatialDashboardBirdsEyeRouteView({
   const projectById = useMemo(
     () =>
       new Map(
-        treeModel.projects.map((project) => [project.project.id, project])
+        treeModel.projects.map((project) => [project.project.id, project]),
       ),
-    [treeModel.projects]
+    [treeModel.projects],
   );
   const worktreeOptions = useMemo(
     () =>
@@ -9841,9 +9852,9 @@ function SpatialDashboardBirdsEyeRouteView({
           label: `${project.label} · ${folder.label}`,
           projectId: project.project.id,
           worktreeKey: folder.folderKey,
-        }))
+        })),
       ),
-    [treeModel.projects]
+    [treeModel.projects],
   );
   const focusedTarget = effectiveCanvasState.focusedTarget;
   const focusedProject =
@@ -9860,7 +9871,7 @@ function SpatialDashboardBirdsEyeRouteView({
 
   const setWorktreePanel = (
     worktreeKey: string | null | undefined,
-    panel: "sidebar" | "tiles"
+    panel: "sidebar" | "tiles",
   ) => {
     if (!worktreeKey) {
       return;
@@ -9871,7 +9882,7 @@ function SpatialDashboardBirdsEyeRouteView({
         : {
             ...current,
             [worktreeKey]: panel,
-          }
+          },
     );
   };
 
@@ -9932,8 +9943,8 @@ function SpatialDashboardBirdsEyeRouteView({
   useEffect(() => {
     const validWorktreeKeys = new Set(
       treeModel.projects.flatMap((project) =>
-        project.folders.map((folder) => folder.folderKey)
-      )
+        project.folders.map((folder) => folder.folderKey),
+      ),
     );
 
     setMeasuredWorktreeHeights((current) => {
@@ -9963,7 +9974,7 @@ function SpatialDashboardBirdsEyeRouteView({
     }
     const timeoutId = window.setTimeout(() => {
       setRecentlyOpenedTileKey((current) =>
-        current === recentlyOpenedTileKey ? null : current
+        current === recentlyOpenedTileKey ? null : current,
       );
     }, 240);
     return () => {
@@ -10050,7 +10061,7 @@ function SpatialDashboardBirdsEyeRouteView({
   }, [contextMenu]);
 
   const updateCanvasState = (
-    updater: (current: BirdsEyeCanvasState) => BirdsEyeCanvasState
+    updater: (current: BirdsEyeCanvasState) => BirdsEyeCanvasState,
   ) => {
     setLocalCanvasState((current) => updater(current));
   };
@@ -10079,7 +10090,7 @@ function SpatialDashboardBirdsEyeRouteView({
             : {
                 ...current,
                 [worktreeKey]: nextHeight,
-              }
+              },
         );
       };
 
@@ -10098,12 +10109,12 @@ function SpatialDashboardBirdsEyeRouteView({
 
   const setFocusedTarget = (
     nextTarget: BirdsEyeCanvasFocusTarget | null,
-    cause: BirdsEyeFocusChangeCause = "programmatic"
+    cause: BirdsEyeFocusChangeCause = "programmatic",
   ) => {
     if (nextTarget?.worktreeKey) {
       setWorktreePanel(
         nextTarget.worktreeKey,
-        nextTarget.kind === "tile" ? "tiles" : "sidebar"
+        nextTarget.kind === "tile" ? "tiles" : "sidebar",
       );
     }
     setLocalCanvasState((current) => {
@@ -10132,8 +10143,8 @@ function SpatialDashboardBirdsEyeRouteView({
           ...(current.repoRegions[projectId] ??
             defaultBirdsEyeRepoRegionState(
               treeModel.projects.findIndex(
-                (project) => project.project.id === projectId
-              )
+                (project) => project.project.id === projectId,
+              ),
             )),
           page,
         },
@@ -10150,12 +10161,12 @@ function SpatialDashboardBirdsEyeRouteView({
     const padding = 88;
     const fitScale = Math.min(
       (viewport.clientWidth - padding * 2) / canvasModel.bounds.width,
-      (viewport.clientHeight - padding * 2) / canvasModel.bounds.height
+      (viewport.clientHeight - padding * 2) / canvasModel.bounds.height,
     );
     const nextZoomIndex = birdsEyeCanvasZoomLevels.reduce(
       (bestIndex, zoomLevel, index) =>
         zoomLevel <= fitScale ? index : bestIndex,
-      0
+      0,
     );
 
     updateCanvasState((current) => ({
@@ -10182,7 +10193,7 @@ function SpatialDashboardBirdsEyeRouteView({
   const revealRepoRegionInViewport = (projectId: string) => {
     const viewport = viewportRef.current;
     const region = repoRegions.find(
-      (candidate) => candidate.project.project.id === projectId
+      (candidate) => candidate.project.project.id === projectId,
     );
     if (!(viewport && region)) {
       return;
@@ -10242,7 +10253,7 @@ function SpatialDashboardBirdsEyeRouteView({
       const nextZoomIndex = clampNumber(
         current.viewport.zoomIndex + delta,
         0,
-        birdsEyeCanvasZoomLevels.length - 1
+        birdsEyeCanvasZoomLevels.length - 1,
       );
       if (nextZoomIndex === current.viewport.zoomIndex) {
         return current;
@@ -10271,11 +10282,11 @@ function SpatialDashboardBirdsEyeRouteView({
     projectId: string,
     worktreeKey: string,
     issueId: string,
-    focusTile = true
+    focusTile = true,
   ) => {
     const isAlreadyOpen =
       effectiveCanvasState.worktreeTiles[worktreeKey]?.issueIds.includes(
-        issueId
+        issueId,
       ) ?? false;
     if (!isAlreadyOpen) {
       setRecentlyOpenedTileKey(`${worktreeKey}:${issueId}`);
@@ -10287,7 +10298,7 @@ function SpatialDashboardBirdsEyeRouteView({
         createEmptyBirdsEyeWorktreeTileState();
       let nextIssueIds = existingState.issueIds.filter(Boolean);
       let nextLruIds = existingState.lruIssueIds.filter((entry) =>
-        nextIssueIds.includes(entry)
+        nextIssueIds.includes(entry),
       );
 
       if (!nextIssueIds.includes(issueId)) {
@@ -10296,7 +10307,7 @@ function SpatialDashboardBirdsEyeRouteView({
             nextLruIds.find((entry) => nextIssueIds.includes(entry)) ??
             nextIssueIds[0];
           nextIssueIds = nextIssueIds.filter(
-            (entry) => entry !== evictedIssueId
+            (entry) => entry !== evictedIssueId,
           );
           nextLruIds = nextLruIds.filter((entry) => entry !== evictedIssueId);
         }
@@ -10338,17 +10349,17 @@ function SpatialDashboardBirdsEyeRouteView({
   const closeIssueTile = (
     projectId: string,
     worktreeKey: string,
-    issueId: string
+    issueId: string,
   ) => {
     updateCanvasState((current) => {
       const existingState =
         current.worktreeTiles[worktreeKey] ??
         createEmptyBirdsEyeWorktreeTileState();
       const nextIssueIds = existingState.issueIds.filter(
-        (entry) => entry !== issueId
+        (entry) => entry !== issueId,
       );
       const nextLruIds = existingState.lruIssueIds.filter(
-        (entry) => entry !== issueId
+        (entry) => entry !== issueId,
       );
       const nextActiveIssueId =
         existingState.activeIssueId === issueId
@@ -10391,7 +10402,7 @@ function SpatialDashboardBirdsEyeRouteView({
   const activateTile = (
     projectId: string,
     worktreeKey: string,
-    issueId: string
+    issueId: string,
   ) => {
     setWorktreePanel(worktreeKey, "tiles");
     updateCanvasState((current) => {
@@ -10442,7 +10453,7 @@ function SpatialDashboardBirdsEyeRouteView({
     }
 
     const currentIndex = tileState.issueIds.findIndex(
-      (issueId) => issueId === focusedTarget.issueId
+      (issueId) => issueId === focusedTarget.issueId,
     );
     if (currentIndex < 0) {
       return;
@@ -10512,7 +10523,7 @@ function SpatialDashboardBirdsEyeRouteView({
         projectId: nextProjectId,
         worktreeKey: null,
       },
-      "keyboard"
+      "keyboard",
     );
     revealRepoRegionInViewport(nextProjectId);
   };
@@ -10522,7 +10533,7 @@ function SpatialDashboardBirdsEyeRouteView({
       return;
     }
     const worktreeKeys = focusedProject.folders.map(
-      (folder) => folder.folderKey
+      (folder) => folder.folderKey,
     );
     if (worktreeKeys.length === 0) {
       return;
@@ -10546,7 +10557,7 @@ function SpatialDashboardBirdsEyeRouteView({
         projectId: focusedProject.project.id,
         worktreeKey: nextWorktreeKey,
       },
-      "keyboard"
+      "keyboard",
     );
   };
 
@@ -10562,7 +10573,7 @@ function SpatialDashboardBirdsEyeRouteView({
       focusedTarget?.issueId ?? chatsInWorktree[0]?.chat.id ?? null;
     const currentIndex = Math.max(
       chatsInWorktree.findIndex((chat) => chat.chat.id === currentIssueId),
-      0
+      0,
     );
     const nextIndex =
       direction === "next"
@@ -10576,7 +10587,7 @@ function SpatialDashboardBirdsEyeRouteView({
         projectId: focusedWorktree.projectId,
         worktreeKey: focusedWorktree.folderKey,
       },
-      "keyboard"
+      "keyboard",
     );
   };
 
@@ -10597,7 +10608,7 @@ function SpatialDashboardBirdsEyeRouteView({
         : (tileState.activeIssueId ?? tileState.issueIds[0]);
     const currentIndex = Math.max(
       tileState.issueIds.findIndex((issueId) => issueId === currentIssueId),
-      0
+      0,
     );
     const nextIndex =
       direction === "next"
@@ -10608,14 +10619,14 @@ function SpatialDashboardBirdsEyeRouteView({
     activateTile(
       focusedWorktree.projectId,
       focusedWorktree.folderKey,
-      nextIssueId
+      nextIssueId,
     );
   };
 
   const openFocusedQuickCreate = (
     anchor?: { x: number; y: number },
     preferredProjectId?: string | null,
-    preferredWorktreeKey?: string | null
+    preferredWorktreeKey?: string | null,
   ) => {
     const fallbackFolder =
       (preferredWorktreeKey ? folderByKey.get(preferredWorktreeKey) : null) ??
@@ -10668,7 +10679,7 @@ function SpatialDashboardBirdsEyeRouteView({
     scope: {
       projectId: string | null;
       worktreeKey: string | null;
-    } | null = null
+    } | null = null,
   ) => {
     setContextMenu(null);
     setIsCommandPaletteOpen(true);
@@ -10714,7 +10725,7 @@ function SpatialDashboardBirdsEyeRouteView({
                 chat.projectId,
                 folder.folderKey,
                 chat.chat.id,
-                true
+                true,
               );
               setIsCommandPaletteOpen(false);
             },
@@ -10735,7 +10746,7 @@ function SpatialDashboardBirdsEyeRouteView({
           openFocusedQuickCreate(
             undefined,
             commandPaletteScope?.projectId ?? null,
-            commandPaletteScope?.worktreeKey ?? null
+            commandPaletteScope?.worktreeKey ?? null,
           ),
       },
       {
@@ -10765,7 +10776,7 @@ function SpatialDashboardBirdsEyeRouteView({
         keywords: "reset viewport origin",
         label: "Reset canvas position",
         run: resetCanvasViewport,
-      }
+      },
     );
 
     return actions;
@@ -10790,7 +10801,7 @@ function SpatialDashboardBirdsEyeRouteView({
     return commandActions.filter((action) =>
       `${action.label} ${action.description} ${action.keywords}`
         .toLowerCase()
-        .includes(query)
+        .includes(query),
     );
   }, [commandActions, commandPaletteQuery]);
 
@@ -10801,7 +10812,7 @@ function SpatialDashboardBirdsEyeRouteView({
   const openContextMenu = (
     event: MouseEvent<HTMLElement>,
     projectId: string | null,
-    worktreeKey: string | null
+    worktreeKey: string | null,
   ) => {
     event.preventDefault();
     setContextMenu({
@@ -10840,7 +10851,7 @@ function SpatialDashboardBirdsEyeRouteView({
                 projectId: focusedWorktree.projectId,
                 worktreeKey: focusedWorktree.folderKey,
               }
-            : null
+            : null,
         );
         return;
       }
@@ -10857,8 +10868,8 @@ function SpatialDashboardBirdsEyeRouteView({
             clampNumber(
               current + 1,
               0,
-              Math.max(filteredCommandActions.length - 1, 0)
-            )
+              Math.max(filteredCommandActions.length - 1, 0),
+            ),
           );
           return;
         }
@@ -10868,8 +10879,8 @@ function SpatialDashboardBirdsEyeRouteView({
             clampNumber(
               current - 1,
               0,
-              Math.max(filteredCommandActions.length - 1, 0)
-            )
+              Math.max(filteredCommandActions.length - 1, 0),
+            ),
           );
           return;
         }
@@ -10913,7 +10924,7 @@ function SpatialDashboardBirdsEyeRouteView({
             projectId: repoRegions[0]?.project.project.id ?? "",
             worktreeKey: null,
           },
-          "keyboard"
+          "keyboard",
         );
         return;
       }
@@ -11016,7 +11027,7 @@ function SpatialDashboardBirdsEyeRouteView({
               focusedTarget.projectId,
               focusedTarget.worktreeKey,
               focusedTarget.issueId,
-              true
+              true,
             );
             return;
           }
@@ -11029,7 +11040,7 @@ function SpatialDashboardBirdsEyeRouteView({
             activateTile(
               focusedWorktree.projectId,
               focusedWorktree.folderKey,
-              activeTileIssueId
+              activeTileIssueId,
             );
           }
           return;
@@ -11050,7 +11061,7 @@ function SpatialDashboardBirdsEyeRouteView({
               projectId: focusedWorktree.projectId,
               worktreeKey: focusedWorktree.folderKey,
             },
-            "keyboard"
+            "keyboard",
           );
         } else {
           setFocusedTarget(
@@ -11060,7 +11071,7 @@ function SpatialDashboardBirdsEyeRouteView({
               projectId: focusedWorktree.projectId,
               worktreeKey: focusedWorktree.folderKey,
             },
-            "keyboard"
+            "keyboard",
           );
         }
         return;
@@ -11081,7 +11092,7 @@ function SpatialDashboardBirdsEyeRouteView({
             activateTile(
               focusedWorktree.projectId,
               focusedWorktree.folderKey,
-              issueId
+              issueId,
             );
           }
           return;
@@ -11093,7 +11104,7 @@ function SpatialDashboardBirdsEyeRouteView({
             closeIssueTile(
               focusedWorktree.projectId,
               focusedWorktree.folderKey,
-              focusedTarget.issueId
+              focusedTarget.issueId,
             );
           }
           return;
@@ -11102,7 +11113,7 @@ function SpatialDashboardBirdsEyeRouteView({
         if (
           event.altKey &&
           ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(
-            event.key
+            event.key,
           )
         ) {
           event.preventDefault();
@@ -11113,7 +11124,7 @@ function SpatialDashboardBirdsEyeRouteView({
                 ? "right"
                 : event.key === "ArrowUp"
                   ? "up"
-                  : "down"
+                  : "down",
           );
           return;
         }
@@ -11143,7 +11154,7 @@ function SpatialDashboardBirdsEyeRouteView({
                 projectId: nextChat.projectId,
                 worktreeKey: focusedWorktree?.folderKey ?? null,
               },
-              "keyboard"
+              "keyboard",
             );
           }
         }
@@ -11185,7 +11196,7 @@ function SpatialDashboardBirdsEyeRouteView({
           focusedTarget.projectId,
           focusedTarget.worktreeKey,
           focusedTarget.issueId,
-          Boolean(isPrimaryModifier)
+          Boolean(isPrimaryModifier),
         );
         return;
       }
@@ -11200,7 +11211,7 @@ function SpatialDashboardBirdsEyeRouteView({
         closeIssueTile(
           focusedTarget.projectId,
           focusedTarget.worktreeKey,
-          focusedTarget.issueId
+          focusedTarget.issueId,
         );
       }
     };
@@ -11306,7 +11317,7 @@ function SpatialDashboardBirdsEyeRouteView({
     const target = event.target as HTMLElement | null;
     if (
       target?.closest(
-        "input, textarea, select, button, [role='menu'], .shadcn-select-content"
+        "input, textarea, select, button, [role='menu'], .shadcn-select-content",
       )
     ) {
       return;
@@ -11373,7 +11384,7 @@ function SpatialDashboardBirdsEyeRouteView({
             errorMessage: null,
             isSaving: true,
           }
-        : current
+        : current,
     );
 
     try {
@@ -11392,7 +11403,7 @@ function SpatialDashboardBirdsEyeRouteView({
                 error instanceof Error ? error.message : String(error),
               isSaving: false,
             }
-          : current
+          : current,
       );
     }
   };
@@ -11530,7 +11541,7 @@ function SpatialDashboardBirdsEyeRouteView({
                                 projectId: region.project.project.id,
                                 worktreeKey: null,
                               },
-                              "click"
+                              "click",
                             )
                           }
                           onPointerDown={(event) => {
@@ -11555,7 +11566,7 @@ function SpatialDashboardBirdsEyeRouteView({
                               startY: event.clientY,
                             };
                             event.currentTarget.setPointerCapture(
-                              event.pointerId
+                              event.pointerId,
                             );
                             event.stopPropagation();
                           }}
@@ -11578,8 +11589,8 @@ function SpatialDashboardBirdsEyeRouteView({
                                     clampNumber(
                                       region.page - 1,
                                       0,
-                                      region.totalPages - 1
-                                    )
+                                      region.totalPages - 1,
+                                    ),
                                   )
                                 }
                                 type="button"
@@ -11597,8 +11608,8 @@ function SpatialDashboardBirdsEyeRouteView({
                                     clampNumber(
                                       region.page + 1,
                                       0,
-                                      region.totalPages - 1
-                                    )
+                                      region.totalPages - 1,
+                                    ),
                                   )
                                 }
                                 type="button"
@@ -11641,11 +11652,11 @@ function SpatialDashboardBirdsEyeRouteView({
                                       projectId: board.folder.projectId,
                                       worktreeKey: board.folder.folderKey,
                                     },
-                                    "click"
+                                    "click",
                                   )
                                 }
                                 ref={registerWorktreeBoard(
-                                  board.folder.folderKey
+                                  board.folder.folderKey,
                                 )}
                                 style={{
                                   left: board.x,
@@ -11660,7 +11671,7 @@ function SpatialDashboardBirdsEyeRouteView({
                                     <span>
                                       {board.folder.secondaryLabel ??
                                         formatCompactIssueTimestamp(
-                                          board.folder.lastActivityAt
+                                          board.folder.lastActivityAt,
                                         )}
                                     </span>
                                   </div>
@@ -11689,7 +11700,7 @@ function SpatialDashboardBirdsEyeRouteView({
                                               board.folder.folderKey;
                                           const isOpen =
                                             board.tileState.issueIds.includes(
-                                              chat.chat.id
+                                              chat.chat.id,
                                             );
                                           const isActiveTile =
                                             board.tileState.activeIssueId ===
@@ -11707,7 +11718,7 @@ function SpatialDashboardBirdsEyeRouteView({
                                                   activateTile(
                                                     board.folder.projectId,
                                                     board.folder.folderKey,
-                                                    chat.chat.id
+                                                    chat.chat.id,
                                                   );
                                                   return;
                                                 }
@@ -11716,7 +11727,7 @@ function SpatialDashboardBirdsEyeRouteView({
                                                   board.folder.projectId,
                                                   board.folder.folderKey,
                                                   chat.chat.id,
-                                                  true
+                                                  true,
                                                 );
                                               }}
                                             />
@@ -11746,7 +11757,7 @@ function SpatialDashboardBirdsEyeRouteView({
                                         activateTile(
                                           board.folder.projectId,
                                           board.folder.folderKey,
-                                          board.tileState.activeIssueId
+                                          board.tileState.activeIssueId,
                                         );
                                         return;
                                       }
@@ -11757,11 +11768,11 @@ function SpatialDashboardBirdsEyeRouteView({
                                           projectId: board.folder.projectId,
                                           worktreeKey: board.folder.folderKey,
                                         },
-                                        "click"
+                                        "click",
                                       );
                                       setWorktreePanel(
                                         board.folder.folderKey,
-                                        "tiles"
+                                        "tiles",
                                       );
                                     }}
                                   >
@@ -11774,7 +11785,7 @@ function SpatialDashboardBirdsEyeRouteView({
                                             const tileChat =
                                               board.folder.chats.find(
                                                 (chat) =>
-                                                  chat.chat.id === issueId
+                                                  chat.chat.id === issueId,
                                               ) ?? null;
                                             if (!tileChat) {
                                               return null;
@@ -11817,7 +11828,7 @@ function SpatialDashboardBirdsEyeRouteView({
                                                   activateTile(
                                                     board.folder.projectId,
                                                     board.folder.folderKey,
-                                                    issueId
+                                                    issueId,
                                                   );
                                                 }}
                                                 onContextMenu={(event) =>
@@ -11833,7 +11844,7 @@ function SpatialDashboardBirdsEyeRouteView({
                                                     </strong>
                                                     <span>
                                                       {issueStatusLabel(
-                                                        tileChat.chat.status
+                                                        tileChat.chat.status,
                                                       )}
                                                     </span>
                                                   </div>
@@ -11844,7 +11855,7 @@ function SpatialDashboardBirdsEyeRouteView({
                                                       closeIssueTile(
                                                         board.folder.projectId,
                                                         board.folder.folderKey,
-                                                        issueId
+                                                        issueId,
                                                       );
                                                     }}
                                                     type="button"
@@ -11862,8 +11873,8 @@ function SpatialDashboardBirdsEyeRouteView({
                                                             .projectId,
                                                           board.folder
                                                             .folderKey,
-                                                          issueId
-                                                        )
+                                                          issueId,
+                                                        ),
                                                     )}
                                                   </div>
                                                 ) : (
@@ -11876,7 +11887,7 @@ function SpatialDashboardBirdsEyeRouteView({
                                                             .projectId,
                                                           board.folder
                                                             .folderKey,
-                                                          issueId
+                                                          issueId,
                                                         )
                                                       }
                                                     />
@@ -11884,7 +11895,7 @@ function SpatialDashboardBirdsEyeRouteView({
                                                 )}
                                               </div>
                                             );
-                                          }
+                                          },
                                         )}
                                       </div>
                                     ) : null}
@@ -11899,7 +11910,7 @@ function SpatialDashboardBirdsEyeRouteView({
                                         openContextMenu(
                                           event,
                                           board.folder.projectId,
-                                          board.folder.folderKey
+                                          board.folder.folderKey,
                                         )
                                       }
                                     >
@@ -12054,7 +12065,7 @@ function SpatialDashboardBirdsEyeRouteView({
               openFocusedQuickCreate(
                 { x: contextMenu.x, y: contextMenu.y },
                 contextMenu.projectId,
-                contextMenu.worktreeKey
+                contextMenu.worktreeKey,
               );
               return;
             }
@@ -12102,7 +12113,7 @@ function SpatialDashboardBirdsEyeRouteView({
                     },
                     errorMessage: null,
                   }
-                : current
+                : current,
             )
           }
           onProjectWorktreeChange={(value) => {
@@ -12131,7 +12142,7 @@ function SpatialDashboardBirdsEyeRouteView({
                     projectId: nextOption.projectId,
                     worktreeKey: nextOption.worktreeKey,
                   }
-                : current
+                : current,
             );
           }}
           onSubmit={handleQuickCreateSubmit}
@@ -12143,7 +12154,7 @@ function SpatialDashboardBirdsEyeRouteView({
                     errorMessage: null,
                     title,
                   }
-                : current
+                : current,
             )
           }
           selectedWorktreeKey={quickCreateState.worktreeKey}
@@ -12182,7 +12193,7 @@ function SpatialBirdsEyeContextMenu({
       | "new-chat"
       | "new-agent-session"
       | "open-existing-chat"
-      | "run-command"
+      | "run-command",
   ) => void;
   x: number;
   y: number;
@@ -12250,11 +12261,11 @@ function SpatialBirdsEyeQuickCreatePanel({
   const runtimeProvider = detectAgentCliProvider(draft.command, draft.model);
   const runtimeModelOptions = buildAgentModelOptions(
     { command: draft.command, model: draft.model },
-    dependencyCheck
+    dependencyCheck,
   );
   const runtimeThinkingEffortOptions = mergeIssueOptions(
     ["auto", "low", "medium", "high"],
-    draft.thinkingEffort
+    draft.thinkingEffort,
   );
 
   return (
@@ -12662,15 +12673,15 @@ export function BirdsEyeQuickCreateRow({
   const runtimeProviderOptions = buildIssueRuntimeProviderOptions(
     dependencyCheck,
     draft.command,
-    draft.model
+    draft.model,
   );
   const runtimeModelOptions = buildAgentModelOptions(
     { command: draft.command, model: draft.model },
-    dependencyCheck
+    dependencyCheck,
   );
   const runtimeThinkingEffortOptions = mergeIssueOptions(
     ["auto", "low", "medium", "high"],
-    draft.thinkingEffort
+    draft.thinkingEffort,
   );
   const sourceLabel =
     sourceNode?.kind === "chat"
@@ -12709,8 +12720,8 @@ export function BirdsEyeQuickCreateRow({
                     runtimeDraftPatchForProviderSelection(
                       value,
                       draft,
-                      dependencyCheck
-                    )
+                      dependencyCheck,
+                    ),
                   )
                 }
                 value={draft.command}
@@ -13011,12 +13022,12 @@ function DashboardCanvasRouteView({
   onCreateIssueForColumn: (defaults?: CreateIssueDialogDefaults) => void;
   onCreateProjectView: (
     projectId: string,
-    draft: DashboardProjectViewDraft
+    draft: DashboardProjectViewDraft,
   ) => Promise<void>;
   onProjectGroupingChange: (
     projectId: string,
     viewId: string,
-    grouping: DashboardProjectGrouping
+    grouping: DashboardProjectGrouping,
   ) => void;
   onZoomIndexChange: (nextZoomIndex: number) => void;
   issueRunCardUpdatesByIssueId: Record<string, IssueRunCardUpdateRecord>;
@@ -13026,7 +13037,7 @@ function DashboardCanvasRouteView({
   viewportRef: RefObject<HTMLDivElement | null>;
 }) {
   const [creatingProjectId, setCreatingProjectId] = useState<string | null>(
-    null
+    null,
   );
   const [newProjectViewName, setNewProjectViewName] = useState("");
   const [newProjectViewGrouping, setNewProjectViewGrouping] =
@@ -13048,12 +13059,12 @@ function DashboardCanvasRouteView({
   }, [creatingProjectId, projectColumns]);
 
   const handleOpenProjectViewComposer = (
-    projectColumn: DashboardProjectColumnLayout
+    projectColumn: DashboardProjectColumnLayout,
   ) => {
     setCreatingProjectId(projectColumn.project.id);
     setNewProjectViewName(nextDashboardProjectViewName(projectColumn.boards));
     setNewProjectViewGrouping(
-      nextDashboardProjectViewGrouping(projectColumn.boards)
+      nextDashboardProjectViewGrouping(projectColumn.boards),
     );
     setProjectViewError(null);
   };
@@ -13078,7 +13089,7 @@ function DashboardCanvasRouteView({
       handleCloseProjectViewComposer();
     } catch (error) {
       setProjectViewError(
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       );
     } finally {
       setSavingProjectId((current) => (current === projectId ? null : current));
@@ -13181,7 +13192,7 @@ function DashboardCanvasRouteView({
                                   onProjectGroupingChange(
                                     projectColumn.project.id,
                                     projectBoard.viewId,
-                                    nextValue
+                                    nextValue,
                                   )
                                 }
                                 options={dashboardProjectGroupingSelectOptions}
@@ -13255,19 +13266,19 @@ function DashboardCanvasRouteView({
                                           ] ?? null;
                                         const cardUpdateSummary = cardUpdate
                                           ? issueRunCardUpdateSummary(
-                                              cardUpdate
+                                              cardUpdate,
                                             )
                                           : null;
                                         const issueAgentLabel = issueModelLabel(
                                           issue,
-                                          agents
+                                          agents,
                                         );
                                         const hasAssignedAgent =
                                           Boolean(issue.assignee_agent_id) ||
                                           Object.keys(
                                             objectFromUnknown(
-                                              issue.assignee_adapter_overrides
-                                            )
+                                              issue.assignee_adapter_overrides,
+                                            ),
                                           ).length > 0;
 
                                         return (
@@ -13306,7 +13317,7 @@ function DashboardCanvasRouteView({
                                                   className={`agent-run-status-badge ${agentRunStatusTone(cardUpdate.run_status)} project-kanban-card-update-status`}
                                                 >
                                                   {agentRunStatusLabel(
-                                                    cardUpdate.run_status
+                                                    cardUpdate.run_status,
                                                   )}
                                                 </span>
                                                 <span
@@ -13385,7 +13396,7 @@ function DashboardCanvasRouteView({
                                 disabled={isSavingProjectView}
                                 onClick={() =>
                                   void handleSaveProjectView(
-                                    projectColumn.project.id
+                                    projectColumn.project.id,
                                   )
                                 }
                                 type="button"
@@ -13578,7 +13589,7 @@ function IssueDetailView({
   const issueValidationMessage = issueStatusAssigneeValidationMessage(
     issueDraft.status,
     issueDraft.assigneeAgentId,
-    agents
+    agents,
   );
   const visibleIssueEditorError = issueValidationMessage ?? issueEditorError;
   const selectedProject =
@@ -13590,7 +13601,7 @@ function IssueDetailView({
     normalizedIssueStatus === "done" || normalizedIssueStatus === "cancelled";
   const selectedWorkspaceTargetValue = issueWorkspaceTargetSelectValue(
     issueDraft.workspaceTargetMode,
-    issueDraft.workspaceWorktreePath
+    issueDraft.workspaceWorktreePath,
   );
   const workspaceTargetHint = issueWorkspaceTargetHint({
     errorMessage: workspaceTargetErrorMessage,
@@ -13604,7 +13615,7 @@ function IssueDetailView({
     !workspaceTargetWorktrees.some(
       (worktree) =>
         existingWorktreeTargetValue(worktree.path) ===
-        selectedWorkspaceTargetValue
+        selectedWorkspaceTargetValue,
     )
       ? {
           name:
@@ -13615,20 +13626,20 @@ function IssueDetailView({
       : null;
   const runtimeProvider = detectAgentCliProvider(
     issueDraft.command,
-    issueDraft.model
+    issueDraft.model,
   );
   const runtimeModelOptions = buildAgentModelOptions(
     issueDraft,
-    dependencyCheck
+    dependencyCheck,
   );
   const runtimeThinkingEffortOptions = mergeIssueOptions(
     ["auto", "low", "medium", "high"],
-    issueDraft.thinkingEffort
+    issueDraft.thinkingEffort,
   );
   const runtimeProviderOptions = buildIssueRuntimeProviderOptions(
     dependencyCheck,
     issueDraft.command,
-    issueDraft.model
+    issueDraft.model,
   );
   const runtimeBrowserToggleLabel =
     runtimeProvider === "codex" ? "Enable web search" : "Enable Chrome";
@@ -13682,7 +13693,9 @@ function IssueDetailView({
 
         setLinkedRuns([]);
         setLinkedRunsError(
-          error instanceof Error ? error.message : "Could not load linked runs."
+          error instanceof Error
+            ? error.message
+            : "Could not load linked runs.",
         );
       })
       .finally(() => {
@@ -14287,8 +14300,8 @@ function IssueDetailView({
                         issueWorkspaceDraftPatchFromSelection(
                           value,
                           workspaceTargetWorktrees,
-                          issueDraft
-                        )
+                          issueDraft,
+                        ),
                       )
                     }
                     tone="neutral"
@@ -14309,7 +14322,7 @@ function IssueDetailView({
                     {fallbackSelectedWorktree ? (
                       <option
                         value={existingWorktreeTargetValue(
-                          fallbackSelectedWorktree.path
+                          fallbackSelectedWorktree.path,
                         )}
                       >
                         {fallbackSelectedWorktree.name}
@@ -14354,8 +14367,8 @@ function IssueDetailView({
                             runtimeDraftPatchForProviderSelection(
                               value,
                               issueDraft,
-                              dependencyCheck
-                            )
+                              dependencyCheck,
+                            ),
                           )
                         }
                         value={issueDraft.command}
@@ -14579,13 +14592,13 @@ function ConversationIssueDetailView({
 
   const conversationRows = useMemo(
     () => buildConversationTimeline(sessionMessages),
-    [sessionMessages]
+    [sessionMessages],
   );
   const issueProjectName = projectLabel(issueDraft.projectId || null);
   const issueValidationMessage = issueStatusAssigneeValidationMessage(
     issueDraft.status,
     issueDraft.assigneeAgentId,
-    agents
+    agents,
   );
   const visibleIssueEditorError = issueValidationMessage ?? issueEditorError;
   const selectedProject =
@@ -14594,7 +14607,7 @@ function ConversationIssueDetailView({
     selectedProject?.primary_workspace?.cwd ?? null;
   const selectedWorkspaceTargetValue = issueWorkspaceTargetSelectValue(
     issueDraft.workspaceTargetMode,
-    issueDraft.workspaceWorktreePath
+    issueDraft.workspaceWorktreePath,
   );
   const workspaceTargetHint = issueWorkspaceTargetHint({
     errorMessage: workspaceTargetErrorMessage,
@@ -14608,7 +14621,7 @@ function ConversationIssueDetailView({
     !workspaceTargetWorktrees.some(
       (worktree) =>
         existingWorktreeTargetValue(worktree.path) ===
-        selectedWorkspaceTargetValue
+        selectedWorkspaceTargetValue,
     )
       ? {
           name:
@@ -14619,20 +14632,20 @@ function ConversationIssueDetailView({
       : null;
   const runtimeProvider = detectAgentCliProvider(
     issueDraft.command,
-    issueDraft.model
+    issueDraft.model,
   );
   const runtimeModelOptions = buildAgentModelOptions(
     issueDraft,
-    dependencyCheck
+    dependencyCheck,
   );
   const runtimeThinkingEffortOptions = mergeIssueOptions(
     ["auto", "low", "medium", "high"],
-    issueDraft.thinkingEffort
+    issueDraft.thinkingEffort,
   );
   const runtimeProviderOptions = buildIssueRuntimeProviderOptions(
     dependencyCheck,
     issueDraft.command,
-    issueDraft.model
+    issueDraft.model,
   );
   const runtimeBrowserToggleLabel =
     runtimeProvider === "codex" ? "Enable web search" : "Enable Chrome";
@@ -15223,8 +15236,8 @@ function ConversationIssueDetailView({
                         issueWorkspaceDraftPatchFromSelection(
                           value,
                           workspaceTargetWorktrees,
-                          issueDraft
-                        )
+                          issueDraft,
+                        ),
                       )
                     }
                     tone="neutral"
@@ -15245,7 +15258,7 @@ function ConversationIssueDetailView({
                     {fallbackSelectedWorktree ? (
                       <option
                         value={existingWorktreeTargetValue(
-                          fallbackSelectedWorktree.path
+                          fallbackSelectedWorktree.path,
                         )}
                       >
                         {fallbackSelectedWorktree.name}
@@ -15290,8 +15303,8 @@ function ConversationIssueDetailView({
                             runtimeDraftPatchForProviderSelection(
                               value,
                               issueDraft,
-                              dependencyCheck
-                            )
+                              dependencyCheck,
+                            ),
                           )
                         }
                         value={issueDraft.command}
@@ -15428,7 +15441,7 @@ function ConversationIssueDetailView({
   );
 }
 
-function IssueWorkspaceDetailView({
+export function IssueWorkspaceDetailView({
   agents,
   availableStatusOptions,
   dependencyCheck,
@@ -15524,38 +15537,36 @@ function IssueWorkspaceDetailView({
   workspaceTargetWorktrees: GitWorktreeRecord[];
 }) {
   const issueProjectName = projectLabel(
-    issueDraft.projectId || issue.project_id
+    issueDraft.projectId || issue.project_id,
   );
   const issueBreadcrumbTitle = issueDraft.title.trim() || issue.title;
   const hasWorkspaceSession = Boolean(workspace?.session_id);
-  const isConversationLoading =
-    sessionLoading ||
-    (hasWorkspaceSession && session == null && sessionRows.length === 0);
+  const isConversationLoading = sessionLoading && sessionRows.length === 0;
   const composerDisabled = !session;
   const effectiveWorkspaceCenterTab =
     workspaceCenterTab === "runs" ? "conversation" : workspaceCenterTab;
   const runtimeProvider = detectAgentCliProvider(
     issueDraft.command,
-    issueDraft.model
+    issueDraft.model,
   );
   const runtimeProviderOptions = buildIssueRuntimeProviderOptions(
     dependencyCheck,
     issueDraft.command,
-    issueDraft.model
+    issueDraft.model,
   );
   const runtimeModelOptions = buildAgentModelOptions(
     issueDraft,
-    dependencyCheck
+    dependencyCheck,
   );
   const runtimeThinkingEffortOptions = mergeIssueOptions(
     ["auto", "low", "medium", "high"],
-    issueDraft.thinkingEffort
+    issueDraft.thinkingEffort,
   );
-  const isSessionStreaming =
-    runtimeStatusValue === "running" || runtimeStatusValue === "waiting";
+  const isSessionStreaming = runtimeStatusValue === "running";
+  const isSessionAwaitingInput = runtimeStatusValue === "waiting";
   const runtimeTone = workspaceRuntimeTone(
     runtimeStatusValue,
-    sessionErrorMessage
+    sessionErrorMessage,
   );
 
   const commitRuntimePatch = (patch: Partial<IssueEditDraft>) => {
@@ -15621,11 +15632,11 @@ function IssueWorkspaceDetailView({
                     agentLabel={
                       issueAssigneeLabel(
                         agents,
-                        issueDraft.assigneeAgentId || issue.assignee_agent_id
+                        issueDraft.assigneeAgentId || issue.assignee_agent_id,
                       ) ||
                       providerLabelForRuntimeConfig(
                         issueDraft.command,
-                        issueDraft.model
+                        issueDraft.model,
                       )
                     }
                     issueLabel={issueDraft.title.trim() || issue.title}
@@ -15666,6 +15677,7 @@ function IssueWorkspaceDetailView({
 
                   <WorkspaceChatComposer
                     disabled={composerDisabled}
+                    isAwaitingInput={isSessionAwaitingInput}
                     isPlanMode={issueDraft.planMode}
                     isStreaming={isSessionStreaming}
                     latestCompletionSummary={latestCompletionSummary}
@@ -15686,8 +15698,8 @@ function IssueWorkspaceDetailView({
                         runtimeDraftPatchForProviderSelection(
                           value,
                           issueDraft,
-                          dependencyCheck
-                        )
+                          dependencyCheck,
+                        ),
                       )
                     }
                     onSend={handleSendPromptFromComposer}
@@ -16026,6 +16038,7 @@ export function WorkspaceRuntimeStatusLine({
 
 export function WorkspaceChatComposer({
   disabled,
+  isAwaitingInput = false,
   isPlanMode,
   isStreaming,
   latestCompletionSummary,
@@ -16046,6 +16059,7 @@ export function WorkspaceChatComposer({
   value,
 }: {
   disabled: boolean;
+  isAwaitingInput?: boolean;
   isPlanMode: boolean;
   isStreaming: boolean;
   latestCompletionSummary?: SessionCompletionSummary | null;
@@ -16074,7 +16088,7 @@ export function WorkspaceChatComposer({
   const planModeAvailable =
     detectAgentCliProvider(selectedProvider, selectedModel) === "claude";
   const completionMetrics = formatSessionCompletionMetrics(
-    latestCompletionSummary ?? null
+    latestCompletionSummary ?? null,
   );
 
   useEffect(() => {
@@ -16134,7 +16148,7 @@ export function WorkspaceChatComposer({
     if (disabled) {
       return;
     }
-    if (isStreaming) {
+    if (isStreaming && !isAwaitingInput) {
       onCancel?.();
       return;
     }
@@ -16145,11 +16159,14 @@ export function WorkspaceChatComposer({
   };
 
   const handleInputKeyDown = (
-    event: ReactKeyboardEvent<HTMLTextAreaElement>
+    event: ReactKeyboardEvent<HTMLTextAreaElement>,
   ) => {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
       event.preventDefault();
-      if (!(disabled || isStreaming) && trimmedValue.length > 0) {
+      if (
+        !(disabled || (isStreaming && !isAwaitingInput)) &&
+        trimmedValue.length > 0
+      ) {
         onSend();
       }
       return;
@@ -16335,12 +16352,21 @@ export function WorkspaceChatComposer({
           )}
         </div>
         <button
-          aria-label={isStreaming ? "Stop response" : "Send prompt"}
+          aria-label={
+            isStreaming && !isAwaitingInput ? "Stop response" : "Send prompt"
+          }
           className="workspace-chat-send-button"
-          disabled={disabled || (!isStreaming && trimmedValue.length === 0)}
+          disabled={
+            disabled ||
+            (!(isStreaming && !isAwaitingInput) && trimmedValue.length === 0)
+          }
           type="submit"
         >
-          {isStreaming ? <ComposerStopIcon /> : <ComposerSendIcon />}
+          {isStreaming && !isAwaitingInput ? (
+            <ComposerStopIcon />
+          ) : (
+            <ComposerSendIcon />
+          )}
         </button>
       </div>
     </form>
@@ -16419,7 +16445,7 @@ function ComposerStopIcon() {
 }
 
 function formatSessionCompletionMetrics(
-  summary: SessionCompletionSummary | null
+  summary: SessionCompletionSummary | null,
 ) {
   if (!summary) {
     return "";
@@ -16606,7 +16632,7 @@ function ConversationTextBlockView({ text }: { text: string }) {
           <div className="conversation-text-block" key={segment.id}>
             {segment.content}
           </div>
-        )
+        ),
       )}
     </div>
   );
@@ -16878,7 +16904,7 @@ type ConversationTextSegment = {
 };
 
 function splitConversationTextSegments(
-  text: string
+  text: string,
 ): ConversationTextSegment[] {
   const source = text.trim();
   if (!source.includes("```")) {
@@ -17636,29 +17662,29 @@ function CostsRouteView({
         }
 
         return (left.name || left.title || left.role || left.id).localeCompare(
-          right.name || right.title || right.role || right.id
+          right.name || right.title || right.role || right.id,
         );
       }),
-    [agents]
+    [agents],
   );
   const companyBudget = companyBudgetCents(company);
   const companySpent = companySpentCents(company);
   const companyRemaining = companyBudget - companySpent;
   const agentTrackedSpend = sortedAgents.reduce(
     (total, agent) => total + agentSpentCents(agent),
-    0
+    0,
   );
   const agentsWithSpendCount = sortedAgents.filter(
-    (agent) => agentSpentCents(agent) > 0
+    (agent) => agentSpentCents(agent) > 0,
   ).length;
   const overBudgetAgentsCount = sortedAgents.filter(isAgentOverBudget).length;
   const companyUtilizationLabel = formatBudgetUtilization(
     companySpent,
-    companyBudget
+    companyBudget,
   );
   const companyBudgetStatus = companyBudgetStatusLabel(
     companySpent,
-    companyBudget
+    companyBudget,
   );
   const unattributedSpend = companySpent - agentTrackedSpend;
 
@@ -18039,7 +18065,7 @@ function CreateIssueDialogView({
   const issueThinkingEffort = stringFromUnknown(thinkingEffort, "auto");
   const issueWorkspaceTargetValue = stringFromUnknown(
     selectedWorkspaceTargetValue,
-    "main"
+    "main",
   );
   const issueErrorMessage = errorMessage
     ? stringFromUnknown(errorMessage)
@@ -18056,13 +18082,13 @@ function CreateIssueDialogView({
       Boolean(attachment) &&
       typeof attachment === "object" &&
       typeof (attachment as IssueAttachmentDraft).path === "string" &&
-      typeof (attachment as IssueAttachmentDraft).name === "string"
+      typeof (attachment as IssueAttachmentDraft).name === "string",
   );
   const projectOptions = arrayFromUnknown(projects).filter(
     (project): project is ProjectRecord =>
       Boolean(project) &&
       typeof project === "object" &&
-      typeof (project as ProjectRecord).id === "string"
+      typeof (project as ProjectRecord).id === "string",
   );
   const worktreeOptions = normalizeGitWorktreeRecords(workspaceTargetWorktrees);
   const dialogTitle =
@@ -18089,7 +18115,8 @@ function CreateIssueDialogView({
     issueWorkspaceTargetValue.startsWith("existing:") &&
     !worktreeOptions.some(
       (worktree) =>
-        existingWorktreeTargetValue(worktree.path) === issueWorkspaceTargetValue
+        existingWorktreeTargetValue(worktree.path) ===
+        issueWorkspaceTargetValue,
     )
       ? {
           name: fileName(issueWorkspaceTargetValue.slice("existing:".length)),
@@ -18106,16 +18133,16 @@ function CreateIssueDialogView({
   const runtimeProvider = detectAgentCliProvider(issueCommand, issueModel);
   const runtimeModelOptions = buildAgentModelOptions(
     { command: issueCommand, model: issueModel },
-    dependencyCheck
+    dependencyCheck,
   );
   const runtimeThinkingEffortOptions = mergeIssueOptions(
     ["auto", "low", "medium", "high"],
-    issueThinkingEffort
+    issueThinkingEffort,
   );
   const runtimeProviderOptions = buildIssueRuntimeProviderOptions(
     dependencyCheck,
     issueCommand,
-    issueModel
+    issueModel,
   );
   const browserToggleLabel =
     runtimeProvider === "codex" ? "Enable web search" : "Enable Chrome";
@@ -18231,7 +18258,7 @@ function CreateIssueDialogView({
                     {fallbackSelectedWorktree ? (
                       <option
                         value={existingWorktreeTargetValue(
-                          fallbackSelectedWorktree.path
+                          fallbackSelectedWorktree.path,
                         )}
                       >
                         {fallbackSelectedWorktree.name}
@@ -18267,7 +18294,7 @@ function CreateIssueDialogView({
                       const patch = runtimeDraftPatchForProviderSelection(
                         value,
                         { model: issueModel, planMode: isPlanMode },
-                        dependencyCheck
+                        dependencyCheck,
                       );
                       onCommandChange(patch.command);
                       onModelChange(patch.model);
@@ -18880,7 +18907,7 @@ function IssueWorkspaceInspectorMeta({
   const issueValidationMessage = issueStatusAssigneeValidationMessage(
     issueDraft.status,
     issueDraft.assigneeAgentId,
-    agents
+    agents,
   );
   const visibleIssueEditorError = issueValidationMessage ?? issueEditorError;
   const selectedProject =
@@ -18889,7 +18916,7 @@ function IssueWorkspaceInspectorMeta({
     selectedProject?.primary_workspace?.cwd ?? null;
   const selectedWorkspaceTargetValue = issueWorkspaceTargetSelectValue(
     issueDraft.workspaceTargetMode,
-    issueDraft.workspaceWorktreePath
+    issueDraft.workspaceWorktreePath,
   );
   const workspaceTargetHint = issueWorkspaceTargetHint({
     errorMessage: workspaceTargetErrorMessage,
@@ -18903,7 +18930,7 @@ function IssueWorkspaceInspectorMeta({
     !workspaceTargetWorktrees.some(
       (worktree) =>
         existingWorktreeTargetValue(worktree.path) ===
-        selectedWorkspaceTargetValue
+        selectedWorkspaceTargetValue,
     )
       ? {
           name:
@@ -18998,8 +19025,8 @@ function IssueWorkspaceInspectorMeta({
               issueWorkspaceDraftPatchFromSelection(
                 value,
                 workspaceTargetWorktrees,
-                issueDraft
-              )
+                issueDraft,
+              ),
             )
           }
           tone="neutral"
@@ -19047,7 +19074,7 @@ function IssueWorkspaceInspectorMeta({
           label="Provider"
           value={providerLabelForRuntimeConfig(
             issueDraft.command,
-            issueDraft.model
+            issueDraft.model,
           )}
         />
         <IssuePropertyStaticRow
@@ -19808,7 +19835,7 @@ function screenLabel(screen: AppScreen): string {
 }
 
 function sidebarScreenIcon(
-  screen: AppScreen
+  screen: AppScreen,
 ): CompanyContextMenuIconKey | null {
   switch (screen) {
     case "dashboard":
@@ -19908,7 +19935,7 @@ function normalizeScreen(view: string | null | undefined): AppScreen {
 }
 
 function preferredViewSelectValue(
-  view: string | null | undefined
+  view: string | null | undefined,
 ): DesktopPreferredViewValue {
   if (view === "settings") {
     return "settings";
@@ -20035,10 +20062,10 @@ function createEmptyIssueDraft(): IssueEditDraft {
 
 function createIssueDraft(issue: IssueRecord): IssueEditDraft {
   const workspaceDraft = parseIssueExecutionWorkspaceSettings(
-    issue.execution_workspace_settings
+    issue.execution_workspace_settings,
   );
   const runtimeDraft = parseIssueAdapterOverrides(
-    issue.assignee_adapter_overrides
+    issue.assignee_adapter_overrides,
   );
 
   return {
@@ -20097,7 +20124,7 @@ function createAgentConfigDraft(agent: AgentRecord): AgentConfigDraft {
     model: stringFromUnknown(adapterConfig.model, "default"),
     thinkingEffort: stringFromUnknown(
       adapterConfig.thinkingEffort ?? adapterConfig.reasoningEffort,
-      "auto"
+      "auto",
     ),
     bootstrapPrompt: stringFromUnknown(runtimeConfig.bootstrapPrompt),
     enableChrome: booleanFromUnknown(adapterConfig.enableChrome),
@@ -20108,7 +20135,7 @@ function createAgentConfigDraft(agent: AgentRecord): AgentConfigDraft {
       .filter(Boolean)
       .join(", "),
     envVars: parseAgentConfigEnvVars(
-      adapterConfig.environmentVariables ?? adapterConfig.envVars
+      adapterConfig.environmentVariables ?? adapterConfig.envVars,
     ),
     timeoutSec: numericInputValue(runtimeConfig.timeoutSec),
     interruptGraceSec: numericInputValue(runtimeConfig.interruptGraceSec),
@@ -20118,7 +20145,7 @@ function createAgentConfigDraft(agent: AgentRecord): AgentConfigDraft {
 }
 
 function createAgentConfigEnvVarDraft(
-  value?: Partial<AgentConfigEnvVarDraft>
+  value?: Partial<AgentConfigEnvVarDraft>,
 ): AgentConfigEnvVarDraft {
   return {
     id:
@@ -20134,7 +20161,7 @@ function createAgentConfigEnvVarDraft(
 
 function buildAgentConfigUpdateParams(
   agent: AgentRecord,
-  draft: AgentConfigDraft
+  draft: AgentConfigDraft,
 ) {
   const adapterConfig = {
     ...objectFromUnknown(agent.adapter_config),
@@ -20277,22 +20304,22 @@ function numberFromUnknown(value: unknown) {
 }
 
 function normalizeProjectDefaultNewChatArea(
-  value: unknown
+  value: unknown,
 ): ProjectDefaultNewChatArea {
   return value === "new_worktree" ? "new_worktree" : "repo_root";
 }
 
 function projectExecutionWorkspacePolicy(
-  project: ProjectRecord | null | undefined
+  project: ProjectRecord | null | undefined,
 ) {
   return objectFromUnknown(project?.execution_workspace_policy);
 }
 
 function projectDefaultNewChatArea(
-  project: ProjectRecord | null | undefined
+  project: ProjectRecord | null | undefined,
 ): ProjectDefaultNewChatArea {
   return normalizeProjectDefaultNewChatArea(
-    projectExecutionWorkspacePolicy(project).default_new_chat_area
+    projectExecutionWorkspacePolicy(project).default_new_chat_area,
   );
 }
 
@@ -20301,7 +20328,7 @@ function projectDefaultNewChatAreaLabel(value: ProjectDefaultNewChatArea) {
 }
 
 function projectDefaultNewChatWorkspaceDefaults(
-  project: ProjectRecord | null | undefined
+  project: ProjectRecord | null | undefined,
 ): Pick<
   IssueEditDraft,
   | "workspaceTargetMode"
@@ -20321,7 +20348,7 @@ function projectDefaultNewChatWorkspaceDefaults(
 
 function projectExecutionWorkspacePolicyWithDefaultNewChatArea(
   project: ProjectRecord | null | undefined,
-  defaultNewChatArea: ProjectDefaultNewChatArea
+  defaultNewChatArea: ProjectDefaultNewChatArea,
 ) {
   return {
     ...projectExecutionWorkspacePolicy(project),
@@ -20400,7 +20427,7 @@ const fallbackCodexModelOptions = [
 
 function detectAgentCliProvider(
   command: string | null | undefined,
-  model?: string | null
+  model?: string | null,
 ): AgentCliProvider {
   const normalizedCommand = normalizeAgentCommand(command);
   const normalizedModel = (model ?? "").trim().toLowerCase();
@@ -20434,7 +20461,7 @@ function normalizeAgentCommand(value: string | null | undefined) {
 
 function buildAgentCommandOptions(
   dependencyCheck: RuntimeCapabilities | null,
-  selectedCommand: string
+  selectedCommand: string,
 ) {
   const options: string[] = [];
 
@@ -20457,7 +20484,7 @@ function buildAgentCommandOptions(
 function buildIssueRuntimeProviderOptions(
   dependencyCheck: RuntimeCapabilities | null,
   command: string,
-  model: string
+  model: string,
 ) {
   const options: Array<{ label: string; value: string }> = [];
   const seen = new Set<string>();
@@ -20468,7 +20495,7 @@ function buildIssueRuntimeProviderOptions(
     }
     const value = defaultIssueRuntimeCommandForProvider(
       provider,
-      dependencyCheck
+      dependencyCheck,
     );
     if (seen.has(value)) {
       return;
@@ -20489,7 +20516,7 @@ function buildIssueRuntimeProviderOptions(
 
 function buildProviderModelCatalog(
   provider: AgentCliProvider,
-  dependencyCheck: RuntimeCapabilities | null
+  dependencyCheck: RuntimeCapabilities | null,
 ) {
   const discoveredModels =
     provider === "codex"
@@ -20517,7 +20544,7 @@ function buildProviderModelCatalog(
 function runtimeDraftPatchForProviderSelection(
   command: string,
   draft: Pick<IssueRuntimeDraft, "model" | "planMode">,
-  dependencyCheck: RuntimeCapabilities | null
+  dependencyCheck: RuntimeCapabilities | null,
 ) {
   const provider = detectAgentCliProvider(command);
   const availableModels = buildProviderModelCatalog(provider, dependencyCheck);
@@ -20532,19 +20559,19 @@ function runtimeDraftPatchForProviderSelection(
 
 function buildAgentModelOptions(
   draft: Pick<IssueRuntimeDraft, "command" | "model">,
-  dependencyCheck: RuntimeCapabilities | null
+  dependencyCheck: RuntimeCapabilities | null,
 ) {
   const provider = detectAgentCliProvider(draft.command, draft.model);
 
   return mergeIssueOptions(
     buildProviderModelCatalog(provider, dependencyCheck),
-    draft.model
+    draft.model,
   );
 }
 
 function detectWorkspaceAgentProvider(
   session: SessionRecord | null,
-  agent: AgentRecord | null
+  agent: AgentRecord | null,
 ): AgentCliProvider {
   if (session?.provider) {
     return session.provider === "codex" ? "codex" : "claude";
@@ -20554,7 +20581,7 @@ function detectWorkspaceAgentProvider(
     const adapterConfig = objectFromUnknown(agent.adapter_config);
     return detectAgentCliProvider(
       stringFromUnknown(adapterConfig.command),
-      stringFromUnknown(adapterConfig.model)
+      stringFromUnknown(adapterConfig.model),
     );
   }
 
@@ -20573,7 +20600,7 @@ const canonicalIssueStatuses = [
 function issueStatusAssigneeValidationMessage(
   status: string | null | undefined,
   assigneeAgentId: string | null | undefined,
-  agents: AgentRecord[]
+  agents: AgentRecord[],
 ) {
   void status;
   void assigneeAgentId;
@@ -20583,7 +20610,7 @@ function issueStatusAssigneeValidationMessage(
 
 function normalizeHexColor(
   value: string | null | undefined,
-  fallback = defaultCompanyBrandColor
+  fallback = defaultCompanyBrandColor,
 ) {
   const trimmed = value?.trim() ?? "";
   const candidate = trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
@@ -20619,7 +20646,7 @@ function normalizeBoardIssueValue(value: string | null | undefined) {
 }
 
 function normalizeDashboardProjectGrouping(
-  value: string | null | undefined
+  value: string | null | undefined,
 ): DashboardProjectGrouping {
   void value;
   return "status";
@@ -20632,14 +20659,14 @@ function useBirdsEyeCodeImpact(sessionIds: string[]) {
   const sortedSessionIds = useMemo(
     () =>
       [...new Set(sessionIds)].sort((left, right) => left.localeCompare(right)),
-    [sessionIds]
+    [sessionIds],
   );
   const missingSessionIds = useMemo(
     () =>
       sortedSessionIds.filter(
-        (sessionId) => summaries[sessionId] === undefined
+        (sessionId) => summaries[sessionId] === undefined,
       ),
-    [sortedSessionIds, summaries]
+    [sortedSessionIds, summaries],
   );
   const missingSessionKey = missingSessionIds.join("|");
 
@@ -20681,7 +20708,7 @@ function useBirdsEyeCodeImpact(sessionIds: string[]) {
             state: "error" as const,
           };
         }
-      })
+      }),
     ).then((results) => {
       if (cancelled) {
         return;
@@ -20720,7 +20747,7 @@ function aggregateBirdsEyeCodeImpact(status: GitStatusResult) {
       additions: 0,
       deletions: 0,
       filesChanged: 0,
-    }
+    },
   );
 }
 
@@ -20751,7 +20778,7 @@ function buildBirdsEyeTree({
     .map((project) => {
       const repoPath = project.primary_workspace?.cwd?.trim() ?? null;
       const projectChats = chats.filter(
-        (chat) => chat.project_id === project.id
+        (chat) => chat.project_id === project.id,
       );
       const folderMap = new Map<
         string,
@@ -20784,7 +20811,7 @@ function buildBirdsEyeTree({
           projectId: project.id,
           runtimeDraft: defaultRuntimeDraft,
           secondaryLabel: repoPath ?? "No repository folder",
-        })
+        }),
       );
 
       for (const worktree of projectWorktreesByProjectId[project.id]
@@ -20798,9 +20825,9 @@ function buildBirdsEyeTree({
             runtimeDraft: defaultRuntimeDraft,
             secondaryLabel: birdsEyeFolderSecondaryLabel(
               worktree.path,
-              worktree.branch
+              worktree.branch,
             ),
-          })
+          }),
         );
       }
 
@@ -20824,9 +20851,9 @@ function buildBirdsEyeTree({
             runtimeDraft: defaultRuntimeDraft,
             secondaryLabel: birdsEyeFolderSecondaryLabel(
               workspace.workspace_repo_path,
-              workspace.workspace_branch ?? null
+              workspace.workspace_branch ?? null,
             ),
-          })
+          }),
         );
       }
 
@@ -20834,7 +20861,7 @@ function buildBirdsEyeTree({
         const runUpdate = chat.run_update ?? null;
         const workspace = workspaceByIssueId.get(chat.id) ?? null;
         const folder = ensureFolder(
-          birdsEyeFolderForIssue(chat, project, workspace, defaultRuntimeDraft)
+          birdsEyeFolderForIssue(chat, project, workspace, defaultRuntimeDraft),
         );
         const chatNode: BirdsEyeChatNode = {
           agentLabel: issueModelLabel(chat, agents),
@@ -20874,7 +20901,7 @@ function buildBirdsEyeTree({
             lastActivityAt: latestChat?.lastActivityAt ?? null,
             liveRunCount: chats.filter(
               (chat) =>
-                chat.runStatus === "queued" || chat.runStatus === "running"
+                chat.runStatus === "queued" || chat.runStatus === "running",
             ).length,
           };
         })
@@ -20918,7 +20945,7 @@ function buildBirdsEyeTree({
         lastActivityAt: latestChat?.lastActivityAt ?? null,
         liveRunCount: folders.reduce(
           (count, folder) => count + folder.liveRunCount,
-          0
+          0,
         ),
         project,
         repoPath,
@@ -20991,7 +21018,7 @@ function defaultBirdsEyeRepoRegionState(index: number) {
 
 function normalizeBirdsEyeWorktreeTileState(
   tileState: BirdsEyeWorktreeTileState | undefined,
-  availableIssueIds: string[]
+  availableIssueIds: string[],
 ) {
   const issueIdSet = new Set(availableIssueIds);
   const issueIds = (tileState?.issueIds ?? [])
@@ -21001,8 +21028,8 @@ function normalizeBirdsEyeWorktreeTileState(
     .filter((issueId) => issueIds.includes(issueId))
     .concat(
       issueIds.filter(
-        (issueId) => !(tileState?.lruIssueIds ?? []).includes(issueId)
-      )
+        (issueId) => !(tileState?.lruIssueIds ?? []).includes(issueId),
+      ),
     );
   const activeIssueId =
     tileState?.activeIssueId && issueIds.includes(tileState.activeIssueId)
@@ -21019,7 +21046,7 @@ function normalizeBirdsEyeWorktreeTileState(
 function buildBirdsEyeCanvasModel(
   treeModel: BirdsEyeTreeModel,
   canvasState: BirdsEyeCanvasState,
-  measuredWorktreeHeights: Record<string, number>
+  measuredWorktreeHeights: Record<string, number>,
 ) {
   const normalizedState: BirdsEyeCanvasState = {
     focusedTarget: canvasState.focusedTarget,
@@ -21030,7 +21057,7 @@ function buildBirdsEyeCanvasModel(
       zoomIndex: clampNumber(
         canvasState.viewport.zoomIndex,
         0,
-        birdsEyeCanvasZoomLevels.length - 1
+        birdsEyeCanvasZoomLevels.length - 1,
       ),
     },
     worktreeTiles: { ...canvasState.worktreeTiles },
@@ -21058,8 +21085,8 @@ function buildBirdsEyeCanvasModel(
     const boardHeights = visibleWorktrees.map((folder) =>
       Math.max(
         birdsEyeWorktreeBoardHeight,
-        Math.ceil(measuredWorktreeHeights[folder.folderKey] ?? 0)
-      )
+        Math.ceil(measuredWorktreeHeights[folder.folderKey] ?? 0),
+      ),
     );
     const rowHeights = Array.from({ length: grid.rows }, (_, rowIndex) =>
       boardHeights.reduce((maxHeight, boardHeight, worktreeIndex) => {
@@ -21067,7 +21094,7 @@ function buildBirdsEyeCanvasModel(
           return maxHeight;
         }
         return Math.max(maxHeight, boardHeight);
-      }, 0)
+      }, 0),
     );
     const rowOffsets = rowHeights.reduce<number[]>(
       (offsets, rowHeight, rowIndex) => {
@@ -21078,17 +21105,17 @@ function buildBirdsEyeCanvasModel(
         offsets.push(
           offsets[rowIndex - 1]! +
             rowHeights[rowIndex - 1]! +
-            birdsEyeWorktreeBoardGap
+            birdsEyeWorktreeBoardGap,
         );
         return offsets;
       },
-      []
+      [],
     );
     const regionWidth = Math.max(
       birdsEyeRepoRegionMinWidth,
       birdsEyeRepoRegionPadding * 2 +
         grid.columns * boardWidth +
-        Math.max(grid.columns - 1, 0) * birdsEyeWorktreeBoardGap
+        Math.max(grid.columns - 1, 0) * birdsEyeWorktreeBoardGap,
     );
     const regionHeight =
       birdsEyeRepoRegionPadding * 2 +
@@ -21102,7 +21129,7 @@ function buildBirdsEyeCanvasModel(
       const key = folder.folderKey;
       const tileState = normalizeBirdsEyeWorktreeTileState(
         normalizedState.worktreeTiles[key],
-        folder.chats.map((chat) => chat.chat.id)
+        folder.chats.map((chat) => chat.chat.id),
       );
       normalizedState.worktreeTiles[key] = tileState;
 
@@ -21139,7 +21166,7 @@ function buildBirdsEyeCanvasModel(
   for (const worktreeKey of Object.keys(normalizedState.worktreeTiles)) {
     if (
       !treeModel.projects.some((project) =>
-        project.folders.some((folder) => folder.folderKey === worktreeKey)
+        project.folders.some((folder) => folder.folderKey === worktreeKey),
       )
     ) {
       delete normalizedState.worktreeTiles[worktreeKey];
@@ -21164,7 +21191,7 @@ function buildBirdsEyeCanvasModel(
     }
 
     const project = treeModel.projects.find(
-      (entry) => entry.project.id === target.projectId
+      (entry) => entry.project.id === target.projectId,
     );
     if (!project) {
       return false;
@@ -21174,7 +21201,7 @@ function buildBirdsEyeCanvasModel(
     }
 
     const folder = project.folders.find(
-      (entry) => entry.folderKey === target.worktreeKey
+      (entry) => entry.folderKey === target.worktreeKey,
     );
     if (!folder) {
       return false;
@@ -21291,7 +21318,7 @@ function birdsEyeFolderForIssue(
   issue: BirdsEyeIssueLike,
   project: ProjectRecord,
   workspace: WorkspaceRecord | null,
-  defaultRuntimeDraft: IssueRuntimeDraft
+  defaultRuntimeDraft: IssueRuntimeDraft,
 ) {
   const repoPath = project.primary_workspace?.cwd?.trim() ?? null;
   if (workspace?.workspace_repo_path?.trim()) {
@@ -21317,13 +21344,13 @@ function birdsEyeFolderForIssue(
       runtimeDraft: defaultRuntimeDraft,
       secondaryLabel: birdsEyeFolderSecondaryLabel(
         workspace.workspace_repo_path,
-        workspace.workspace_branch ?? null
+        workspace.workspace_branch ?? null,
       ),
     });
   }
 
   const workspaceSettings = parseIssueExecutionWorkspaceSettings(
-    issue.execution_workspace_settings
+    issue.execution_workspace_settings,
   );
   if (
     workspaceSettings.workspaceTargetMode === "existing_worktree" &&
@@ -21339,7 +21366,7 @@ function birdsEyeFolderForIssue(
       runtimeDraft: defaultRuntimeDraft,
       secondaryLabel: birdsEyeFolderSecondaryLabel(
         workspaceSettings.workspaceWorktreePath,
-        workspaceSettings.workspaceWorktreeBranch || null
+        workspaceSettings.workspaceWorktreeBranch || null,
       ),
     });
   }
@@ -21366,11 +21393,11 @@ function birdsEyeFolderForIssue(
 }
 
 function birdsEyeCreateDefaultsFromIssue(
-  issue: BirdsEyeIssueLike
+  issue: BirdsEyeIssueLike,
 ): CreateIssueDialogDefaults {
   const runtime = parseIssueAdapterOverrides(issue.assignee_adapter_overrides);
   const workspace = parseIssueExecutionWorkspaceSettings(
-    issue.execution_workspace_settings
+    issue.execution_workspace_settings,
   );
 
   return {
@@ -21388,7 +21415,7 @@ function birdsEyeCreateDefaultsFromIssue(
 function birdsEyeActivityTimestamp(
   issue: BirdsEyeIssueLike,
   update: IssueRunCardUpdateRecord | null,
-  workspace: WorkspaceRecord | null
+  workspace: WorkspaceRecord | null,
 ) {
   return (
     [
@@ -21409,7 +21436,7 @@ function birdsEyeActivityTimestamp(
 
 function dashboardOverviewChatToIssueRecord(
   chat: DashboardOverviewChatRecord,
-  companyId: string | null
+  companyId: string | null,
 ): IssueRecord {
   return {
     id: chat.id,
@@ -21430,7 +21457,7 @@ function dashboardOverviewChatToIssueRecord(
 
 function birdsEyeFolderSecondaryLabel(
   path: string | null | undefined,
-  branch: string | null | undefined
+  branch: string | null | undefined,
 ) {
   return [branch?.trim() || null, path?.trim() || null]
     .filter(Boolean)
@@ -21439,7 +21466,7 @@ function birdsEyeFolderSecondaryLabel(
 
 function flattenBirdsEyeTree(
   projects: BirdsEyeProjectNode[],
-  expandedRowIds: Record<string, boolean>
+  expandedRowIds: Record<string, boolean>,
 ) {
   const rows: BirdsEyeVisibleRow[] = [];
 
@@ -21552,8 +21579,8 @@ function isEditableEventTarget(target: EventTarget | null) {
 
   return Boolean(
     target.closest(
-      "input, textarea, select, [contenteditable='true'], [contenteditable='']"
-    )
+      "input, textarea, select, [contenteditable='true'], [contenteditable='']",
+    ),
   );
 }
 
@@ -21570,7 +21597,7 @@ function projectBoardColumnStatuses(issues: IssueRecord[]) {
 
 function projectBoardColumnsByStatus(
   project: ProjectRecord,
-  issues: IssueRecord[]
+  issues: IssueRecord[],
 ): DashboardProjectColumn[] {
   const projectWorkspaceDefaults =
     projectDefaultNewChatWorkspaceDefaults(project);
@@ -21581,7 +21608,7 @@ function projectBoardColumnsByStatus(
     },
     id: `status:${status}`,
     issues: issues.filter(
-      (issue) => normalizeBoardIssueValue(issue.status) === status
+      (issue) => normalizeBoardIssueValue(issue.status) === status,
     ),
     label: issueStatusLabel(status),
   }));
@@ -21591,7 +21618,7 @@ function projectBoardColumns(
   project: ProjectRecord,
   issues: IssueRecord[],
   agents: AgentRecord[],
-  grouping: DashboardProjectGrouping
+  grouping: DashboardProjectGrouping,
 ): DashboardProjectColumn[] {
   void agents;
   void grouping;
@@ -21602,23 +21629,23 @@ function buildDashboardProjectColumns(
   projects: ProjectRecord[],
   issues: IssueRecord[],
   agents: AgentRecord[],
-  projectViews: NonNullable<DesktopSettings["dashboard_project_views"]>
+  projectViews: NonNullable<DesktopSettings["dashboard_project_views"]>,
 ): DashboardProjectColumnLayout[] {
   const gridColumnCount = projects.length <= 1 ? 1 : 2;
   const projectColumnDrafts = projects.map((project) => {
     const projectViewSettings = projectViews[project.id] ?? {};
     const projectIssues = issues.filter(
-      (issue) => issue.project_id === project.id
+      (issue) => issue.project_id === project.id,
     );
     const boards = buildDashboardProjectColumnBoards(
       project,
       projectIssues,
       agents,
-      projectViewSettings
+      projectViewSettings,
     );
     const width = Math.max(
       ...boards.map((board) => board.width),
-      dashboardProjectBoardMinWidth
+      dashboardProjectBoardMinWidth,
     );
 
     return {
@@ -21643,8 +21670,8 @@ function buildDashboardProjectColumns(
 
           return Math.max(maxWidth, projectColumn.width);
         },
-        dashboardProjectBoardMinWidth
-      )
+        dashboardProjectBoardMinWidth,
+      ),
   );
   const rowHeights = Array.from({ length: rowCount }, (_, rowIndex) =>
     projectColumnDrafts.reduce(
@@ -21655,8 +21682,8 @@ function buildDashboardProjectColumns(
 
         return Math.max(maxHeight, projectColumn.height);
       },
-      dashboardProjectBoardHeight + dashboardProjectAddViewSlotHeight
-    )
+      dashboardProjectBoardHeight + dashboardProjectAddViewSlotHeight,
+    ),
   );
   const columnOffsets = columnWidths.map((_, columnIndex) => {
     if (columnIndex === 0) {
@@ -21676,7 +21703,7 @@ function buildDashboardProjectColumns(
       .slice(0, rowIndex)
       .reduce(
         (total, height) => total + height + dashboardProjectBoardGapY,
-        104
+        104,
       );
   });
 
@@ -21693,7 +21720,7 @@ function buildDashboardProjectColumns(
 }
 
 function buildDashboardCanvasBounds(
-  projectColumns: DashboardProjectColumnLayout[]
+  projectColumns: DashboardProjectColumnLayout[],
 ) {
   if (!projectColumns.length) {
     return { width: 2200, height: 1600 };
@@ -21701,13 +21728,13 @@ function buildDashboardCanvasBounds(
 
   const maxRight = Math.max(
     ...projectColumns.map(
-      (projectColumn) => projectColumn.left + projectColumn.width
-    )
+      (projectColumn) => projectColumn.left + projectColumn.width,
+    ),
   );
   const maxBottom = Math.max(
     ...projectColumns.map(
-      (projectColumn) => projectColumn.top + projectColumn.height
-    )
+      (projectColumn) => projectColumn.top + projectColumn.height,
+    ),
   );
 
   return {
@@ -21721,18 +21748,18 @@ function clampDashboardCanvasOffset(
   viewportWidth: number,
   viewportHeight: number,
   canvasBounds: { height: number; width: number },
-  canvasZoomScale: number
+  canvasZoomScale: number,
 ) {
   const edgePadding = 120;
   const scaledCanvasWidth = canvasBounds.width * canvasZoomScale;
   const scaledCanvasHeight = canvasBounds.height * canvasZoomScale;
   const minX = Math.min(
     edgePadding,
-    viewportWidth - scaledCanvasWidth + edgePadding
+    viewportWidth - scaledCanvasWidth + edgePadding,
   );
   const minY = Math.min(
     edgePadding,
-    viewportHeight - scaledCanvasHeight + edgePadding
+    viewportHeight - scaledCanvasHeight + edgePadding,
   );
 
   return {
@@ -21760,7 +21787,7 @@ function buildDashboardProjectColumnBoards(
   project: ProjectRecord,
   issues: IssueRecord[],
   agents: AgentRecord[],
-  viewSettings: NonNullable<DesktopSettings["dashboard_project_views"]>[string]
+  viewSettings: NonNullable<DesktopSettings["dashboard_project_views"]>[string],
 ) {
   const savedViews = dashboardProjectSavedViews(viewSettings?.saved_views);
 
@@ -21783,7 +21810,7 @@ function buildDashboardProjectColumnBoards(
         project,
         viewId: savedView.id,
         viewName: dashboardProjectViewName(savedView.name, index),
-      })
+      }),
     ),
   ];
 }
@@ -21825,22 +21852,22 @@ function dashboardProjectSavedViews(
     | NonNullable<
         NonNullable<DesktopSettings["dashboard_project_views"]>[string]
       >["saved_views"]
-    | undefined
+    | undefined,
 ) {
   return (views ?? []).filter(
     (
-      view
+      view,
     ): view is {
       group_by?: DashboardProjectGrouping | null;
       id: string;
       name?: string | null;
-    } => Boolean(view?.id)
+    } => Boolean(view?.id),
   );
 }
 
 function dashboardProjectViewName(
   value: string | null | undefined,
-  index: number
+  index: number,
 ) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : `View ${index + 1}`;
@@ -21851,13 +21878,13 @@ function nextDashboardProjectViewName(boards: DashboardProjectBoardLayout[]) {
 }
 
 function nextDashboardProjectViewGrouping(
-  boards: DashboardProjectBoardLayout[]
+  boards: DashboardProjectBoardLayout[],
 ): DashboardProjectGrouping {
   const usedGroupings = new Set(boards.map((board) => board.grouping));
 
   return (
     dashboardProjectGroupingOptions.find(
-      (grouping) => !usedGroupings.has(grouping)
+      (grouping) => !usedGroupings.has(grouping),
     ) ?? "status"
   );
 }
@@ -21916,7 +21943,7 @@ function issueStatusLabel(value: string) {
 
 function issueProjectLabel(
   projects: ProjectRecord[],
-  projectId?: string | null
+  projectId?: string | null,
 ) {
   if (!projectId) {
     return "No project";
@@ -21947,7 +21974,7 @@ function deriveProjectName(repoPath: string) {
 
 function issueAssigneeLabel(
   agents: AgentRecord[],
-  assigneeAgentId?: string | null
+  assigneeAgentId?: string | null,
 ) {
   if (!assigneeAgentId) {
     return "Unassigned";
@@ -21959,7 +21986,7 @@ function issueAssigneeLabel(
 
 function providerLabelForRuntimeConfig(
   command: string | null | undefined,
-  model: string | null | undefined
+  model: string | null | undefined,
 ) {
   const provider = detectAgentCliProvider(command, model);
   if (provider === "codex") {
@@ -21972,7 +21999,7 @@ function providerLabelForRuntimeConfig(
 }
 
 function runtimeModelLabel(
-  runtimeConfig: Record<string, unknown> | null | undefined
+  runtimeConfig: Record<string, unknown> | null | undefined,
 ) {
   const configuredModel = stringFromUnknown(runtimeConfig?.model).trim();
   if (configuredModel && configuredModel.toLowerCase() !== "default") {
@@ -21981,7 +22008,7 @@ function runtimeModelLabel(
 
   return providerLabelForRuntimeConfig(
     stringFromUnknown(runtimeConfig?.command),
-    configuredModel
+    configuredModel,
   );
 }
 
@@ -22004,7 +22031,7 @@ function agentModelLabelById(agents: AgentRecord[], agentId?: string | null) {
 
 function issueModelLabel(
   issue: BirdsEyeIssueLike | null | undefined,
-  agents: AgentRecord[]
+  agents: AgentRecord[],
 ) {
   const runtimeOverrides = objectFromUnknown(issue?.assignee_adapter_overrides);
   if (Object.keys(runtimeOverrides).length > 0) {
@@ -22048,7 +22075,7 @@ function sameAgentIdList(left: AgentRecord[], right: AgentRecord[]) {
 
 function issueParentLabel(
   issues: IssueRecord[],
-  parentIssueId?: string | null
+  parentIssueId?: string | null,
 ) {
   if (!parentIssueId) {
     return "No parent conversation";
@@ -22371,7 +22398,7 @@ function issueCreatorLabel(issue: IssueRecord, agents: AgentRecord[]) {
 
 function issueCommentAuthorLabel(
   agents: AgentRecord[],
-  comment: IssueCommentRecord
+  comment: IssueCommentRecord,
 ) {
   if (comment.author_agent_id) {
     return agentModelLabelById(agents, comment.author_agent_id);
@@ -22606,7 +22633,7 @@ function formatApprovalPayloadValue(value: unknown): string {
 
 function findCompanyCeo<T extends { id: string; role?: string | null }>(
   agents: T[],
-  ceoAgentId: string | null
+  ceoAgentId: string | null,
 ) {
   if (ceoAgentId) {
     const ceoAgent = agents.find((agent) => agent.id === ceoAgentId);
@@ -22620,7 +22647,7 @@ function findCompanyCeo<T extends { id: string; role?: string | null }>(
 
 function orderSidebarAgents<T extends { id: string; role?: string | null }>(
   agents: T[],
-  ceoAgentId: string | null
+  ceoAgentId: string | null,
 ) {
   if (ceoAgentId) {
     const ceoAgent = agents.find((agent) => agent.id === ceoAgentId);
@@ -22640,7 +22667,7 @@ function orderSidebarAgents<T extends { id: string; role?: string | null }>(
 function buildOrgHierarchy(
   agents: AgentRecord[],
   projects: ProjectRecord[],
-  ceoAgentId: string | null
+  ceoAgentId: string | null,
 ): OrgHierarchyNode[] {
   const agentMap = new Map(agents.map((agent) => [agent.id, agent]));
   const childrenByManagerId = new Map<string, AgentRecord[]>();
@@ -22678,13 +22705,13 @@ function buildOrgHierarchy(
 
   const buildNode = (
     agent: AgentRecord,
-    lineage: Set<string>
+    lineage: Set<string>,
   ): OrgHierarchyNode => {
     if (lineage.has(agent.id)) {
       return {
         agent,
         leadProjects: sortProjectsForOrg(
-          leadProjectsByAgentId.get(agent.id) ?? []
+          leadProjectsByAgentId.get(agent.id) ?? [],
         ),
         reports: [],
         totalReports: 0,
@@ -22695,24 +22722,24 @@ function buildOrgHierarchy(
     nextLineage.add(agent.id);
     const reports = sortAgentsForOrg(
       childrenByManagerId.get(agent.id) ?? [],
-      ceoAgentId
+      ceoAgentId,
     ).map((child) => buildNode(child, nextLineage));
 
     return {
       agent,
       leadProjects: sortProjectsForOrg(
-        leadProjectsByAgentId.get(agent.id) ?? []
+        leadProjectsByAgentId.get(agent.id) ?? [],
       ),
       reports,
       totalReports: reports.reduce(
         (count, child) => count + 1 + child.totalReports,
-        0
+        0,
       ),
     };
   };
 
   return sortAgentsForOrg(roots, ceoAgentId).map((agent) =>
-    buildNode(agent, new Set<string>())
+    buildNode(agent, new Set<string>()),
   );
 }
 
@@ -22727,7 +22754,7 @@ function flattenOrgHierarchy(nodes: OrgHierarchyNode[]): OrgHierarchyNode[] {
 
 function buildProjectLeadAssignments(
   agents: AgentRecord[],
-  projects: ProjectRecord[]
+  projects: ProjectRecord[],
 ) {
   const agentMap = new Map(agents.map((agent) => [agent.id, agent]));
   const assignments = new Map<string, ProjectRecord[]>();
@@ -22758,14 +22785,14 @@ function buildProjectLeadAssignments(
 
 function sortAgentsForOrg(agents: AgentRecord[], ceoAgentId: string | null) {
   return [...agents].sort((left, right) =>
-    compareAgentRecordsForOrg(left, right, ceoAgentId)
+    compareAgentRecordsForOrg(left, right, ceoAgentId),
   );
 }
 
 function compareAgentRecordsForOrg(
   left: AgentRecord,
   right: AgentRecord,
-  ceoAgentId: string | null
+  ceoAgentId: string | null,
 ) {
   const leftIsCeo = isCeoAgent(left, ceoAgentId);
   const rightIsCeo = isCeoAgent(right, ceoAgentId);
@@ -22792,14 +22819,14 @@ function compareAgentRecordsForOrg(
 function sortProjectsForOrg(projects: ProjectRecord[]) {
   return [...projects].sort((left, right) =>
     (left.name || left.title || left.id).localeCompare(
-      right.name || right.title || right.id
-    )
+      right.name || right.title || right.id,
+    ),
   );
 }
 
 function isCeoAgent(
   agent: Pick<AgentRecord, "id" | "role">,
-  ceoAgentId: string | null
+  ceoAgentId: string | null,
 ) {
   if (ceoAgentId) {
     return agent.id === ceoAgentId;
@@ -22811,7 +22838,7 @@ function isCeoAgent(
 function isOrgRootAgent(
   agent: AgentRecord,
   agentMap: Map<string, AgentRecord>,
-  ceoAgentId: string | null
+  ceoAgentId: string | null,
 ) {
   if (isCeoAgent(agent, ceoAgentId)) {
     return true;
@@ -22887,7 +22914,7 @@ function orgChartAgentProviderLabel(agent: AgentRecord) {
 
 function orgChartAgentIconKind(
   agent: AgentRecord,
-  isRoot: boolean
+  isRoot: boolean,
 ): "communication" | "engineering" | "finance" | "leadership" | "operations" {
   if (isRoot) {
     return "leadership";
@@ -23020,10 +23047,10 @@ function formatRelativeTimestamp(timestamp: number) {
 function issuesVisible(
   issues: IssueRecord[],
   tab: IssuesListTab,
-  now = new Date()
+  now = new Date(),
 ) {
   const visibleIssues = issues.filter(
-    (issue) => !issue.hidden_at && isRootConversationIssue(issue)
+    (issue) => !issue.hidden_at && isRootConversationIssue(issue),
   );
   if (tab === "all") {
     return visibleIssues;
@@ -23040,7 +23067,7 @@ function issuesVisible(
 
 function formatCompactIssueTimestamp(
   value: string | null | undefined,
-  now = new Date()
+  now = new Date(),
 ) {
   const date = parseIssueDate(value);
   if (!date) {
@@ -23062,10 +23089,10 @@ function formatCompactIssueTimestamp(
   const startOfDate = new Date(
     date.getFullYear(),
     date.getMonth(),
-    date.getDate()
+    date.getDate(),
   );
   const dayDelta = Math.round(
-    (startOfNow.getTime() - startOfDate.getTime()) / (24 * 60 * 60 * 1000)
+    (startOfNow.getTime() - startOfDate.getTime()) / (24 * 60 * 60 * 1000),
   );
 
   if (dayDelta === 1) {
@@ -23098,7 +23125,7 @@ function buildActivityFeedItems(
   issues: IssueRecord[],
   issueCommentsByIssueId: Record<string, IssueCommentRecord[]>,
   issueRunCardUpdatesByIssueId: Record<string, IssueRunCardUpdateRecord>,
-  agents: AgentRecord[]
+  agents: AgentRecord[],
 ) {
   const visibleIssues = issues.filter((issue) => !issue.hidden_at);
   const issueById = new Map(visibleIssues.map((issue) => [issue.id, issue]));
@@ -23117,7 +23144,7 @@ function buildActivityFeedItems(
   });
 
   const runItems: ActivityFeedItem[] = Object.values(
-    issueRunCardUpdatesByIssueId
+    issueRunCardUpdatesByIssueId,
   ).flatMap((update) => {
     const issue = issueById.get(update.issue_id);
     if (!issue) {
@@ -23166,7 +23193,7 @@ function buildTerminalTranscript(messages: SessionMessage[]) {
 }
 
 function normalizeMessageContent(
-  value: unknown
+  value: unknown,
 ): Record<string, unknown> | string {
   if (typeof value === "string") {
     try {
@@ -23242,7 +23269,7 @@ function stringifyStatus(value: Record<string, unknown> | null) {
 
 function workspaceRuntimeTone(
   status: string,
-  errorMessage?: string | null
+  errorMessage?: string | null,
 ): "error" | "idle" | "running" | "waiting" {
   if (errorMessage && errorMessage.trim().length > 0) {
     return "error";

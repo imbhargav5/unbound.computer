@@ -30,13 +30,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       supabase,
       user.id,
       sessionId,
-      [SESSION_STATUS.PAUSED]
+      [SESSION_STATUS.PAUSED],
     );
 
     if (!validation.valid) {
       return NextResponse.json(
         { error: validation.error, code: validation.code },
-        { status: validation.code === "SESSION_NOT_FOUND" ? 404 : 400 }
+        { status: validation.code === "SESSION_NOT_FOUND" ? 404 : 400 },
       );
     }
 
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         *,
         repository:repositories(id, name),
         device:devices(id, name, device_type)
-      `
+      `,
       )
       .single();
 

@@ -34,11 +34,11 @@ function base64UrlEncode(input: string | Buffer): string {
 
 function createPresenceToken(
   payload: Record<string, unknown>,
-  signingKey: string
+  signingKey: string,
 ): string {
   const encodedPayload = base64UrlEncode(JSON.stringify(payload));
   const signature = base64UrlEncode(
-    createHmac("sha256", signingKey).update(encodedPayload).digest()
+    createHmac("sha256", signingKey).update(encodedPayload).digest(),
   );
   return `${encodedPayload}.${signature}`;
 }
@@ -54,9 +54,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         buildPresenceError(
           "unavailable",
-          "Presence DO token signing key is not configured"
+          "Presence DO token signing key is not configured",
         ),
-        { status: 503, headers: corsHeaders }
+        { status: 503, headers: corsHeaders },
       );
     }
 
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
         {
           status: 401,
           headers: corsHeaders,
-        }
+        },
       );
     }
 
@@ -80,12 +80,12 @@ export async function POST(req: NextRequest) {
     if (!parseResult.success) {
       return NextResponse.json(
         buildPresenceError("invalid_payload", "Invalid request body"),
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: corsHeaders },
       );
     }
 
     const requesterDeviceId = normalizePresenceIdentifier(
-      parseResult.data.deviceId
+      parseResult.data.deviceId,
     );
 
     const { data: requesterDevice, error: requesterDeviceError } =
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
         {
           status: 404,
           headers: corsHeaders,
-        }
+        },
       );
     }
 
@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
         device_id: requesterDeviceId,
         scope,
       },
-      { headers: corsHeaders }
+      { headers: corsHeaders },
     );
   } catch (error) {
     return NextResponse.json(buildPresenceError("unavailable", String(error)), {

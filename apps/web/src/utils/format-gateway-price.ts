@@ -4,7 +4,7 @@ export function formatGatewayPrice(
   price: Pick<
     DBTable<"billing_prices">,
     "amount" | "currency" | "recurring_interval" | "recurring_interval_count"
-  >
+  >,
 ): string {
   const amount = price.amount
     ? formatCurrency(price.amount, price.currency)

@@ -80,7 +80,7 @@ export function FormCombobox<TFieldValues extends FieldValues>({
                       key={option.value}
                       onSelect={() => {
                         field.onChange(
-                          option.value === field.value ? "" : option.value
+                          option.value === field.value ? "" : option.value,
                         );
                         setOpen(false);
                       }}
@@ -91,7 +91,7 @@ export function FormCombobox<TFieldValues extends FieldValues>({
                           "mr-2 h-4 w-4",
                           field.value === option.value
                             ? "opacity-100"
-                            : "opacity-0"
+                            : "opacity-0",
                         )}
                       />
                       {option.label}

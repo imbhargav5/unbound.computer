@@ -10,6 +10,7 @@ vi.mock("@xterm/xterm", () => ({
 
 import {
   BirdsEyeQuickCreateRow,
+  IssueWorkspaceDetailView,
   WorkspaceChatComposer,
   WorkspaceInspectorSidebar,
   WorkspaceRuntimeStatusLine,
@@ -121,7 +122,7 @@ describe("issue detail parity components", () => {
       if (textarea instanceof HTMLTextAreaElement) {
         const valueSetter = Object.getOwnPropertyDescriptor(
           HTMLTextAreaElement.prototype,
-          "value"
+          "value",
         )?.set;
         valueSetter?.call(textarea, "Ship the update");
       }
@@ -129,14 +130,14 @@ describe("issue detail parity components", () => {
       textarea?.dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(
-      view.querySelector('[data-testid="composer-value"]')?.textContent
+      view.querySelector('[data-testid="composer-value"]')?.textContent,
     ).toBe("Ship the update");
 
     expect(view.textContent).toContain("1.2k tokens");
     expect(view.textContent).toContain("$0.02");
 
     const plusButton = view.querySelector(
-      'button[aria-label="Composer actions"]'
+      'button[aria-label="Composer actions"]',
     );
     act(() => {
       plusButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -145,23 +146,23 @@ describe("issue detail parity components", () => {
     expect(view.textContent).toContain("Plan mode");
 
     const planToggleButton = Array.from(view.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("Plan mode")
+      (button) => button.textContent?.includes("Plan mode"),
     );
     act(() => {
       planToggleButton?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true })
+        new MouseEvent("click", { bubbles: true }),
       );
     });
     expect(view.textContent).toContain(
-      "Plan mode — Claude will create a plan before making changes"
+      "Plan mode — Claude will create a plan before making changes",
     );
 
     const attachmentButton = Array.from(view.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("Add Attachments")
+      (button) => button.textContent?.includes("Add Attachments"),
     );
     act(() => {
       attachmentButton?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true })
+        new MouseEvent("click", { bubbles: true }),
       );
     });
     expect(onAddAttachment).toHaveBeenCalledTimes(1);
@@ -193,7 +194,7 @@ describe("issue detail parity components", () => {
         selectedThinkingEffort="auto"
         thinkingEffortOptions={["auto"]}
         value="Streaming in progress"
-      />
+      />,
     );
 
     const stopButton = view.querySelector('button[aria-label="Stop response"]');
@@ -202,6 +203,39 @@ describe("issue detail parity components", () => {
       stopButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the send control available while awaiting input", () => {
+    const onCancel = vi.fn();
+    const onSend = vi.fn();
+    const view = render(
+      <WorkspaceChatComposer
+        disabled={false}
+        isAwaitingInput
+        isPlanMode={false}
+        isStreaming
+        modelOptions={["default"]}
+        onCancel={onCancel}
+        onChange={() => undefined}
+        onModelChange={() => undefined}
+        onPlanModeChange={() => undefined}
+        onSend={onSend}
+        onThinkingEffortChange={() => undefined}
+        selectedModel="default"
+        selectedProvider="claude"
+        selectedThinkingEffort="auto"
+        thinkingEffortOptions={["auto"]}
+        value="Here is my answer"
+      />,
+    );
+
+    const sendButton = view.querySelector('button[aria-label="Send prompt"]');
+    expect(sendButton).not.toBeNull();
+    act(() => {
+      sendButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(onCancel).not.toHaveBeenCalled();
   });
 
   it("shows provider-specific options in birds eye quick create", () => {
@@ -235,34 +269,34 @@ describe("issue detail parity components", () => {
         onTitleChange={() => undefined}
         sourceNode={null}
         title="Follow up"
-      />
+      />,
     );
 
     const providerSelect = view.querySelector(
-      'select[aria-label="New chat provider"]'
+      'select[aria-label="New chat provider"]',
     );
     const modelSelect = view.querySelector(
-      'select[aria-label="New chat model"]'
+      'select[aria-label="New chat model"]',
     );
 
     expect(providerSelect).not.toBeNull();
     expect(modelSelect).not.toBeNull();
     expect(
       Array.from(providerSelect?.querySelectorAll("option") ?? []).map(
-        (option) => option.textContent
-      )
+        (option) => option.textContent,
+      ),
     ).toEqual(["Claude", "Codex"]);
     expect(
       Array.from(modelSelect?.querySelectorAll("option") ?? []).map(
-        (option) => option.value
-      )
+        (option) => option.value,
+      ),
     ).toEqual(expect.arrayContaining(["default", "sonnet", "opus", "haiku"]));
 
     act(() => {
       if (providerSelect instanceof HTMLSelectElement) {
         const valueSetter = Object.getOwnPropertyDescriptor(
           HTMLSelectElement.prototype,
-          "value"
+          "value",
         )?.set;
         valueSetter?.call(providerSelect, "codex");
       }
@@ -325,7 +359,7 @@ describe("issue detail parity components", () => {
         selectedFilePath={null}
         workspace={workspace}
         workspaceSidebarTab="changes"
-      />
+      />,
     );
 
     expect(view.textContent).not.toContain("Workspace Details");
@@ -333,7 +367,7 @@ describe("issue detail parity components", () => {
     expect(view.textContent).toContain("Issue");
 
     const filesTab = Array.from(view.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("Files")
+      (button) => button.textContent?.includes("Files"),
     );
     act(() => {
       filesTab?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -341,7 +375,7 @@ describe("issue detail parity components", () => {
     expect(onSelectSidebarTab).toHaveBeenCalledWith("files");
 
     const toggleButton = view.querySelector(
-      'button[aria-label="Commit actions"]'
+      'button[aria-label="Commit actions"]',
     );
     act(() => {
       toggleButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -349,7 +383,7 @@ describe("issue detail parity components", () => {
     expect(view.textContent).toContain("Commit + Push");
 
     const dropdownAction = Array.from(view.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("Commit + Push")
+      (button) => button.textContent?.includes("Commit + Push"),
     );
     act(() => {
       dropdownAction?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -372,11 +406,80 @@ describe("issue detail parity components", () => {
           status="running"
           tone="running"
         />
-      </div>
+      </div>,
     );
 
     expect(view.textContent).toContain("Rendered");
     expect(view.textContent).toContain("running");
     expect(view.textContent).toContain("Daemon connected");
+  });
+
+  it("shows the empty state instead of loading forever when a workspace session exists but is not attached", () => {
+    const view = render(
+      <IssueWorkspaceDetailView
+        agents={[]}
+        availableStatusOptions={[]}
+        dependencyCheck={null}
+        isSavingIssue={false}
+        issue={
+          {
+            id: "issue-1",
+            project_id: "project-1",
+            title: "Mobile inspector",
+          } as any
+        }
+        issueDraft={
+          {
+            command: "claude",
+            model: "default",
+            planMode: false,
+            projectId: "project-1",
+            thinkingEffort: "auto",
+            title: "",
+          } as any
+        }
+        issueEditorError={null}
+        isWorking={false}
+        latestCompletionSummary={null}
+        onAddAttachment={() => undefined}
+        onBack={() => undefined}
+        onCommitIssuePatch={() => undefined}
+        onIssueDraftChange={() => undefined}
+        onPromptChange={() => undefined}
+        onRespondToQuestion={() => undefined}
+        onRevealRepo={() => undefined}
+        onRunTerminal={(event) => event.preventDefault()}
+        onSelectWorkspaceCenterTab={() => undefined}
+        onSendPrompt={() => undefined}
+        onStopSession={() => undefined}
+        onStopTerminal={() => undefined}
+        onTerminalCommandChange={() => undefined}
+        previewTabLabel="Preview"
+        projectLabel={() => "Project"}
+        projects={[]}
+        prompt=""
+        runtimeStatusValue="idle"
+        selectableParentIssues={[]}
+        selectedDiff={null}
+        selectedFile={null}
+        selectedFilePath={null}
+        session={null}
+        sessionErrorMessage={null}
+        sessionLoading={false}
+        sessionRows={[]}
+        statusLabel={() => "Backlog"}
+        terminalCommand=""
+        terminalContainerRef={{ current: null }}
+        terminalStatusValue="idle"
+        workspace={{ session_id: "session-1" } as any}
+        workspaceCenterTab="conversation"
+        workspaceTargetErrorMessage={null}
+        workspaceTargetLoading={false}
+        workspaceTargetWorktrees={[]}
+      />,
+    );
+
+    expect(view.textContent).toContain("No daemon messages yet");
+    expect(view.textContent).not.toContain("Loading conversation");
   });
 });

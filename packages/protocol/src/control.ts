@@ -78,7 +78,7 @@ export function validateControlMessage(data: unknown): ControlMessage {
  * Safe parse a control message
  */
 export function parseControlMessage(
-  data: unknown
+  data: unknown,
 ):
   | { success: true; data: ControlMessage }
   | { success: false; error: z.ZodError } {

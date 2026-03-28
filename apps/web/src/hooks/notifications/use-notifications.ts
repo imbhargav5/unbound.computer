@@ -39,7 +39,7 @@ export function useNotifications(claims: UserClaimsSchemaType) {
         getPaginatedNotifications(
           userId,
           pageParam ?? 0,
-          NOTIFICATIONS_PAGE_SIZE
+          NOTIFICATIONS_PAGE_SIZE,
         ),
       getNextPageParam: (lastPage, _pages) => {
         const pageNumber = lastPage[0];
@@ -55,7 +55,7 @@ export function useNotifications(claims: UserClaimsSchemaType) {
       },
       refetchOnWindowFocus: false,
     },
-    queryClient
+    queryClient,
   );
 
   useEffect(() => {

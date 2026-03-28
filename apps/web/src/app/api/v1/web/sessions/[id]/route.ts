@@ -45,7 +45,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           name,
           device_type
         )
-      `
+      `,
       )
       .eq("id", sessionId)
       .eq("user_id", user.id)
@@ -116,7 +116,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     if (error) {
       return NextResponse.json(
         { error: "Session not found or already revoked" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -163,7 +163,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     if (error) {
       return NextResponse.json(
         { error: "Session not found or not active" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 

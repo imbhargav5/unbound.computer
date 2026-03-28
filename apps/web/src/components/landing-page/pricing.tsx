@@ -75,7 +75,7 @@ const PricingCard = ({
   <div
     className={cn(
       "flex h-full flex-col rounded-lg border border-white/10 p-6",
-      isHighlighted && "border-white/30 bg-white/[0.02]"
+      isHighlighted && "border-white/30 bg-white/[0.02]",
     )}
   >
     <div className="mb-6 flex items-start justify-between">
@@ -101,7 +101,7 @@ const PricingCard = ({
         "mb-6 w-full",
         isHighlighted
           ? "bg-white text-black hover:bg-white/90"
-          : "border-white/20 bg-transparent hover:bg-white/5"
+          : "border-white/20 bg-transparent hover:bg-white/5",
       )}
       variant={isHighlighted ? "default" : "outline"}
     >

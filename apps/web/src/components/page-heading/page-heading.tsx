@@ -28,7 +28,7 @@ export function PageHeading({
       className={cn(
         "",
         titleClassName,
-        isLoading ? "text-4xl text-neutral-100 dark:text-neutral-800" : ""
+        isLoading ? "text-4xl text-neutral-100 dark:text-neutral-800" : "",
       )}
       data-testid="page-heading-title"
     >
@@ -39,7 +39,7 @@ export function PageHeading({
     <T.P
       className={cn(
         "text-lg text-muted-foreground leading-6",
-        subTitleClassName
+        subTitleClassName,
       )}
     >
       {subTitle}
@@ -58,7 +58,7 @@ export function PageHeading({
       className={cn(
         "md:flex md:items-start md:justify-between",
         isLoading ? "pointer-events-none animate-pulse" : "",
-        className
+        className,
       )}
     >
       <div className="min-w-0 flex-1">{wrappedTitleElement}</div>

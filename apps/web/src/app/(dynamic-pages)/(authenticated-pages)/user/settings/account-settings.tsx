@@ -33,7 +33,7 @@ export function AccountSettings({
   const [isAvatarPickerOpen, setIsAvatarPickerOpen] = useState(false);
 
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>(
-    userProfile.avatar_url ?? undefined
+    userProfile.avatar_url ?? undefined,
   );
 
   const [fullName, setFullName] = useState(userProfile.full_name ?? "");

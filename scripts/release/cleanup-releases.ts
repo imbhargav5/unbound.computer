@@ -21,7 +21,7 @@ function main() {
   }
 
   const filesToDelete = files.filter(
-    (f) => f.endsWith(".md") && f !== "README.md"
+    (f) => f.endsWith(".md") && f !== "README.md",
   );
 
   if (filesToDelete.length === 0) {

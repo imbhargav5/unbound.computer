@@ -157,7 +157,7 @@ export const Display1 = forwardRef<HTMLHeadingElement, TextProps>(
         {...props}
       />
     );
-  }
+  },
 );
 Display1.displayName = "Display1";
 
@@ -184,7 +184,7 @@ export const Display2 = forwardRef<HTMLHeadingElement, TextProps>(
         {...props}
       />
     );
-  }
+  },
 );
 Display2.displayName = "Display2";
 
@@ -211,7 +211,7 @@ export const Display3 = forwardRef<HTMLHeadingElement, TextProps>(
         {...props}
       />
     );
-  }
+  },
 );
 Display3.displayName = "Display3";
 
@@ -238,7 +238,7 @@ export const Heading1 = forwardRef<HTMLHeadingElement, TextProps>(
         {...props}
       />
     );
-  }
+  },
 );
 Heading1.displayName = "Heading1";
 
@@ -265,7 +265,7 @@ export const Heading2 = forwardRef<HTMLHeadingElement, TextProps>(
         {...props}
       />
     );
-  }
+  },
 );
 Heading2.displayName = "Heading2";
 
@@ -292,7 +292,7 @@ export const Heading3 = forwardRef<HTMLHeadingElement, TextProps>(
         {...props}
       />
     );
-  }
+  },
 );
 Heading3.displayName = "Heading3";
 
@@ -319,7 +319,7 @@ export const Heading4 = forwardRef<HTMLHeadingElement, TextProps>(
         {...props}
       />
     );
-  }
+  },
 );
 Heading4.displayName = "Heading4";
 
@@ -346,7 +346,7 @@ export const Heading5 = forwardRef<HTMLHeadingElement, TextProps>(
         {...props}
       />
     );
-  }
+  },
 );
 Heading5.displayName = "Heading5";
 
@@ -373,7 +373,7 @@ export const Heading6 = forwardRef<HTMLHeadingElement, TextProps>(
         {...props}
       />
     );
-  }
+  },
 );
 Heading6.displayName = "Heading6";
 
@@ -396,7 +396,7 @@ export const Lead = forwardRef<HTMLParagraphElement, TextProps>(
     return (
       <Comp className={cn(typeScale.lead, className)} ref={ref} {...props} />
     );
-  }
+  },
 );
 Lead.displayName = "Lead";
 
@@ -423,7 +423,7 @@ export const Text = forwardRef<HTMLParagraphElement, TextProps>(
         {...props}
       />
     );
-  }
+  },
 );
 Text.displayName = "Text";
 
@@ -446,7 +446,7 @@ export const SmallText = forwardRef<HTMLElement, TextProps>(
     return (
       <Comp className={cn(typeScale.small, className)} ref={ref} {...props} />
     );
-  }
+  },
 );
 SmallText.displayName = "SmallText";
 
@@ -469,7 +469,7 @@ export const XSmallText = forwardRef<HTMLElement, TextProps>(
     return (
       <Comp className={cn(typeScale.xs, className)} ref={ref} {...props} />
     );
-  }
+  },
 );
 XSmallText.displayName = "XSmallText";
 
@@ -497,7 +497,7 @@ export const Overline = forwardRef<HTMLElement, TextProps>(
         {...props}
       />
     );
-  }
+  },
 );
 Overline.displayName = "Overline";
 
@@ -520,7 +520,7 @@ export const Caption = forwardRef<HTMLElement, TextProps>(
     return (
       <Comp className={cn(typeScale.caption, className)} ref={ref} {...props} />
     );
-  }
+  },
 );
 Caption.displayName = "Caption";
 
@@ -543,7 +543,7 @@ export const Subtle = forwardRef<HTMLParagraphElement, TextProps>(
     return (
       <Comp className={cn(typeScale.subtle, className)} ref={ref} {...props} />
     );
-  }
+  },
 );
 Subtle.displayName = "Subtle";
 
@@ -566,7 +566,7 @@ export const CodeText = forwardRef<HTMLElement, TextProps>(
     return (
       <Comp className={cn(typeScale.code, className)} ref={ref} {...props} />
     );
-  }
+  },
 );
 CodeText.displayName = "CodeText";
 
@@ -591,13 +591,13 @@ export const Quote = forwardRef<HTMLQuoteElement, TextProps>(
         className={cn(
           "mt-6 border-slate-300 border-l-2 pl-6 dark:border-slate-600",
           typeScale.quote,
-          className
+          className,
         )}
         ref={ref}
         {...props}
       />
     );
-  }
+  },
 );
 Quote.displayName = "Quote";
 

@@ -84,7 +84,7 @@ export async function listWorktrees(repoPath: string): Promise<WorktreeInfo[]> {
  */
 export async function getWorktree(
   repoPath: string,
-  worktreePath: string
+  worktreePath: string,
 ): Promise<WorktreeInfo | null> {
   const worktrees = await listWorktrees(repoPath);
   const absolutePath = resolve(worktreePath);
@@ -97,7 +97,7 @@ export async function getWorktree(
 export async function createWorktree(
   repoPath: string,
   config: WorktreeConfig,
-  options: CreateWorktreeOptions
+  options: CreateWorktreeOptions,
 ): Promise<WorktreeResult<SessionWorktree>> {
   const {
     sessionId,
@@ -210,7 +210,7 @@ export async function createWorktree(
 export async function removeWorktree(
   repoPath: string,
   worktreePath: string,
-  options: RemoveWorktreeOptions = {}
+  options: RemoveWorktreeOptions = {},
 ): Promise<WorktreeResult<void>> {
   const { force = false, deleteBranch: shouldDeleteBranch = true } = options;
 
@@ -273,7 +273,7 @@ export async function removeWorktree(
 export async function lockWorktree(
   repoPath: string,
   worktreePath: string,
-  reason?: string
+  reason?: string,
 ): Promise<WorktreeResult<void>> {
   try {
     const args = ["worktree", "lock"];
@@ -303,7 +303,7 @@ export async function lockWorktree(
  */
 export async function unlockWorktree(
   repoPath: string,
-  worktreePath: string
+  worktreePath: string,
 ): Promise<WorktreeResult<void>> {
   try {
     await git(["worktree", "unlock", worktreePath], { cwd: repoPath });
@@ -327,7 +327,7 @@ export async function unlockWorktree(
  */
 export async function pruneWorktrees(
   repoPath: string,
-  dryRun = false
+  dryRun = false,
 ): Promise<WorktreeResult<string[]>> {
   try {
     const args = ["worktree", "prune"];
@@ -372,7 +372,7 @@ export async function pruneWorktrees(
  */
 export async function listSessionWorktrees(
   repoPath: string,
-  config: WorktreeConfig
+  config: WorktreeConfig,
 ): Promise<SessionWorktree[]> {
   const allWorktrees = await listWorktrees(repoPath);
   const sessionWorktrees: SessionWorktree[] = [];
@@ -420,7 +420,7 @@ export async function listSessionWorktrees(
 export async function getSessionWorktree(
   repoPath: string,
   config: WorktreeConfig,
-  sessionId: string
+  sessionId: string,
 ): Promise<SessionWorktree | null> {
   const worktreePath = join(config.worktreesDir, sessionId);
   const worktree = await getWorktree(repoPath, worktreePath);

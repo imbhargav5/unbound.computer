@@ -15,7 +15,7 @@ export const generateSlug = (
   }: {
     withNanoIdSuffix?: boolean;
     prefix?: string;
-  } = {}
+  } = {},
 ) => {
   const slug = slugify(title, {
     lower: true,
@@ -34,5 +34,5 @@ export const generateOrganizationSlug = (title: string) =>
 
 export const simpleNanoid = customAlphabet(
   "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
-  7
+  7,
 );

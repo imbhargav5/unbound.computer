@@ -38,13 +38,13 @@ export class ParticipantEncryption {
     const hostPublicKeyBytes = fromBase64(options.hostPublicKey);
     const pairwiseSecret = computePairwiseSecret(
       options.participantPrivateKey,
-      hostPublicKeyBytes
+      hostPublicKeyBytes,
     );
 
     // Derive session key (same as host computed for us)
     this.sessionKey = deriveSessionKeyFromPair(
       pairwiseSecret.secret,
-      options.sessionId
+      options.sessionId,
     );
   }
 
@@ -86,7 +86,7 @@ export class ParticipantEncryption {
  * Create a participant encryption context
  */
 export function createParticipantEncryption(
-  options: ParticipantEncryptionOptions
+  options: ParticipantEncryptionOptions,
 ): ParticipantEncryption {
   return new ParticipantEncryption(options);
 }

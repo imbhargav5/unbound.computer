@@ -123,7 +123,7 @@ export class WorktreeManager {
    * Create a new worktree for a session
    */
   async createWorktree(
-    options: CreateWorktreeOptions
+    options: CreateWorktreeOptions,
   ): Promise<WorktreeResult<SessionWorktree>> {
     // Validate repository first
     const validation = await this.validate();
@@ -142,7 +142,7 @@ export class WorktreeManager {
    */
   async removeWorktree(
     worktreePath: string,
-    options?: RemoveWorktreeOptions
+    options?: RemoveWorktreeOptions,
   ): Promise<WorktreeResult<void>> {
     return removeWorktree(this.repoPath, worktreePath, options);
   }
@@ -152,7 +152,7 @@ export class WorktreeManager {
    */
   async removeSessionWorktree(
     sessionId: string,
-    options?: RemoveWorktreeOptions
+    options?: RemoveWorktreeOptions,
   ): Promise<WorktreeResult<void>> {
     const worktree = await this.getSessionWorktree(sessionId);
     if (!worktree) {
@@ -169,7 +169,7 @@ export class WorktreeManager {
    */
   async lockWorktree(
     worktreePath: string,
-    reason?: string
+    reason?: string,
   ): Promise<WorktreeResult<void>> {
     return lockWorktree(this.repoPath, worktreePath, reason);
   }
@@ -179,7 +179,7 @@ export class WorktreeManager {
    */
   async lockSessionWorktree(
     sessionId: string,
-    reason?: string
+    reason?: string,
   ): Promise<WorktreeResult<void>> {
     const worktree = await this.getSessionWorktree(sessionId);
     if (!worktree) {
@@ -202,7 +202,7 @@ export class WorktreeManager {
    * Unlock a session worktree
    */
   async unlockSessionWorktree(
-    sessionId: string
+    sessionId: string,
   ): Promise<WorktreeResult<void>> {
     const worktree = await this.getSessionWorktree(sessionId);
     if (!worktree) {
@@ -225,7 +225,7 @@ export class WorktreeManager {
    * Cleanup worktrees using a specific strategy
    */
   async cleanup(
-    options: CleanupOptions
+    options: CleanupOptions,
   ): Promise<WorktreeResult<CleanupResult>> {
     return cleanupWorktrees(this.repoPath, this.config, options);
   }
@@ -235,13 +235,13 @@ export class WorktreeManager {
    */
   async cleanupSession(
     sessionId: string,
-    options?: { dryRun?: boolean; force?: boolean }
+    options?: { dryRun?: boolean; force?: boolean },
   ): Promise<WorktreeResult<void>> {
     return cleanupSessionWorktree(
       this.repoPath,
       this.config,
       sessionId,
-      options
+      options,
     );
   }
 
@@ -341,7 +341,7 @@ export class WorktreeManager {
 
     const lockedWorktrees = sessionWorktrees.filter((w) => w.isLocked).length;
     const prunableWorktrees = sessionWorktrees.filter(
-      (w) => w.isPrunable
+      (w) => w.isPrunable,
     ).length;
 
     return {
@@ -359,7 +359,7 @@ export class WorktreeManager {
  */
 export function createWorktreeManager(
   repoPath: string,
-  config?: Partial<WorktreeConfig>
+  config?: Partial<WorktreeConfig>,
 ): WorktreeManager {
   return new WorktreeManager(repoPath, config);
 }
@@ -369,7 +369,7 @@ export function createWorktreeManager(
  */
 export async function createWorktreeManagerFromPath(
   path: string,
-  config?: Partial<WorktreeConfig>
+  config?: Partial<WorktreeConfig>,
 ): Promise<WorktreeManager> {
   const mainPath = await getMainRepositoryPath(path);
   return new WorktreeManager(mainPath, config);

@@ -38,7 +38,7 @@ export function MultiSelect({
     (item: string) => {
       onChange(safeSelected.filter((i) => i !== item));
     },
-    [onChange, safeSelected]
+    [onChange, safeSelected],
   );
 
   const handleKeyDown = React.useCallback(
@@ -59,12 +59,12 @@ export function MultiSelect({
         }
       }
     },
-    [onChange, safeSelected]
+    [onChange, safeSelected],
   );
 
   const selectables = React.useMemo(
     () => options.filter((item) => !safeSelected.includes(item.value)),
-    [options, safeSelected]
+    [options, safeSelected],
   );
 
   return (

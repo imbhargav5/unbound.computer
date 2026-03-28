@@ -31,7 +31,7 @@ export type AvatarStyle = (typeof AVATAR_STYLES)[number];
  */
 export function generateAvatar(
   seed: string,
-  style: AvatarStyle = "initials"
+  style: AvatarStyle = "initials",
 ): string {
   const collection = initials as Record<string, any>;
   const avatarStyle = collection[style];
@@ -56,7 +56,7 @@ export function generateAvatar(
  */
 export function generateAvatarDataUri(
   seed: string,
-  style: AvatarStyle = "initials"
+  style: AvatarStyle = "initials",
 ): string {
   const svg = generateAvatar(seed, style);
   // Use URL encoding instead of base64 to avoid Unicode issues with btoa()

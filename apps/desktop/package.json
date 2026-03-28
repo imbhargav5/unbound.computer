@@ -1,13 +1,13 @@
 {
   "name": "@unbound/desktop",
-  "private": true,
   "version": "0.0.20",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 1420",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "lint": "biome check .",
+    "lint": "oxlint --config ../../.oxlintrc.json --deny-warnings .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "tauri": "tauri",

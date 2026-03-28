@@ -60,7 +60,7 @@ export function validatePairingMessage(data: unknown): PairingMessage {
  * Safe parse a pairing message
  */
 export function parsePairingMessage(
-  data: unknown
+  data: unknown,
 ):
   | { success: true; data: PairingMessage }
   | { success: false; error: z.ZodError } {
@@ -77,7 +77,7 @@ export function parsePairingMessage(
 export function createPairingRequest(
   deviceId: string,
   deviceName: string,
-  publicKey: string
+  publicKey: string,
 ): PairingRequest {
   return {
     type: "PAIRING_REQUEST",
@@ -103,7 +103,7 @@ export interface CreatePairingResponseOptions {
  * Create a pairing response
  */
 export function createPairingResponse(
-  options: CreatePairingResponseOptions
+  options: CreatePairingResponseOptions,
 ): PairingResponse {
   return {
     type: "PAIRING_RESPONSE",
@@ -121,7 +121,7 @@ export function createPairingResponse(
 export function createPairingConfirmation(
   deviceId: string,
   success: boolean,
-  error?: string
+  error?: string,
 ): PairingConfirmation {
   return {
     type: "PAIRING_CONFIRMATION",

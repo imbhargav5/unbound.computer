@@ -23,6 +23,6 @@ export function useSeeNotification() {
         router.refresh();
       },
     },
-    queryClient
+    queryClient,
   );
 }

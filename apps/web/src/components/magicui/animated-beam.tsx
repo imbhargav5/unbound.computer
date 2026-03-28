@@ -126,7 +126,7 @@ export const AnimatedBeam: React.FC<AnimatedBeamProps> = ({
     <svg
       className={cn(
         "pointer-events-none absolute top-0 left-0 transform-gpu stroke-2",
-        className
+        className,
       )}
       fill="none"
       height={svgDimensions.height}

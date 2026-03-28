@@ -16,7 +16,7 @@ type ValidationResult =
 export async function validateDeviceForWebAuth(
   supabase: SupabaseClient<Database>,
   userId: string,
-  deviceId: string
+  deviceId: string,
 ): Promise<ValidationResult> {
   const { data: device, error } = await supabase
     .from("devices")
@@ -50,7 +50,7 @@ export async function validateDeviceForWebAuth(
 export async function validateWebSessionForAuth(
   supabase: SupabaseClient<Database>,
   userId: string,
-  sessionId: string
+  sessionId: string,
 ): Promise<ValidationResult> {
   const { data: session, error } = await supabase
     .from("web_sessions")
@@ -93,7 +93,7 @@ export async function validateWebSessionForAuth(
 export async function validateActiveWebSession(
   supabase: SupabaseClient<Database>,
   userId: string,
-  sessionId: string
+  sessionId: string,
 ): Promise<ValidationResult> {
   const { data: session, error } = await supabase
     .from("web_sessions")
@@ -137,7 +137,7 @@ export async function validateActiveWebSession(
 export async function checkWebSessionRateLimit(
   supabase: SupabaseClient<Database>,
   userId: string,
-  maxPendingSessions = 5
+  maxPendingSessions = 5,
 ): Promise<ValidationResult> {
   const { count, error } = await supabase
     .from("web_sessions")

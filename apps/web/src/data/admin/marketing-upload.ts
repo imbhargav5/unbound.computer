@@ -15,7 +15,7 @@ export interface UploadMediaResult {
  * Supports files up to 100MB for videos, 10MB for images/GIFs.
  */
 export async function uploadBlogMedia(
-  formData: FormData
+  formData: FormData,
 ): Promise<UploadMediaResult> {
   const response = await fetch(
     toSiteURL("/api/admin/marketing/media?type=blog"),
@@ -23,7 +23,7 @@ export async function uploadBlogMedia(
       method: "POST",
       body: formData,
       credentials: "include",
-    }
+    },
   );
 
   if (!response.ok) {
@@ -39,7 +39,7 @@ export async function uploadBlogMedia(
  * Supports files up to 100MB for videos, 10MB for images/GIFs.
  */
 export async function uploadChangelogMedia(
-  formData: FormData
+  formData: FormData,
 ): Promise<UploadMediaResult> {
   const response = await fetch(
     toSiteURL("/api/admin/marketing/media?type=changelog"),
@@ -47,7 +47,7 @@ export async function uploadChangelogMedia(
       method: "POST",
       body: formData,
       credentials: "include",
-    }
+    },
   );
 
   if (!response.ok) {

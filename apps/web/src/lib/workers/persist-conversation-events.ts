@@ -30,7 +30,7 @@ const streamPositions = new Map<string, StreamPosition>();
  * Get active session IDs from Supabase
  */
 async function getActiveSessions(
-  supabase: ReturnType<typeof createClient<Database>>
+  supabase: ReturnType<typeof createClient<Database>>,
 ): Promise<string[]> {
   const { data, error } = await supabase
     .from("agent_coding_sessions")
@@ -65,7 +65,7 @@ interface RedisMessageData {
  */
 async function processSessionStream(
   sessionId: string,
-  supabase: ReturnType<typeof createClient<Database>>
+  supabase: ReturnType<typeof createClient<Database>>,
 ): Promise<number> {
   // Read from the unified messages stream (new encrypted format)
   const streamKey = `session:${sessionId}:messages`;
@@ -81,7 +81,7 @@ async function processSessionStream(
     // Read new messages from stream
     const results = await xread(
       { [streamKey]: position.lastMessageId },
-      { count: 100 } // Process in batches of 100
+      { count: 100 }, // Process in batches of 100
     );
 
     if (results.length === 0 || results[0].messages.length === 0) {
@@ -112,7 +112,7 @@ async function processSessionStream(
     if (insertError) {
       console.error(
         `Error inserting messages for session ${sessionId}:`,
-        insertError
+        insertError,
       );
       return 0;
     }
@@ -126,7 +126,7 @@ async function processSessionStream(
     streamPositions.set(sessionId, newPosition);
 
     console.log(
-      `[Persist Worker] Persisted ${messages.length} messages for session ${sessionId}`
+      `[Persist Worker] Persisted ${messages.length} messages for session ${sessionId}`,
     );
 
     return messages.length;
@@ -158,14 +158,14 @@ export async function persistConversationEvents(config: WorkerConfig): Promise<{
         persistSession: false,
         autoRefreshToken: false,
       },
-    }
+    },
   );
 
   // Get active sessions
   const activeSessions = await getActiveSessions(supabase);
 
   console.log(
-    `[Persist Worker] Processing ${activeSessions.length} active sessions`
+    `[Persist Worker] Processing ${activeSessions.length} active sessions`,
   );
 
   // Process each session stream

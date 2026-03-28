@@ -17,5 +17,5 @@ export const createSupabaseAdminRouteHandlerClient = async () =>
         autoRefreshToken: false,
         persistSession: false,
       },
-    }
+    },
   );

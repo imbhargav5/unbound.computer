@@ -24,7 +24,7 @@ Sentry.init({
         console.log(
           "server",
           `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest`,
-          url
+          url,
         );
         return !url.startsWith(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest`);
       },

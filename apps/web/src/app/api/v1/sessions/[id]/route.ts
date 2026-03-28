@@ -43,7 +43,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           parent:repositories!parent_repository_id(id, name)
         ),
         device:devices(id, name, device_type, hostname, is_active, last_seen_at)
-      `
+      `,
       )
       .eq("id", sessionId)
       .eq("user_id", user.id)
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       if (error.code === "PGRST116") {
         return NextResponse.json(
           { error: "Session not found", code: "SESSION_NOT_FOUND" },
-          { status: 404 }
+          { status: 404 },
         );
       }
       return NextResponse.json({ error: error.message }, { status: 500 });

@@ -23,7 +23,7 @@ export async function getUserRepositories() {
       active_sessions:agent_coding_sessions!repository_id(
         id, status, session_started_at, current_branch
       )
-    `
+    `,
     )
     .eq("user_id", user.sub)
     .eq("is_worktree", false)
@@ -55,7 +55,7 @@ export async function getRepositoriesByDevice(deviceId: string) {
       active_sessions:agent_coding_sessions!repository_id(
         id, status, session_started_at, current_branch
       )
-    `
+    `,
     )
     .eq("user_id", user.sub)
     .eq("device_id", deviceId)
@@ -92,7 +92,7 @@ export async function getRepositoryWithWorktrees(repositoryId: string) {
       active_sessions:agent_coding_sessions!repository_id(
         id, status, session_started_at, current_branch
       )
-    `
+    `,
     )
     .eq("id", repositoryId)
     .eq("user_id", user.sub)

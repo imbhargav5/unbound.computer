@@ -72,7 +72,7 @@ export class SessionEncryption {
    * Decrypt a received message
    */
   decryptMessage(
-    encrypted: EncryptedSessionMessage
+    encrypted: EncryptedSessionMessage,
   ): Pick<SessionMessage, "type" | "content"> {
     // Decode from base64
     const ciphertext = fromBase64(encrypted.payload);
@@ -161,13 +161,13 @@ export class PairwiseSessionEncryption {
     // Compute pairwise secret using ECDH
     const pairwiseSecret = computePairwiseSecret(
       options.myPrivateKey,
-      options.peerPublicKey
+      options.peerPublicKey,
     );
 
     // Derive session key from pairwise secret
     this.sessionKey = deriveSessionKeyFromPair(
       pairwiseSecret.secret,
-      options.sessionId
+      options.sessionId,
     );
   }
 
@@ -197,7 +197,7 @@ export class PairwiseSessionEncryption {
    * Decrypt a received message
    */
   decryptMessage(
-    encrypted: EncryptedSessionMessage
+    encrypted: EncryptedSessionMessage,
   ): Pick<SessionMessage, "type" | "content"> {
     const ciphertext = fromBase64(encrypted.payload);
     const nonce = fromBase64(encrypted.nonce);
@@ -281,7 +281,7 @@ export class PairwiseEncryptionManager {
    */
   getSessionEncryption(
     sessionId: string,
-    peerPublicKey: Uint8Array
+    peerPublicKey: Uint8Array,
   ): PairwiseSessionEncryption {
     let encryption = this.sessions.get(sessionId);
     if (!encryption) {
@@ -312,11 +312,11 @@ export class PairwiseEncryptionManager {
    */
   encryptMessage(
     message: SessionMessage,
-    peerPublicKey: Uint8Array
+    peerPublicKey: Uint8Array,
   ): EncryptedSessionMessage {
     const encryption = this.getSessionEncryption(
       message.sessionId,
-      peerPublicKey
+      peerPublicKey,
     );
     return encryption.encryptMessage(message);
   }
@@ -326,11 +326,11 @@ export class PairwiseEncryptionManager {
    */
   decryptMessage(
     encrypted: EncryptedSessionMessage,
-    peerPublicKey: Uint8Array
+    peerPublicKey: Uint8Array,
   ): Pick<SessionMessage, "type" | "content"> {
     const encryption = this.getSessionEncryption(
       encrypted.sessionId,
-      peerPublicKey
+      peerPublicKey,
     );
     return encryption.decryptMessage(encrypted);
   }
@@ -395,7 +395,7 @@ export class EncryptionManager {
    * Decrypt a message
    */
   decryptMessage(
-    encrypted: EncryptedSessionMessage
+    encrypted: EncryptedSessionMessage,
   ): Pick<SessionMessage, "type" | "content"> {
     const encryption = this.getSessionEncryption(encrypted.sessionId);
     return encryption.decryptMessage(encrypted);
@@ -420,7 +420,7 @@ export class EncryptionManager {
  */
 export function createSessionEncryption(
   masterKey: Uint8Array,
-  sessionId: string
+  sessionId: string,
 ): SessionEncryption {
   return new SessionEncryption(masterKey, sessionId);
 }
@@ -430,7 +430,7 @@ export function createSessionEncryption(
  * @deprecated Use createPairwiseEncryptionManager for device-rooted trust model
  */
 export function createEncryptionManager(
-  masterKey: Uint8Array
+  masterKey: Uint8Array,
 ): EncryptionManager {
   return new EncryptionManager(masterKey);
 }
@@ -439,7 +439,7 @@ export function createEncryptionManager(
  * Create a pairwise session encryption context
  */
 export function createPairwiseSessionEncryption(
-  options: PairwiseSessionEncryptionOptions
+  options: PairwiseSessionEncryptionOptions,
 ): PairwiseSessionEncryption {
   return new PairwiseSessionEncryption(options);
 }
@@ -448,7 +448,7 @@ export function createPairwiseSessionEncryption(
  * Create a pairwise encryption manager
  */
 export function createPairwiseEncryptionManager(
-  options: PairwiseEncryptionManagerOptions
+  options: PairwiseEncryptionManagerOptions,
 ): PairwiseEncryptionManager {
   return new PairwiseEncryptionManager(options);
 }

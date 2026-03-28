@@ -36,7 +36,7 @@ export function SubscriptionSelect({
         });
         toastRef.current = undefined;
       },
-    }
+    },
   );
 
   return (

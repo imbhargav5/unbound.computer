@@ -15,7 +15,7 @@ export const adminMiddleware: MiddlewareConfig = {
     if (!(maybeUser && isSupabaseUserClaimAppAdmin(maybeUser))) {
       middlewareLogger.log(
         "User is not an app admin. Redirecting to dashboard.",
-        req.nextUrl.pathname
+        req.nextUrl.pathname,
       );
       return [
         NextResponse.redirect(toSiteURL("/dashboard"), {

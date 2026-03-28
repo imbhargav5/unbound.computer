@@ -17,7 +17,7 @@ export function ButtonScrollToBottom({
       className={cn(
         "absolute top-1 right-4 z-10 bg-background transition-opacity duration-300 sm:right-8 md:top-2",
         isAtBottom ? "opacity-0" : "opacity-100",
-        className
+        className,
       )}
       onClick={() =>
         window.scrollTo({

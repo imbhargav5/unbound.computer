@@ -14,7 +14,7 @@ describe("buildSessionConversationTimeline", () => {
     for (const testCase of claudeParserFixtures.cases) {
       const rows = buildSessionConversationTimeline(
         fixtureMessages(testCase.events),
-        "claude"
+        "claude",
       );
 
       if (typeof testCase.expect.entryCount === "number") {
@@ -27,7 +27,7 @@ describe("buildSessionConversationTimeline", () => {
 
       if (Array.isArray(testCase.expect.blockTypes)) {
         expect(uniqueSemanticBlockTypes(rows), testCase.id).toEqual(
-          testCase.expect.blockTypes
+          testCase.expect.blockTypes,
         );
       }
     }
@@ -62,7 +62,7 @@ describe("buildSessionConversationTimeline", () => {
           message: 'Auth(TokenRefreshFailed("invalid_grant"))',
         }),
       ],
-      "codex"
+      "codex",
     );
 
     expect(rows).toHaveLength(4);
@@ -107,7 +107,7 @@ describe("buildSessionConversationTimeline", () => {
           },
         }),
       ],
-      "codex"
+      "codex",
     );
 
     expect(flattenSemanticBlockTypes(rows)).toEqual(["question", "text"]);
@@ -117,6 +117,44 @@ describe("buildSessionConversationTimeline", () => {
       question: {
         header: "Ship it",
         question: "Should I continue?",
+      },
+    });
+  });
+
+  it("extracts Claude AskUserQuestion prompts into question blocks", () => {
+    const rows = buildSessionConversationTimeline(
+      [
+        message("1", 1, {
+          type: "assistant",
+          message: {
+            content: [
+              {
+                type: "tool_use",
+                id: "toolu_123",
+                name: "AskUserQuestion",
+                input: {
+                  header: "Migration",
+                  options: ["Ship it", "Hold"],
+                  question: "Ship the migration?",
+                },
+              },
+            ],
+          },
+        }),
+      ],
+      "claude",
+    );
+
+    expect(flattenSemanticBlockTypes(rows)).toEqual(["question"]);
+    expect(rows[0]?.blocks[0]).toMatchObject({
+      kind: "question",
+      question: {
+        header: "Migration",
+        options: [
+          { label: "Ship it", value: "Ship it" },
+          { label: "Hold", value: "Hold" },
+        ],
+        question: "Ship the migration?",
       },
     });
   });
@@ -138,7 +176,7 @@ describe("buildSessionConversationTimeline", () => {
           },
         }),
       ],
-      "claude"
+      "claude",
     );
 
     expect(summary).toEqual({
@@ -165,7 +203,7 @@ describe("buildSessionConversationTimeline", () => {
           },
         }),
       ],
-      "codex"
+      "codex",
     );
 
     expect(summary).toEqual({
@@ -180,21 +218,21 @@ describe("buildSessionConversationTimeline", () => {
 });
 
 function flattenSemanticBlockTypes(
-  rows: ReturnType<typeof buildSessionConversationTimeline>
+  rows: ReturnType<typeof buildSessionConversationTimeline>,
 ) {
   return rows.flatMap((row) =>
-    row.blocks.map((block) => sessionConversationBlockSemanticType(block))
+    row.blocks.map((block) => sessionConversationBlockSemanticType(block)),
   );
 }
 
 function uniqueSemanticBlockTypes(
-  rows: ReturnType<typeof buildSessionConversationTimeline>
+  rows: ReturnType<typeof buildSessionConversationTimeline>,
 ) {
   return Array.from(new Set(flattenSemanticBlockTypes(rows)));
 }
 
 function uniqueRoles(
-  rows: ReturnType<typeof buildSessionConversationTimeline>
+  rows: ReturnType<typeof buildSessionConversationTimeline>,
 ) {
   return Array.from(new Set(rows.map((row) => row.role)));
 }
@@ -204,15 +242,15 @@ function fixtureMessages(events: Array<Record<string, unknown>>) {
     message(
       `fixture-${index + 1}`,
       index + 1,
-      Object.hasOwn(event, "raw_json") ? event.raw_json : event
-    )
+      Object.hasOwn(event, "raw_json") ? event.raw_json : event,
+    ),
   );
 }
 
 function message(
   id: string,
   sequenceNumber: number,
-  content: unknown
+  content: unknown,
 ): SessionMessage {
   return {
     content: typeof content === "string" ? content : JSON.stringify(content),

@@ -70,7 +70,7 @@ export function RepositoriesList({
             ? [repo.worktrees]
             : [];
         const activeCount = activeSessions.filter(
-          (s) => s.status === "active"
+          (s) => s.status === "active",
         ).length;
 
         return (

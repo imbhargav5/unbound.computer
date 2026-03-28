@@ -28,17 +28,17 @@ describe("presence-do-worker debug endpoint", () => {
       (
         await dispatchHeartbeat(
           mf,
-          makeHeartbeat({ seq: 1, sent_at_ms: baseSentAt, ttl_ms: 4000 })
+          makeHeartbeat({ seq: 1, sent_at_ms: baseSentAt, ttl_ms: 4000 }),
         )
-      ).status
+      ).status,
     ).toBe(204);
     expect(
       (
         await dispatchHeartbeat(
           mf,
-          makeHeartbeat({ seq: 2, sent_at_ms: baseSentAt + 2, ttl_ms: 4000 })
+          makeHeartbeat({ seq: 2, sent_at_ms: baseSentAt + 2, ttl_ms: 4000 }),
         )
-      ).status
+      ).status,
     ).toBe(204);
 
     const state = await readDebugState(mf);
@@ -64,7 +64,7 @@ describe("presence-do-worker debug endpoint", () => {
     const second = await readDebugState(mf);
 
     expect(second.stats.list_records_total).toBeGreaterThan(
-      first.stats.list_records_total
+      first.stats.list_records_total,
     );
   });
 
@@ -73,7 +73,7 @@ describe("presence-do-worker debug endpoint", () => {
     mf = createMiniflare({ environment: "production" });
 
     const response = await mf.dispatchFetch(
-      `http://example.com/debug/presence?user_id=${defaultUserId}`
+      `http://example.com/debug/presence?user_id=${defaultUserId}`,
     );
 
     expect(response.status).toBe(403);

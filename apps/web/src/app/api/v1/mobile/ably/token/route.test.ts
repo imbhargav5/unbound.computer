@@ -10,7 +10,7 @@ describe("Ably token capability builders", () => {
   it("adds session status object-subscribe capability for mobile", () => {
     const capability = buildMobileCapability(
       ["11111111-1111-1111-1111-111111111111"],
-      "22222222-2222-2222-2222-222222222222"
+      "22222222-2222-2222-2222-222222222222",
     );
 
     expect(capability["session:*:status"]).toEqual(["object-subscribe"]);
@@ -18,7 +18,7 @@ describe("Ably token capability builders", () => {
 
   it("adds session status object-publish capability for daemon_falco", () => {
     const capability = buildDaemonFalcoCapability(
-      "22222222-2222-2222-2222-222222222222"
+      "22222222-2222-2222-2222-222222222222",
     );
 
     expect(capability["session:*:status"]).toEqual(["object-publish"]);
@@ -29,7 +29,7 @@ describe("Ably token capability builders", () => {
       "mobile",
       ["11111111-1111-1111-1111-111111111111"],
       "22222222-2222-2222-2222-222222222222",
-      "USER-ID"
+      "USER-ID",
     );
 
     expect(capability["session:*:status"]).toEqual(["object-subscribe"]);
@@ -38,7 +38,7 @@ describe("Ably token capability builders", () => {
   it("buildAblyTokenRequestBody includes numeric timestamp and nonce", () => {
     const capability = buildMobileCapability(
       ["11111111-1111-1111-1111-111111111111"],
-      "22222222-2222-2222-2222-222222222222"
+      "22222222-2222-2222-2222-222222222222",
     );
     const body = buildAblyTokenRequestBody("app.key", "USER-ID", capability);
 

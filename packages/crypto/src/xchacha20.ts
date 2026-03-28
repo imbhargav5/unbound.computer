@@ -12,7 +12,7 @@ import { KEY_SIZE } from "./types.js";
  */
 export function encrypt(
   key: Uint8Array,
-  plaintext: Uint8Array
+  plaintext: Uint8Array,
 ): EncryptedMessage {
   if (key.length !== KEY_SIZE.SESSION_KEY) {
     throw new Error(`Key must be ${KEY_SIZE.SESSION_KEY} bytes`);
@@ -37,7 +37,7 @@ export function encrypt(
 export function decrypt(
   key: Uint8Array,
   nonce: Uint8Array,
-  ciphertext: Uint8Array
+  ciphertext: Uint8Array,
 ): Uint8Array {
   if (key.length !== KEY_SIZE.SESSION_KEY) {
     throw new Error(`Key must be ${KEY_SIZE.SESSION_KEY} bytes`);
@@ -60,7 +60,7 @@ export function decrypt(
  */
 export function encryptSealed(
   key: Uint8Array,
-  plaintext: Uint8Array
+  plaintext: Uint8Array,
 ): Uint8Array {
   const { nonce, ciphertext } = encrypt(key, plaintext);
   const sealed = new Uint8Array(nonce.length + ciphertext.length);

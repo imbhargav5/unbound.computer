@@ -7,5 +7,5 @@ import type { Database } from "database/types";
 // createClientComponentClient
 export const supabaseUserClientComponent = createBrowserClient<Database>(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
 );

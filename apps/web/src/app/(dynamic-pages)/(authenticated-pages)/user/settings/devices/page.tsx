@@ -31,7 +31,7 @@ async function DevicesContent() {
       `
       *,
       authorizing_device:devices!web_sessions_authorizing_device_id_fkey(id, name, device_type)
-    `
+    `,
     )
     .eq("user_id", user.id)
     .in("status", ["pending", "active"])

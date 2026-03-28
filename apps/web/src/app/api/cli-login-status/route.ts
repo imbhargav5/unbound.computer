@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
     if (!loginIdParam) {
       return NextResponse.json(
         { error: "login_id parameter is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
       console.error("Error querying cli_logins:", queryError);
       return NextResponse.json(
         { error: "Database query failed" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
 
       return NextResponse.json(
         { status: "expired", error: "Login attempt expired" },
-        { status: 410 }
+        { status: 410 },
       );
     }
 
@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
     console.error("CLI login status error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -1,8 +1,7 @@
 {
   "name": "@unbound/unbound",
-  "private": true,
   "version": "0.0.20",
-  "packageManager": "pnpm@9.0.6",
+  "private": true,
   "scripts": {
     "dev": "turbo run dev --parallel",
     "desktop#dev": "turbo run dev --filter=desktop",
@@ -11,7 +10,12 @@
     "desktop:bundle": "pnpm --filter @unbound/desktop tauri:build",
     "web#dev": "turbo run dev --filter=web",
     "build": "turbo run build",
-    "lint": "turbo run lint",
+    "lint": "turbo run lint && pnpm oxlint && pnpm oxfmt",
+    "format": "pnpm oxfmt:write",
+    "oxlint": "oxlint --deny-warnings .",
+    "oxlint:fix": "oxlint --deny-warnings --fix .",
+    "oxfmt": "oxfmt --check package.json pnpm-workspace.yaml turbo.json .oxlintrc.json .oxfmtrc.json apps packages scripts",
+    "oxfmt:write": "oxfmt --write package.json pnpm-workspace.yaml turbo.json .oxlintrc.json .oxfmtrc.json apps packages scripts",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "gen-types": "turbo run gen-types --filter=database",
@@ -39,9 +43,10 @@
     "cli": "./apps/cli-new/target/release/unbound-cli"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.4",
+    "oxfmt": "0.42.0",
+    "oxlint": "1.57.0",
     "tsx": "^4.19.2",
-    "turbo": "^2.8.10",
-    "ultracite": "7.2.3"
-  }
+    "turbo": "^2.8.10"
+  },
+  "packageManager": "pnpm@9.0.6"
 }

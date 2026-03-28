@@ -30,7 +30,7 @@ export interface WebRelayClientEvents {
   onMessage?: (sessionId: string, message: SessionMessage) => void;
   onPresence?: (
     deviceId: string,
-    status: "online" | "offline" | "away"
+    status: "online" | "offline" | "away",
   ) => void;
 }
 
@@ -254,7 +254,7 @@ export class WebRelayClient {
       }
     } catch (error) {
       this.options.events.onError?.(
-        new Error(`Failed to parse message: ${error}`)
+        new Error(`Failed to parse message: ${error}`),
       );
     }
   }
@@ -263,7 +263,7 @@ export class WebRelayClient {
     try {
       // Decrypt the payload
       const decrypted = this.options.sessionManager.decryptFromBase64(
-        envelope.payload
+        envelope.payload,
       );
       const message = JSON.parse(new TextDecoder().decode(decrypted));
 
@@ -274,7 +274,7 @@ export class WebRelayClient {
       }
     } catch (error) {
       this.options.events.onError?.(
-        new Error(`Failed to decrypt message: ${error}`)
+        new Error(`Failed to decrypt message: ${error}`),
       );
     }
   }
@@ -289,7 +289,7 @@ export class WebRelayClient {
     if (this.reconnectAttempts >= this.options.maxReconnectAttempts) {
       this.setConnectionState("error");
       this.options.events.onError?.(
-        new Error("Max reconnect attempts reached")
+        new Error("Max reconnect attempts reached"),
       );
       return;
     }

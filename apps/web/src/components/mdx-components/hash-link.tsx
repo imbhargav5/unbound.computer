@@ -31,7 +31,7 @@ export const HashLink = ({
   const className = cn(
     classNameProp,
     "hash-link",
-    isActive ? "font-bold text-blue-500!" : "font-normal"
+    isActive ? "font-bold text-blue-500!" : "font-normal",
   );
   return (
     <a className={className} href={href} {...props}>
