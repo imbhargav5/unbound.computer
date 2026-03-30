@@ -12,7 +12,6 @@ path = "src/main.rs"
 [dependencies]
 agent-session-sqlite-persist-core = { workspace = true }
 claude-debug-logs = { workspace = true }
-daemon-board = { workspace = true }
 daemon-config-and-utils = { workspace = true }
 daemon-storage = { workspace = true }
 daemon-database = { workspace = true }

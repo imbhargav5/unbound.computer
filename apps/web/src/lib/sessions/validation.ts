@@ -3,7 +3,7 @@ import type { Database } from "database/types";
 import { SESSION_LIMITS, SESSION_STATUS } from "./config";
 
 type CodingSession =
-  Database["public"]["Tables"]["agent_coding_sessions"]["Row"];
+  Database["public"]["Tables"]["local_llm_conversations"]["Row"];
 
 export interface SessionValidationResult {
   code?: string;
@@ -21,7 +21,7 @@ export async function validateSessionLimits(
 ): Promise<SessionValidationResult> {
   // Check user's active session count
   const { count: userSessionCount, error: userError } = await supabase
-    .from("agent_coding_sessions")
+    .from("local_llm_conversations")
     .select("*", { count: "exact", head: true })
     .eq("user_id", userId)
     .eq("status", SESSION_STATUS.ACTIVE);
@@ -40,7 +40,7 @@ export async function validateSessionLimits(
 
   // Check device's active session count
   const { count: deviceSessionCount, error: deviceError } = await supabase
-    .from("agent_coding_sessions")
+    .from("local_llm_conversations")
     .select("*", { count: "exact", head: true })
     .eq("device_id", deviceId)
     .eq("status", SESSION_STATUS.ACTIVE);
@@ -143,7 +143,7 @@ export async function validateSessionForOperation(
   code?: string;
 }> {
   const { data: session, error } = await supabase
-    .from("agent_coding_sessions")
+    .from("local_llm_conversations")
     .select("*")
     .eq("id", sessionId)
     .eq("user_id", userId)

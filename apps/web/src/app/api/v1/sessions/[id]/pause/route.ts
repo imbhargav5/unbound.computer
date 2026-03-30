@@ -42,7 +42,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     // Update session status to paused
     const { data: session, error } = await supabase
-      .from("agent_coding_sessions")
+      .from("local_llm_conversations")
       .update({
         status: SESSION_STATUS.PAUSED,
         updated_at: new Date().toISOString(),

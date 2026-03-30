@@ -1,8 +1,7 @@
 //! Claude CLI handlers.
 
 use crate::app::agent_cli::{
-    build_agent_cli_config_from_adapter, detect_agent_cli_kind, AgentCliEvent, AgentCliKind,
-    AgentCliProcess,
+    build_agent_cli_config_from_adapter, AgentCliEvent, AgentCliKind, AgentCliProcess,
 };
 use crate::app::DaemonState;
 use crate::machines::claude::handle_claude_events;
@@ -11,7 +10,6 @@ use agent_session_sqlite_persist_core::{
     CodingSessionStatus, NewMessage, Session, SessionId, SessionReader, SessionWriter,
 };
 use claude_process_manager::{ClaudeConfig, ClaudeProcess, PermissionMode};
-use daemon_board::service;
 use daemon_ipc::{error_codes, Event, EventType, IpcServer, Method, Response};
 use serde_json::Value;
 use std::sync::atomic::{AtomicI64, Ordering};
@@ -69,12 +67,6 @@ pub async fn agent_send_core(
 
     let session = resolved_workspace.session;
     let working_dir = resolved_workspace.working_dir;
-    let agent = match session.agent_id.as_deref() {
-        Some(agent_id) => service::get_agent(&state.db, agent_id)
-            .await
-            .map_err(|error| ("internal_error".to_string(), error.to_string()))?,
-        None => None,
-    };
     let cli_kind = match requested_provider.as_deref() {
         Some("claude") => AgentCliKind::Claude,
         Some("codex") => AgentCliKind::Codex,
@@ -84,7 +76,7 @@ pub async fn agent_send_core(
                 "provider must be either \"claude\" or \"codex\" when provided".to_string(),
             ))
         }
-        None => detect_cli_kind_for_session(&session, agent.as_ref()),
+        None => detect_cli_kind_for_session(&session),
     };
 
     if cli_kind == AgentCliKind::Claude {
@@ -101,9 +93,7 @@ pub async fn agent_send_core(
     append_session_message(state, &session_id, &content, "user_input");
 
     let mut config = build_agent_cli_config_from_adapter(
-        agent
-            .as_ref()
-            .and_then(|agent| agent.adapter_config.as_object()),
+        None,
         &content,
         working_dir,
         codex_resume_session_id(&session),
@@ -442,21 +432,10 @@ fn parse_permission_mode(
     }
 }
 
-fn detect_cli_kind_for_session(
-    session: &Session,
-    agent: Option<&daemon_board::Agent>,
-) -> AgentCliKind {
+fn detect_cli_kind_for_session(session: &Session) -> AgentCliKind {
     match session.effective_provider() {
         Some("codex") => AgentCliKind::Codex,
-        Some("claude") => AgentCliKind::Claude,
-        Some(_) | None => agent
-            .map(|agent| {
-                detect_agent_cli_kind(
-                    agent.adapter_config.get("command").and_then(|v| v.as_str()),
-                    agent.adapter_config.get("model").and_then(|v| v.as_str()),
-                )
-            })
-            .unwrap_or(AgentCliKind::Claude),
+        Some("claude") | Some(_) | None => AgentCliKind::Claude,
     }
 }
 

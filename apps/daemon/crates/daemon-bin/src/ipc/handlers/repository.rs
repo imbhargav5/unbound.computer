@@ -1,6 +1,6 @@
 //! Repository handlers.
 
-use crate::app::DaemonState;
+use crate::app::{resolve_machine_space_scope, DaemonState};
 use crate::utils::repository_config::{
     default_worktree_root_dir_for_repo, load_repository_config, update_repository_config,
     RepositoryConfig, RepositoryConfigUpdate,
@@ -55,6 +55,8 @@ async fn register_repository_list(server: &IpcServer, state: DaemonState) {
                             "sessions_path": r.sessions_path,
                             "default_branch": r.default_branch,
                             "default_remote": r.default_remote,
+                            "machine_id": r.machine_id,
+                            "space_id": r.space_id,
                             "last_accessed_at": r.last_accessed_at.to_rfc3339(),
                         })
                     })
@@ -69,7 +71,13 @@ async fn register_repository_add(server: &IpcServer, state: DaemonState) {
     server
         .register_handler(Method::RepositoryAdd, move |req| {
             let armin = state.armin.clone();
+            let device_id_state = state.device_id.clone();
+            let db = state.db.clone();
             async move {
+                let machine_id = {
+                    let guard = device_id_state.lock().unwrap();
+                    guard.clone()
+                };
                 let path = req
                     .params
                     .as_ref()
@@ -90,6 +98,26 @@ async fn register_repository_add(server: &IpcServer, state: DaemonState) {
                     .and_then(|p| p.get("is_git_repository"))
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
+                let space_id = req
+                    .params
+                    .as_ref()
+                    .and_then(|p| p.get("space_id"))
+                    .and_then(|v| v.as_str())
+                    .map(str::trim)
+                    .filter(|v| !v.is_empty())
+                    .map(String::from);
+
+                let (machine_id, space_id) =
+                    match resolve_machine_space_scope(&db, machine_id, space_id).await {
+                        Ok(scope) => scope,
+                        Err(error) => {
+                            return Response::error(
+                                &req.id,
+                                error_codes::INTERNAL_ERROR,
+                                &format!("Failed to resolve machine/space scope: {error}"),
+                            );
+                        }
+                    };
 
                 let (Some(path), Some(name)) = (path, name) else {
                     return Response::error(
@@ -107,6 +135,8 @@ async fn register_repository_add(server: &IpcServer, state: DaemonState) {
                     sessions_path: None,
                     default_branch: None,
                     default_remote: None,
+                    machine_id,
+                    space_id,
                 };
 
                 let created = match armin.create_repository(repo) {
@@ -127,6 +157,8 @@ async fn register_repository_add(server: &IpcServer, state: DaemonState) {
                         "path": created.path,
                         "name": created.name,
                         "is_git_repository": created.is_git_repository,
+                        "machine_id": created.machine_id,
+                        "space_id": created.space_id,
                     }),
                 )
             }
@@ -1033,6 +1065,8 @@ fn repository_json(repo: &agent_session_sqlite_persist_core::Repository) -> serd
         "sessions_path": repo.sessions_path,
         "default_branch": repo.default_branch,
         "default_remote": repo.default_remote,
+        "machine_id": repo.machine_id,
+        "space_id": repo.space_id,
         "last_accessed_at": repo.last_accessed_at.to_rfc3339(),
     })
 }

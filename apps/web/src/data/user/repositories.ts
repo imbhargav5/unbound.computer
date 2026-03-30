@@ -20,7 +20,7 @@ export async function getUserRepositories() {
       worktrees:repositories!parent_repository_id(
         id, name, local_path, worktree_branch, status
       ),
-      active_sessions:agent_coding_sessions!repository_id(
+      active_sessions:local_llm_conversations!repository_id(
         id, status, session_started_at, current_branch
       )
     `,
@@ -52,7 +52,7 @@ export async function getRepositoriesByDevice(deviceId: string) {
       worktrees:repositories!parent_repository_id(
         id, name, local_path, worktree_branch, status
       ),
-      active_sessions:agent_coding_sessions!repository_id(
+      active_sessions:local_llm_conversations!repository_id(
         id, status, session_started_at, current_branch
       )
     `,
@@ -85,11 +85,11 @@ export async function getRepositoryWithWorktrees(repositoryId: string) {
       device:devices(id, name, device_type),
       worktrees:repositories!parent_repository_id(
         id, name, local_path, worktree_branch, status,
-        active_sessions:agent_coding_sessions!repository_id(
+        active_sessions:local_llm_conversations!repository_id(
           id, status, session_started_at
         )
       ),
-      active_sessions:agent_coding_sessions!repository_id(
+      active_sessions:local_llm_conversations!repository_id(
         id, status, session_started_at, current_branch
       )
     `,

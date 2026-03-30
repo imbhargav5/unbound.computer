@@ -20,12 +20,16 @@ use tracing::debug;
 pub fn insert_repository(conn: &Connection, repo: &NewRepository) -> DatabaseResult<Repository> {
     let now = Utc::now().to_rfc3339();
     conn.execute(
-        "INSERT INTO repositories (id, path, name, last_accessed_at, added_at, is_git_repository, sessions_path, default_branch, default_remote, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?4, ?5, ?6, ?7, ?8, ?4, ?4)",
+        "INSERT INTO local_repositories (
+            id, path, name, machine_id, space_id, last_accessed_at, added_at, is_git_repository,
+            sessions_path, default_branch, default_remote, created_at, updated_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6, ?7, ?8, ?9, ?10, ?6, ?6)",
         params![
             repo.id,
             repo.path,
             repo.name,
+            repo.machine_id,
+            repo.space_id,
             now,
             repo.is_git_repository,
             repo.sessions_path,
@@ -40,8 +44,8 @@ pub fn insert_repository(conn: &Connection, repo: &NewRepository) -> DatabaseRes
 /// Get a repository by ID.
 pub fn get_repository(conn: &Connection, id: &str) -> DatabaseResult<Option<Repository>> {
     let mut stmt = conn.prepare_cached(
-        "SELECT id, path, name, last_accessed_at, added_at, is_git_repository, sessions_path, default_branch, default_remote, created_at, updated_at
-         FROM repositories WHERE id = ?1",
+        "SELECT id, path, name, machine_id, space_id, last_accessed_at, added_at, is_git_repository, sessions_path, default_branch, default_remote, created_at, updated_at
+         FROM local_repositories WHERE id = ?1",
     )?;
 
     let result = stmt.query_row(params![id], |row| {
@@ -49,14 +53,16 @@ pub fn get_repository(conn: &Connection, id: &str) -> DatabaseResult<Option<Repo
             id: row.get(0)?,
             path: row.get(1)?,
             name: row.get(2)?,
-            last_accessed_at: parse_datetime(row.get::<_, String>(3)?),
-            added_at: parse_datetime(row.get::<_, String>(4)?),
-            is_git_repository: row.get(5)?,
-            sessions_path: row.get(6)?,
-            default_branch: row.get(7)?,
-            default_remote: row.get(8)?,
-            created_at: parse_datetime(row.get::<_, String>(9)?),
-            updated_at: parse_datetime(row.get::<_, String>(10)?),
+            machine_id: row.get(3)?,
+            space_id: row.get(4)?,
+            last_accessed_at: parse_datetime(row.get::<_, String>(5)?),
+            added_at: parse_datetime(row.get::<_, String>(6)?),
+            is_git_repository: row.get(7)?,
+            sessions_path: row.get(8)?,
+            default_branch: row.get(9)?,
+            default_remote: row.get(10)?,
+            created_at: parse_datetime(row.get::<_, String>(11)?),
+            updated_at: parse_datetime(row.get::<_, String>(12)?),
         })
     });
 
@@ -70,8 +76,8 @@ pub fn get_repository(conn: &Connection, id: &str) -> DatabaseResult<Option<Repo
 /// Get a repository by path.
 pub fn get_repository_by_path(conn: &Connection, path: &str) -> DatabaseResult<Option<Repository>> {
     let mut stmt = conn.prepare_cached(
-        "SELECT id, path, name, last_accessed_at, added_at, is_git_repository, sessions_path, default_branch, default_remote, created_at, updated_at
-         FROM repositories WHERE path = ?1",
+        "SELECT id, path, name, machine_id, space_id, last_accessed_at, added_at, is_git_repository, sessions_path, default_branch, default_remote, created_at, updated_at
+         FROM local_repositories WHERE path = ?1",
     )?;
 
     let result = stmt.query_row(params![path], |row| {
@@ -79,14 +85,16 @@ pub fn get_repository_by_path(conn: &Connection, path: &str) -> DatabaseResult<O
             id: row.get(0)?,
             path: row.get(1)?,
             name: row.get(2)?,
-            last_accessed_at: parse_datetime(row.get::<_, String>(3)?),
-            added_at: parse_datetime(row.get::<_, String>(4)?),
-            is_git_repository: row.get(5)?,
-            sessions_path: row.get(6)?,
-            default_branch: row.get(7)?,
-            default_remote: row.get(8)?,
-            created_at: parse_datetime(row.get::<_, String>(9)?),
-            updated_at: parse_datetime(row.get::<_, String>(10)?),
+            machine_id: row.get(3)?,
+            space_id: row.get(4)?,
+            last_accessed_at: parse_datetime(row.get::<_, String>(5)?),
+            added_at: parse_datetime(row.get::<_, String>(6)?),
+            is_git_repository: row.get(7)?,
+            sessions_path: row.get(8)?,
+            default_branch: row.get(9)?,
+            default_remote: row.get(10)?,
+            created_at: parse_datetime(row.get::<_, String>(11)?),
+            updated_at: parse_datetime(row.get::<_, String>(12)?),
         })
     });
 
@@ -100,8 +108,8 @@ pub fn get_repository_by_path(conn: &Connection, path: &str) -> DatabaseResult<O
 /// List all repositories ordered by last accessed.
 pub fn list_repositories(conn: &Connection) -> DatabaseResult<Vec<Repository>> {
     let mut stmt = conn.prepare_cached(
-        "SELECT id, path, name, last_accessed_at, added_at, is_git_repository, sessions_path, default_branch, default_remote, created_at, updated_at
-         FROM repositories ORDER BY last_accessed_at DESC",
+        "SELECT id, path, name, machine_id, space_id, last_accessed_at, added_at, is_git_repository, sessions_path, default_branch, default_remote, created_at, updated_at
+         FROM local_repositories ORDER BY last_accessed_at DESC",
     )?;
 
     let repos = stmt
@@ -110,14 +118,16 @@ pub fn list_repositories(conn: &Connection) -> DatabaseResult<Vec<Repository>> {
                 id: row.get(0)?,
                 path: row.get(1)?,
                 name: row.get(2)?,
-                last_accessed_at: parse_datetime(row.get::<_, String>(3)?),
-                added_at: parse_datetime(row.get::<_, String>(4)?),
-                is_git_repository: row.get(5)?,
-                sessions_path: row.get(6)?,
-                default_branch: row.get(7)?,
-                default_remote: row.get(8)?,
-                created_at: parse_datetime(row.get::<_, String>(9)?),
-                updated_at: parse_datetime(row.get::<_, String>(10)?),
+                machine_id: row.get(3)?,
+                space_id: row.get(4)?,
+                last_accessed_at: parse_datetime(row.get::<_, String>(5)?),
+                added_at: parse_datetime(row.get::<_, String>(6)?),
+                is_git_repository: row.get(7)?,
+                sessions_path: row.get(8)?,
+                default_branch: row.get(9)?,
+                default_remote: row.get(10)?,
+                created_at: parse_datetime(row.get::<_, String>(11)?),
+                updated_at: parse_datetime(row.get::<_, String>(12)?),
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -127,7 +137,7 @@ pub fn list_repositories(conn: &Connection) -> DatabaseResult<Vec<Repository>> {
 
 /// Delete a repository by ID.
 pub fn delete_repository(conn: &Connection, id: &str) -> DatabaseResult<bool> {
-    let count = conn.execute("DELETE FROM repositories WHERE id = ?1", params![id])?;
+    let count = conn.execute("DELETE FROM local_repositories WHERE id = ?1", params![id])?;
     Ok(count > 0)
 }
 
@@ -143,7 +153,7 @@ pub fn update_repository_settings(
 ) -> DatabaseResult<bool> {
     let now = Utc::now().to_rfc3339();
     let count = conn.execute(
-        "UPDATE repositories
+        "UPDATE local_repositories
          SET sessions_path = ?1, default_branch = ?2, default_remote = ?3, updated_at = ?4
          WHERE id = ?5",
         params![sessions_path, default_branch, default_remote, now, id],
@@ -162,13 +172,17 @@ pub fn insert_session(
 ) -> DatabaseResult<AgentCodingSession> {
     let now = Utc::now().to_rfc3339();
     conn.execute(
-        "INSERT INTO agent_coding_sessions (id, repository_id, title, agent_id, agent_name, issue_id, issue_title, issue_url, provider, provider_session_id, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'active', ?12, ?13, ?14, ?14, ?14)",
+        "INSERT INTO local_llm_conversations (
+            id, repository_id, machine_id, space_id, title, agent_name, issue_id,
+            issue_title, issue_url, provider, provider_session_id, claude_session_id, status,
+            is_worktree, worktree_path, created_at, last_accessed_at, updated_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'active', ?13, ?14, ?15, ?15, ?15)",
         params![
             session.id,
             session.repository_id,
+            session.machine_id,
+            session.space_id,
             session.title,
-            session.agent_id,
             session.agent_name,
             session.issue_id,
             session.issue_title,
@@ -188,31 +202,32 @@ pub fn insert_session(
 /// Get a session by ID.
 pub fn get_session(conn: &Connection, id: &str) -> DatabaseResult<Option<AgentCodingSession>> {
     let mut stmt = conn.prepare_cached(
-        "SELECT id, repository_id, title, agent_id, agent_name, issue_id, issue_title, issue_url, provider, provider_session_id, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
-         FROM agent_coding_sessions WHERE id = ?1",
+        "SELECT id, repository_id, machine_id, space_id, title, agent_name, issue_id, issue_title, issue_url, provider, provider_session_id, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
+         FROM local_llm_conversations WHERE id = ?1",
     )?;
 
     let result = stmt.query_row(params![id], |row| {
-        Ok(AgentCodingSession {
-            id: row.get(0)?,
-            repository_id: row.get(1)?,
-            title: row.get(2)?,
-            agent_id: row.get(3)?,
-            agent_name: row.get(4)?,
-            issue_id: row.get(5)?,
-            issue_title: row.get(6)?,
-            issue_url: row.get(7)?,
-            provider: row.get(8)?,
-            provider_session_id: row.get(9)?,
-            claude_session_id: row.get(10)?,
-            status: SessionStatus::from_str(&row.get::<_, String>(11)?),
-            is_worktree: row.get(12)?,
-            worktree_path: row.get(13)?,
-            created_at: parse_datetime(row.get::<_, String>(14)?),
-            last_accessed_at: parse_datetime(row.get::<_, String>(15)?),
-            updated_at: parse_datetime(row.get::<_, String>(16)?),
-        })
-    });
+            Ok(AgentCodingSession {
+                id: row.get(0)?,
+                repository_id: row.get(1)?,
+                machine_id: row.get(2)?,
+                space_id: row.get(3)?,
+                title: row.get(4)?,
+                agent_name: row.get(5)?,
+                issue_id: row.get(6)?,
+                issue_title: row.get(7)?,
+                issue_url: row.get(8)?,
+                provider: row.get(9)?,
+                provider_session_id: row.get(10)?,
+                claude_session_id: row.get(11)?,
+                status: SessionStatus::from_str(&row.get::<_, String>(12)?),
+                is_worktree: row.get(13)?,
+                worktree_path: row.get(14)?,
+                created_at: parse_datetime(row.get::<_, String>(15)?),
+                last_accessed_at: parse_datetime(row.get::<_, String>(16)?),
+                updated_at: parse_datetime(row.get::<_, String>(17)?),
+            })
+        });
 
     match result {
         Ok(session) => Ok(Some(session)),
@@ -227,8 +242,8 @@ pub fn list_sessions_for_repository(
     repository_id: &str,
 ) -> DatabaseResult<Vec<AgentCodingSession>> {
     let mut stmt = conn.prepare_cached(
-        "SELECT id, repository_id, title, agent_id, agent_name, issue_id, issue_title, issue_url, provider, provider_session_id, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
-         FROM agent_coding_sessions WHERE repository_id = ?1 ORDER BY last_accessed_at DESC",
+        "SELECT id, repository_id, machine_id, space_id, title, agent_name, issue_id, issue_title, issue_url, provider, provider_session_id, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
+         FROM local_llm_conversations WHERE repository_id = ?1 ORDER BY last_accessed_at DESC",
     )?;
 
     let sessions = stmt
@@ -236,21 +251,22 @@ pub fn list_sessions_for_repository(
             Ok(AgentCodingSession {
                 id: row.get(0)?,
                 repository_id: row.get(1)?,
-                title: row.get(2)?,
-                agent_id: row.get(3)?,
-                agent_name: row.get(4)?,
-                issue_id: row.get(5)?,
-                issue_title: row.get(6)?,
-                issue_url: row.get(7)?,
-                provider: row.get(8)?,
-                provider_session_id: row.get(9)?,
-                claude_session_id: row.get(10)?,
-                status: SessionStatus::from_str(&row.get::<_, String>(11)?),
-                is_worktree: row.get(12)?,
-                worktree_path: row.get(13)?,
-                created_at: parse_datetime(row.get::<_, String>(14)?),
-                last_accessed_at: parse_datetime(row.get::<_, String>(15)?),
-                updated_at: parse_datetime(row.get::<_, String>(16)?),
+                machine_id: row.get(2)?,
+                space_id: row.get(3)?,
+                title: row.get(4)?,
+                agent_name: row.get(5)?,
+                issue_id: row.get(6)?,
+                issue_title: row.get(7)?,
+                issue_url: row.get(8)?,
+                provider: row.get(9)?,
+                provider_session_id: row.get(10)?,
+                claude_session_id: row.get(11)?,
+                status: SessionStatus::from_str(&row.get::<_, String>(12)?),
+                is_worktree: row.get(13)?,
+                worktree_path: row.get(14)?,
+                created_at: parse_datetime(row.get::<_, String>(15)?),
+                last_accessed_at: parse_datetime(row.get::<_, String>(16)?),
+                updated_at: parse_datetime(row.get::<_, String>(17)?),
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -262,7 +278,7 @@ pub fn list_sessions_for_repository(
 pub fn update_session_title(conn: &Connection, id: &str, title: &str) -> DatabaseResult<bool> {
     let now = Utc::now().to_rfc3339();
     let count = conn.execute(
-        "UPDATE agent_coding_sessions SET title = ?1, updated_at = ?2 WHERE id = ?3",
+        "UPDATE local_llm_conversations SET title = ?1, updated_at = ?2 WHERE id = ?3",
         params![title, now, id],
     )?;
     Ok(count > 0)
@@ -272,7 +288,7 @@ pub fn update_session_title(conn: &Connection, id: &str, title: &str) -> Databas
 pub fn touch_session(conn: &Connection, id: &str) -> DatabaseResult<bool> {
     let now = Utc::now().to_rfc3339();
     let count = conn.execute(
-        "UPDATE agent_coding_sessions SET last_accessed_at = ?1, updated_at = ?1 WHERE id = ?2",
+        "UPDATE local_llm_conversations SET last_accessed_at = ?1, updated_at = ?1 WHERE id = ?2",
         params![now, id],
     )?;
     Ok(count > 0)
@@ -281,7 +297,7 @@ pub fn touch_session(conn: &Connection, id: &str) -> DatabaseResult<bool> {
 /// Delete a session by ID.
 pub fn delete_session(conn: &Connection, id: &str) -> DatabaseResult<bool> {
     let count = conn.execute(
-        "DELETE FROM agent_coding_sessions WHERE id = ?1",
+        "DELETE FROM local_llm_conversations WHERE id = ?1",
         params![id],
     )?;
     Ok(count > 0)
@@ -295,7 +311,7 @@ pub fn update_session_claude_id(
 ) -> DatabaseResult<bool> {
     let now = Utc::now().to_rfc3339();
     let count = conn.execute(
-        "UPDATE agent_coding_sessions
+        "UPDATE local_llm_conversations
          SET provider = 'claude',
              provider_session_id = ?1,
              claude_session_id = ?1,
@@ -321,7 +337,7 @@ pub fn get_or_create_session_state(
 
     let now_ms = now_timestamp_ms();
     conn.execute(
-        "INSERT INTO agent_coding_session_state (session_id, state_json, updated_at_ms)
+        "INSERT INTO local_llm_conversation_state (session_id, state_json, updated_at_ms)
          VALUES (
             ?1,
             json_object(
@@ -350,7 +366,7 @@ pub fn get_session_state(
             session_id,
             json_extract(state_json, '$.coding_session.status') AS agent_status,
             updated_at_ms
-         FROM agent_coding_session_state WHERE session_id = ?1",
+         FROM local_llm_conversation_state WHERE session_id = ?1",
     )?;
 
     let result = stmt.query_row(params![session_id], |row| {
@@ -380,7 +396,7 @@ pub fn update_agent_status(
 ) -> DatabaseResult<bool> {
     let now_ms = now_timestamp_ms();
     let count = conn.execute(
-        "UPDATE agent_coding_session_state
+        "UPDATE local_llm_conversation_state
          SET
             state_json = json_remove(
                 json_set(
@@ -424,7 +440,7 @@ pub fn insert_message(
 ) -> DatabaseResult<()> {
     let now = Utc::now().to_rfc3339();
     conn.execute(
-        "INSERT INTO agent_coding_session_messages (id, session_id, content, timestamp, is_streaming, sequence_number, created_at)
+        "INSERT INTO local_llm_conversation_messages (id, session_id, content, timestamp, is_streaming, sequence_number, created_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?4)",
         params![
             message.id,
@@ -445,7 +461,7 @@ pub fn get_message(
 ) -> DatabaseResult<Option<AgentCodingSessionMessage>> {
     let mut stmt = conn.prepare_cached(
         "SELECT id, session_id, content, timestamp, is_streaming, sequence_number, created_at
-         FROM agent_coding_session_messages WHERE id = ?1",
+         FROM local_llm_conversation_messages WHERE id = ?1",
     )?;
 
     let result = stmt.query_row(params![id], |row| {
@@ -474,7 +490,7 @@ pub fn list_messages_for_session(
 ) -> DatabaseResult<Vec<AgentCodingSessionMessage>> {
     let mut stmt = conn.prepare_cached(
         "SELECT id, session_id, content, timestamp, is_streaming, sequence_number, created_at
-         FROM agent_coding_session_messages WHERE session_id = ?1 ORDER BY sequence_number ASC",
+         FROM local_llm_conversation_messages WHERE session_id = ?1 ORDER BY sequence_number ASC",
     )?;
 
     let messages = stmt
@@ -497,7 +513,7 @@ pub fn list_messages_for_session(
 /// Get the next sequence number for a session.
 pub fn get_next_message_sequence(conn: &Connection, session_id: &str) -> DatabaseResult<i64> {
     let max: Option<i64> = conn.query_row(
-        "SELECT MAX(sequence_number) FROM agent_coding_session_messages WHERE session_id = ?1",
+        "SELECT MAX(sequence_number) FROM local_llm_conversation_messages WHERE session_id = ?1",
         params![session_id],
         |row| row.get(0),
     )?;
@@ -563,7 +579,7 @@ pub fn get_session_secret(
 ) -> DatabaseResult<Option<SessionSecret>> {
     let mut stmt = conn.prepare_cached(
         "SELECT session_id, encrypted_secret, nonce, created_at
-         FROM session_secrets WHERE session_id = ?1",
+         FROM local_llm_conversation_secrets WHERE session_id = ?1",
     )?;
 
     let result = stmt.query_row(params![session_id], |row| {
@@ -586,7 +602,7 @@ pub fn get_session_secret(
 pub fn set_session_secret(conn: &Connection, secret: &NewSessionSecret) -> DatabaseResult<()> {
     let now = Utc::now().to_rfc3339();
     conn.execute(
-        "INSERT INTO session_secrets (session_id, encrypted_secret, nonce, created_at)
+        "INSERT INTO local_llm_conversation_secrets (session_id, encrypted_secret, nonce, created_at)
          VALUES (?1, ?2, ?3, ?4)
          ON CONFLICT(session_id) DO UPDATE SET encrypted_secret = ?2, nonce = ?3",
         params![
@@ -603,7 +619,7 @@ pub fn set_session_secret(conn: &Connection, secret: &NewSessionSecret) -> Datab
 /// Delete a session secret.
 pub fn delete_session_secret(conn: &Connection, session_id: &str) -> DatabaseResult<bool> {
     let count = conn.execute(
-        "DELETE FROM session_secrets WHERE session_id = ?1",
+        "DELETE FROM local_llm_conversation_secrets WHERE session_id = ?1",
         params![session_id],
     )?;
     Ok(count > 0)
@@ -612,7 +628,7 @@ pub fn delete_session_secret(conn: &Connection, session_id: &str) -> DatabaseRes
 /// Check if a session secret exists.
 pub fn has_session_secret(conn: &Connection, session_id: &str) -> DatabaseResult<bool> {
     let count: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM session_secrets WHERE session_id = ?1",
+        "SELECT COUNT(*) FROM local_llm_conversation_secrets WHERE session_id = ?1",
         params![session_id],
         |row| row.get(0),
     )?;
@@ -668,48 +684,12 @@ mod tests {
                 sessions_path: None,
                 default_branch: Some("main".to_string()),
                 default_remote: Some("origin".to_string()),
+                machine_id: None,
+                space_id: None,
             },
         )
         .unwrap();
         id
-    }
-
-    fn insert_test_company(conn: &Connection) -> String {
-        let id = "company-1".to_string();
-        conn.execute(
-            "INSERT INTO companies (id, name) VALUES (?1, ?2)",
-            params![id, "Test Company"],
-        )
-        .unwrap();
-        "company-1".to_string()
-    }
-
-    fn insert_test_agent(
-        conn: &Connection,
-        company_id: &str,
-        agent_id: &str,
-        name: &str,
-    ) -> String {
-        conn.execute(
-            "INSERT INTO agents (id, company_id, name, slug) VALUES (?1, ?2, ?3, ?4)",
-            params![agent_id, company_id, name, format!("{agent_id}-slug")],
-        )
-        .unwrap();
-        agent_id.to_string()
-    }
-
-    fn insert_test_issue(
-        conn: &Connection,
-        company_id: &str,
-        issue_id: &str,
-        title: &str,
-    ) -> String {
-        conn.execute(
-            "INSERT INTO issues (id, company_id, title) VALUES (?1, ?2, ?3)",
-            params![issue_id, company_id, title],
-        )
-        .unwrap();
-        issue_id.to_string()
     }
 
     fn insert_test_session(conn: &Connection, repo_id: &str) -> String {
@@ -719,8 +699,9 @@ mod tests {
             &NewAgentCodingSession {
                 id: id.clone(),
                 repository_id: repo_id.to_string(),
+                machine_id: None,
+                space_id: None,
                 title: "Test Session".to_string(),
-                agent_id: None,
                 agent_name: None,
                 issue_id: None,
                 issue_title: None,
@@ -753,6 +734,8 @@ mod tests {
                 sessions_path: Some("/sessions".to_string()),
                 default_branch: Some("main".to_string()),
                 default_remote: Some("origin".to_string()),
+                machine_id: None,
+                space_id: None,
             },
         )
         .unwrap();
@@ -793,6 +776,8 @@ mod tests {
                 sessions_path: None,
                 default_branch: None,
                 default_remote: None,
+                machine_id: None,
+                space_id: None,
             },
         )
         .unwrap();
@@ -807,6 +792,8 @@ mod tests {
                 sessions_path: None,
                 default_branch: None,
                 default_remote: None,
+                machine_id: None,
+                space_id: None,
             },
         )
         .unwrap();
@@ -868,17 +855,16 @@ mod tests {
     fn session_insert_and_get() {
         let conn = setup_conn();
         let repo_id = insert_test_repo(&conn);
-        let company_id = insert_test_company(&conn);
-        let agent_id = insert_test_agent(&conn, &company_id, "agent-123", "Debug Agent");
-        let issue_id = insert_test_issue(&conn, &company_id, "issue-123", "Fix launch bug");
+        let issue_id = "issue-123".to_string();
 
         let session = insert_session(
             &conn,
             &NewAgentCodingSession {
                 id: "s1".into(),
                 repository_id: repo_id,
+                machine_id: None,
+                space_id: None,
                 title: "My Session".into(),
-                agent_id: Some(agent_id.clone()),
                 agent_name: Some("Debug Agent".into()),
                 issue_id: Some(issue_id.clone()),
                 issue_title: Some("Fix launch bug".into()),
@@ -894,7 +880,6 @@ mod tests {
 
         assert_eq!(session.id, "s1");
         assert_eq!(session.title, "My Session");
-        assert_eq!(session.agent_id, Some(agent_id));
         assert_eq!(session.agent_name, Some("Debug Agent".into()));
         assert_eq!(session.issue_id, Some(issue_id));
         assert_eq!(session.issue_title, Some("Fix launch bug".into()));
@@ -955,22 +940,15 @@ mod tests {
     fn session_list_for_repository() {
         let conn = setup_conn();
         let repo_id = insert_test_repo(&conn);
-        let company_id = insert_test_company(&conn);
-        let agent_id = insert_test_agent(&conn, &company_id, "agent-123", "Debug Agent");
-        let issue_id = insert_test_issue(
-            &conn,
-            &company_id,
-            "issue-999",
-            "Investigate session linking",
-        );
 
         insert_session(
             &conn,
             &NewAgentCodingSession {
                 id: "s1".into(),
                 repository_id: repo_id.clone(),
+                machine_id: None,
+                space_id: None,
                 title: "First".into(),
-                agent_id: None,
                 agent_name: None,
                 issue_id: None,
                 issue_title: None,
@@ -988,10 +966,11 @@ mod tests {
             &NewAgentCodingSession {
                 id: "s2".into(),
                 repository_id: repo_id.clone(),
+                machine_id: None,
+                space_id: None,
                 title: "Second".into(),
-                agent_id: Some(agent_id),
                 agent_name: Some("Debug Agent".into()),
-                issue_id: Some(issue_id.clone()),
+                issue_id: Some("issue-999".into()),
                 issue_title: Some("Investigate session linking".into()),
                 issue_url: Some("https://example.com/issues/ENG-999".into()),
                 provider: None,
@@ -1005,7 +984,7 @@ mod tests {
 
         let sessions = list_sessions_for_repository(&conn, &repo_id).unwrap();
         assert_eq!(sessions.len(), 2);
-        assert_eq!(sessions[0].issue_id.as_deref(), Some(issue_id.as_str()));
+        assert_eq!(sessions[0].issue_id.as_deref(), Some("issue-999"));
         assert_eq!(
             sessions[0].issue_url.as_deref(),
             Some("https://example.com/issues/ENG-999")

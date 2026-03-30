@@ -33,7 +33,7 @@ async function getActiveSessions(
   supabase: ReturnType<typeof createClient<Database>>,
 ): Promise<string[]> {
   const { data, error } = await supabase
-    .from("agent_coding_sessions")
+    .from("local_llm_conversations")
     .select("id")
     .in("status", ["active", "paused"]);
 
@@ -106,7 +106,7 @@ async function processSessionStream(
 
     // Batch insert to Supabase
     const { error: insertError } = await supabase
-      .from("agent_coding_session_messages")
+      .from("local_llm_conversation_messages")
       .insert(messagesToInsert);
 
     if (insertError) {

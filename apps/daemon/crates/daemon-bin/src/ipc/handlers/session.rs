@@ -1,6 +1,6 @@
 //! Session handlers.
 
-use crate::app::DaemonState;
+use crate::app::{resolve_machine_space_scope, DaemonState};
 use crate::armin_adapter::DaemonArmin;
 use crate::observability::spawn_in_current_span;
 use crate::utils::repository_config::{
@@ -80,18 +80,8 @@ fn normalize_optional_string(value: Option<&str>) -> Option<String> {
 
 fn normalize_agent_metadata(
     params: &serde_json::Value,
-) -> Result<(Option<String>, Option<String>), SessionCreateCoreError> {
-    let agent_id = normalize_optional_string(params.get("agent_id").and_then(|v| v.as_str()));
-    let agent_name = normalize_optional_string(params.get("agent_name").and_then(|v| v.as_str()));
-
-    match (agent_id, agent_name) {
-        (Some(agent_id), Some(agent_name)) => Ok((Some(agent_id), Some(agent_name))),
-        (None, None) => Ok((None, None)),
-        _ => Err(SessionCreateCoreError::new(
-            "invalid_params",
-            "agent_id and agent_name must be provided together",
-        )),
-    }
+) -> Option<String> {
+    normalize_optional_string(params.get("agent_name").and_then(|v| v.as_str()))
 }
 
 fn normalize_issue_metadata(
@@ -125,8 +115,9 @@ fn session_json(session: &agent_session_sqlite_persist_core::Session) -> serde_j
     serde_json::json!({
         "id": session.id.as_str(),
         "repository_id": session.repository_id.as_str(),
+        "machine_id": session.machine_id,
+        "space_id": session.space_id,
         "title": session.title,
-        "agent_id": session.agent_id,
         "agent_name": session.agent_name,
         "issue_id": session.issue_id,
         "issue_title": session.issue_title,
@@ -461,10 +452,27 @@ pub async fn create_session_core(
     state: &DaemonState,
     params: &serde_json::Value,
 ) -> Result<serde_json::Value, SessionCreateCoreError> {
+    let machine_id = {
+        let guard = state.device_id.lock().unwrap();
+        guard.clone()
+    };
+    let requested_space_id =
+        normalize_optional_string(params.get("space_id").and_then(|v| v.as_str()));
+    let (machine_id, space_id) =
+        resolve_machine_space_scope(&state.db, machine_id, requested_space_id)
+            .await
+            .map_err(|error| {
+                SessionCreateCoreError::new(
+                    "internal_error",
+                    format!("Failed to resolve machine/space scope: {error}"),
+                )
+            })?;
     create_session_core_with_services(
         state.armin.as_ref(),
         &state.db_encryption_key,
         &state.session_secret_cache,
+        machine_id,
+        space_id,
         params,
     )
     .await
@@ -474,6 +482,8 @@ pub async fn create_session_core_with_services(
     armin: &DaemonArmin,
     db_encryption_key: &Arc<Mutex<Option<[u8; 32]>>>,
     session_secret_cache: &SessionSecretCache,
+    machine_id: Option<String>,
+    space_id: Option<String>,
     params: &serde_json::Value,
 ) -> Result<serde_json::Value, SessionCreateCoreError> {
     let repository_id = params
@@ -491,11 +501,10 @@ pub async fn create_session_core_with_services(
         .get("is_worktree")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
-    let (agent_id, agent_name) = normalize_agent_metadata(params)?;
+    let agent_name = normalize_agent_metadata(params);
     let (issue_id, issue_title, issue_url) = normalize_issue_metadata(params)?;
     let provider = normalize_optional_string(params.get("provider").and_then(|v| v.as_str()))
         .map(|value| value.to_ascii_lowercase());
-
     let worktree_name = params
         .get("worktree_name")
         .and_then(|v| v.as_str())
@@ -651,8 +660,9 @@ pub async fn create_session_core_with_services(
     let new_session = NewSession {
         id: session_id.clone(),
         repository_id: RepositoryId::from_string(&repository_id),
+        machine_id,
+        space_id,
         title,
-        agent_id,
         agent_name,
         issue_id,
         issue_title,
@@ -1252,30 +1262,22 @@ mod tests {
     }
 
     #[test]
-    fn normalize_agent_metadata_accepts_complete_pair() {
+    fn normalize_agent_metadata_extracts_agent_name() {
         let params = serde_json::json!({
-            "agent_id": " agent-123 ",
             "agent_name": " Debug Agent "
         });
 
         assert_eq!(
-            normalize_agent_metadata(&params).unwrap(),
-            (
-                Some("agent-123".to_string()),
-                Some("Debug Agent".to_string())
-            )
+            normalize_agent_metadata(&params),
+            Some("Debug Agent".to_string())
         );
     }
 
     #[test]
-    fn normalize_agent_metadata_rejects_partial_pair() {
-        let params = serde_json::json!({
-            "agent_id": "agent-123"
-        });
+    fn normalize_agent_metadata_returns_none_when_missing() {
+        let params = serde_json::json!({});
 
-        let err = normalize_agent_metadata(&params).expect_err("expected invalid params");
-        assert_eq!(err.code, "invalid_params");
-        assert!(err.message.contains("agent_id and agent_name"));
+        assert_eq!(normalize_agent_metadata(&params), None);
     }
 
     #[test]
@@ -1313,7 +1315,6 @@ mod tests {
             id: SessionId::from_string("10000000-0000-0000-0000-000000000001"),
             repository_id: RepositoryId::from_string("20000000-0000-0000-0000-000000000001"),
             title: "Cross-project agent".to_string(),
-            agent_id: Some("agent-123".to_string()),
             agent_name: Some("Debug Agent".to_string()),
             issue_id: Some("issue-123".to_string()),
             issue_title: Some("Fix launch bug".to_string()),
@@ -1324,13 +1325,14 @@ mod tests {
             status: agent_session_sqlite_persist_core::SessionStatus::Active,
             is_worktree: true,
             worktree_path: Some("/tmp/worktree".to_string()),
+            machine_id: None,
+            space_id: None,
             created_at: chrono::Utc::now(),
             last_accessed_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         };
 
         let json = session_json(&session);
-        assert_eq!(json["agent_id"], "agent-123");
         assert_eq!(json["agent_name"], "Debug Agent");
         assert_eq!(json["issue_id"], "issue-123");
         assert_eq!(json["issue_title"], "Fix launch bug");

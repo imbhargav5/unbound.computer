@@ -1,14 +1,7 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
-import {
-  FolderGit2,
-  GitBranch,
-  Laptop,
-  Monitor,
-  Server,
-  Smartphone,
-} from "lucide-react";
+import { FolderGit2, GitBranch } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -18,24 +11,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { getUserRepositories } from "@/data/user/repositories";
+import { getDeviceIcon } from "./session-utils";
 
 type Repository = Awaited<ReturnType<typeof getUserRepositories>>[number];
-
-function getDeviceIcon(deviceType: string) {
-  switch (deviceType) {
-    case "mac-desktop":
-      return <Laptop className="h-4 w-4" />;
-    case "win-desktop":
-      return <Monitor className="h-4 w-4" />;
-    case "linux-desktop":
-      return <Server className="h-4 w-4" />;
-    case "ios-phone":
-    case "android-phone":
-      return <Smartphone className="h-4 w-4" />;
-    default:
-      return <Laptop className="h-4 w-4" />;
-  }
-}
 
 export function RepositoriesList({
   repositories,

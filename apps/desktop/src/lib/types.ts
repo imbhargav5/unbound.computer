@@ -67,9 +67,30 @@ export interface DesktopSettings {
   last_repository_path?: string | null;
   preferred_company_id?: string | null;
   preferred_repository_id?: string | null;
+  preferred_space_id?: string | null;
   preferred_view?: string | null;
   show_raw_message_json: boolean;
   theme_mode?: "system" | "light" | "dark" | null;
+}
+
+export interface CurrentMachineRecord {
+  id: string;
+  name: string;
+  user_id: string;
+}
+
+export interface CurrentSpaceRecord {
+  color: string;
+  created_at: string;
+  id: string;
+  machine_id: string;
+  name: string;
+  user_id: string;
+}
+
+export interface CurrentSpaceScope {
+  machine: CurrentMachineRecord;
+  space: CurrentSpaceRecord;
 }
 
 export interface BirdsEyeCanvasViewportState {

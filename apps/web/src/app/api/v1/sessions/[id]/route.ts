@@ -28,7 +28,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
 
     const { data: session, error } = await supabase
-      .from("agent_coding_sessions")
+      .from("local_llm_conversations")
       .select(
         `
         *,

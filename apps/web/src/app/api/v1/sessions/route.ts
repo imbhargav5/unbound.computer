@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
 
     // Create the session
     const { data: session, error } = await supabase
-      .from("agent_coding_sessions")
+      .from("local_llm_conversations")
       .insert({
         user_id: user.id,
         device_id: deviceId,
@@ -166,7 +166,7 @@ export async function GET(req: NextRequest) {
     );
 
     let query = supabase
-      .from("agent_coding_sessions")
+      .from("local_llm_conversations")
       .select(
         `
         *,

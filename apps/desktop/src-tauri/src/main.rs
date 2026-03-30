@@ -45,6 +45,7 @@ fn main() {
             commands::desktop_bootstrap,
             commands::system_version,
             commands::system_check_dependencies,
+            commands::space_get_current,
             commands::board_list_companies,
             commands::board_create_company,
             commands::board_update_company,

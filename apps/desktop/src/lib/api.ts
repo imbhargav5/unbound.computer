@@ -8,6 +8,7 @@ import type {
   AgentRunRecord,
   Company,
   CompanySnapshot,
+  CurrentSpaceScope,
   DaemonVersionInfo,
   DashboardOverviewRecord,
   DesktopBootstrapStatus,
@@ -47,6 +48,9 @@ export const systemVersion = () =>
 
 export const systemCheckDependencies = () =>
   invokeCommand<RuntimeCapabilities>("system_check_dependencies");
+
+export const spaceGetCurrent = () =>
+  invokeCommand<CurrentSpaceScope>("space_get_current");
 
 export const boardListCompanies = () =>
   invokeCommand<Company[]>("board_list_companies");

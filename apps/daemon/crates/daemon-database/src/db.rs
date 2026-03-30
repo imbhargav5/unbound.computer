@@ -73,12 +73,14 @@ impl Database {
     pub fn insert_repository(&self, repo: &NewRepository) -> DatabaseResult<Repository> {
         let now = Utc::now().to_rfc3339();
         self.conn.execute(
-            "INSERT INTO repositories (id, path, name, last_accessed_at, added_at, is_git_repository, sessions_path, default_branch, default_remote, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?4, ?5, ?6, ?7, ?8, ?4, ?4)",
+            "INSERT INTO local_repositories (id, path, name, machine_id, space_id, last_accessed_at, added_at, is_git_repository, sessions_path, default_branch, default_remote, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6, ?7, ?8, ?9, ?10, ?6, ?6)",
             params![
                 repo.id,
                 repo.path,
                 repo.name,
+                repo.machine_id,
+                repo.space_id,
                 now,
                 repo.is_git_repository,
                 repo.sessions_path,
@@ -93,8 +95,8 @@ impl Database {
     /// Get a repository by ID.
     pub fn get_repository(&self, id: &str) -> DatabaseResult<Option<Repository>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, path, name, last_accessed_at, added_at, is_git_repository, sessions_path, default_branch, default_remote, created_at, updated_at
-             FROM repositories WHERE id = ?1",
+            "SELECT id, path, name, machine_id, space_id, last_accessed_at, added_at, is_git_repository, sessions_path, default_branch, default_remote, created_at, updated_at
+             FROM local_repositories WHERE id = ?1",
         )?;
 
         let result = stmt.query_row(params![id], |row| {
@@ -102,14 +104,16 @@ impl Database {
                 id: row.get(0)?,
                 path: row.get(1)?,
                 name: row.get(2)?,
-                last_accessed_at: parse_datetime(row.get::<_, String>(3)?),
-                added_at: parse_datetime(row.get::<_, String>(4)?),
-                is_git_repository: row.get(5)?,
-                sessions_path: row.get(6)?,
-                default_branch: row.get(7)?,
-                default_remote: row.get(8)?,
-                created_at: parse_datetime(row.get::<_, String>(9)?),
-                updated_at: parse_datetime(row.get::<_, String>(10)?),
+                machine_id: row.get(3)?,
+                space_id: row.get(4)?,
+                last_accessed_at: parse_datetime(row.get::<_, String>(5)?),
+                added_at: parse_datetime(row.get::<_, String>(6)?),
+                is_git_repository: row.get(7)?,
+                sessions_path: row.get(8)?,
+                default_branch: row.get(9)?,
+                default_remote: row.get(10)?,
+                created_at: parse_datetime(row.get::<_, String>(11)?),
+                updated_at: parse_datetime(row.get::<_, String>(12)?),
             })
         });
 
@@ -123,8 +127,8 @@ impl Database {
     /// Get a repository by path.
     pub fn get_repository_by_path(&self, path: &str) -> DatabaseResult<Option<Repository>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, path, name, last_accessed_at, added_at, is_git_repository, sessions_path, default_branch, default_remote, created_at, updated_at
-             FROM repositories WHERE path = ?1",
+            "SELECT id, path, name, machine_id, space_id, last_accessed_at, added_at, is_git_repository, sessions_path, default_branch, default_remote, created_at, updated_at
+             FROM local_repositories WHERE path = ?1",
         )?;
 
         let result = stmt.query_row(params![path], |row| {
@@ -132,14 +136,16 @@ impl Database {
                 id: row.get(0)?,
                 path: row.get(1)?,
                 name: row.get(2)?,
-                last_accessed_at: parse_datetime(row.get::<_, String>(3)?),
-                added_at: parse_datetime(row.get::<_, String>(4)?),
-                is_git_repository: row.get(5)?,
-                sessions_path: row.get(6)?,
-                default_branch: row.get(7)?,
-                default_remote: row.get(8)?,
-                created_at: parse_datetime(row.get::<_, String>(9)?),
-                updated_at: parse_datetime(row.get::<_, String>(10)?),
+                machine_id: row.get(3)?,
+                space_id: row.get(4)?,
+                last_accessed_at: parse_datetime(row.get::<_, String>(5)?),
+                added_at: parse_datetime(row.get::<_, String>(6)?),
+                is_git_repository: row.get(7)?,
+                sessions_path: row.get(8)?,
+                default_branch: row.get(9)?,
+                default_remote: row.get(10)?,
+                created_at: parse_datetime(row.get::<_, String>(11)?),
+                updated_at: parse_datetime(row.get::<_, String>(12)?),
             })
         });
 
@@ -153,8 +159,8 @@ impl Database {
     /// List all repositories ordered by last accessed.
     pub fn list_repositories(&self) -> DatabaseResult<Vec<Repository>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, path, name, last_accessed_at, added_at, is_git_repository, sessions_path, default_branch, default_remote, created_at, updated_at
-             FROM repositories ORDER BY last_accessed_at DESC",
+            "SELECT id, path, name, machine_id, space_id, last_accessed_at, added_at, is_git_repository, sessions_path, default_branch, default_remote, created_at, updated_at
+             FROM local_repositories ORDER BY last_accessed_at DESC",
         )?;
 
         let repos = stmt
@@ -163,14 +169,16 @@ impl Database {
                     id: row.get(0)?,
                     path: row.get(1)?,
                     name: row.get(2)?,
-                    last_accessed_at: parse_datetime(row.get::<_, String>(3)?),
-                    added_at: parse_datetime(row.get::<_, String>(4)?),
-                    is_git_repository: row.get(5)?,
-                    sessions_path: row.get(6)?,
-                    default_branch: row.get(7)?,
-                    default_remote: row.get(8)?,
-                    created_at: parse_datetime(row.get::<_, String>(9)?),
-                    updated_at: parse_datetime(row.get::<_, String>(10)?),
+                    machine_id: row.get(3)?,
+                    space_id: row.get(4)?,
+                    last_accessed_at: parse_datetime(row.get::<_, String>(5)?),
+                    added_at: parse_datetime(row.get::<_, String>(6)?),
+                    is_git_repository: row.get(7)?,
+                    sessions_path: row.get(8)?,
+                    default_branch: row.get(9)?,
+                    default_remote: row.get(10)?,
+                    created_at: parse_datetime(row.get::<_, String>(11)?),
+                    updated_at: parse_datetime(row.get::<_, String>(12)?),
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -182,7 +190,7 @@ impl Database {
     pub fn delete_repository(&self, id: &str) -> DatabaseResult<bool> {
         let count = self
             .conn
-            .execute("DELETE FROM repositories WHERE id = ?1", params![id])?;
+            .execute("DELETE FROM local_repositories WHERE id = ?1", params![id])?;
         Ok(count > 0)
     }
 
@@ -197,13 +205,14 @@ impl Database {
     ) -> DatabaseResult<AgentCodingSession> {
         let now = Utc::now().to_rfc3339();
         self.conn.execute(
-            "INSERT INTO agent_coding_sessions (id, repository_id, title, agent_id, agent_name, issue_id, issue_title, issue_url, provider, provider_session_id, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'active', ?12, ?13, ?14, ?14, ?14)",
+            "INSERT INTO local_llm_conversations (id, repository_id, machine_id, space_id, title, agent_name, issue_id, issue_title, issue_url, provider, provider_session_id, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'active', ?13, ?14, ?15, ?15, ?15)",
             params![
                 session.id,
                 session.repository_id,
+                session.machine_id,
+                session.space_id,
                 session.title,
-                session.agent_id,
                 session.agent_name,
                 session.issue_id,
                 session.issue_title,
@@ -223,29 +232,30 @@ impl Database {
     /// Get a session by ID.
     pub fn get_session(&self, id: &str) -> DatabaseResult<Option<AgentCodingSession>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, repository_id, title, agent_id, agent_name, issue_id, issue_title, issue_url, provider, provider_session_id, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
-             FROM agent_coding_sessions WHERE id = ?1",
+            "SELECT id, repository_id, machine_id, space_id, title, agent_name, issue_id, issue_title, issue_url, provider, provider_session_id, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
+             FROM local_llm_conversations WHERE id = ?1",
         )?;
 
         let result = stmt.query_row(params![id], |row| {
             Ok(AgentCodingSession {
                 id: row.get(0)?,
                 repository_id: row.get(1)?,
-                title: row.get(2)?,
-                agent_id: row.get(3)?,
-                agent_name: row.get(4)?,
-                issue_id: row.get(5)?,
-                issue_title: row.get(6)?,
-                issue_url: row.get(7)?,
-                provider: row.get(8)?,
-                provider_session_id: row.get(9)?,
-                claude_session_id: row.get(10)?,
-                status: SessionStatus::from_str(&row.get::<_, String>(11)?),
-                is_worktree: row.get(12)?,
-                worktree_path: row.get(13)?,
-                created_at: parse_datetime(row.get::<_, String>(14)?),
-                last_accessed_at: parse_datetime(row.get::<_, String>(15)?),
-                updated_at: parse_datetime(row.get::<_, String>(16)?),
+                machine_id: row.get(2)?,
+                space_id: row.get(3)?,
+                title: row.get(4)?,
+                agent_name: row.get(5)?,
+                issue_id: row.get(6)?,
+                issue_title: row.get(7)?,
+                issue_url: row.get(8)?,
+                provider: row.get(9)?,
+                provider_session_id: row.get(10)?,
+                claude_session_id: row.get(11)?,
+                status: SessionStatus::from_str(&row.get::<_, String>(12)?),
+                is_worktree: row.get(13)?,
+                worktree_path: row.get(14)?,
+                created_at: parse_datetime(row.get::<_, String>(15)?),
+                last_accessed_at: parse_datetime(row.get::<_, String>(16)?),
+                updated_at: parse_datetime(row.get::<_, String>(17)?),
             })
         });
 
@@ -262,8 +272,8 @@ impl Database {
         repository_id: &str,
     ) -> DatabaseResult<Vec<AgentCodingSession>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, repository_id, title, agent_id, agent_name, issue_id, issue_title, issue_url, provider, provider_session_id, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
-             FROM agent_coding_sessions WHERE repository_id = ?1 ORDER BY last_accessed_at DESC",
+            "SELECT id, repository_id, machine_id, space_id, title, agent_name, issue_id, issue_title, issue_url, provider, provider_session_id, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
+             FROM local_llm_conversations WHERE repository_id = ?1 ORDER BY last_accessed_at DESC",
         )?;
 
         let sessions = stmt
@@ -271,21 +281,22 @@ impl Database {
                 Ok(AgentCodingSession {
                     id: row.get(0)?,
                     repository_id: row.get(1)?,
-                    title: row.get(2)?,
-                    agent_id: row.get(3)?,
-                    agent_name: row.get(4)?,
-                    issue_id: row.get(5)?,
-                    issue_title: row.get(6)?,
-                    issue_url: row.get(7)?,
-                    provider: row.get(8)?,
-                    provider_session_id: row.get(9)?,
-                    claude_session_id: row.get(10)?,
-                    status: SessionStatus::from_str(&row.get::<_, String>(11)?),
-                    is_worktree: row.get(12)?,
-                    worktree_path: row.get(13)?,
-                    created_at: parse_datetime(row.get::<_, String>(14)?),
-                    last_accessed_at: parse_datetime(row.get::<_, String>(15)?),
-                    updated_at: parse_datetime(row.get::<_, String>(16)?),
+                    machine_id: row.get(2)?,
+                    space_id: row.get(3)?,
+                    title: row.get(4)?,
+                    agent_name: row.get(5)?,
+                    issue_id: row.get(6)?,
+                    issue_title: row.get(7)?,
+                    issue_url: row.get(8)?,
+                    provider: row.get(9)?,
+                    provider_session_id: row.get(10)?,
+                    claude_session_id: row.get(11)?,
+                    status: SessionStatus::from_str(&row.get::<_, String>(12)?),
+                    is_worktree: row.get(13)?,
+                    worktree_path: row.get(14)?,
+                    created_at: parse_datetime(row.get::<_, String>(15)?),
+                    last_accessed_at: parse_datetime(row.get::<_, String>(16)?),
+                    updated_at: parse_datetime(row.get::<_, String>(17)?),
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -297,7 +308,7 @@ impl Database {
     pub fn update_session_title(&self, id: &str, title: &str) -> DatabaseResult<bool> {
         let now = Utc::now().to_rfc3339();
         let count = self.conn.execute(
-            "UPDATE agent_coding_sessions SET title = ?1, updated_at = ?2 WHERE id = ?3",
+            "UPDATE local_llm_conversations SET title = ?1, updated_at = ?2 WHERE id = ?3",
             params![title, now, id],
         )?;
         Ok(count > 0)
@@ -307,7 +318,7 @@ impl Database {
     pub fn touch_session(&self, id: &str) -> DatabaseResult<bool> {
         let now = Utc::now().to_rfc3339();
         let count = self.conn.execute(
-            "UPDATE agent_coding_sessions SET last_accessed_at = ?1, updated_at = ?1 WHERE id = ?2",
+            "UPDATE local_llm_conversations SET last_accessed_at = ?1, updated_at = ?1 WHERE id = ?2",
             params![now, id],
         )?;
         Ok(count > 0)
@@ -316,7 +327,7 @@ impl Database {
     /// Delete a session by ID.
     pub fn delete_session(&self, id: &str) -> DatabaseResult<bool> {
         let count = self.conn.execute(
-            "DELETE FROM agent_coding_sessions WHERE id = ?1",
+            "DELETE FROM local_llm_conversations WHERE id = ?1",
             params![id],
         )?;
         Ok(count > 0)
@@ -330,7 +341,7 @@ impl Database {
     ) -> DatabaseResult<bool> {
         let now = Utc::now().to_rfc3339();
         let count = self.conn.execute(
-            "UPDATE agent_coding_sessions
+            "UPDATE local_llm_conversations
              SET provider = 'claude',
                  provider_session_id = ?1,
                  claude_session_id = ?1,
@@ -356,7 +367,7 @@ impl Database {
 
         let now_ms = now_timestamp_ms();
         self.conn.execute(
-            "INSERT INTO agent_coding_session_state (session_id, state_json, updated_at_ms)
+            "INSERT INTO local_llm_conversation_state (session_id, state_json, updated_at_ms)
              VALUES (
                 ?1,
                 json_object(
@@ -386,7 +397,7 @@ impl Database {
                 session_id,
                 json_extract(state_json, '$.coding_session.status') AS agent_status,
                 updated_at_ms
-             FROM agent_coding_session_state WHERE session_id = ?1",
+             FROM local_llm_conversation_state WHERE session_id = ?1",
         )?;
 
         let result = stmt.query_row(params![session_id], |row| {
@@ -416,7 +427,7 @@ impl Database {
     ) -> DatabaseResult<bool> {
         let now_ms = now_timestamp_ms();
         let count = self.conn.execute(
-            "UPDATE agent_coding_session_state
+            "UPDATE local_llm_conversation_state
              SET
                 state_json = json_remove(
                     json_set(
@@ -457,7 +468,7 @@ impl Database {
     pub fn insert_message(&self, message: &NewAgentCodingSessionMessage) -> DatabaseResult<()> {
         let now = Utc::now().to_rfc3339();
         self.conn.execute(
-            "INSERT INTO agent_coding_session_messages (id, session_id, content, timestamp, is_streaming, sequence_number, created_at)
+            "INSERT INTO local_llm_conversation_messages (id, session_id, content, timestamp, is_streaming, sequence_number, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?4)",
             params![
                 message.id,
@@ -475,7 +486,7 @@ impl Database {
     pub fn get_message(&self, id: &str) -> DatabaseResult<Option<AgentCodingSessionMessage>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, session_id, content, timestamp, is_streaming, sequence_number, created_at
-             FROM agent_coding_session_messages WHERE id = ?1",
+             FROM local_llm_conversation_messages WHERE id = ?1",
         )?;
 
         let result = stmt.query_row(params![id], |row| {
@@ -504,7 +515,7 @@ impl Database {
     ) -> DatabaseResult<Vec<AgentCodingSessionMessage>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, session_id, content, timestamp, is_streaming, sequence_number, created_at
-             FROM agent_coding_session_messages WHERE session_id = ?1 ORDER BY sequence_number ASC",
+             FROM local_llm_conversation_messages WHERE session_id = ?1 ORDER BY sequence_number ASC",
         )?;
 
         let messages = stmt
@@ -527,7 +538,7 @@ impl Database {
     /// Get the next sequence number for a session.
     pub fn get_next_message_sequence(&self, session_id: &str) -> DatabaseResult<i64> {
         let max: Option<i64> = self.conn.query_row(
-            "SELECT MAX(sequence_number) FROM agent_coding_session_messages WHERE session_id = ?1",
+            "SELECT MAX(sequence_number) FROM local_llm_conversation_messages WHERE session_id = ?1",
             params![session_id],
             |row| row.get(0),
         )?;
@@ -589,7 +600,7 @@ impl Database {
     pub fn get_session_secret(&self, session_id: &str) -> DatabaseResult<Option<SessionSecret>> {
         let mut stmt = self.conn.prepare(
             "SELECT session_id, encrypted_secret, nonce, created_at
-             FROM session_secrets WHERE session_id = ?1",
+             FROM local_llm_conversation_secrets WHERE session_id = ?1",
         )?;
 
         let result = stmt.query_row(params![session_id], |row| {
@@ -612,7 +623,7 @@ impl Database {
     pub fn set_session_secret(&self, secret: &NewSessionSecret) -> DatabaseResult<()> {
         let now = Utc::now().to_rfc3339();
         self.conn.execute(
-            "INSERT INTO session_secrets (session_id, encrypted_secret, nonce, created_at)
+            "INSERT INTO local_llm_conversation_secrets (session_id, encrypted_secret, nonce, created_at)
              VALUES (?1, ?2, ?3, ?4)
              ON CONFLICT(session_id) DO UPDATE SET encrypted_secret = ?2, nonce = ?3",
             params![
@@ -629,7 +640,7 @@ impl Database {
     /// Delete a session secret.
     pub fn delete_session_secret(&self, session_id: &str) -> DatabaseResult<bool> {
         let count = self.conn.execute(
-            "DELETE FROM session_secrets WHERE session_id = ?1",
+            "DELETE FROM local_llm_conversation_secrets WHERE session_id = ?1",
             params![session_id],
         )?;
         Ok(count > 0)
@@ -638,7 +649,7 @@ impl Database {
     /// Check if a session secret exists.
     pub fn has_session_secret(&self, session_id: &str) -> DatabaseResult<bool> {
         let count: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM session_secrets WHERE session_id = ?1",
+            "SELECT COUNT(*) FROM local_llm_conversation_secrets WHERE session_id = ?1",
             params![session_id],
             |row| row.get(0),
         )?;
@@ -671,37 +682,6 @@ mod tests {
         Database::open_in_memory().unwrap()
     }
 
-    fn insert_test_company(db: &Database) -> String {
-        let id = "company-1".to_string();
-        db.connection()
-            .execute(
-                "INSERT INTO companies (id, name) VALUES (?1, ?2)",
-                rusqlite::params![id, "Test Company"],
-            )
-            .unwrap();
-        "company-1".to_string()
-    }
-
-    fn insert_test_agent(db: &Database, company_id: &str, agent_id: &str, name: &str) -> String {
-        db.connection()
-            .execute(
-                "INSERT INTO agents (id, company_id, name, slug) VALUES (?1, ?2, ?3, ?4)",
-                rusqlite::params![agent_id, company_id, name, format!("{agent_id}-slug")],
-            )
-            .unwrap();
-        agent_id.to_string()
-    }
-
-    fn insert_test_issue(db: &Database, company_id: &str, issue_id: &str, title: &str) -> String {
-        db.connection()
-            .execute(
-                "INSERT INTO issues (id, company_id, title) VALUES (?1, ?2, ?3)",
-                rusqlite::params![issue_id, company_id, title],
-            )
-            .unwrap();
-        issue_id.to_string()
-    }
-
     fn setup_test_repo_and_session(db: &Database) -> (String, String) {
         let repo_id = "repo-1".to_string();
         let session_id = "session-1".to_string();
@@ -714,14 +694,17 @@ mod tests {
             sessions_path: None,
             default_branch: None,
             default_remote: None,
+            machine_id: None,
+            space_id: None,
         })
         .unwrap();
 
         db.insert_session(&NewAgentCodingSession {
             id: session_id.clone(),
             repository_id: repo_id.clone(),
+            machine_id: None,
+            space_id: None,
             title: "Test Session".to_string(),
-            agent_id: None,
             agent_name: None,
             issue_id: None,
             issue_title: None,
@@ -751,6 +734,8 @@ mod tests {
                 sessions_path: None,
                 default_branch: Some("main".to_string()),
                 default_remote: Some("origin".to_string()),
+                machine_id: None,
+                space_id: None,
             })
             .unwrap();
 
@@ -778,9 +763,7 @@ mod tests {
     #[test]
     fn test_session_crud() {
         let db = create_test_db();
-        let company_id = insert_test_company(&db);
-        let agent_id = insert_test_agent(&db, &company_id, "agent-123", "Debug Agent");
-        let issue_id = insert_test_issue(&db, &company_id, "issue-123", "Fix launch bug");
+        let issue_id = "issue-123".to_string();
 
         // Create repository first
         db.insert_repository(&NewRepository {
@@ -791,6 +774,8 @@ mod tests {
             sessions_path: None,
             default_branch: None,
             default_remote: None,
+            machine_id: None,
+            space_id: None,
         })
         .unwrap();
 
@@ -799,8 +784,9 @@ mod tests {
             .insert_session(&NewAgentCodingSession {
                 id: "session-1".to_string(),
                 repository_id: "repo-1".to_string(),
+                machine_id: None,
+                space_id: None,
                 title: "Test Session".to_string(),
-                agent_id: Some(agent_id.clone()),
                 agent_name: Some("Debug Agent".to_string()),
                 issue_id: Some(issue_id.clone()),
                 issue_title: Some("Fix launch bug".to_string()),
@@ -815,7 +801,6 @@ mod tests {
 
         assert_eq!(session.id, "session-1");
         assert_eq!(session.title, "Test Session");
-        assert_eq!(session.agent_id.as_deref(), Some(agent_id.as_str()));
         assert_eq!(session.agent_name.as_deref(), Some("Debug Agent"));
         assert_eq!(session.issue_id.as_deref(), Some(issue_id.as_str()));
         assert_eq!(session.issue_title.as_deref(), Some("Fix launch bug"));

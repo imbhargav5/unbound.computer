@@ -17,7 +17,6 @@ import {
 } from "react";
 import { ActivityRouteView } from "../features/activity/activityRouteView";
 import { IssuesListView } from "../features/issues/issuesListView";
-import { CreateProjectDialogView } from "../features/projects/createProjectDialogView";
 import { ProjectsRouteView } from "../features/projects/projectsRouteView";
 import {
   DashboardBreadcrumbs,
@@ -80,6 +79,7 @@ import {
   sessionList,
   settingsGet,
   settingsUpdate,
+  spaceGetCurrent,
   systemCheckDependencies,
   terminalRun,
   terminalStop,
@@ -116,6 +116,7 @@ import type {
   BirdsEyeCanvasCompanyState,
   Company,
   CompanySnapshot,
+  CurrentSpaceScope,
   DashboardOverviewChatRecord,
   DashboardOverviewRecord,
   DesktopBootstrapStatus,
@@ -1257,6 +1258,7 @@ const desktopPreferredViewOptions: Array<
 const defaultSettings: DesktopSettings = {
   preferred_company_id: null,
   preferred_repository_id: null,
+  preferred_space_id: null,
   preferred_view: "dashboard",
   show_raw_message_json: false,
   last_repository_path: null,
@@ -1319,6 +1321,8 @@ export function App() {
     null,
   );
   const [settings, setSettings] = useState<DesktopSettings>(defaultSettings);
+  const [currentSpaceScope, setCurrentSpaceScope] =
+    useState<CurrentSpaceScope | null>(null);
   const [selectedScreen, setSelectedScreen] = useState<AppScreen>("dashboard");
   const [selectedSettingsSection, setSelectedSettingsSection] =
     useState<SettingsSection>("appearance");
@@ -1403,8 +1407,6 @@ export function App() {
   const [gitCommitMessage, setGitCommitMessage] = useState("");
   const [prompt, setPrompt] = useState("");
   const [terminalCommand, setTerminalCommand] = useState("");
-  const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] =
-    useState(false);
   const [isCreateCompanyDialogOpen, setIsCreateCompanyDialogOpen] =
     useState(false);
   const [companyDialogName, setCompanyDialogName] = useState("");
@@ -1416,14 +1418,6 @@ export function App() {
     null,
   );
   const [isCompanyDialogSaving, setIsCompanyDialogSaving] = useState(false);
-  const [projectDialogRepoPath, setProjectDialogRepoPath] = useState("");
-  const [projectDialogStatus, setProjectDialogStatus] = useState("planned");
-  const [projectDialogGoalId, setProjectDialogGoalId] = useState("");
-  const [projectDialogTargetDate, setProjectDialogTargetDate] = useState("");
-  const [projectDialogError, setProjectDialogError] = useState<string | null>(
-    null,
-  );
-  const [isProjectDialogSaving, setIsProjectDialogSaving] = useState(false);
   const [isCreateIssueDialogOpen, setIsCreateIssueDialogOpen] = useState(false);
   const [issueDialogMode, setIssueDialogMode] =
     useState<IssueDialogMode>("conversation");
@@ -1771,10 +1765,6 @@ export function App() {
     null;
   const hasUncommittedChanges = (gitState?.files.length ?? 0) > 0;
   const hasUnpushedCommits = (currentBranch?.ahead ?? 0) > 0;
-  const projectDialogDerivedName = useMemo(
-    () => deriveProjectName(projectDialogRepoPath),
-    [projectDialogRepoPath],
-  );
   const issueStatusOptions = useMemo(
     () => mergeIssueOptions(canonicalIssueStatuses, issueDraft.status),
     [issueDraft.status],
@@ -1984,12 +1974,17 @@ export function App() {
           return;
         }
 
-        const [loadedSettings, loadedCompanies, loadedRepositories] =
-          await Promise.all([
-            settingsGet(),
-            boardListCompanies(),
-            repositoryList(),
-          ]);
+        const [
+          loadedSettings,
+          loadedCompanies,
+          loadedRepositories,
+          loadedSpaceScope,
+        ] = await Promise.all([
+          settingsGet(),
+          boardListCompanies(),
+          repositoryList(),
+          spaceGetCurrent().catch(() => null),
+        ]);
 
         if (cancelled) {
           return;
@@ -2010,6 +2005,7 @@ export function App() {
           setSettings(nextSettings);
           setCompanies(companiesValue);
           setRepositories(repositoriesValue);
+          setCurrentSpaceScope(loadedSpaceScope);
           setSelectedScreen(nextScreen);
           setSelectedCompanyId(nextCompanyId);
           setSelectedRepositoryId(nextRepositoryId);
@@ -3050,12 +3046,17 @@ export function App() {
       const status = await desktopBootstrap();
       setBootstrap(status);
       if (status.state === "ready") {
-        const [loadedSettings, loadedCompanies, loadedRepositories] =
-          await Promise.all([
-            settingsGet(),
-            boardListCompanies(),
-            repositoryList(),
-          ]);
+        const [
+          loadedSettings,
+          loadedCompanies,
+          loadedRepositories,
+          loadedSpaceScope,
+        ] = await Promise.all([
+          settingsGet(),
+          boardListCompanies(),
+          repositoryList(),
+          spaceGetCurrent().catch(() => null),
+        ]);
         const companiesValue = loadedCompanies as Company[];
         const repositoriesValue = loadedRepositories as RepositoryRecord[];
         const nextSettings = mergeDesktopSettings(loadedSettings);
@@ -3069,6 +3070,7 @@ export function App() {
         setSettings(nextSettings);
         setCompanies(companiesValue);
         setRepositories(repositoriesValue);
+        setCurrentSpaceScope(loadedSpaceScope);
         setSelectedScreen(normalizeScreen(nextSettings.preferred_view));
         setSelectedCompanyId(nextCompanyId);
         setSelectedRepositoryId(nextRepositoryId);
@@ -3719,79 +3721,31 @@ export function App() {
     }
   };
 
-  const resetProjectDialog = () => {
-    setProjectDialogRepoPath("");
-    setProjectDialogStatus("planned");
-    setProjectDialogGoalId("");
-    setProjectDialogTargetDate("");
-    setProjectDialogError(null);
-    setIsProjectDialogSaving(false);
-  };
-
-  const handleOpenCreateProjectDialog = () => {
-    resetProjectDialog();
-    setIsCreateProjectDialogOpen(true);
-  };
-
-  const handleCloseCreateProjectDialog = () => {
-    setIsCreateProjectDialogOpen(false);
-    resetProjectDialog();
-  };
-
-  const handleChooseProjectFolder = async () => {
-    setProjectDialogError(null);
-    try {
-      const path = await desktopPickRepositoryDirectory();
-      if (path) {
-        setProjectDialogRepoPath(path);
-      }
-    } catch (error) {
-      setProjectDialogError(
-        error instanceof Error ? error.message : String(error),
-      );
-    }
-  };
-
-  const handleCreateProjectFromDialog = async () => {
-    if (
-      !(selectedCompanyId && projectDialogDerivedName) ||
-      isProjectDialogSaving
-    ) {
+  const handleAddRepository = async () => {
+    if (!selectedCompanyId) {
       return;
     }
 
-    setIsProjectDialogSaving(true);
-    setProjectDialogError(null);
-
     try {
+      const path = await desktopPickRepositoryDirectory();
+      if (!path) {
+        return;
+      }
+
+      const name = path.split("/").pop() || path;
       const params: Record<string, unknown> = {
         company_id: selectedCompanyId,
-        name: projectDialogDerivedName,
-        repo_path: projectDialogRepoPath.trim(),
-        status: projectDialogStatus,
+        name,
+        repo_path: path.trim(),
       };
-
-      if (projectDialogGoalId) {
-        params.goal_id = projectDialogGoalId;
-      }
-
-      if (projectDialogTargetDate) {
-        params.target_date = new Date(
-          `${projectDialogTargetDate}T00:00:00`,
-        ).toISOString();
-      }
 
       const project = await boardCreateProject(params);
       const snapshot = await boardCompanySnapshot(selectedCompanyId);
       setCompanySnapshot(snapshot);
       setSelectedProjectId(project.id);
       setSelectedScreen("projects");
-      handleCloseCreateProjectDialog();
     } catch (error) {
-      setProjectDialogError(
-        error instanceof Error ? error.message : String(error),
-      );
-      setIsProjectDialogSaving(false);
+      console.error("Failed to add repository:", error);
     }
   };
 
@@ -5360,7 +5314,7 @@ export function App() {
                   </div>
                   <SidebarLinkButton
                     label="New Project"
-                    onClick={handleOpenCreateProjectDialog}
+                    onClick={() => void handleAddRepository()}
                   />
                   {orderedSidebarProjects.length ? (
                     orderedSidebarProjects.map((project) => (
@@ -5418,7 +5372,7 @@ export function App() {
                 chats={dashboardOverviewChats}
                 dependencyCheck={dependencyCheck}
                 isLoadingOverview={isDashboardOverviewLoading}
-                onCreateProject={handleOpenCreateProjectDialog}
+                onCreateProject={() => void handleAddRepository()}
                 onCreateQuickChat={(title, defaults) =>
                   handleCreateBirdsEyeChat(title, defaults)
                 }
@@ -5659,7 +5613,7 @@ export function App() {
                 }
                 goals={boardGoals}
                 onDeleteProject={handleDeleteProject}
-                onOpenCreateProject={handleOpenCreateProjectDialog}
+                onOpenCreateProject={() => void handleAddRepository()}
                 onUpdateProjectDefaultNewChatArea={
                   handleUpdateProjectDefaultNewChatArea
                 }
@@ -5905,6 +5859,19 @@ export function App() {
                             settings.preferred_view,
                           )}
                         />
+                        <section className="settings-inline-panel">
+                          <p>
+                            <strong>Current space</strong>:{" "}
+                            {currentSpaceScope?.space?.name ?? "Personal Space"}
+                          </p>
+                          <p>
+                            <strong>Machine</strong>:{" "}
+                            {currentSpaceScope?.machine?.name ?? "This Device"}
+                          </p>
+                          <p>
+                            Managed automatically by the daemon for this device.
+                          </p>
+                        </section>
                       </div>
                       <div className="settings-shadcn-actions">
                         <button
@@ -5963,25 +5930,6 @@ export function App() {
             ) : null}
           </main>
         </div>
-      ) : null}
-
-      {isCreateProjectDialogOpen ? (
-        <CreateProjectDialogView
-          derivedProjectName={projectDialogDerivedName}
-          errorMessage={projectDialogError}
-          goals={boardGoals}
-          isSaving={isProjectDialogSaving}
-          onChooseFolder={() => void handleChooseProjectFolder()}
-          onClose={handleCloseCreateProjectDialog}
-          onCreate={() => void handleCreateProjectFromDialog()}
-          onGoalChange={setProjectDialogGoalId}
-          onStatusChange={setProjectDialogStatus}
-          onTargetDateChange={setProjectDialogTargetDate}
-          repoPath={projectDialogRepoPath}
-          selectedGoalId={projectDialogGoalId}
-          selectedStatus={projectDialogStatus}
-          targetDate={projectDialogTargetDate}
-        />
       ) : null}
 
       {isCreateCompanyDialogOpen ? (
@@ -21960,16 +21908,6 @@ function goalTitleForProject(goals: GoalRecord[], goalId?: string | null) {
 
   const goal = goals.find((entry) => entry.id === goalId);
   return goal?.title ?? goalId;
-}
-
-function deriveProjectName(repoPath: string) {
-  const trimmedPath = repoPath.trim();
-  if (!trimmedPath) {
-    return "";
-  }
-
-  const parts = trimmedPath.split("/").filter(Boolean);
-  return parts.at(-1)?.trim() ?? "";
 }
 
 function issueAssigneeLabel(

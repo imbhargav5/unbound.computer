@@ -78,34 +78,96 @@ impl SqliteStore {
             "#,
         )?;
 
-        // Check if required tables exist (daemon-database may have already created them)
-        let has_agent_sessions: bool = conn
-            .query_row(
-                "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='agent_coding_sessions'",
-                [],
-                |row| row.get(0),
-            )
-            .unwrap_or(false);
+        // If we're opening a legacy DB, rename the session tables in place first.
+        if Self::table_exists(&conn, "agent_coding_sessions").unwrap_or(false)
+            && !Self::table_exists(&conn, "local_llm_conversations").unwrap_or(false)
+        {
+            Self::rename_legacy_session_tables(&conn)?;
+        }
 
-        if !has_agent_sessions {
+        // Local repository table was renamed from `repositories` to
+        // `local_repositories` to avoid collisions with board repository records.
+        if Self::table_exists(&conn, "repositories").unwrap_or(false)
+            && !Self::table_exists(&conn, "local_repositories").unwrap_or(false)
+            && Self::table_has_column(&conn, "repositories", "path").unwrap_or(false)
+        {
+            conn.execute_batch("ALTER TABLE repositories RENAME TO local_repositories;")?;
+        }
+
+        // Check if required tables exist (daemon-database may have already created them).
+        let has_local_llm_conversations =
+            Self::table_exists(&conn, "local_llm_conversations").unwrap_or(false);
+        if !has_local_llm_conversations {
             // Fresh database or incomplete schema - run full migration
             self.migrate_v1_full_schema(&conn)?;
         }
 
+        self.ensure_machine_space_hierarchy(&conn)?;
         self.ensure_session_agent_metadata_columns(&conn)?;
 
         // Ensure runtime session state uses grouped JSON envelope schema
         self.ensure_session_state_runtime_envelope(&conn)?;
 
         // Drop legacy outbox table if it exists
-        conn.execute_batch("DROP TABLE IF EXISTS agent_coding_session_event_outbox;")?;
+        conn.execute_batch("DROP TABLE IF EXISTS local_llm_conversation_event_outbox;")?;
 
         Ok(())
     }
 
+    fn table_exists(conn: &Connection, table_name: &str) -> SqliteResult<bool> {
+        conn.query_row(
+            "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name=?1",
+            params![table_name],
+            |row| row.get(0),
+        )
+    }
+
+    fn rename_legacy_session_tables(conn: &Connection) -> SqliteResult<()> {
+        let table_renames = [
+            ("agent_coding_sessions", "local_llm_conversations"),
+            (
+                "agent_coding_session_state",
+                "local_llm_conversation_state",
+            ),
+            (
+                "agent_coding_session_messages",
+                "local_llm_conversation_messages",
+            ),
+            ("session_secrets", "local_llm_conversation_secrets"),
+            (
+                "agent_coding_session_event_outbox",
+                "local_llm_conversation_event_outbox",
+            ),
+        ];
+
+        for (legacy_name, renamed_name) in table_renames {
+            if Self::table_exists(conn, legacy_name)?
+                && !Self::table_exists(conn, renamed_name)?
+            {
+                conn.execute_batch(&format!(
+                    "ALTER TABLE {legacy_name} RENAME TO {renamed_name};"
+                ))?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn table_has_column(conn: &Connection, table_name: &str, column_name: &str) -> SqliteResult<bool> {
+        let mut stmt = conn.prepare(&format!("PRAGMA table_info({table_name})"))?;
+        let mut rows = stmt.query([])?;
+        while let Some(row) = rows.next()? {
+            let name: String = row.get(1)?;
+            if name == column_name {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     /// Ensures session runtime state uses grouped JSON envelope storage.
     fn ensure_session_state_runtime_envelope(&self, conn: &Connection) -> SqliteResult<()> {
-        let mut stmt = conn.prepare("PRAGMA table_info(agent_coding_session_state)")?;
+        let mut stmt = conn.prepare("PRAGMA table_info(local_llm_conversation_state)")?;
         let columns: Vec<String> = stmt
             .query_map([], |row| row.get::<_, String>(1))?
             .collect::<Result<Vec<_>, _>>()?;
@@ -121,10 +183,10 @@ impl SqliteStore {
 
         conn.execute_batch(
             r#"
-            DROP TABLE IF EXISTS agent_coding_session_state_new;
+            DROP TABLE IF EXISTS local_llm_conversation_state_new;
 
-            CREATE TABLE agent_coding_session_state_new (
-                session_id TEXT PRIMARY KEY REFERENCES agent_coding_sessions(id) ON DELETE CASCADE,
+            CREATE TABLE local_llm_conversation_state_new (
+                session_id TEXT PRIMARY KEY REFERENCES local_llm_conversations(id) ON DELETE CASCADE,
                 state_json TEXT NOT NULL,
                 updated_at_ms INTEGER NOT NULL,
                 CHECK (json_valid(state_json)),
@@ -148,7 +210,7 @@ impl SqliteStore {
             if has_agent_status {
                 conn.execute_batch(
                     r#"
-                    INSERT INTO agent_coding_session_state_new (session_id, state_json, updated_at_ms)
+                    INSERT INTO local_llm_conversation_state_new (session_id, state_json, updated_at_ms)
                     SELECT
                         session_id,
                         json_object(
@@ -175,13 +237,13 @@ impl SqliteStore {
                             CAST(strftime('%s', updated_at) AS INTEGER) * 1000,
                             CAST(strftime('%s', 'now') AS INTEGER) * 1000
                         )
-                    FROM agent_coding_session_state;
+                    FROM local_llm_conversation_state;
                     "#,
                 )?;
             } else if has_state_json {
                 conn.execute_batch(
                     r#"
-                    INSERT INTO agent_coding_session_state_new (session_id, state_json, updated_at_ms)
+                    INSERT INTO local_llm_conversation_state_new (session_id, state_json, updated_at_ms)
                     SELECT
                         session_id,
                         json_object(
@@ -212,7 +274,7 @@ impl SqliteStore {
                             CAST(json_extract(state_json, '$.updated_at_ms') AS INTEGER),
                             CAST(strftime('%s', 'now') AS INTEGER) * 1000
                         )
-                    FROM agent_coding_session_state;
+                    FROM local_llm_conversation_state;
                     "#,
                 )?;
             }
@@ -220,8 +282,8 @@ impl SqliteStore {
 
         conn.execute_batch(
             r#"
-            DROP TABLE IF EXISTS agent_coding_session_state;
-            ALTER TABLE agent_coding_session_state_new RENAME TO agent_coding_session_state;
+            DROP TABLE IF EXISTS local_llm_conversation_state;
+            ALTER TABLE local_llm_conversation_state_new RENAME TO local_llm_conversation_state;
             "#,
         )?;
 
@@ -232,13 +294,37 @@ impl SqliteStore {
     fn migrate_v1_full_schema(&self, conn: &Connection) -> SqliteResult<()> {
         tracing::info!("Applying Armin migration v1: full schema");
 
-        // Repositories table
         conn.execute_batch(
             r#"
-            CREATE TABLE IF NOT EXISTS repositories (
+            CREATE TABLE IF NOT EXISTS machines (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS spaces (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                user_id TEXT NOT NULL DEFAULT '',
+                machine_id TEXT NOT NULL REFERENCES machines(id) ON DELETE CASCADE,
+                color TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_spaces_machine_id
+                ON spaces(machine_id);
+            "#,
+        )?;
+
+        // Local repositories table
+        conn.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS local_repositories (
                 id TEXT PRIMARY KEY,
                 path TEXT NOT NULL UNIQUE,
                 name TEXT NOT NULL,
+                machine_id TEXT REFERENCES machines(id) ON DELETE SET NULL,
+                space_id TEXT REFERENCES spaces(id) ON DELETE SET NULL,
                 last_accessed_at TEXT NOT NULL,
                 added_at TEXT NOT NULL,
                 is_git_repository INTEGER NOT NULL DEFAULT 0,
@@ -249,21 +335,26 @@ impl SqliteStore {
                 updated_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
-            CREATE INDEX IF NOT EXISTS idx_repositories_last_accessed_at
-                ON repositories(last_accessed_at);
-            CREATE INDEX IF NOT EXISTS idx_repositories_path
-                ON repositories(path);
+            CREATE INDEX IF NOT EXISTS idx_local_repositories_last_accessed_at
+                ON local_repositories(last_accessed_at);
+            CREATE INDEX IF NOT EXISTS idx_local_repositories_path
+                ON local_repositories(path);
+            CREATE INDEX IF NOT EXISTS idx_local_repositories_machine_id
+                ON local_repositories(machine_id);
+            CREATE INDEX IF NOT EXISTS idx_local_repositories_space_id
+                ON local_repositories(space_id);
             "#,
         )?;
 
         // Agent coding sessions table (replaces simple 'sessions' table)
         conn.execute_batch(
             r#"
-            CREATE TABLE IF NOT EXISTS agent_coding_sessions (
+            CREATE TABLE IF NOT EXISTS local_llm_conversations (
                 id TEXT PRIMARY KEY,
-                repository_id TEXT NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
+                repository_id TEXT NOT NULL REFERENCES local_repositories(id) ON DELETE CASCADE,
+                machine_id TEXT REFERENCES machines(id) ON DELETE SET NULL,
+                space_id TEXT REFERENCES spaces(id) ON DELETE SET NULL,
                 title TEXT NOT NULL DEFAULT 'New conversation',
-                agent_id TEXT,
                 agent_name TEXT,
                 issue_id TEXT,
                 issue_title TEXT,
@@ -280,25 +371,27 @@ impl SqliteStore {
             );
 
             CREATE INDEX IF NOT EXISTS idx_sessions_repository_id
-                ON agent_coding_sessions(repository_id);
+                ON local_llm_conversations(repository_id);
             CREATE INDEX IF NOT EXISTS idx_sessions_status
-                ON agent_coding_sessions(status);
+                ON local_llm_conversations(status);
             CREATE INDEX IF NOT EXISTS idx_sessions_last_accessed_at
-                ON agent_coding_sessions(last_accessed_at);
+                ON local_llm_conversations(last_accessed_at);
             CREATE INDEX IF NOT EXISTS idx_sessions_is_worktree
-                ON agent_coding_sessions(is_worktree);
-            CREATE INDEX IF NOT EXISTS idx_sessions_agent_id
-                ON agent_coding_sessions(agent_id);
+                ON local_llm_conversations(is_worktree);
             CREATE INDEX IF NOT EXISTS idx_sessions_issue_id
-                ON agent_coding_sessions(issue_id);
+                ON local_llm_conversations(issue_id);
+            CREATE INDEX IF NOT EXISTS idx_sessions_machine_id
+                ON local_llm_conversations(machine_id);
+            CREATE INDEX IF NOT EXISTS idx_sessions_space_id
+                ON local_llm_conversations(space_id);
             "#,
         )?;
 
         // Session state table
         conn.execute_batch(
             r#"
-            CREATE TABLE IF NOT EXISTS agent_coding_session_state (
-                session_id TEXT PRIMARY KEY REFERENCES agent_coding_sessions(id) ON DELETE CASCADE,
+            CREATE TABLE IF NOT EXISTS local_llm_conversation_state (
+                session_id TEXT PRIMARY KEY REFERENCES local_llm_conversations(id) ON DELETE CASCADE,
                 state_json TEXT NOT NULL,
                 updated_at_ms INTEGER NOT NULL,
                 CHECK (json_valid(state_json)),
@@ -321,9 +414,9 @@ impl SqliteStore {
         // Messages table (plaintext content)
         conn.execute_batch(
             r#"
-            CREATE TABLE IF NOT EXISTS agent_coding_session_messages (
+            CREATE TABLE IF NOT EXISTS local_llm_conversation_messages (
                 id TEXT PRIMARY KEY,
-                session_id TEXT NOT NULL REFERENCES agent_coding_sessions(id) ON DELETE CASCADE,
+                session_id TEXT NOT NULL REFERENCES local_llm_conversations(id) ON DELETE CASCADE,
                 content TEXT NOT NULL,
                 timestamp TEXT NOT NULL DEFAULT (datetime('now')),
                 is_streaming INTEGER NOT NULL DEFAULT 0,
@@ -332,19 +425,19 @@ impl SqliteStore {
             );
 
             CREATE INDEX IF NOT EXISTS idx_messages_session_id
-                ON agent_coding_session_messages(session_id);
+                ON local_llm_conversation_messages(session_id);
             CREATE INDEX IF NOT EXISTS idx_messages_session_seq
-                ON agent_coding_session_messages(session_id, sequence_number);
+                ON local_llm_conversation_messages(session_id, sequence_number);
             CREATE INDEX IF NOT EXISTS idx_messages_timestamp
-                ON agent_coding_session_messages(timestamp);
+                ON local_llm_conversation_messages(timestamp);
             "#,
         )?;
 
         // Session secrets table
         conn.execute_batch(
             r#"
-            CREATE TABLE IF NOT EXISTS session_secrets (
-                session_id TEXT PRIMARY KEY REFERENCES agent_coding_sessions(id) ON DELETE CASCADE,
+            CREATE TABLE IF NOT EXISTS local_llm_conversation_secrets (
+                session_id TEXT PRIMARY KEY REFERENCES local_llm_conversations(id) ON DELETE CASCADE,
                 encrypted_secret BLOB NOT NULL,
                 nonce BLOB NOT NULL,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -375,42 +468,112 @@ impl SqliteStore {
         Ok(())
     }
 
+    fn ensure_machine_space_hierarchy(&self, conn: &Connection) -> SqliteResult<()> {
+        conn.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS machines (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS spaces (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                user_id TEXT NOT NULL DEFAULT '',
+                machine_id TEXT NOT NULL REFERENCES machines(id) ON DELETE CASCADE,
+                color TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_spaces_machine_id
+                ON spaces(machine_id);
+            "#,
+        )?;
+
+        if Self::table_exists(conn, "spaces")?
+            && !Self::table_has_column(conn, "spaces", "user_id")?
+        {
+            conn.execute_batch("ALTER TABLE spaces ADD COLUMN user_id TEXT NOT NULL DEFAULT '';")?;
+        }
+
+        if Self::table_exists(conn, "local_repositories")? {
+            if !Self::table_has_column(conn, "local_repositories", "machine_id")? {
+                conn.execute_batch(
+                    "ALTER TABLE local_repositories ADD COLUMN machine_id TEXT REFERENCES machines(id) ON DELETE SET NULL;",
+                )?;
+            }
+            if !Self::table_has_column(conn, "local_repositories", "space_id")? {
+                conn.execute_batch(
+                    "ALTER TABLE local_repositories ADD COLUMN space_id TEXT REFERENCES spaces(id) ON DELETE SET NULL;",
+                )?;
+            }
+            conn.execute_batch(
+                "
+                CREATE INDEX IF NOT EXISTS idx_local_repositories_machine_id
+                    ON local_repositories(machine_id);
+                CREATE INDEX IF NOT EXISTS idx_local_repositories_space_id
+                    ON local_repositories(space_id);
+                ",
+            )?;
+        }
+
+        if Self::table_exists(conn, "local_llm_conversations")? {
+            if !Self::table_has_column(conn, "local_llm_conversations", "machine_id")? {
+                conn.execute_batch(
+                    "ALTER TABLE local_llm_conversations ADD COLUMN machine_id TEXT REFERENCES machines(id) ON DELETE SET NULL;",
+                )?;
+            }
+            if !Self::table_has_column(conn, "local_llm_conversations", "space_id")? {
+                conn.execute_batch(
+                    "ALTER TABLE local_llm_conversations ADD COLUMN space_id TEXT REFERENCES spaces(id) ON DELETE SET NULL;",
+                )?;
+            }
+            conn.execute_batch(
+                "
+                CREATE INDEX IF NOT EXISTS idx_sessions_machine_id
+                    ON local_llm_conversations(machine_id);
+                CREATE INDEX IF NOT EXISTS idx_sessions_space_id
+                    ON local_llm_conversations(space_id);
+                ",
+            )?;
+        }
+
+        Ok(())
+    }
+
     fn ensure_session_agent_metadata_columns(&self, conn: &Connection) -> SqliteResult<()> {
-        let mut stmt = conn.prepare("PRAGMA table_info(agent_coding_sessions)")?;
+        let mut stmt = conn.prepare("PRAGMA table_info(local_llm_conversations)")?;
         let columns: Vec<String> = stmt
             .query_map([], |row| row.get::<_, String>(1))?
             .collect::<Result<Vec<_>, _>>()?;
 
-        if !columns.iter().any(|c| c == "agent_id") {
-            conn.execute_batch("ALTER TABLE agent_coding_sessions ADD COLUMN agent_id TEXT;")?;
-        }
-
         if !columns.iter().any(|c| c == "agent_name") {
-            conn.execute_batch("ALTER TABLE agent_coding_sessions ADD COLUMN agent_name TEXT;")?;
+            conn.execute_batch("ALTER TABLE local_llm_conversations ADD COLUMN agent_name TEXT;")?;
         }
 
         if !columns.iter().any(|c| c == "issue_id") {
-            conn.execute_batch("ALTER TABLE agent_coding_sessions ADD COLUMN issue_id TEXT;")?;
+            conn.execute_batch("ALTER TABLE local_llm_conversations ADD COLUMN issue_id TEXT;")?;
         }
 
         if !columns.iter().any(|c| c == "issue_title") {
-            conn.execute_batch("ALTER TABLE agent_coding_sessions ADD COLUMN issue_title TEXT;")?;
+            conn.execute_batch("ALTER TABLE local_llm_conversations ADD COLUMN issue_title TEXT;")?;
         }
 
         if !columns.iter().any(|c| c == "issue_url") {
-            conn.execute_batch("ALTER TABLE agent_coding_sessions ADD COLUMN issue_url TEXT;")?;
+            conn.execute_batch("ALTER TABLE local_llm_conversations ADD COLUMN issue_url TEXT;")?;
         }
         if !columns.iter().any(|c| c == "provider") {
-            conn.execute_batch("ALTER TABLE agent_coding_sessions ADD COLUMN provider TEXT;")?;
+            conn.execute_batch("ALTER TABLE local_llm_conversations ADD COLUMN provider TEXT;")?;
         }
         if !columns.iter().any(|c| c == "provider_session_id") {
             conn.execute_batch(
-                "ALTER TABLE agent_coding_sessions ADD COLUMN provider_session_id TEXT;",
+                "ALTER TABLE local_llm_conversations ADD COLUMN provider_session_id TEXT;",
             )?;
         }
 
         conn.execute(
-            "UPDATE agent_coding_sessions
+            "UPDATE local_llm_conversations
              SET provider = 'claude',
                  provider_session_id = claude_session_id
              WHERE claude_session_id IS NOT NULL
@@ -426,8 +589,7 @@ impl SqliteStore {
 
         conn.execute_batch(
             "
-            CREATE INDEX IF NOT EXISTS idx_sessions_agent_id ON agent_coding_sessions(agent_id);
-            CREATE INDEX IF NOT EXISTS idx_sessions_issue_id ON agent_coding_sessions(issue_id);
+            CREATE INDEX IF NOT EXISTS idx_sessions_issue_id ON local_llm_conversations(issue_id);
             ",
         )?;
 
@@ -465,12 +627,17 @@ impl SqliteStore {
         let conn = self.conn.lock().expect("lock poisoned");
         let now = Self::now_rfc3339();
         conn.execute(
-            "INSERT INTO repositories (id, path, name, last_accessed_at, added_at, is_git_repository, sessions_path, default_branch, default_remote, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?4, ?5, ?6, ?7, ?8, ?4, ?4)",
+            "INSERT INTO local_repositories (
+                id, path, name, machine_id, space_id, last_accessed_at, added_at, is_git_repository,
+                sessions_path, default_branch, default_remote, created_at, updated_at
+             )
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6, ?7, ?8, ?9, ?10, ?6, ?6)",
             params![
                 repo.id.as_str(),
                 repo.path,
                 repo.name,
+                repo.machine_id,
+                repo.space_id,
                 now,
                 repo.is_git_repository,
                 repo.sessions_path,
@@ -487,8 +654,8 @@ impl SqliteStore {
     pub fn get_repository(&self, id: &RepositoryId) -> SqliteResult<Option<Repository>> {
         let conn = self.conn.lock().expect("lock poisoned");
         let mut stmt = conn.prepare_cached(
-            "SELECT id, path, name, last_accessed_at, added_at, is_git_repository, sessions_path, default_branch, default_remote, created_at, updated_at
-             FROM repositories WHERE id = ?1",
+            "SELECT id, path, name, machine_id, space_id, last_accessed_at, added_at, is_git_repository, sessions_path, default_branch, default_remote, created_at, updated_at
+             FROM local_repositories WHERE id = ?1",
         )?;
 
         let result = stmt.query_row(params![id.as_str()], |row| {
@@ -496,14 +663,16 @@ impl SqliteStore {
                 id: RepositoryId::from_string(row.get::<_, String>(0)?),
                 path: row.get(1)?,
                 name: row.get(2)?,
-                last_accessed_at: Self::parse_datetime(row.get::<_, String>(3)?),
-                added_at: Self::parse_datetime(row.get::<_, String>(4)?),
-                is_git_repository: row.get(5)?,
-                sessions_path: row.get(6)?,
-                default_branch: row.get(7)?,
-                default_remote: row.get(8)?,
-                created_at: Self::parse_datetime(row.get::<_, String>(9)?),
-                updated_at: Self::parse_datetime(row.get::<_, String>(10)?),
+                machine_id: row.get(3)?,
+                space_id: row.get(4)?,
+                last_accessed_at: Self::parse_datetime(row.get::<_, String>(5)?),
+                added_at: Self::parse_datetime(row.get::<_, String>(6)?),
+                is_git_repository: row.get(7)?,
+                sessions_path: row.get(8)?,
+                default_branch: row.get(9)?,
+                default_remote: row.get(10)?,
+                created_at: Self::parse_datetime(row.get::<_, String>(11)?),
+                updated_at: Self::parse_datetime(row.get::<_, String>(12)?),
             })
         });
 
@@ -518,8 +687,8 @@ impl SqliteStore {
     pub fn get_repository_by_path(&self, path: &str) -> SqliteResult<Option<Repository>> {
         let conn = self.conn.lock().expect("lock poisoned");
         let mut stmt = conn.prepare_cached(
-            "SELECT id, path, name, last_accessed_at, added_at, is_git_repository, sessions_path, default_branch, default_remote, created_at, updated_at
-             FROM repositories WHERE path = ?1",
+            "SELECT id, path, name, machine_id, space_id, last_accessed_at, added_at, is_git_repository, sessions_path, default_branch, default_remote, created_at, updated_at
+             FROM local_repositories WHERE path = ?1",
         )?;
 
         let result = stmt.query_row(params![path], |row| {
@@ -527,14 +696,16 @@ impl SqliteStore {
                 id: RepositoryId::from_string(row.get::<_, String>(0)?),
                 path: row.get(1)?,
                 name: row.get(2)?,
-                last_accessed_at: Self::parse_datetime(row.get::<_, String>(3)?),
-                added_at: Self::parse_datetime(row.get::<_, String>(4)?),
-                is_git_repository: row.get(5)?,
-                sessions_path: row.get(6)?,
-                default_branch: row.get(7)?,
-                default_remote: row.get(8)?,
-                created_at: Self::parse_datetime(row.get::<_, String>(9)?),
-                updated_at: Self::parse_datetime(row.get::<_, String>(10)?),
+                machine_id: row.get(3)?,
+                space_id: row.get(4)?,
+                last_accessed_at: Self::parse_datetime(row.get::<_, String>(5)?),
+                added_at: Self::parse_datetime(row.get::<_, String>(6)?),
+                is_git_repository: row.get(7)?,
+                sessions_path: row.get(8)?,
+                default_branch: row.get(9)?,
+                default_remote: row.get(10)?,
+                created_at: Self::parse_datetime(row.get::<_, String>(11)?),
+                updated_at: Self::parse_datetime(row.get::<_, String>(12)?),
             })
         });
 
@@ -549,8 +720,8 @@ impl SqliteStore {
     pub fn list_repositories(&self) -> SqliteResult<Vec<Repository>> {
         let conn = self.conn.lock().expect("lock poisoned");
         let mut stmt = conn.prepare_cached(
-            "SELECT id, path, name, last_accessed_at, added_at, is_git_repository, sessions_path, default_branch, default_remote, created_at, updated_at
-             FROM repositories ORDER BY last_accessed_at DESC",
+            "SELECT id, path, name, machine_id, space_id, last_accessed_at, added_at, is_git_repository, sessions_path, default_branch, default_remote, created_at, updated_at
+             FROM local_repositories ORDER BY last_accessed_at DESC",
         )?;
 
         let repos = stmt
@@ -559,14 +730,16 @@ impl SqliteStore {
                     id: RepositoryId::from_string(row.get::<_, String>(0)?),
                     path: row.get(1)?,
                     name: row.get(2)?,
-                    last_accessed_at: Self::parse_datetime(row.get::<_, String>(3)?),
-                    added_at: Self::parse_datetime(row.get::<_, String>(4)?),
-                    is_git_repository: row.get(5)?,
-                    sessions_path: row.get(6)?,
-                    default_branch: row.get(7)?,
-                    default_remote: row.get(8)?,
-                    created_at: Self::parse_datetime(row.get::<_, String>(9)?),
-                    updated_at: Self::parse_datetime(row.get::<_, String>(10)?),
+                    machine_id: row.get(3)?,
+                    space_id: row.get(4)?,
+                    last_accessed_at: Self::parse_datetime(row.get::<_, String>(5)?),
+                    added_at: Self::parse_datetime(row.get::<_, String>(6)?),
+                    is_git_repository: row.get(7)?,
+                    sessions_path: row.get(8)?,
+                    default_branch: row.get(9)?,
+                    default_remote: row.get(10)?,
+                    created_at: Self::parse_datetime(row.get::<_, String>(11)?),
+                    updated_at: Self::parse_datetime(row.get::<_, String>(12)?),
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -578,7 +751,7 @@ impl SqliteStore {
     pub fn delete_repository(&self, id: &RepositoryId) -> SqliteResult<bool> {
         let conn = self.conn.lock().expect("lock poisoned");
         let count = conn.execute(
-            "DELETE FROM repositories WHERE id = ?1",
+            "DELETE FROM local_repositories WHERE id = ?1",
             params![id.as_str()],
         )?;
         Ok(count > 0)
@@ -595,7 +768,7 @@ impl SqliteStore {
         let conn = self.conn.lock().expect("lock poisoned");
         let now = Self::now_rfc3339();
         let count = conn.execute(
-            "UPDATE repositories
+            "UPDATE local_repositories
              SET sessions_path = ?1, default_branch = ?2, default_remote = ?3, updated_at = ?4
              WHERE id = ?5",
             params![
@@ -618,13 +791,18 @@ impl SqliteStore {
         let conn = self.conn.lock().expect("lock poisoned");
         let now = Self::now_rfc3339();
         conn.execute(
-            "INSERT INTO agent_coding_sessions (id, repository_id, title, agent_id, agent_name, issue_id, issue_title, issue_url, provider, provider_session_id, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'active', ?12, ?13, ?14, ?14, ?14)",
+            "INSERT INTO local_llm_conversations (
+                id, repository_id, machine_id, space_id, title, agent_name, issue_id,
+                issue_title, issue_url, provider, provider_session_id, claude_session_id, status,
+                is_worktree, worktree_path, created_at, last_accessed_at, updated_at
+             )
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'active', ?13, ?14, ?15, ?15, ?15)",
             params![
                 session.id.as_str(),
                 session.repository_id.as_str(),
+                session.machine_id,
+                session.space_id,
                 session.title,
-                session.agent_id,
                 session.agent_name,
                 session.issue_id,
                 session.issue_title,
@@ -646,29 +824,30 @@ impl SqliteStore {
     pub fn get_agent_session(&self, id: &SessionId) -> SqliteResult<Option<Session>> {
         let conn = self.conn.lock().expect("lock poisoned");
         let mut stmt = conn.prepare_cached(
-            "SELECT id, repository_id, title, agent_id, agent_name, issue_id, issue_title, issue_url, provider, provider_session_id, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
-             FROM agent_coding_sessions WHERE id = ?1",
+            "SELECT id, repository_id, machine_id, space_id, title, agent_name, issue_id, issue_title, issue_url, provider, provider_session_id, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
+             FROM local_llm_conversations WHERE id = ?1",
         )?;
 
         let result = stmt.query_row(params![id.as_str()], |row| {
             Ok(Session {
                 id: SessionId::from_string(row.get::<_, String>(0)?),
                 repository_id: RepositoryId::from_string(row.get::<_, String>(1)?),
-                title: row.get(2)?,
-                agent_id: row.get(3)?,
-                agent_name: row.get(4)?,
-                issue_id: row.get(5)?,
-                issue_title: row.get(6)?,
-                issue_url: row.get(7)?,
-                provider: row.get(8)?,
-                provider_session_id: row.get(9)?,
-                claude_session_id: row.get(10)?,
-                status: SessionStatus::from_str(&row.get::<_, String>(11)?),
-                is_worktree: row.get(12)?,
-                worktree_path: row.get(13)?,
-                created_at: Self::parse_datetime(row.get::<_, String>(14)?),
-                last_accessed_at: Self::parse_datetime(row.get::<_, String>(15)?),
-                updated_at: Self::parse_datetime(row.get::<_, String>(16)?),
+                machine_id: row.get(2)?,
+                space_id: row.get(3)?,
+                title: row.get(4)?,
+                agent_name: row.get(5)?,
+                issue_id: row.get(6)?,
+                issue_title: row.get(7)?,
+                issue_url: row.get(8)?,
+                provider: row.get(9)?,
+                provider_session_id: row.get(10)?,
+                claude_session_id: row.get(11)?,
+                status: SessionStatus::from_str(&row.get::<_, String>(12)?),
+                is_worktree: row.get(13)?,
+                worktree_path: row.get(14)?,
+                created_at: Self::parse_datetime(row.get::<_, String>(15)?),
+                last_accessed_at: Self::parse_datetime(row.get::<_, String>(16)?),
+                updated_at: Self::parse_datetime(row.get::<_, String>(17)?),
             })
         });
 
@@ -686,8 +865,8 @@ impl SqliteStore {
     ) -> SqliteResult<Vec<Session>> {
         let conn = self.conn.lock().expect("lock poisoned");
         let mut stmt = conn.prepare_cached(
-            "SELECT id, repository_id, title, agent_id, agent_name, issue_id, issue_title, issue_url, provider, provider_session_id, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
-             FROM agent_coding_sessions WHERE repository_id = ?1 ORDER BY last_accessed_at DESC",
+            "SELECT id, repository_id, machine_id, space_id, title, agent_name, issue_id, issue_title, issue_url, provider, provider_session_id, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
+             FROM local_llm_conversations WHERE repository_id = ?1 ORDER BY last_accessed_at DESC",
         )?;
 
         let sessions = stmt
@@ -695,21 +874,22 @@ impl SqliteStore {
                 Ok(Session {
                     id: SessionId::from_string(row.get::<_, String>(0)?),
                     repository_id: RepositoryId::from_string(row.get::<_, String>(1)?),
-                    title: row.get(2)?,
-                    agent_id: row.get(3)?,
-                    agent_name: row.get(4)?,
-                    issue_id: row.get(5)?,
-                    issue_title: row.get(6)?,
-                    issue_url: row.get(7)?,
-                    provider: row.get(8)?,
-                    provider_session_id: row.get(9)?,
-                    claude_session_id: row.get(10)?,
-                    status: SessionStatus::from_str(&row.get::<_, String>(11)?),
-                    is_worktree: row.get(12)?,
-                    worktree_path: row.get(13)?,
-                    created_at: Self::parse_datetime(row.get::<_, String>(14)?),
-                    last_accessed_at: Self::parse_datetime(row.get::<_, String>(15)?),
-                    updated_at: Self::parse_datetime(row.get::<_, String>(16)?),
+                    machine_id: row.get(2)?,
+                    space_id: row.get(3)?,
+                    title: row.get(4)?,
+                    agent_name: row.get(5)?,
+                    issue_id: row.get(6)?,
+                    issue_title: row.get(7)?,
+                    issue_url: row.get(8)?,
+                    provider: row.get(9)?,
+                    provider_session_id: row.get(10)?,
+                    claude_session_id: row.get(11)?,
+                    status: SessionStatus::from_str(&row.get::<_, String>(12)?),
+                    is_worktree: row.get(13)?,
+                    worktree_path: row.get(14)?,
+                    created_at: Self::parse_datetime(row.get::<_, String>(15)?),
+                    last_accessed_at: Self::parse_datetime(row.get::<_, String>(16)?),
+                    updated_at: Self::parse_datetime(row.get::<_, String>(17)?),
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -721,8 +901,8 @@ impl SqliteStore {
     pub fn list_all_agent_sessions(&self) -> SqliteResult<Vec<Session>> {
         let conn = self.conn.lock().expect("lock poisoned");
         let mut stmt = conn.prepare_cached(
-            "SELECT id, repository_id, title, agent_id, agent_name, issue_id, issue_title, issue_url, provider, provider_session_id, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
-             FROM agent_coding_sessions ORDER BY last_accessed_at DESC",
+            "SELECT id, repository_id, machine_id, space_id, title, agent_name, issue_id, issue_title, issue_url, provider, provider_session_id, claude_session_id, status, is_worktree, worktree_path, created_at, last_accessed_at, updated_at
+             FROM local_llm_conversations ORDER BY last_accessed_at DESC",
         )?;
 
         let sessions = stmt
@@ -730,21 +910,22 @@ impl SqliteStore {
                 Ok(Session {
                     id: SessionId::from_string(row.get::<_, String>(0)?),
                     repository_id: RepositoryId::from_string(row.get::<_, String>(1)?),
-                    title: row.get(2)?,
-                    agent_id: row.get(3)?,
-                    agent_name: row.get(4)?,
-                    issue_id: row.get(5)?,
-                    issue_title: row.get(6)?,
-                    issue_url: row.get(7)?,
-                    provider: row.get(8)?,
-                    provider_session_id: row.get(9)?,
-                    claude_session_id: row.get(10)?,
-                    status: SessionStatus::from_str(&row.get::<_, String>(11)?),
-                    is_worktree: row.get(12)?,
-                    worktree_path: row.get(13)?,
-                    created_at: Self::parse_datetime(row.get::<_, String>(14)?),
-                    last_accessed_at: Self::parse_datetime(row.get::<_, String>(15)?),
-                    updated_at: Self::parse_datetime(row.get::<_, String>(16)?),
+                    machine_id: row.get(2)?,
+                    space_id: row.get(3)?,
+                    title: row.get(4)?,
+                    agent_name: row.get(5)?,
+                    issue_id: row.get(6)?,
+                    issue_title: row.get(7)?,
+                    issue_url: row.get(8)?,
+                    provider: row.get(9)?,
+                    provider_session_id: row.get(10)?,
+                    claude_session_id: row.get(11)?,
+                    status: SessionStatus::from_str(&row.get::<_, String>(12)?),
+                    is_worktree: row.get(13)?,
+                    worktree_path: row.get(14)?,
+                    created_at: Self::parse_datetime(row.get::<_, String>(15)?),
+                    last_accessed_at: Self::parse_datetime(row.get::<_, String>(16)?),
+                    updated_at: Self::parse_datetime(row.get::<_, String>(17)?),
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -782,7 +963,7 @@ impl SqliteStore {
         }
 
         let sql = format!(
-            "UPDATE agent_coding_sessions SET {} WHERE id = ?{}",
+            "UPDATE local_llm_conversations SET {} WHERE id = ?{}",
             updates.join(", "),
             param_index
         );
@@ -824,7 +1005,7 @@ impl SqliteStore {
             None
         };
         let count = conn.execute(
-            "UPDATE agent_coding_sessions
+            "UPDATE local_llm_conversations
              SET provider = ?1,
                  provider_session_id = ?2,
                  claude_session_id = ?3,
@@ -847,7 +1028,7 @@ impl SqliteStore {
         let conn = self.conn.lock().expect("lock poisoned");
         let now = Self::now_rfc3339();
         let count = conn.execute(
-            "UPDATE agent_coding_sessions SET last_accessed_at = ?1, updated_at = ?1 WHERE id = ?2",
+            "UPDATE local_llm_conversations SET last_accessed_at = ?1, updated_at = ?1 WHERE id = ?2",
             params![now, id.as_str()],
         )?;
         Ok(count > 0)
@@ -857,7 +1038,7 @@ impl SqliteStore {
     pub fn delete_agent_session(&self, id: &SessionId) -> SqliteResult<bool> {
         let conn = self.conn.lock().expect("lock poisoned");
         let count = conn.execute(
-            "DELETE FROM agent_coding_sessions WHERE id = ?1",
+            "DELETE FROM local_llm_conversations WHERE id = ?1",
             params![id.as_str()],
         )?;
         Ok(count > 0)
@@ -868,7 +1049,7 @@ impl SqliteStore {
     pub fn agent_session_exists(&self, id: &SessionId) -> SqliteResult<bool> {
         let conn = self.conn.lock().expect("lock poisoned");
         let count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM agent_coding_sessions WHERE id = ?1",
+            "SELECT COUNT(*) FROM local_llm_conversations WHERE id = ?1",
             params![id.as_str()],
             |row| row.get(0),
         )?;
@@ -891,7 +1072,7 @@ impl SqliteStore {
         let conn = self.conn.lock().expect("lock poisoned");
         let now_ms = Self::now_timestamp_ms();
         conn.execute(
-            "INSERT INTO agent_coding_session_state (session_id, state_json, updated_at_ms)
+            "INSERT INTO local_llm_conversation_state (session_id, state_json, updated_at_ms)
              VALUES (
                 ?1,
                 json_object(
@@ -926,7 +1107,7 @@ impl SqliteStore {
                 json_extract(state_json, '$.coding_session.error_message') AS error_message,
                 json_extract(state_json, '$.device_id') AS device_id,
                 updated_at_ms
-             FROM agent_coding_session_state WHERE session_id = ?1",
+             FROM local_llm_conversation_state WHERE session_id = ?1",
         )?;
 
         let result = stmt.query_row(params![session_id.as_str()], |row| {
@@ -974,7 +1155,7 @@ impl SqliteStore {
         let now_ms = Self::now_timestamp_ms();
         let count = if let Some(error_message) = error_message {
             conn.execute(
-                "UPDATE agent_coding_session_state
+                "UPDATE local_llm_conversation_state
                  SET
                     state_json = json_set(
                         COALESCE(
@@ -1007,7 +1188,7 @@ impl SqliteStore {
             )?
         } else {
             conn.execute(
-                "UPDATE agent_coding_session_state
+                "UPDATE local_llm_conversation_state
                  SET
                     state_json = json_remove(
                         json_set(
@@ -1071,9 +1252,9 @@ impl SqliteStore {
         // Atomic insert with sequence number computed in subquery
         let mut stmt = conn.prepare(
             r#"
-            INSERT INTO agent_coding_session_messages (id, session_id, content, timestamp, is_streaming, sequence_number, created_at)
+            INSERT INTO local_llm_conversation_messages (id, session_id, content, timestamp, is_streaming, sequence_number, created_at)
             VALUES (?1, ?2, ?3, ?4, 0,
-                (SELECT COALESCE(MAX(sequence_number), 0) + 1 FROM agent_coding_session_messages WHERE session_id = ?2),
+                (SELECT COALESCE(MAX(sequence_number), 0) + 1 FROM local_llm_conversation_messages WHERE session_id = ?2),
                 ?4)
             RETURNING sequence_number
             "#,
@@ -1094,7 +1275,7 @@ impl SqliteStore {
     pub fn get_agent_messages(&self, session: &SessionId) -> SqliteResult<Vec<Message>> {
         let conn = self.conn.lock().expect("lock poisoned");
         let mut stmt = conn.prepare(
-            "SELECT id, content, sequence_number FROM agent_coding_session_messages WHERE session_id = ? ORDER BY sequence_number",
+            "SELECT id, content, sequence_number FROM local_llm_conversation_messages WHERE session_id = ? ORDER BY sequence_number",
         )?;
         let rows = stmt.query_map(params![session.as_str()], |row| {
             let id = MessageId::from_string(row.get::<_, String>(0)?);
@@ -1126,7 +1307,7 @@ impl SqliteStore {
         let conn = self.conn.lock().expect("lock poisoned");
         let mut stmt = conn.prepare_cached(
             "SELECT session_id, encrypted_secret, nonce, created_at
-             FROM session_secrets WHERE session_id = ?1",
+             FROM local_llm_conversation_secrets WHERE session_id = ?1",
         )?;
 
         let result = stmt.query_row(params![session_id.as_str()], |row| {
@@ -1150,7 +1331,7 @@ impl SqliteStore {
         let conn = self.conn.lock().expect("lock poisoned");
         let now = Self::now_rfc3339();
         conn.execute(
-            "INSERT INTO session_secrets (session_id, encrypted_secret, nonce, created_at)
+            "INSERT INTO local_llm_conversation_secrets (session_id, encrypted_secret, nonce, created_at)
              VALUES (?1, ?2, ?3, ?4)
              ON CONFLICT(session_id) DO UPDATE SET encrypted_secret = ?2, nonce = ?3",
             params![
@@ -1167,7 +1348,7 @@ impl SqliteStore {
     pub fn delete_session_secret(&self, session_id: &SessionId) -> SqliteResult<bool> {
         let conn = self.conn.lock().expect("lock poisoned");
         let count = conn.execute(
-            "DELETE FROM session_secrets WHERE session_id = ?1",
+            "DELETE FROM local_llm_conversation_secrets WHERE session_id = ?1",
             params![session_id.as_str()],
         )?;
         Ok(count > 0)
@@ -1177,7 +1358,7 @@ impl SqliteStore {
     pub fn has_session_secret(&self, session_id: &SessionId) -> SqliteResult<bool> {
         let conn = self.conn.lock().expect("lock poisoned");
         let count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM session_secrets WHERE session_id = ?1",
+            "SELECT COUNT(*) FROM local_llm_conversation_secrets WHERE session_id = ?1",
             params![session_id.as_str()],
             |row| row.get(0),
         )?;
@@ -1244,6 +1425,8 @@ mod tests {
             id: RepositoryId::new(),
             path: "/tmp/test".to_string(),
             name: "Test".to_string(),
+            machine_id: None,
+            space_id: None,
             is_git_repository: false,
             sessions_path: None,
             default_branch: None,
@@ -1257,8 +1440,9 @@ mod tests {
         let session = NewSession {
             id: SessionId::new(),
             repository_id: repo_id.clone(),
+            machine_id: None,
+            space_id: None,
             title: "Test".to_string(),
-            agent_id: None,
             agent_name: None,
             issue_id: None,
             issue_title: None,
@@ -1293,8 +1477,9 @@ mod tests {
         let session = NewSession {
             id: id.clone(),
             repository_id: repo_id,
+            machine_id: None,
+            space_id: None,
             title: "Test".to_string(),
-            agent_id: Some("agent-123".to_string()),
             agent_name: Some("Debug Agent".to_string()),
             issue_id: Some("ENG-123".to_string()),
             issue_title: Some("Fix launch bug".to_string()),
@@ -1309,7 +1494,6 @@ mod tests {
 
         let retrieved = store.get_agent_session(&id).unwrap().unwrap();
         assert_eq!(retrieved.id.as_str(), "my-custom-session-id");
-        assert_eq!(retrieved.agent_id.as_deref(), Some("agent-123"));
         assert_eq!(retrieved.agent_name.as_deref(), Some("Debug Agent"));
         assert_eq!(retrieved.issue_id.as_deref(), Some("ENG-123"));
         assert_eq!(retrieved.issue_title.as_deref(), Some("Fix launch bug"));
@@ -1376,7 +1560,7 @@ mod tests {
         let conn = store.conn.lock().expect("lock poisoned");
 
         let columns: Vec<String> = conn
-            .prepare("PRAGMA table_info(agent_coding_session_state)")
+            .prepare("PRAGMA table_info(local_llm_conversation_state)")
             .unwrap()
             .query_map([], |row| row.get::<_, String>(1))
             .unwrap()

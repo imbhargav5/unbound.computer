@@ -1,6 +1,6 @@
 //! Daemon initialization.
 
-use crate::app::{AgentRunCoordinator, DaemonState, StartupStatusWriter};
+use crate::app::{DaemonState, StartupStatusWriter};
 use crate::armin_adapter::create_daemon_armin;
 use crate::ipc::register_handlers;
 use crate::utils::SessionSecretCache;
@@ -44,6 +44,12 @@ pub async fn run_daemon(
     startup_status.update("critical_bootstrap", "Initializing IPC server");
     let ipc_server = Arc::new(IpcServer::new(&paths.socket_file().to_string_lossy()));
 
+    startup_status.update("critical_bootstrap", "Opening async database");
+    let db = AsyncDatabase::open(&paths.database_file())
+        .await
+        .map_err(|e| format!("Failed to open async database: {}", e))?;
+    info!("Async database initialized");
+
     startup_status.update("critical_bootstrap", "Initializing Armin session engine");
     let armin = create_daemon_armin(&paths.database_file(), ipc_server.subscriptions().clone())
         .map_err(|e| format!("Failed to initialize Armin: {}", e))?;
@@ -51,12 +57,6 @@ pub async fn run_daemon(
         path = %paths.database_file().display(),
         "Armin session engine initialized"
     );
-
-    startup_status.update("critical_bootstrap", "Opening async database");
-    let db = AsyncDatabase::open(&paths.database_file())
-        .await
-        .map_err(|e| format!("Failed to open async database: {}", e))?;
-    info!("Async database initialized");
 
     startup_status.update("critical_bootstrap", "Initializing secure storage");
     let secrets = create_secrets_manager()?;
@@ -73,24 +73,12 @@ pub async fn run_daemon(
     let device_id_state = Arc::new(Mutex::new(Some(device_id)));
     let db_encryption_key_state = Arc::new(Mutex::new(Some(db_encryption_key)));
     let session_secret_cache = SessionSecretCache::new();
-    let agent_run_coordinator = Arc::new(AgentRunCoordinator::new(
-        db.clone(),
-        shared_paths.clone(),
-        armin.clone(),
-        db_encryption_key_state.clone(),
-        session_secret_cache.clone(),
-        ipc_server.subscriptions().clone(),
-        claude_processes.clone(),
-        device_id_state.clone(),
-    ));
-
     let state = DaemonState {
         config,
         paths: shared_paths,
         db,
         secrets: Arc::new(Mutex::new(secrets)),
         claude_processes,
-        agent_run_coordinator,
         terminal_processes: Arc::new(Mutex::new(HashMap::new())),
         db_encryption_key: db_encryption_key_state,
         subscriptions: ipc_server.subscriptions().clone(),
@@ -100,8 +88,6 @@ pub async fn run_daemon(
         armin,
         safe_file_ops: Arc::new(SafeFileOps::with_defaults()),
     };
-
-    state.agent_run_coordinator.clone().spawn_background();
 
     register_handlers(&ipc_server, state.clone()).await;
 

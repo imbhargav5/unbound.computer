@@ -94,7 +94,7 @@ impl<S: SideEffectSink> Armin<S> {
     fn recover(&self) -> Result<(), ArminError> {
         tracing::info!("armin: starting recovery from SQLite");
 
-        // Load all sessions from agent_coding_sessions table
+        // Load all sessions from local_llm_conversations table
         let sessions = self.sqlite.list_all_agent_sessions()?;
         tracing::debug!("armin: found {} sessions", sessions.len());
 
@@ -338,6 +338,8 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
                 id: default_repo_id.clone(),
                 path: "/tmp/armin-test".to_string(),
                 name: "Test Repository".to_string(),
+                machine_id: None,
+                space_id: None,
                 is_git_repository: false,
                 sessions_path: None,
                 default_branch: None,
@@ -346,12 +348,13 @@ impl<S: SideEffectSink> SessionWriter for Armin<S> {
             let _ = self.sqlite.insert_repository(&repo);
         }
 
-        // Create session in agent_coding_sessions
+        // Create session in local_llm_conversations
         let session = NewSession {
             id: SessionId::new(),
             repository_id: default_repo_id,
+            machine_id: None,
+            space_id: None,
             title: "Test Session".to_string(),
-            agent_id: None,
             agent_name: None,
             issue_id: None,
             issue_title: None,

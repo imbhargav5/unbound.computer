@@ -79,7 +79,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     // Update session status to ended with completion metadata
     // Store completion options in a way that can be read by device via realtime
     const { data: session, error } = await supabase
-      .from("agent_coding_sessions")
+      .from("local_llm_conversations")
       .update({
         status: SESSION_STATUS.ENDED,
         session_ended_at: now,

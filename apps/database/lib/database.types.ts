@@ -57,7 +57,7 @@ export type Database = {
           },
         ];
       };
-      agent_coding_session_messages: {
+      local_llm_conversation_messages: {
         Row: {
           content_encrypted: string | null;
           content_nonce: string | null;
@@ -87,12 +87,12 @@ export type Database = {
             foreignKeyName: "conversation_events_session_id_fkey";
             columns: ["session_id"];
             isOneToOne: false;
-            referencedRelation: "agent_coding_sessions";
+            referencedRelation: "local_llm_conversations";
             referencedColumns: ["id"];
           },
         ];
       };
-      agent_coding_session_secrets: {
+      local_llm_conversation_secrets: {
         Row: {
           created_at: string;
           device_id: string;
@@ -122,12 +122,12 @@ export type Database = {
             foreignKeyName: "coding_session_secrets_session_id_fkey";
             columns: ["session_id"];
             isOneToOne: false;
-            referencedRelation: "agent_coding_sessions";
+            referencedRelation: "local_llm_conversations";
             referencedColumns: ["id"];
           },
         ];
       };
-      agent_coding_sessions: {
+      local_llm_conversations: {
         Row: {
           created_at: string;
           current_branch: string | null;
@@ -814,7 +814,7 @@ export type Database = {
             foreignKeyName: "claude_runs_coding_session_id_fkey";
             columns: ["coding_session_id"];
             isOneToOne: false;
-            referencedRelation: "agent_coding_sessions";
+            referencedRelation: "local_llm_conversations";
             referencedColumns: ["id"];
           },
           {

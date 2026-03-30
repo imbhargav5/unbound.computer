@@ -80,6 +80,7 @@ pub struct BirdsEyeCanvasCompanySettings {
 pub struct DesktopSettings {
     pub preferred_company_id: Option<String>,
     pub preferred_repository_id: Option<String>,
+    pub preferred_space_id: Option<String>,
     pub preferred_view: Option<String>,
     pub show_raw_message_json: bool,
     pub last_repository_path: Option<String>,
@@ -94,6 +95,7 @@ impl Default for DesktopSettings {
         Self {
             preferred_company_id: None,
             preferred_repository_id: None,
+            preferred_space_id: None,
             preferred_view: Some("dashboard".to_string()),
             show_raw_message_json: false,
             last_repository_path: None,
@@ -178,6 +180,37 @@ fn derive_repository_name(path: &str) -> String {
         .unwrap_or_else(|| "Repository".to_string())
 }
 
+fn normalize_optional_id(value: Option<String>) -> Option<String> {
+    value.map(|value| value.trim().to_string()).filter(|value| !value.is_empty())
+}
+
+fn preferred_space_id_from_settings() -> Option<String> {
+    read_settings()
+        .ok()
+        .and_then(|settings| normalize_optional_id(settings.preferred_space_id))
+}
+
+fn inject_preferred_space_id(mut params: Value) -> Value {
+    let preferred_space_id = preferred_space_id_from_settings();
+    let Some(object) = params.as_object_mut() else {
+        return params;
+    };
+
+    let existing_space_id = object
+        .get("space_id")
+        .and_then(Value::as_str)
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    if let Some(existing_space_id) = existing_space_id {
+        object.insert("space_id".to_string(), json!(existing_space_id));
+    } else if let Some(preferred_space_id) = preferred_space_id {
+        object.insert("space_id".to_string(), json!(preferred_space_id));
+    }
+
+    params
+}
+
 fn read_settings() -> Result<DesktopSettings, String> {
     let path = settings_path();
     if !path.exists() {
@@ -216,6 +249,11 @@ pub async fn system_version() -> Result<DaemonVersionInfo, String> {
 #[tauri::command]
 pub async fn system_check_dependencies() -> Result<Value, String> {
     call_daemon(Method::SystemCheckDependencies, None).await
+}
+
+#[tauri::command]
+pub async fn space_get_current() -> Result<Value, String> {
+    call_daemon(Method::SpaceGetCurrent, None).await
 }
 
 #[tauri::command]
@@ -292,6 +330,7 @@ pub async fn board_dashboard_overview(company_id: String) -> Result<Value, Strin
 
 #[tauri::command]
 pub async fn board_create_project(params: Value) -> Result<Value, String> {
+    let params = inject_preferred_space_id(params);
     let value = call_daemon(Method::ProjectCreate, Some(params)).await?;
     Ok(extract_field(value, "project"))
 }
@@ -314,6 +353,7 @@ pub async fn board_delete_project(project_id: String) -> Result<Value, String> {
 
 #[tauri::command]
 pub async fn board_create_issue(params: Value) -> Result<Value, String> {
+    let params = inject_preferred_space_id(params);
     let value = call_daemon(Method::IssueCreate, Some(params)).await?;
     Ok(extract_field(value, "issue"))
 }
@@ -509,11 +549,14 @@ pub async fn repository_add(
     name: Option<String>,
     is_git_repository: Option<bool>,
 ) -> Result<Value, String> {
-    let params = json!({
+    let mut params = json!({
         "path": path,
         "name": name.unwrap_or_else(|| derive_repository_name(&path)),
         "is_git_repository": is_git_repository.unwrap_or(true),
     });
+    if let Some(space_id) = preferred_space_id_from_settings() {
+        params["space_id"] = json!(space_id);
+    }
     call_daemon(Method::RepositoryAdd, Some(params)).await
 }
 
@@ -632,6 +675,7 @@ pub async fn session_list(repository_id: String) -> Result<Value, String> {
 
 #[tauri::command]
 pub async fn session_create(params: Value) -> Result<Value, String> {
+    let params = inject_preferred_space_id(params);
     let value = call_daemon(Method::SessionCreate, Some(params)).await?;
     Ok(extract_field(value, "session"))
 }

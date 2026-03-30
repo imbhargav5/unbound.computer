@@ -1,6 +1,7 @@
 export {
   App,
   BirdsEyeQuickCreateRow,
+  IssueWorkspaceDetailView,
   WorkspaceChatComposer,
   WorkspaceInspectorSidebar,
   WorkspaceRuntimeStatusLine,

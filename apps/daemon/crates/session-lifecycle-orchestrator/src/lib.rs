@@ -31,7 +31,6 @@ pub enum SessionError {
 pub struct CreateSessionParams {
     pub repository_id: String,
     pub title: String,
-    pub agent_id: Option<String>,
     pub agent_name: Option<String>,
     pub issue_id: Option<String>,
     pub issue_title: Option<String>,
@@ -136,8 +135,9 @@ pub fn create_session<A: SessionWriter + SessionReader>(
     let new_session = NewSession {
         id: session_id,
         repository_id: repo_id,
+        machine_id: None,
+        space_id: None,
         title: params.title.clone(),
-        agent_id: params.agent_id.clone(),
         agent_name: params.agent_name.clone(),
         issue_id: params.issue_id.clone(),
         issue_title: params.issue_title.clone(),
@@ -207,6 +207,8 @@ mod tests {
                 sessions_path: None,
                 default_branch: None,
                 default_remote: None,
+                machine_id: None,
+                space_id: None,
             })
             .unwrap();
         repo.id
@@ -340,7 +342,6 @@ mod tests {
         let params = CreateSessionParams {
             repository_id: "repo-1".to_string(),
             title: "My Session".to_string(),
-            agent_id: Some("agent-123".to_string()),
             agent_name: Some("Debug Agent".to_string()),
             issue_id: Some("ENG-123".to_string()),
             issue_title: Some("Fix launch bug".to_string()),
@@ -352,7 +353,6 @@ mod tests {
 
         let session = create_session(&armin, &params, SessionId::new(), None).unwrap();
         assert_eq!(session.title, "My Session");
-        assert_eq!(session.agent_id.as_deref(), Some("agent-123"));
         assert_eq!(session.agent_name.as_deref(), Some("Debug Agent"));
         assert_eq!(session.issue_id.as_deref(), Some("ENG-123"));
         assert_eq!(session.issue_title.as_deref(), Some("Fix launch bug"));
@@ -372,7 +372,6 @@ mod tests {
         let params = CreateSessionParams {
             repository_id: "repo-1".to_string(),
             title: "Worktree Session".to_string(),
-            agent_id: None,
             agent_name: None,
             issue_id: None,
             issue_title: None,
@@ -403,7 +402,6 @@ mod tests {
         let params = CreateSessionParams {
             repository_id: "nonexistent".to_string(),
             title: "Test".to_string(),
-            agent_id: None,
             agent_name: None,
             issue_id: None,
             issue_title: None,
@@ -426,7 +424,6 @@ mod tests {
         let params = CreateSessionParams {
             repository_id: "repo-1".to_string(),
             title: "Custom ID".to_string(),
-            agent_id: None,
             agent_name: None,
             issue_id: None,
             issue_title: None,
@@ -449,7 +446,6 @@ mod tests {
             let params = CreateSessionParams {
                 repository_id: "repo-1".to_string(),
                 title: format!("Session {}", i),
-                agent_id: None,
                 agent_name: None,
                 issue_id: None,
                 issue_title: None,
@@ -478,7 +474,6 @@ mod tests {
         let params = CreateSessionParams {
             repository_id: "repo-1".to_string(),
             title: "To Delete".to_string(),
-            agent_id: None,
             agent_name: None,
             issue_id: None,
             issue_title: None,
@@ -508,7 +503,6 @@ mod tests {
         let params = CreateSessionParams {
             repository_id: "repo-1".to_string(),
             title: "Gone".to_string(),
-            agent_id: None,
             agent_name: None,
             issue_id: None,
             issue_title: None,
@@ -531,7 +525,6 @@ mod tests {
         let params = CreateSessionParams {
             repository_id: "repo-1".to_string(),
             title: "WT Delete".to_string(),
-            agent_id: None,
             agent_name: None,
             issue_id: None,
             issue_title: None,

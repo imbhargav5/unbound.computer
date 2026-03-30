@@ -48,7 +48,7 @@ impl SessionSecretCache {
             }
         }
 
-        // 2. Try SQLite (session_secrets table)
+        // 2. Try SQLite (local_llm_conversation_secrets table)
         if let Some(key) = self.try_sqlite(conn, session_id, cached_db_key) {
             self.insert(session_id, key.clone());
             return Some(key);

@@ -1,34 +1,17 @@
-import type { GoalRecord } from "../../lib/types";
-import { ProjectDialogSelectField } from "../shared/routePrimitives";
-
 export function CreateProjectDialogView({
   repoPath,
   derivedProjectName,
-  selectedStatus,
-  selectedGoalId,
-  targetDate,
-  goals,
   isSaving,
   errorMessage,
   onChooseFolder,
-  onStatusChange,
-  onGoalChange,
-  onTargetDateChange,
   onCreate,
   onClose,
 }: {
   repoPath: string;
   derivedProjectName: string;
-  selectedStatus: string;
-  selectedGoalId: string;
-  targetDate: string;
-  goals: GoalRecord[];
   isSaving: boolean;
   errorMessage: string | null;
   onChooseFolder: () => void;
-  onStatusChange: (value: string) => void;
-  onGoalChange: (value: string) => void;
-  onTargetDateChange: (value: string) => void;
   onCreate: () => void;
   onClose: () => void;
 }) {
@@ -45,15 +28,12 @@ export function CreateProjectDialogView({
       >
         <div className="project-dialog-header">
           <div className="project-dialog-title-block">
-            <h2 id="create-project-dialog-title">New project</h2>
-            <p>
-              Create a project from a repository folder and set its default
-              board context.
-            </p>
+            <h2 id="create-project-dialog-title">New repository</h2>
+            <p>Add a repository folder to your space.</p>
           </div>
 
           <button
-            aria-label="Close create project dialog"
+            aria-label="Close create repository dialog"
             className="project-dialog-close"
             onClick={onClose}
             type="button"
@@ -79,7 +59,7 @@ export function CreateProjectDialogView({
                       repoPath ? undefined : "project-dialog-value-placeholder"
                     }
                   >
-                    {repoPath || "Choose a project folder"}
+                    {repoPath || "Choose a repository folder"}
                   </span>
                 </div>
 
@@ -92,13 +72,12 @@ export function CreateProjectDialogView({
                 </button>
               </div>
               <small className="issue-dialog-hint">
-                We&apos;ll use the selected folder name as the initial project
-                title.
+                We&apos;ll use the selected folder name as the repository title.
               </small>
             </div>
 
             <div className="project-dialog-field project-dialog-field-full">
-              <span className="issue-dialog-label">Project name</span>
+              <span className="issue-dialog-label">Repository name</span>
               <div className="project-dialog-value-shell">
                 <span
                   className={
@@ -111,50 +90,8 @@ export function CreateProjectDialogView({
                 </span>
               </div>
               <small className="issue-dialog-hint">
-                You can rename the project later from the project detail page.
+                You can rename the repository later from its detail page.
               </small>
-            </div>
-
-            <div className="project-dialog-grid">
-              <ProjectDialogSelectField
-                hint="Sets the default board status when the project is created."
-                label="Status"
-                onChange={onStatusChange}
-                value={selectedStatus}
-              >
-                {["planned", "active", "completed"].map((status) => (
-                  <option key={status} value={status}>
-                    {humanizeIssueValue(status)}
-                  </option>
-                ))}
-              </ProjectDialogSelectField>
-
-              <ProjectDialogSelectField
-                hint="Optionally connect the project to a larger goal."
-                label="Goal"
-                onChange={onGoalChange}
-                value={selectedGoalId}
-              >
-                <option value="">No goal</option>
-                {goals.map((goal) => (
-                  <option key={goal.id} value={goal.id}>
-                    {goal.title}
-                  </option>
-                ))}
-              </ProjectDialogSelectField>
-
-              <label className="project-dialog-field">
-                <span className="issue-dialog-label">Target date</span>
-                <input
-                  className="issue-dialog-input"
-                  onChange={(event) => onTargetDateChange(event.target.value)}
-                  type="date"
-                  value={targetDate}
-                />
-                <small className="issue-dialog-hint">
-                  Optional milestone date for planning and review.
-                </small>
-              </label>
             </div>
           </div>
         </div>
@@ -174,32 +111,10 @@ export function CreateProjectDialogView({
             onClick={onCreate}
             type="button"
           >
-            {isSaving ? "Creating project..." : "Create project"}
+            {isSaving ? "Adding repository..." : "Add repository"}
           </button>
         </div>
       </div>
     </div>
   );
-}
-
-function humanizeIssueValue(value: string) {
-  const normalized = value.replaceAll("_", " ");
-  switch (normalized.toLowerCase()) {
-    case "issue":
-      return "Conversation";
-    case "issues":
-      return "Conversations";
-    case "sub issue":
-      return "Queued Message";
-    case "sub issues":
-      return "Queued Messages";
-    case "company":
-      return "Space";
-    case "companies":
-      return "Spaces";
-    case "company settings":
-      return "Space Settings";
-    default:
-      return normalized.replace(/\b\w/g, (match) => match.toUpperCase());
-  }
 }

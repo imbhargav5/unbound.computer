@@ -386,7 +386,7 @@ dependencies = [
 
 [[package]]
 name = "daemon-config-and-utils"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "base64",
  "chacha20poly1305",
@@ -406,7 +406,7 @@ dependencies = [
 
 [[package]]
 name = "daemon-ipc"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "daemon-config-and-utils",
  "interprocess",
@@ -681,7 +681,7 @@ dependencies = [
 
 [[package]]
 name = "git-ops"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "git2",
  "serde",
@@ -1027,7 +1027,7 @@ dependencies = [
 
 [[package]]
 name = "ipc-protocol-types"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "serde",
  "serde_json",
@@ -1261,7 +1261,7 @@ dependencies = [
 
 [[package]]
 name = "observability"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "async-trait",
  "dirs",
@@ -2458,7 +2458,7 @@ checksum = "562d481066bde0658276a35467c4af00bdc6ee726305698a55b86e61d7ad82bb"
 
 [[package]]
 name = "unbound-cli"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "anyhow",
  "chrono",

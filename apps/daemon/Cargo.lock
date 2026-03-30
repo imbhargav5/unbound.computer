@@ -25,7 +25,7 @@ dependencies = [
 
 [[package]]
 name = "agent-session-sqlite-persist-core"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "chrono",
  "rusqlite",
@@ -474,7 +474,7 @@ checksum = "3a822ea5bc7590f9d40f1ba12c0dc3c2760f3482c6984db1573ad11031420831"
 
 [[package]]
 name = "claude-debug-logs"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "chrono",
  "daemon-config-and-utils",
@@ -485,7 +485,7 @@ dependencies = [
 
 [[package]]
 name = "claude-process-manager"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "regex",
  "serde",
@@ -589,14 +589,13 @@ dependencies = [
 
 [[package]]
 name = "daemon-bin"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "agent-session-sqlite-persist-core",
  "chrono",
  "clap",
  "claude-debug-logs",
  "claude-process-manager",
- "daemon-board",
  "daemon-config-and-utils",
  "daemon-database",
  "daemon-ipc",
@@ -621,26 +620,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "daemon-board"
-version = "0.0.19"
-dependencies = [
- "agent-session-sqlite-persist-core",
- "chrono",
- "daemon-config-and-utils",
- "daemon-database",
- "rusqlite",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "thiserror",
- "tokio",
- "uuid",
-]
-
-[[package]]
 name = "daemon-config-and-utils"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "base64",
  "chacha20poly1305",
@@ -661,7 +642,7 @@ dependencies = [
 
 [[package]]
 name = "daemon-database"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "chacha20poly1305",
  "chrono",
@@ -681,7 +662,7 @@ dependencies = [
 
 [[package]]
 name = "daemon-ipc"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "daemon-config-and-utils",
  "interprocess",
@@ -698,7 +679,7 @@ dependencies = [
 
 [[package]]
 name = "daemon-lifecycle"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "daemon-config-and-utils",
  "tempfile",
@@ -709,7 +690,7 @@ dependencies = [
 
 [[package]]
 name = "daemon-storage"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "base64",
  "chrono",
@@ -741,7 +722,7 @@ dependencies = [
 
 [[package]]
 name = "device-identity-crypto"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "base64",
  "thiserror",
@@ -1080,7 +1061,7 @@ dependencies = [
 
 [[package]]
 name = "gh-cli-ops"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "serde",
  "serde_json",
@@ -1091,7 +1072,7 @@ dependencies = [
 
 [[package]]
 name = "git-ops"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "git2",
  "serde",
@@ -1491,7 +1472,7 @@ dependencies = [
 
 [[package]]
 name = "ipc-protocol-types"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "serde",
  "serde_json",
@@ -1828,7 +1809,7 @@ dependencies = [
 
 [[package]]
 name = "observability"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "async-trait",
  "dirs",
@@ -2155,7 +2136,7 @@ dependencies = [
 
 [[package]]
 name = "process-event-bridge"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "agent-session-sqlite-persist-core",
  "claude-process-manager",
@@ -2439,7 +2420,7 @@ dependencies = [
 
 [[package]]
 name = "runtime-capability-detector"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "chrono",
  "serde",
@@ -2579,7 +2560,7 @@ checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
 name = "safe-file-ops"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "lru",
  "ropey",
@@ -2727,7 +2708,7 @@ dependencies = [
 
 [[package]]
 name = "session-lifecycle-orchestrator"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "agent-session-sqlite-persist-core",
  "tempfile",
@@ -2736,7 +2717,7 @@ dependencies = [
 
 [[package]]
 name = "session-title-generator"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "reqwest",
  "serde",
@@ -3967,7 +3948,7 @@ dependencies = [
 
 [[package]]
 name = "workspace-resolver"
-version = "0.0.19"
+version = "0.0.20"
 dependencies = [
  "agent-session-sqlite-persist-core",
  "chrono",

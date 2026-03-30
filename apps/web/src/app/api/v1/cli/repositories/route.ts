@@ -124,7 +124,7 @@ export async function GET(req: NextRequest) {
         worktrees:repositories!parent_repository_id(
           id, name, local_path, worktree_branch, status
         ),
-        active_sessions:agent_coding_sessions!repository_id(
+        active_sessions:local_llm_conversations!repository_id(
           id, status, session_started_at, current_branch
         )
       `,

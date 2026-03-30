@@ -40,18 +40,18 @@ done < <(
   sqlite3 -separator $'\t' "$DB_PATH" "
     SELECT DISTINCT
       COALESCE(repositories.path, ''),
-      COALESCE(agent_coding_sessions.worktree_path, '')
-    FROM agent_coding_sessions
-    JOIN repositories ON repositories.id = agent_coding_sessions.repository_id
-    WHERE agent_coding_sessions.is_worktree = 1
-      AND agent_coding_sessions.worktree_path IS NOT NULL;
+      COALESCE(local_llm_conversations.worktree_path, '')
+    FROM local_llm_conversations
+    JOIN repositories ON repositories.id = local_llm_conversations.repository_id
+    WHERE local_llm_conversations.is_worktree = 1
+      AND local_llm_conversations.worktree_path IS NOT NULL;
   "
 )
 
 sqlite3 "$DB_PATH" <<'SQL'
 PRAGMA foreign_keys = ON;
 BEGIN IMMEDIATE;
-DELETE FROM agent_coding_sessions;
+DELETE FROM local_llm_conversations;
 COMMIT;
 VACUUM;
 SQL

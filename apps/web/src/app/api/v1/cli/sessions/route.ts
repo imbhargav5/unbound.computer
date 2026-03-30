@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     const validated = parseResult.data;
 
     const { data, error } = await supabaseClient
-      .from("agent_coding_sessions")
+      .from("local_llm_conversations")
       .insert({
         user_id: user.id,
         device_id: validated.deviceId,
@@ -143,7 +143,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const { data, error } = await supabaseClient
-      .from("agent_coding_sessions")
+      .from("local_llm_conversations")
       .update(updateData)
       .eq("id", sessionId)
       .eq("user_id", user.id)
@@ -197,7 +197,7 @@ export async function GET(req: NextRequest) {
         : null;
 
     let query = supabaseClient
-      .from("agent_coding_sessions")
+      .from("local_llm_conversations")
       .select(
         `
         *,

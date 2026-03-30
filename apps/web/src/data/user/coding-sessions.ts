@@ -11,7 +11,7 @@ export async function getActiveCodingSessions() {
   const supabaseClient = await createSupabaseUserServerComponentClient();
 
   const { data, error } = await supabaseClient
-    .from("agent_coding_sessions")
+    .from("local_llm_conversations")
     .select(
       `
       *,
@@ -41,7 +41,7 @@ export async function getSessionHistory(limit = 20) {
   const supabaseClient = await createSupabaseUserServerComponentClient();
 
   const { data, error } = await supabaseClient
-    .from("agent_coding_sessions")
+    .from("local_llm_conversations")
     .select(
       `
       *,
@@ -68,7 +68,7 @@ export async function getActiveSessionCount() {
   const supabaseClient = await createSupabaseUserServerComponentClient();
 
   const { count, error } = await supabaseClient
-    .from("agent_coding_sessions")
+    .from("local_llm_conversations")
     .select("*", { count: "exact", head: true })
     .eq("user_id", user.sub)
     .eq("status", "active");
@@ -88,7 +88,7 @@ export async function getSessionsByRepository(repositoryId: string) {
   const supabaseClient = await createSupabaseUserServerComponentClient();
 
   const { data, error } = await supabaseClient
-    .from("agent_coding_sessions")
+    .from("local_llm_conversations")
     .select(
       `
       *,
@@ -114,7 +114,7 @@ export async function getSessionsByDevice(deviceId: string) {
   const supabaseClient = await createSupabaseUserServerComponentClient();
 
   const { data, error } = await supabaseClient
-    .from("agent_coding_sessions")
+    .from("local_llm_conversations")
     .select(
       `
       *,
