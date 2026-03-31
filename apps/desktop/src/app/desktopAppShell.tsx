@@ -192,6 +192,7 @@ type CompanyContextMenuIconKey =
   | CompanyContextMenuScreen
   | "activity"
   | "agents"
+  | "appSettings"
   | "approvals"
   | "costs"
   | "stats";
@@ -5135,69 +5136,10 @@ export function App() {
     );
   }
 
-  const showBoardSidebar =
-    layout === "companyDashboard" && selectedScreen !== "dashboard";
+  const showBoardSidebar = layout === "companyDashboard";
 
   return (
     <div className="swift-shell">
-      <aside className="company-rail">
-        <div className="company-rail-brand">
-          <span>u</span>
-        </div>
-        <div className="company-rail-list">
-          {companies.map((company) => {
-            const companyRailColor = normalizeHexColor(company.brand_color);
-            const isSelected = company.id === selectedCompanyId;
-
-            return (
-              <button
-                aria-label={company.name}
-                className={
-                  isSelected
-                    ? "company-rail-button company-rail-company active"
-                    : "company-rail-button company-rail-company"
-                }
-                key={company.id}
-                onClick={() => handleSelectCompany(company.id)}
-                onContextMenu={(event) =>
-                  handleOpenCompanyContextMenu(event, company)
-                }
-                style={{
-                  backgroundColor: companyRailColor,
-                  borderColor: isSelected ? "#FFFFFF" : "transparent",
-                  color: companyRailForegroundColor(companyRailColor),
-                  opacity: isSelected ? 1 : 0.5,
-                }}
-                title={company.name}
-                type="button"
-              >
-                {company.name.slice(0, 1).toUpperCase()}
-              </button>
-            );
-          })}
-          <button
-            aria-label="Create space"
-            className="company-rail-button add"
-            onClick={handleOpenCreateCompanyDialog}
-            title="Create space"
-            type="button"
-          >
-            <span>+</span>
-          </button>
-        </div>
-        <button
-          className={
-            selectedScreen === "appSettings"
-              ? "company-rail-button settings active"
-              : "company-rail-button settings"
-          }
-          onClick={() => handleSelectScreen("appSettings")}
-          type="button"
-        >
-          ⚙
-        </button>
-      </aside>
-
       {companyContextMenu ? (
         <div
           aria-label={`${companyContextMenu.companyName} menu`}
@@ -5279,7 +5221,7 @@ export function App() {
                     onClick={handleOpenCreateIssueDialog}
                   />
                   <BoardSidebarButton
-                    active={false}
+                    active={selectedScreen === "dashboard"}
                     icon="dashboard"
                     label="Dashboard"
                     onClick={() => handleSelectScreen("dashboard")}
@@ -5288,6 +5230,12 @@ export function App() {
                         ? formatLiveRunCountLabel(totalLiveAgentRuns)
                         : null
                     }
+                  />
+                  <BoardSidebarButton
+                    active={selectedScreen === "appSettings"}
+                    icon="appSettings"
+                    label="Device settings"
+                    onClick={() => handleSelectScreen("appSettings")}
                   />
                 </div>
 
@@ -5627,8 +5575,8 @@ export function App() {
                   <span className="route-kicker">Space settings</span>
                   <h1>{selectedCompany?.name ?? "Space settings"}</h1>
                   <p>
-                    Space identity and runtime defaults live here. Device and
-                    app settings stay behind the rail gear.
+                    Space identity and runtime defaults live here. Device
+                    settings live in the main sidebar.
                   </p>
                 </div>
 
@@ -17875,7 +17823,7 @@ function CreateCompanyDialogView({
                 value={name}
               />
               <small className="issue-dialog-hint">
-                Shown in the spaces rail, dashboard, and space menus.
+                Shown in the dashboard and space menus.
               </small>
             </label>
 
@@ -17902,7 +17850,7 @@ function CreateCompanyDialogView({
                 value={brandColor}
               />
               <small className="issue-dialog-hint">
-                Optional hex color used for the space badge in the rail.
+                Optional hex color used for the space badge in the sidebar.
               </small>
             </label>
           </div>
@@ -19580,6 +19528,27 @@ function CompanyContextMenuIcon({
             stroke="currentColor"
             strokeLinecap="round"
             strokeWidth="1.2"
+          />
+        </svg>
+      );
+    case "appSettings":
+      return (
+        <svg
+          aria-hidden="true"
+          className={className}
+          fill="none"
+          viewBox="0 0 16 16"
+        >
+          <path
+            d="M8 5.2a2.8 2.8 0 1 1 0 5.6a2.8 2.8 0 0 1 0-5.6Z"
+            stroke="currentColor"
+            strokeWidth="1.4"
+          />
+          <path
+            d="M8 1.85v1.3M8 12.85v1.3M12.35 3.65l-.92.92M4.57 11.43l-.92.92M14.15 8h-1.3M3.15 8h-1.3M12.35 12.35l-.92-.92M4.57 4.57l-.92-.92"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="1.35"
           />
         </svg>
       );
