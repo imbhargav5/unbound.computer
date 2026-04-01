@@ -25,37 +25,11 @@ import {
   RoutePlaceholder,
   SummaryPill,
 } from "../features/shared/routePrimitives";
+import { DashboardRouteView } from "../features/dashboard/dashboardRouteView";
 import { StatsRouteView } from "../features/stats/statsRouteView";
 import {
   agentSend,
   agentStop,
-  boardAddIssueAttachment,
-  boardApproveApproval,
-  boardCancelAgentRun,
-  boardCompanySnapshot,
-  boardCreateAgent,
-  boardCreateCompany,
-  boardCreateIssue,
-  boardCreateProject,
-  boardDashboardOverview,
-  boardDeleteProject,
-  boardGetAgentRun,
-  boardGetIssue,
-  boardListAgentLiveRunCounts,
-  boardListAgentRunEvents,
-  boardListAgentRuns,
-  boardListCompanies,
-  boardListIssueAttachments,
-  boardListIssueComments,
-  boardListIssueRunCardUpdates,
-  boardListIssueRuns,
-  boardReadAgentRunLog,
-  boardResumeAgentRun,
-  boardRetryAgentRun,
-  boardUpdateAgent,
-  boardUpdateCompany,
-  boardUpdateIssue,
-  boardUpdateProject,
   desktopBootstrap,
   desktopOpenExternal,
   desktopPickFile,
@@ -73,6 +47,7 @@ import {
   gitWorktrees,
   listenToSessionEvents,
   listenToSessionStreamErrors,
+  repositoryAdd,
   repositoryList,
   repositoryListFiles,
   repositoryReadFile,
@@ -80,6 +55,7 @@ import {
   settingsGet,
   settingsUpdate,
   spaceGetCurrent,
+  spaceUpdateCurrentMachineName,
   systemCheckDependencies,
   terminalRun,
   terminalStop,
@@ -111,6 +87,7 @@ import type {
   AgentLiveRunCountRecord,
   AgentRecord,
   AgentRunEventRecord,
+  AgentRunLogChunk,
   AgentRunRecord,
   ApprovalRecord,
   BirdsEyeCanvasCompanyState,
@@ -143,6 +120,147 @@ import type {
   WorkspaceRecord,
 } from "../lib/types";
 
+// ---------------------------------------------------------------------------
+// Board API stubs -- these functions were removed; stubs prevent compile errors
+// while the remaining board UI code is still present in this file.
+// ---------------------------------------------------------------------------
+const boardNotAvailable = "Board functionality is no longer available.";
+
+async function boardListCompanies(): Promise<Company[]> {
+  return [];
+}
+async function boardCompanySnapshot(
+  _companyId: string,
+): Promise<CompanySnapshot> {
+  return {
+    agents: [],
+    approvals: [],
+    company: { id: "", name: "" },
+    goals: [],
+    issues: [],
+    projects: [],
+    workspaces: [],
+  };
+}
+async function boardDashboardOverview(
+  _companyId: string,
+): Promise<DashboardOverviewRecord> {
+  return { agents: [], chats: [], projects: [], workspaces: [] };
+}
+async function boardListAgentLiveRunCounts(
+  _companyId: string,
+): Promise<AgentLiveRunCountRecord[]> {
+  return [];
+}
+async function boardListIssueRunCardUpdates(
+  _companyId: string,
+): Promise<IssueRunCardUpdateRecord[]> {
+  return [];
+}
+async function boardGetIssue(_issueId: string): Promise<IssueRecord> {
+  throw new Error(boardNotAvailable);
+}
+async function boardListIssueComments(
+  _issueId: string,
+): Promise<IssueCommentRecord[]> {
+  return [];
+}
+async function boardListIssueAttachments(
+  _issueId: string,
+): Promise<IssueAttachmentRecord[]> {
+  return [];
+}
+async function boardListAgentRuns(
+  _agentId: string,
+  _limit?: number,
+): Promise<AgentRunRecord[]> {
+  return [];
+}
+async function boardGetAgentRun(_runId: string): Promise<AgentRunRecord> {
+  throw new Error(boardNotAvailable);
+}
+async function boardListAgentRunEvents(
+  _runId: string,
+  _afterSeq?: number,
+  _limit?: number,
+): Promise<AgentRunEventRecord[]> {
+  return [];
+}
+async function boardReadAgentRunLog(
+  _runId: string,
+  _offset?: number,
+): Promise<AgentRunLogChunk> {
+  return { content: "", done: true, next_offset: 0 };
+}
+async function boardDeleteProject(_projectId: string): Promise<ProjectRecord> {
+  throw new Error(boardNotAvailable);
+}
+async function boardUpdateProject(
+  _params: Record<string, unknown>,
+): Promise<ProjectRecord> {
+  throw new Error(boardNotAvailable);
+}
+async function boardCancelAgentRun(_runId: string): Promise<AgentRunRecord> {
+  throw new Error(boardNotAvailable);
+}
+async function boardRetryAgentRun(_runId: string): Promise<AgentRunRecord> {
+  throw new Error(boardNotAvailable);
+}
+async function boardResumeAgentRun(_runId: string): Promise<AgentRunRecord> {
+  throw new Error(boardNotAvailable);
+}
+async function boardUpdateAgent(
+  _params: Record<string, unknown>,
+): Promise<AgentRecord> {
+  throw new Error(boardNotAvailable);
+}
+async function boardUpdateCompany(
+  _params: Record<string, unknown>,
+): Promise<Company> {
+  throw new Error(boardNotAvailable);
+}
+async function boardCreateProject(
+  _params: Record<string, unknown>,
+): Promise<ProjectRecord> {
+  throw new Error(boardNotAvailable);
+}
+async function boardCreateIssue(
+  _params: Record<string, unknown>,
+): Promise<IssueRecord> {
+  throw new Error(boardNotAvailable);
+}
+async function boardAddIssueAttachment(
+  _params: Record<string, unknown>,
+): Promise<IssueAttachmentRecord> {
+  throw new Error(boardNotAvailable);
+}
+async function boardUpdateIssue(
+  _params: Record<string, unknown>,
+): Promise<IssueRecord> {
+  throw new Error(boardNotAvailable);
+}
+async function boardApproveApproval(
+  _params: Record<string, unknown>,
+): Promise<ApprovalRecord> {
+  throw new Error(boardNotAvailable);
+}
+async function boardCreateCompany(
+  _params: Record<string, unknown>,
+): Promise<Company> {
+  throw new Error(boardNotAvailable);
+}
+async function boardCreateAgent(
+  _params: Record<string, unknown>,
+): Promise<AgentRecord> {
+  throw new Error(boardNotAvailable);
+}
+async function boardListIssueRuns(
+  _issueId: string,
+  _limit?: number,
+): Promise<AgentRunRecord[]> {
+  return [];
+}
+
 type AppScreen =
   | "dashboard"
   | "agents"
@@ -163,7 +281,7 @@ const emptyProjectRecords: ProjectRecord[] = [];
 const emptyWorkspaceRecords: WorkspaceRecord[] = [];
 const emptyDashboardOverviewChats: DashboardOverviewChatRecord[] = [];
 
-type SettingsSection = "general" | "appearance" | "notifications" | "privacy";
+type SettingsSection = "appearance" | "notifications" | "privacy" | "about";
 
 type ThemeMode = "system" | "light" | "dark";
 type FontSizePreset = "small" | "medium" | "large";
@@ -1230,11 +1348,22 @@ const companyBoardSection: { title: string; screens: AppScreen[] } = {
   screens: ["stats", "activity", "costs", "companySettings"],
 };
 
-const settingsSections: Array<{ id: SettingsSection; label: string }> = [
-  { id: "general", label: "General" },
-  { id: "appearance", label: "Appearance" },
-  { id: "notifications", label: "Notifications" },
-  { id: "privacy", label: "Privacy" },
+const settingsSectionGroups: Array<{
+  title: string;
+  sections: Array<{ id: SettingsSection; label: string }>;
+}> = [
+  {
+    title: "App",
+    sections: [
+      { id: "appearance", label: "Appearance" },
+      { id: "notifications", label: "Notifications" },
+      { id: "privacy", label: "Privacy" },
+    ],
+  },
+  {
+    title: "Device",
+    sections: [{ id: "about", label: "About" }],
+  },
 ];
 
 const themeModes: ThemeMode[] = ["system", "light", "dark"];
@@ -1324,6 +1453,9 @@ export function App() {
   const [settings, setSettings] = useState<DesktopSettings>(defaultSettings);
   const [currentSpaceScope, setCurrentSpaceScope] =
     useState<CurrentSpaceScope | null>(null);
+  const [deviceNameDraft, setDeviceNameDraft] = useState("");
+  const [isSavingDeviceName, setIsSavingDeviceName] = useState(false);
+  const [didCopyDeviceId, setDidCopyDeviceId] = useState(false);
   const [selectedScreen, setSelectedScreen] = useState<AppScreen>("dashboard");
   const [selectedSettingsSection, setSelectedSettingsSection] =
     useState<SettingsSection>("appearance");
@@ -1923,6 +2055,10 @@ export function App() {
       setIsPerformingAgentRunAction(false);
     }
   };
+
+  useEffect(() => {
+    setDeviceNameDraft(currentSpaceScope?.machine?.name ?? "");
+  }, [currentSpaceScope]);
 
   useEffect(() => {
     const terminal = new Terminal({
@@ -3723,10 +3859,6 @@ export function App() {
   };
 
   const handleAddRepository = async () => {
-    if (!selectedCompanyId) {
-      return;
-    }
-
     try {
       const path = await desktopPickRepositoryDirectory();
       if (!path) {
@@ -3734,17 +3866,18 @@ export function App() {
       }
 
       const name = path.split("/").pop() || path;
-      const params: Record<string, unknown> = {
-        company_id: selectedCompanyId,
-        name,
-        repo_path: path.trim(),
-      };
-
-      const project = await boardCreateProject(params);
-      const snapshot = await boardCompanySnapshot(selectedCompanyId);
-      setCompanySnapshot(snapshot);
-      setSelectedProjectId(project.id);
-      setSelectedScreen("projects");
+      try {
+        await repositoryAdd(path.trim(), name);
+      } catch (addError) {
+        const message =
+          addError instanceof Error ? addError.message : String(addError);
+        if (!message.includes("UNIQUE constraint")) {
+          throw addError;
+        }
+        // Repository already exists — just refresh the list
+      }
+      const updatedRepos = await repositoryList();
+      setRepositories(updatedRepos);
     } catch (error) {
       console.error("Failed to add repository:", error);
     }
@@ -4952,6 +5085,56 @@ export function App() {
     setSelectedScreen(normalizeScreen(settings.preferred_view));
   };
 
+  const handleDeviceNameSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+
+    const nextName = deviceNameDraft.trim();
+    if (!nextName) {
+      setStatusMessage("Device name cannot be empty.");
+      return;
+    }
+
+    if (!currentSpaceScope?.machine?.id) {
+      setStatusMessage("Current device details are still loading.");
+      return;
+    }
+
+    if (nextName === currentSpaceScope.machine.name) {
+      setStatusMessage("Device name is already up to date.");
+      return;
+    }
+
+    setIsSavingDeviceName(true);
+    setStatusMessage(null);
+
+    try {
+      const updatedScope = await spaceUpdateCurrentMachineName(nextName);
+      setCurrentSpaceScope(updatedScope);
+      setStatusMessage("Device name updated.");
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsSavingDeviceName(false);
+    }
+  };
+
+  const handleCopyDeviceId = async () => {
+    const deviceId = currentSpaceScope?.machine?.id;
+    if (!deviceId) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(deviceId);
+      setDidCopyDeviceId(true);
+      window.setTimeout(() => {
+        setDidCopyDeviceId(false);
+      }, 1500);
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
   const persistSettings = async (nextSettings: DesktopSettings) => {
     try {
       const saved = await settingsUpdate(nextSettings);
@@ -5202,102 +5385,61 @@ export function App() {
             <aside className="board-sidebar">
               <div className="board-sidebar-header">
                 <div>
-                  <strong>{selectedCompany?.name ?? "Space"}</strong>
-                  <span>Local model workspace</span>
+                  <strong>Workspaces</strong>
+                  <span>Local repositories</span>
                 </div>
                 <button
                   className="icon-button"
-                  onClick={() => void refreshBoardData()}
+                  onClick={() => void handleAddRepository()}
+                  title="Add repository"
                   type="button"
                 >
-                  ↻
+                  +
                 </button>
               </div>
 
               <div className="board-sidebar-scroll">
                 <div className="board-sidebar-section">
-                  <SidebarLinkButton
-                    label="New Conversation"
-                    onClick={handleOpenCreateIssueDialog}
-                  />
                   <BoardSidebarButton
                     active={selectedScreen === "dashboard"}
                     icon="dashboard"
                     label="Dashboard"
                     onClick={() => handleSelectScreen("dashboard")}
-                    trailing={
-                      totalLiveAgentRuns > 0
-                        ? formatLiveRunCountLabel(totalLiveAgentRuns)
-                        : null
-                    }
                   />
                   <BoardSidebarButton
                     active={selectedScreen === "appSettings"}
                     icon="appSettings"
-                    label="Device settings"
+                    label="Settings"
                     onClick={() => handleSelectScreen("appSettings")}
                   />
                 </div>
 
-                {primaryBoardSections.map((section) => (
-                  <div className="board-sidebar-section" key={section.title}>
-                    <span className="sidebar-section-title">
-                      {section.title}
-                    </span>
-                    {section.screens.map((screen) => (
-                      <BoardSidebarButton
-                        active={selectedScreen === screen}
-                        icon={sidebarScreenIcon(screen)}
-                        key={screen}
-                        label={screenLabel(screen)}
-                        onClick={() => handleSelectScreen(screen)}
-                      />
-                    ))}
-                  </div>
-                ))}
-
                 <div className="board-sidebar-section">
-                  <div className="sidebar-section-row">
-                    <span className="sidebar-section-title">Projects</span>
-                  </div>
-                  <SidebarLinkButton
-                    label="New Project"
-                    onClick={() => void handleAddRepository()}
-                  />
-                  {orderedSidebarProjects.length ? (
-                    orderedSidebarProjects.map((project) => (
+                  <span className="sidebar-section-title">Repositories</span>
+                  {repositories.length ? (
+                    repositories.map((repo) => (
                       <button
                         className={
-                          selectedScreen === "projects" &&
-                          selectedProjectId === project.id
+                          selectedRepositoryId === repo.id
                             ? "agent-sidebar-button active"
                             : "agent-sidebar-button"
                         }
-                        key={project.id}
-                        onClick={() => handleSelectProjectSidebar(project.id)}
+                        key={repo.id}
+                        onClick={() => {
+                          setSelectedRepositoryId(repo.id);
+                          setSelectedScreen("dashboard");
+                        }}
+                        title={repo.path}
                         type="button"
                       >
-                        {project.name || project.title || project.id}
+                        {repo.name || repo.path.split("/").pop() || repo.id}
                       </button>
                     ))
                   ) : (
-                    <div className="agent-sidebar-empty">No projects yet</div>
+                    <div className="agent-sidebar-empty">
+                      No repositories yet
+                    </div>
                   )}
-                </div>
-
-                <div className="board-sidebar-section">
-                  <span className="sidebar-section-title">
-                    {companyBoardSection.title}
-                  </span>
-                  {companyBoardSection.screens.map((screen) => (
-                    <BoardSidebarButton
-                      active={selectedScreen === screen}
-                      icon={sidebarScreenIcon(screen)}
-                      key={screen}
-                      label={screenLabel(screen)}
-                      onClick={() => handleSelectScreen(screen)}
-                    />
-                  ))}
                 </div>
               </div>
             </aside>
@@ -5315,23 +5457,7 @@ export function App() {
             ) : null}
 
             {selectedScreen === "dashboard" ? (
-              <GridDashboardBirdsEyeRouteView
-                agents={dashboardOverviewAgents}
-                chats={dashboardOverviewChats}
-                dependencyCheck={dependencyCheck}
-                isLoadingOverview={isDashboardOverviewLoading}
-                onCreateProject={() => void handleAddRepository()}
-                onCreateQuickChat={(title, defaults) =>
-                  handleCreateBirdsEyeChat(title, defaults)
-                }
-                onOpenIssueDetail={(issueId) =>
-                  void handleOpenDashboardIssueTile(issueId)
-                }
-                projects={dashboardOverviewProjects}
-                renderIssueTile={renderDashboardIssueTile}
-                selectedIssueTileId={selectedIssue?.id ?? null}
-                workspaces={dashboardOverviewWorkspaces}
-              />
+              <DashboardRouteView />
             ) : null}
 
             {selectedScreen === "stats" ? (
@@ -5697,20 +5823,29 @@ export function App() {
               <span>Back</span>
             </button>
             <div className="settings-nav">
+              <div className="settings-sidebar-header">
+                <strong>Settings</strong>
+                <span>App and device preferences</span>
+              </div>
               <SettingsSidebarItem
                 icon="house"
                 isSelected={false}
                 label="Home"
                 onClick={() => handleSelectScreen("dashboard")}
               />
-              {settingsSections.map((section) => (
-                <SettingsSidebarItem
-                  icon={settingsSectionIcon(section.id)}
-                  isSelected={selectedSettingsSection === section.id}
-                  key={section.id}
-                  label={section.label}
-                  onClick={() => setSelectedSettingsSection(section.id)}
-                />
+              {settingsSectionGroups.map((group) => (
+                <div className="settings-nav-group" key={group.title}>
+                  <span className="settings-nav-group-title">{group.title}</span>
+                  {group.sections.map((section) => (
+                    <SettingsSidebarItem
+                      icon={settingsSectionIcon(section.id)}
+                      isSelected={selectedSettingsSection === section.id}
+                      key={section.id}
+                      label={section.label}
+                      onClick={() => setSelectedSettingsSection(section.id)}
+                    />
+                  ))}
+                </div>
               ))}
             </div>
           </aside>
@@ -5743,14 +5878,6 @@ export function App() {
                     ))}
                   </div>
                 </SettingsSectionBlock>
-              </SettingsPageShell>
-            ) : null}
-
-            {selectedSettingsSection === "general" ? (
-              <SettingsPageShell
-                subtitle="Configure general app preferences."
-                title="General"
-              >
                 <SettingsSectionBlock
                   description="Adjust the interface text size"
                   title="Text Size"
@@ -5770,10 +5897,9 @@ export function App() {
                     ))}
                   </div>
                 </SettingsSectionBlock>
-
                 <SettingsSectionBlock
-                  description="Local desktop preferences that are not part of the native macOS settings surface."
-                  title="Desktop"
+                  description="Local app preferences for this installation."
+                  title="App Behavior"
                 >
                   <section className="settings-desktop-panel">
                     <form
@@ -5807,26 +5933,13 @@ export function App() {
                             settings.preferred_view,
                           )}
                         />
-                        <section className="settings-inline-panel">
-                          <p>
-                            <strong>Current space</strong>:{" "}
-                            {currentSpaceScope?.space?.name ?? "Personal Space"}
-                          </p>
-                          <p>
-                            <strong>Machine</strong>:{" "}
-                            {currentSpaceScope?.machine?.name ?? "This Device"}
-                          </p>
-                          <p>
-                            Managed automatically by the daemon for this device.
-                          </p>
-                        </section>
                       </div>
                       <div className="settings-shadcn-actions">
                         <button
                           className="settings-shadcn-button"
                           type="submit"
                         >
-                          Save device settings
+                          Save app settings
                         </button>
                       </div>
                     </form>
@@ -5872,6 +5985,50 @@ export function App() {
                         <dd>{bootstrap.base_dir}</dd>
                       </div>
                     </dl>
+                  </section>
+                </SettingsSectionBlock>
+              </SettingsPageShell>
+            ) : null}
+            {selectedSettingsSection === "about" ? (
+              <SettingsPageShell
+                subtitle="Manage identity for this device."
+                title="About"
+              >
+                <SettingsSectionBlock
+                  description="Name this device and review the identifier used by the daemon."
+                  title="Device"
+                >
+                  <section className="settings-desktop-panel">
+                    <form
+                      className="settings-shadcn-form"
+                      onSubmit={handleDeviceNameSubmit}
+                    >
+                      <div className="settings-shadcn-stack">
+                        <SettingsInputField
+                          description="This name appears anywhere this machine is referenced in the app."
+                          label="Device name"
+                          onChange={setDeviceNameDraft}
+                          placeholder="This Device"
+                          value={deviceNameDraft}
+                        />
+                        <SettingsCopyField
+                          actionLabel={didCopyDeviceId ? "Copied" : "Copy"}
+                          description="This identifier is generated for the current device and cannot be edited."
+                          label="Device ID"
+                          onCopy={() => void handleCopyDeviceId()}
+                          value={currentSpaceScope?.machine?.id ?? ""}
+                        />
+                      </div>
+                      <div className="settings-shadcn-actions">
+                        <button
+                          className="settings-shadcn-button"
+                          disabled={isSavingDeviceName}
+                          type="submit"
+                        >
+                          {isSavingDeviceName ? "Saving..." : "Save device name"}
+                        </button>
+                      </div>
+                    </form>
                   </section>
                 </SettingsSectionBlock>
               </SettingsPageShell>
@@ -8790,7 +8947,6 @@ function DashboardBirdsEyeRouteView({
         if (event.key === "Escape") {
           event.preventDefault();
           setIsCommandPaletteOpen(false);
-          setCommandPaletteScope(null);
           return;
         }
 
@@ -10247,6 +10403,7 @@ function SpatialDashboardBirdsEyeRouteView({
     worktreeKey: string,
     issueId: string,
   ) => {
+    let resolvedNextActiveIssueId: string | null = null;
     updateCanvasState((current) => {
       const existingState =
         current.worktreeTiles[worktreeKey] ??
@@ -10261,6 +10418,8 @@ function SpatialDashboardBirdsEyeRouteView({
         existingState.activeIssueId === issueId
           ? (nextIssueIds[0] ?? null)
           : existingState.activeIssueId;
+
+      resolvedNextActiveIssueId = nextActiveIssueId;
 
       return {
         ...current,
@@ -10292,7 +10451,10 @@ function SpatialDashboardBirdsEyeRouteView({
         },
       };
     });
-    setWorktreePanel(worktreeKey, nextActiveIssueId ? "tiles" : "sidebar");
+    setWorktreePanel(
+      worktreeKey,
+      resolvedNextActiveIssueId ? "tiles" : "sidebar",
+    );
   };
 
   const activateTile = (
@@ -18575,6 +18737,78 @@ function SettingsSelectField<T extends string>({
   );
 }
 
+function SettingsInputField({
+  description,
+  label,
+  onChange,
+  placeholder,
+  value,
+}: {
+  description: string;
+  label: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  value: string;
+}) {
+  return (
+    <label className="settings-shadcn-field settings-shadcn-field-text">
+      <div className="settings-shadcn-field-copy">
+        <strong>{label}</strong>
+        <p>{description}</p>
+      </div>
+      <div className="settings-shadcn-field-control">
+        <input
+          className="settings-shadcn-input"
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          type="text"
+          value={value}
+        />
+      </div>
+    </label>
+  );
+}
+
+function SettingsCopyField({
+  actionLabel,
+  description,
+  label,
+  onCopy,
+  value,
+}: {
+  actionLabel: string;
+  description: string;
+  label: string;
+  onCopy: () => void;
+  value: string;
+}) {
+  return (
+    <div className="settings-shadcn-field settings-shadcn-field-text">
+      <div className="settings-shadcn-field-copy">
+        <strong>{label}</strong>
+        <p>{description}</p>
+      </div>
+      <div className="settings-shadcn-field-control">
+        <div className="settings-copy-field">
+          <input
+            className="settings-shadcn-input settings-shadcn-input-readonly"
+            readOnly
+            type="text"
+            value={value}
+          />
+          <button
+            className="settings-copy-button"
+            onClick={onCopy}
+            type="button"
+          >
+            {actionLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ThemeModeCard({
   mode,
   isSelected,
@@ -19892,14 +20126,14 @@ function mergeDesktopSettings(settings: DesktopSettings): DesktopSettings {
 
 function settingsSectionIcon(section: SettingsSection) {
   switch (section) {
-    case "general":
-      return "gear";
     case "appearance":
       return "paintbrush";
     case "notifications":
       return "bell";
     case "privacy":
       return "shield";
+    case "about":
+      return "laptop";
   }
 }
 
@@ -19917,6 +20151,8 @@ function symbolForSettingsIcon(icon: string) {
       return "◔";
     case "shield":
       return "⛨";
+    case "laptop":
+      return "⌘";
     default:
       return "•";
   }

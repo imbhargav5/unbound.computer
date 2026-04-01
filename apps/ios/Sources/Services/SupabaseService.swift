@@ -31,7 +31,7 @@ final class SupabaseService {
         Config.log("📥 Fetching sessions from Supabase")
 
         let response: [CodingSession] = try await client
-            .from("agent_coding_sessions")
+            .from("local_llm_conversations")
             .select()
             .order("created_at", ascending: false)
             .execute()
@@ -45,7 +45,7 @@ final class SupabaseService {
         Config.log("📥 Fetching session \(sessionId) from Supabase")
 
         let response: CodingSession = try await client
-            .from("agent_coding_sessions")
+            .from("local_llm_conversations")
             .select()
             .eq("id", value: sessionId.uuidString)
             .single()
@@ -69,7 +69,7 @@ final class SupabaseService {
         Config.log("📥 Fetching encrypted messages for session \(sessionId) (limit: \(limit), offset: \(offset))")
 
         let response: [SessionMessage] = try await client
-            .from("agent_coding_session_messages")
+            .from("local_llm_conversation_messages")
             .select()
             .eq("session_id", value: sessionId.uuidString)
             .order("sequence_number", ascending: orderBy == .ascending)
@@ -91,7 +91,7 @@ final class SupabaseService {
         Config.log("📥 Fetching paginated messages (after sequence: \(afterSequenceNumber ?? -1))")
 
         var query = client
-            .from("agent_coding_session_messages")
+            .from("local_llm_conversation_messages")
             .select()
             .eq("session_id", value: sessionId.uuidString)
 
@@ -114,7 +114,7 @@ final class SupabaseService {
         Config.log("📥 Fetching message count for session \(sessionId)")
 
         let response = try await client
-            .from("agent_coding_session_messages")
+            .from("local_llm_conversation_messages")
             .select("count", head: true)
             .eq("session_id", value: sessionId.uuidString)
             .execute()
@@ -136,7 +136,7 @@ final class SupabaseService {
         Config.log("⚠️ Using deprecated fetchMessages - migrate to fetchSessionMessages")
 
         let response: [ConversationEvent] = try await client
-            .from("agent_coding_session_messages")
+            .from("local_llm_conversation_messages")
             .select()
             .eq("session_id", value: sessionId.uuidString)
             .order("created_at", ascending: orderBy == .ascending)
@@ -155,7 +155,7 @@ final class SupabaseService {
         limit: Int = 50
     ) async throws -> [ConversationEvent] {
         var query = client
-            .from("agent_coding_session_messages")
+            .from("local_llm_conversation_messages")
             .select()
             .eq("session_id", value: sessionId.uuidString)
 

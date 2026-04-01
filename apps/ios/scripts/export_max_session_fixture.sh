@@ -15,9 +15,9 @@ if [[ ! -f "$SOURCE_DB" ]]; then
     exit 1
 fi
 
-SESSION_COUNT="$(sqlite3 "$SOURCE_DB" "SELECT COUNT(*) FROM agent_coding_sessions;")"
+SESSION_COUNT="$(sqlite3 "$SOURCE_DB" "SELECT COUNT(*) FROM local_llm_conversations;")"
 if [[ "$SESSION_COUNT" == "0" ]]; then
-    echo "error: no rows found in agent_coding_sessions" >&2
+    echo "error: no rows found in local_llm_conversations" >&2
     exit 1
 fi
 
@@ -35,8 +35,8 @@ WITH top_session AS (
         s.created_at,
         s.last_accessed_at,
         COUNT(m.id) AS message_count
-    FROM agent_coding_sessions s
-    LEFT JOIN agent_coding_session_messages m
+    FROM local_llm_conversations s
+    LEFT JOIN local_llm_conversation_messages m
         ON m.session_id = s.id
     GROUP BY s.id
     ORDER BY message_count DESC, s.last_accessed_at DESC
@@ -48,7 +48,7 @@ ordered_messages AS (
         m.sequence_number,
         m.timestamp,
         m.content
-    FROM agent_coding_session_messages m
+    FROM local_llm_conversation_messages m
     JOIN top_session t
         ON t.id = m.session_id
     ORDER BY m.sequence_number ASC
@@ -103,8 +103,8 @@ fi
 SELECTED_SESSION_ID="$(
     sqlite3 "$SOURCE_DB" "
     SELECT s.id
-    FROM agent_coding_sessions s
-    LEFT JOIN agent_coding_session_messages m ON m.session_id = s.id
+    FROM local_llm_conversations s
+    LEFT JOIN local_llm_conversation_messages m ON m.session_id = s.id
     GROUP BY s.id
     ORDER BY COUNT(m.id) DESC, s.last_accessed_at DESC
     LIMIT 1;
@@ -113,7 +113,7 @@ SELECTED_SESSION_ID="$(
 SELECTED_MESSAGE_COUNT="$(
     sqlite3 "$SOURCE_DB" "
     SELECT COUNT(*)
-    FROM agent_coding_session_messages
+    FROM local_llm_conversation_messages
     WHERE session_id = '$SELECTED_SESSION_ID';
     "
 )"

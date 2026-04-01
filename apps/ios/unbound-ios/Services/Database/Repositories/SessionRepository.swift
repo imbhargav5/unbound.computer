@@ -102,7 +102,7 @@ final class SessionRepository {
         try await db.write { db in
             try db.execute(
                 sql: """
-                    UPDATE agent_coding_sessions
+                    UPDATE local_llm_conversations
                     SET status = ?, updated_at = ?
                     WHERE id = ?
                     """,
@@ -117,7 +117,7 @@ final class SessionRepository {
         try await db.write { db in
             try db.execute(
                 sql: """
-                    UPDATE agent_coding_sessions
+                    UPDATE local_llm_conversations
                     SET title = ?, updated_at = ?
                     WHERE id = ?
                     """,
@@ -132,7 +132,7 @@ final class SessionRepository {
         try await db.write { db in
             try db.execute(
                 sql: """
-                    UPDATE agent_coding_sessions
+                    UPDATE local_llm_conversations
                     SET last_accessed_at = ?, updated_at = ?
                     WHERE id = ?
                     """,

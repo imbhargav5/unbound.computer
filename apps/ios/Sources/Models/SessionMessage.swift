@@ -1,7 +1,7 @@
 import Foundation
 
 /// Encrypted session message from Supabase
-/// Matches the new agent_coding_session_messages table schema
+/// Matches the new local_llm_conversation_messages table schema
 struct SessionMessage: Identifiable, Codable, Sendable {
     let id: Int64
     let sessionId: UUID

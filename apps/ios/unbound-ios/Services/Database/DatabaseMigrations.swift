@@ -391,5 +391,64 @@ enum DatabaseMigrations {
             }
             try db.create(indexOn: "agent_coding_sessions", columns: ["device_id"])
         }
+
+        // MARK: - v5: Rename coding-session tables to local_llm_conversation naming
+
+        migrator.registerMigration("v5_rename_local_llm_conversation_tables") { db in
+            let tableRenames: [(legacy: String, renamed: String)] = [
+                ("agent_coding_sessions", "local_llm_conversations"),
+                ("agent_coding_session_messages", "local_llm_conversation_messages"),
+                ("agent_coding_session_state", "local_llm_conversation_state"),
+                ("session_secrets", "local_llm_conversation_secrets"),
+                (
+                    "agent_coding_session_message_supabase_outbox",
+                    "local_llm_conversation_message_supabase_outbox"
+                ),
+                (
+                    "agent_coding_session_supabase_sync_state",
+                    "local_llm_conversation_supabase_sync_state"
+                ),
+                (
+                    "agent_coding_session_ably_sync_state",
+                    "local_llm_conversation_ably_sync_state"
+                ),
+            ]
+
+            for rename in tableRenames where db.tableExists(rename.legacy) && !db.tableExists(rename.renamed) {
+                try db.rename(table: rename.legacy, to: rename.renamed)
+            }
+
+            try db.execute(
+                sql: """
+                    CREATE INDEX IF NOT EXISTS idx_local_llm_conversations_repository_id
+                    ON local_llm_conversations(repository_id);
+                    CREATE INDEX IF NOT EXISTS idx_local_llm_conversations_status
+                    ON local_llm_conversations(status);
+                    CREATE INDEX IF NOT EXISTS idx_local_llm_conversations_last_accessed_at
+                    ON local_llm_conversations(last_accessed_at);
+                    CREATE INDEX IF NOT EXISTS idx_local_llm_conversations_is_worktree
+                    ON local_llm_conversations(is_worktree);
+                    CREATE INDEX IF NOT EXISTS idx_local_llm_conversations_device_id
+                    ON local_llm_conversations(device_id);
+
+                    CREATE INDEX IF NOT EXISTS idx_local_llm_conversation_messages_session_id
+                    ON local_llm_conversation_messages(session_id);
+                    CREATE INDEX IF NOT EXISTS idx_local_llm_conversation_messages_session_seq
+                    ON local_llm_conversation_messages(session_id, sequence_number);
+                    CREATE INDEX IF NOT EXISTS idx_local_llm_conversation_messages_timestamp
+                    ON local_llm_conversation_messages(timestamp);
+
+                    CREATE INDEX IF NOT EXISTS idx_local_llm_conversation_message_supabase_outbox_sent_at
+                    ON local_llm_conversation_message_supabase_outbox(sent_at);
+                    CREATE INDEX IF NOT EXISTS idx_local_llm_conversation_message_supabase_outbox_last_attempt_at
+                    ON local_llm_conversation_message_supabase_outbox(last_attempt_at);
+
+                    CREATE INDEX IF NOT EXISTS idx_local_llm_conversation_supabase_sync_state_last_attempt_at
+                    ON local_llm_conversation_supabase_sync_state(last_attempt_at);
+                    CREATE INDEX IF NOT EXISTS idx_local_llm_conversation_ably_sync_state_last_attempt_at
+                    ON local_llm_conversation_ably_sync_state(last_attempt_at);
+                """
+            )
+        }
     }
 }

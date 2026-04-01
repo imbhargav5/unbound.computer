@@ -207,7 +207,7 @@ final class SessionSecretService {
         // 1. Fetch encrypted secret from database
         do {
             let response = try await supabase
-                .from("agent_coding_session_secrets")
+                .from("local_llm_conversation_secrets")
                 .select("ephemeral_public_key, encrypted_secret")
                 .eq("session_id", value: sessionId.uuidString)
                 .eq("device_id", value: deviceId.uuidString)

@@ -1,16 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
-  AgentLiveRunCountRecord,
-  AgentRecord,
-  AgentRunEventRecord,
-  AgentRunLogChunk,
-  AgentRunRecord,
-  Company,
-  CompanySnapshot,
   CurrentSpaceScope,
   DaemonVersionInfo,
-  DashboardOverviewRecord,
   DesktopBootstrapStatus,
   DesktopSettings,
   FileEntry,
@@ -20,17 +12,11 @@ import type {
   GitLogResult,
   GitStatusResult,
   GitWorktreeRecord,
-  IssueAttachmentRecord,
-  IssueCommentRecord,
-  IssueRecord,
-  IssueRunCardUpdateRecord,
-  ProjectRecord,
   RepositoryRecord,
   RuntimeCapabilities,
   SessionMessage,
   SessionRecord,
   SessionStreamPayload,
-  WorkspaceRecord,
 } from "./types";
 
 async function invokeCommand<T>(
@@ -52,155 +38,9 @@ export const systemCheckDependencies = () =>
 export const spaceGetCurrent = () =>
   invokeCommand<CurrentSpaceScope>("space_get_current");
 
-export const boardListCompanies = () =>
-  invokeCommand<Company[]>("board_list_companies");
-
-export const boardCreateCompany = (params: Record<string, unknown>) =>
-  invokeCommand<Company>("board_create_company", { params });
-
-export const boardUpdateCompany = (params: Record<string, unknown>) =>
-  invokeCommand<Company>("board_update_company", { params });
-
-export const boardCreateAgent = (params: Record<string, unknown>) =>
-  invokeCommand<AgentRecord>("board_create_agent", { params });
-
-export const boardUpdateAgent = (params: Record<string, unknown>) =>
-  invokeCommand<AgentRecord>("board_update_agent", { params });
-
-export const boardCompanySnapshot = (companyId: string) =>
-  invokeCommand<CompanySnapshot>("board_company_snapshot", {
-    companyId,
-  });
-
-export const boardDashboardOverview = (companyId: string) =>
-  invokeCommand<DashboardOverviewRecord>("board_dashboard_overview", {
-    companyId,
-  });
-
-export const boardCreateProject = (params: Record<string, unknown>) =>
-  invokeCommand<ProjectRecord>("board_create_project", { params });
-
-export const boardUpdateProject = (params: Record<string, unknown>) =>
-  invokeCommand<ProjectRecord>("board_update_project", { params });
-
-export const boardDeleteProject = (projectId: string) =>
-  invokeCommand<ProjectRecord>("board_delete_project", {
-    projectId,
-  });
-
-export const boardCreateIssue = (params: Record<string, unknown>) =>
-  invokeCommand<IssueRecord>("board_create_issue", { params });
-
-export const boardGetIssue = (issueId: string) =>
-  invokeCommand<IssueRecord>("board_get_issue", {
-    issueId,
-  });
-
-export const boardUpdateIssue = (params: Record<string, unknown>) =>
-  invokeCommand<IssueRecord>("board_update_issue", { params });
-
-export const boardListIssueComments = (issueId: string) =>
-  invokeCommand<IssueCommentRecord[]>("board_list_issue_comments", {
-    issueId,
-  });
-
-export const boardListIssueAttachments = (issueId: string) =>
-  invokeCommand<IssueAttachmentRecord[]>("board_list_issue_attachments", {
-    issueId,
-  });
-
-export const boardAddIssueAttachment = (params: Record<string, unknown>) =>
-  invokeCommand<IssueAttachmentRecord>("board_add_issue_attachment", {
-    params,
-  });
-
-export const boardListIssueRuns = (issueId: string, limit?: number) =>
-  invokeCommand<AgentRunRecord[]>("board_list_issue_runs", {
-    issueId,
-    limit,
-  });
-
-export const boardListIssueRunCardUpdates = (companyId: string) =>
-  invokeCommand<IssueRunCardUpdateRecord[]>(
-    "board_list_issue_run_card_updates",
-    {
-      companyId,
-    },
-  );
-
-export const boardAddIssueComment = (params: Record<string, unknown>) =>
-  invokeCommand<IssueCommentRecord>("board_add_issue_comment", { params });
-
-export const boardCheckoutIssue = (issueId: string) =>
-  invokeCommand<WorkspaceRecord>("board_checkout_issue", {
-    issueId,
-  });
-
-export const boardApproveApproval = (params: Record<string, unknown>) =>
-  invokeCommand<Record<string, unknown>>("board_approve_approval", { params });
-
-export const boardListAgentRuns = (agentId: string, limit?: number) =>
-  invokeCommand<AgentRunRecord[]>("board_list_agent_runs", {
-    agentId,
-    limit,
-  });
-
-export const boardListAgentLiveRunCounts = (companyId: string) =>
-  invokeCommand<AgentLiveRunCountRecord[]>("board_list_agent_live_run_counts", {
-    companyId,
-  });
-
-export const boardGetAgentRun = (runId: string) =>
-  invokeCommand<AgentRunRecord>("board_get_agent_run", {
-    runId,
-  });
-
-export const boardListAgentRunEvents = (
-  runId: string,
-  afterSeq?: number,
-  limit?: number,
-) =>
-  invokeCommand<AgentRunEventRecord[]>("board_list_agent_run_events", {
-    runId,
-    afterSeq,
-    limit,
-  });
-
-export const boardReadAgentRunLog = (
-  runId: string,
-  offset = 0,
-  limitBytes = 16_384,
-) =>
-  invokeCommand<AgentRunLogChunk>("board_read_agent_run_log", {
-    runId,
-    offset,
-    limitBytes,
-  });
-
-export const boardInvokeAgentRun = (
-  agentId: string,
-  issueId?: string,
-  prompt?: string,
-) =>
-  invokeCommand<AgentRunRecord>("board_invoke_agent_run", {
-    agentId,
-    issueId,
-    prompt,
-  });
-
-export const boardCancelAgentRun = (runId: string) =>
-  invokeCommand<AgentRunRecord>("board_cancel_agent_run", {
-    runId,
-  });
-
-export const boardRetryAgentRun = (runId: string) =>
-  invokeCommand<AgentRunRecord>("board_retry_agent_run", {
-    runId,
-  });
-
-export const boardResumeAgentRun = (runId: string) =>
-  invokeCommand<AgentRunRecord>("board_resume_agent_run", {
-    runId,
+export const spaceUpdateCurrentMachineName = (name: string) =>
+  invokeCommand<CurrentSpaceScope>("space_update_current_machine_name", {
+    name,
   });
 
 export const repositoryList = () =>

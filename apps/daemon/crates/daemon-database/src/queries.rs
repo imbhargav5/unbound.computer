@@ -207,27 +207,27 @@ pub fn get_session(conn: &Connection, id: &str) -> DatabaseResult<Option<AgentCo
     )?;
 
     let result = stmt.query_row(params![id], |row| {
-            Ok(AgentCodingSession {
-                id: row.get(0)?,
-                repository_id: row.get(1)?,
-                machine_id: row.get(2)?,
-                space_id: row.get(3)?,
-                title: row.get(4)?,
-                agent_name: row.get(5)?,
-                issue_id: row.get(6)?,
-                issue_title: row.get(7)?,
-                issue_url: row.get(8)?,
-                provider: row.get(9)?,
-                provider_session_id: row.get(10)?,
-                claude_session_id: row.get(11)?,
-                status: SessionStatus::from_str(&row.get::<_, String>(12)?),
-                is_worktree: row.get(13)?,
-                worktree_path: row.get(14)?,
-                created_at: parse_datetime(row.get::<_, String>(15)?),
-                last_accessed_at: parse_datetime(row.get::<_, String>(16)?),
-                updated_at: parse_datetime(row.get::<_, String>(17)?),
-            })
-        });
+        Ok(AgentCodingSession {
+            id: row.get(0)?,
+            repository_id: row.get(1)?,
+            machine_id: row.get(2)?,
+            space_id: row.get(3)?,
+            title: row.get(4)?,
+            agent_name: row.get(5)?,
+            issue_id: row.get(6)?,
+            issue_title: row.get(7)?,
+            issue_url: row.get(8)?,
+            provider: row.get(9)?,
+            provider_session_id: row.get(10)?,
+            claude_session_id: row.get(11)?,
+            status: SessionStatus::from_str(&row.get::<_, String>(12)?),
+            is_worktree: row.get(13)?,
+            worktree_path: row.get(14)?,
+            created_at: parse_datetime(row.get::<_, String>(15)?),
+            last_accessed_at: parse_datetime(row.get::<_, String>(16)?),
+            updated_at: parse_datetime(row.get::<_, String>(17)?),
+        })
+    });
 
     match result {
         Ok(session) => Ok(Some(session)),

@@ -101,7 +101,7 @@ final class MessageRepository {
         try await db.write { db in
             try db.execute(
                 sql: """
-                    UPDATE agent_coding_session_messages
+                    UPDATE local_llm_conversation_messages
                     SET content = ?
                     WHERE id = ?
                     """,
@@ -116,7 +116,7 @@ final class MessageRepository {
         try await db.write { db in
             try db.execute(
                 sql: """
-                    UPDATE agent_coding_session_messages
+                    UPDATE local_llm_conversation_messages
                     SET is_streaming = ?
                     WHERE id = ?
                     """,
@@ -166,7 +166,7 @@ final class MessageRepository {
             let maxSequence = try Int.fetchOne(
                 db,
                 sql: """
-                    SELECT MAX(sequence_number) FROM agent_coding_session_messages
+                    SELECT MAX(sequence_number) FROM local_llm_conversation_messages
                     WHERE session_id = ?
                     """,
                 arguments: [sessionId.uuidString]

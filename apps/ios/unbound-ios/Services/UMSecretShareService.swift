@@ -279,7 +279,7 @@ final class UMSecretShareService {
     private func fetchTargetDeviceId(sessionId: UUID, userId: UUID) async throws -> String {
         do {
             let response = try await authService.supabaseClient
-                .from("agent_coding_sessions")
+                .from("local_llm_conversations")
                 .select("device_id")
                 .eq("id", value: sessionId.uuidString)
                 .eq("user_id", value: userId.uuidString)

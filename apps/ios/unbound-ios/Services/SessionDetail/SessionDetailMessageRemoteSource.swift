@@ -47,7 +47,7 @@ final class AuthServiceSessionDetailSupabaseClient: SessionDetailSupabaseQueryin
 }
 
 final class SupabaseSessionDetailMessageRemoteSource: SessionDetailMessageRemoteSource {
-    static let tableName = "agent_coding_session_messages"
+    static let tableName = "local_llm_conversation_messages"
     static let selectClause = "id,sequence_number,created_at,content_encrypted,content_nonce"
 
     private let supabaseClient: SessionDetailSupabaseQuerying

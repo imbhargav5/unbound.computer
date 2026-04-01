@@ -294,7 +294,7 @@ final class PostLoginSyncService {
         do {
             // Fetch all sessions for this user from Supabase
             let response = try await authService.supabaseClient
-                .from("agent_coding_sessions")
+                .from("local_llm_conversations")
                 .select()
                 .eq("user_id", value: userId)
                 .execute()

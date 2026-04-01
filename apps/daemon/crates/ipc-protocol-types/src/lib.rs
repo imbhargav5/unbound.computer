@@ -57,6 +57,8 @@ pub enum Method {
     // Spaces
     #[serde(rename = "space.get_current")]
     SpaceGetCurrent,
+    #[serde(rename = "space.update_current_machine_name")]
+    SpaceUpdateCurrentMachineName,
 
     // Messages
     #[serde(rename = "message.list")]
@@ -454,6 +456,11 @@ mod tests {
             (Method::SessionGet, "\"session.get\""),
             (Method::SessionUpdate, "\"session.update\""),
             (Method::SessionDelete, "\"session.delete\""),
+            (Method::SpaceGetCurrent, "\"space.get_current\""),
+            (
+                Method::SpaceUpdateCurrentMachineName,
+                "\"space.update_current_machine_name\"",
+            ),
             (Method::MessageList, "\"message.list\""),
             (Method::MessageSend, "\"message.send\""),
             (Method::OutboxStatus, "\"outbox.status\""),
@@ -525,6 +532,8 @@ mod tests {
             Method::SessionGet,
             Method::SessionUpdate,
             Method::SessionDelete,
+            Method::SpaceGetCurrent,
+            Method::SpaceUpdateCurrentMachineName,
             Method::MessageList,
             Method::MessageSend,
             Method::OutboxStatus,
@@ -1031,6 +1040,8 @@ mod tests {
             Method::SessionGet,
             Method::SessionUpdate,
             Method::SessionDelete,
+            Method::SpaceGetCurrent,
+            Method::SpaceUpdateCurrentMachineName,
             Method::MessageList,
             Method::MessageSend,
             Method::OutboxStatus,
@@ -1073,6 +1084,6 @@ mod tests {
             Method::TerminalStatus,
             Method::TerminalStop,
         ];
-        assert_eq!(methods.len(), 48);
+        assert_eq!(methods.len(), 50);
     }
 }

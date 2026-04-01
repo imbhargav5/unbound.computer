@@ -114,7 +114,7 @@ final class CodingSessionViewerService {
 
         do {
             let response = try await authService.supabaseClient
-                .from("agent_coding_sessions")
+                .from("local_llm_conversations")
                 .select("id")
                 .eq("id", value: sessionId.uuidString)
                 .eq("user_id", value: userIdString)
@@ -140,7 +140,7 @@ final class CodingSessionViewerService {
 
         do {
             let response = try await authService.supabaseClient
-                .from("agent_coding_sessions")
+                .from("local_llm_conversations")
                 .select("id")
                 .eq("user_id", value: userIdString)
                 .execute()

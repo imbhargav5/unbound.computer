@@ -125,10 +125,7 @@ impl SqliteStore {
     fn rename_legacy_session_tables(conn: &Connection) -> SqliteResult<()> {
         let table_renames = [
             ("agent_coding_sessions", "local_llm_conversations"),
-            (
-                "agent_coding_session_state",
-                "local_llm_conversation_state",
-            ),
+            ("agent_coding_session_state", "local_llm_conversation_state"),
             (
                 "agent_coding_session_messages",
                 "local_llm_conversation_messages",
@@ -141,9 +138,7 @@ impl SqliteStore {
         ];
 
         for (legacy_name, renamed_name) in table_renames {
-            if Self::table_exists(conn, legacy_name)?
-                && !Self::table_exists(conn, renamed_name)?
-            {
+            if Self::table_exists(conn, legacy_name)? && !Self::table_exists(conn, renamed_name)? {
                 conn.execute_batch(&format!(
                     "ALTER TABLE {legacy_name} RENAME TO {renamed_name};"
                 ))?;
@@ -153,7 +148,11 @@ impl SqliteStore {
         Ok(())
     }
 
-    fn table_has_column(conn: &Connection, table_name: &str, column_name: &str) -> SqliteResult<bool> {
+    fn table_has_column(
+        conn: &Connection,
+        table_name: &str,
+        column_name: &str,
+    ) -> SqliteResult<bool> {
         let mut stmt = conn.prepare(&format!("PRAGMA table_info({table_name})"))?;
         let mut rows = stmt.query([])?;
         while let Some(row) = rows.next()? {

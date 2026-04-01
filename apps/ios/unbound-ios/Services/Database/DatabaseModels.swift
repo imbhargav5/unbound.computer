@@ -42,7 +42,7 @@ struct RepositoryRecord: Codable, FetchableRecord, PersistableRecord {
 // MARK: - Session Record
 
 struct SessionRecord: Codable, FetchableRecord, PersistableRecord {
-    static let databaseTableName = "agent_coding_sessions"
+    static let databaseTableName = "local_llm_conversations"
 
     var id: String
     var repositoryId: String
@@ -96,7 +96,7 @@ struct ChatTabRecord: Codable, FetchableRecord, PersistableRecord {
 // MARK: - Message Record
 
 struct MessageRecord: Codable, FetchableRecord, PersistableRecord {
-    static let databaseTableName = "agent_coding_session_messages"
+    static let databaseTableName = "local_llm_conversation_messages"
 
     var id: String
     var sessionId: String
@@ -118,7 +118,7 @@ struct MessageRecord: Codable, FetchableRecord, PersistableRecord {
 // MARK: - ImageUpload Record
 
 struct ImageUploadRecord: Codable, FetchableRecord, PersistableRecord {
-    static let databaseTableName = "agent_coding_session_image_uploads"
+    static let databaseTableName = "local_llm_conversation_image_uploads"
 
     var id: String
     var messageId: String?
@@ -146,7 +146,7 @@ struct ImageUploadRecord: Codable, FetchableRecord, PersistableRecord {
 // MARK: - Attachment Record
 
 struct AttachmentRecord: Codable, FetchableRecord, PersistableRecord {
-    static let databaseTableName = "agent_coding_session_attachments"
+    static let databaseTableName = "local_llm_conversation_attachments"
 
     var id: String
     var messageId: String?

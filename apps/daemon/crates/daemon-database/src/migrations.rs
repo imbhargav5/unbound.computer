@@ -1545,24 +1545,14 @@ fn migrate_v12_board_schema(conn: &Connection) -> DatabaseResult<()> {
 fn ensure_session_agent_metadata(conn: &Connection) -> DatabaseResult<()> {
     let sessions_table = session_table_name(conn)?;
     add_column_if_missing(conn, sessions_table, "agent_id", "agent_id TEXT")?;
-    add_column_if_missing(
-        conn,
-        sessions_table,
-        "agent_name",
-        "agent_name TEXT",
-    )?;
+    add_column_if_missing(conn, sessions_table, "agent_name", "agent_name TEXT")?;
     Ok(())
 }
 
 fn ensure_session_issue_metadata(conn: &Connection) -> DatabaseResult<()> {
     let sessions_table = session_table_name(conn)?;
     add_column_if_missing(conn, sessions_table, "issue_id", "issue_id TEXT")?;
-    add_column_if_missing(
-        conn,
-        sessions_table,
-        "issue_title",
-        "issue_title TEXT",
-    )?;
+    add_column_if_missing(conn, sessions_table, "issue_title", "issue_title TEXT")?;
     add_column_if_missing(conn, sessions_table, "issue_url", "issue_url TEXT")?;
     Ok(())
 }
@@ -2030,10 +2020,7 @@ fn migrate_v20_rename_local_llm_conversation_tables(conn: &Connection) -> Databa
 
     let table_renames = [
         ("agent_coding_sessions", "local_llm_conversations"),
-        (
-            "agent_coding_session_state",
-            "local_llm_conversation_state",
-        ),
+        ("agent_coding_session_state", "local_llm_conversation_state"),
         (
             "agent_coding_session_messages",
             "local_llm_conversation_messages",
@@ -3404,7 +3391,9 @@ mod tests {
                 "{table_name} should reference local_llm_conversations"
             );
             assert!(
-                !targets.iter().any(|target| target == "agent_coding_sessions"),
+                !targets
+                    .iter()
+                    .any(|target| target == "agent_coding_sessions"),
                 "{table_name} should not reference agent_coding_sessions"
             );
         }
@@ -3591,10 +3580,14 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM task_approvals", [], |row| row.get(0))
             .unwrap();
         let task_read_states_after: i64 = conn
-            .query_row("SELECT COUNT(*) FROM task_read_states", [], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM task_read_states", [], |row| {
+                row.get(0)
+            })
             .unwrap();
         let task_attachments_after: i64 = conn
-            .query_row("SELECT COUNT(*) FROM task_attachments", [], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM task_attachments", [], |row| {
+                row.get(0)
+            })
             .unwrap();
 
         assert_eq!(tasks_after, 1);
@@ -3667,7 +3660,9 @@ mod tests {
         run_migrations(&conn).unwrap();
 
         let local_repositories_after: i64 = conn
-            .query_row("SELECT COUNT(*) FROM local_repositories", [], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM local_repositories", [], |row| {
+                row.get(0)
+            })
             .unwrap();
         let repositories_after: i64 = conn
             .query_row("SELECT COUNT(*) FROM repositories", [], |row| row.get(0))
@@ -3690,7 +3685,9 @@ mod tests {
         run_migrations(&conn).unwrap();
 
         let conversation_targets = foreign_key_targets(&conn, "local_llm_conversations");
-        assert!(conversation_targets.iter().any(|t| t == "local_repositories"));
+        assert!(conversation_targets
+            .iter()
+            .any(|t| t == "local_repositories"));
         // repositories and tasks FKs removed in v27
         assert!(!conversation_targets.iter().any(|t| t == "repositories"));
         assert!(!conversation_targets.iter().any(|t| t == "tasks"));
@@ -3721,13 +3718,16 @@ mod tests {
         assert!(space_columns.contains("user_id"));
 
         // repositories, worktrees, tasks dropped by v27
-        for table_name in [
-            "local_repositories",
-            "local_llm_conversations",
-        ] {
+        for table_name in ["local_repositories", "local_llm_conversations"] {
             let columns = column_names(&conn, table_name).unwrap();
-            assert!(columns.contains("machine_id"), "{table_name} missing machine_id");
-            assert!(columns.contains("space_id"), "{table_name} missing space_id");
+            assert!(
+                columns.contains("machine_id"),
+                "{table_name} missing machine_id"
+            );
+            assert!(
+                columns.contains("space_id"),
+                "{table_name} missing space_id"
+            );
 
             let targets = foreign_key_targets(&conn, table_name);
             assert!(
@@ -3755,11 +3755,7 @@ mod tests {
             .collect();
 
         // Tables that should still exist
-        for table in [
-            "local_repositories",
-            "machines",
-            "spaces",
-        ] {
+        for table in ["local_repositories", "machines", "spaces"] {
             assert!(
                 tables.contains(&table.to_string()),
                 "missing table: {table}"

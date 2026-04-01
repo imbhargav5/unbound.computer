@@ -71,7 +71,7 @@ final class SessionRuntimeStatusService {
         let changes = channel.postgresChange(
             UpdateAction.self,
             schema: "public",
-            table: "agent_coding_sessions",
+            table: "local_llm_conversations",
             filter: "user_id=eq.\(userId)"
         )
 

@@ -78,9 +78,7 @@ fn normalize_optional_string(value: Option<&str>) -> Option<String> {
         .map(String::from)
 }
 
-fn normalize_agent_metadata(
-    params: &serde_json::Value,
-) -> Option<String> {
+fn normalize_agent_metadata(params: &serde_json::Value) -> Option<String> {
     normalize_optional_string(params.get("agent_name").and_then(|v| v.as_str()))
 }
 

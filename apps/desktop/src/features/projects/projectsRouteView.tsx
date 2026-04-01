@@ -382,11 +382,12 @@ function normalizeProjectDefaultNewChatArea(
 }
 
 function projectDefaultNewChatArea(project: ProjectRecord | null | undefined) {
-  return normalizeProjectDefaultNewChatArea(
-    project?.execution_workspace_policy === "new_worktree"
-      ? "new_worktree"
-      : "repo_root",
-  );
+  const policy = project?.execution_workspace_policy;
+  const defaultArea =
+    policy && typeof policy === "object" && "default_new_chat_area" in policy
+      ? String(policy.default_new_chat_area)
+      : "repo_root";
+  return normalizeProjectDefaultNewChatArea(defaultArea);
 }
 
 function goalTitleForProject(goals: GoalRecord[], goalId?: string | null) {
