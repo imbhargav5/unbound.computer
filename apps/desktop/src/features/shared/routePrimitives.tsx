@@ -1,4 +1,22 @@
 import type { ReactNode } from "react";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export interface DashboardBreadcrumbItem {
   label: string;
@@ -11,47 +29,29 @@ export function DashboardBreadcrumbs({
   items: DashboardBreadcrumbItem[];
 }) {
   return (
-    <nav aria-label="Breadcrumb" className="dashboard-breadcrumbs">
-      {items.map((item, index) => {
-        const isCurrent = index === items.length - 1;
+    <Breadcrumb>
+      <BreadcrumbList>
+        {items.map((item, index) => {
+          const isCurrent = index === items.length - 1;
 
-        return (
-          <div
-            className="dashboard-breadcrumb-step"
-            key={`${item.label}-${index}`}
-          >
-            {item.onClick && !isCurrent ? (
-              <button
-                className="dashboard-breadcrumb-button"
-                onClick={item.onClick}
-                type="button"
-              >
-                {item.label}
-              </button>
-            ) : (
-              <span
-                className={
-                  isCurrent
-                    ? "dashboard-breadcrumb-current"
-                    : "dashboard-breadcrumb-label"
-                }
-              >
-                {item.label}
-              </span>
-            )}
-
-            {isCurrent ? null : (
-              <span
-                aria-hidden="true"
-                className="dashboard-breadcrumb-separator"
-              >
-                ›
-              </span>
-            )}
-          </div>
-        );
-      })}
-    </nav>
+          return (
+            <BreadcrumbItem key={`${item.label}-${index}`}>
+              {item.onClick && !isCurrent ? (
+                <BreadcrumbLink
+                  className="cursor-pointer"
+                  onClick={item.onClick}
+                >
+                  {item.label}
+                </BreadcrumbLink>
+              ) : (
+                <BreadcrumbPage>{item.label}</BreadcrumbPage>
+              )}
+              {isCurrent ? null : <BreadcrumbSeparator />}
+            </BreadcrumbItem>
+          );
+        })}
+      </BreadcrumbList>
+    </Breadcrumb>
   );
 }
 
@@ -63,10 +63,14 @@ export function MetricCard({
   value: number | string;
 }) {
   return (
-    <section className="metric-card">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </section>
+    <Card size="sm">
+      <CardContent className="flex flex-col gap-1">
+        <span className="text-xs text-muted-foreground">{label}</span>
+        <strong className="text-2xl font-semibold tracking-tight">
+          {value}
+        </strong>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -78,18 +82,18 @@ export function SummaryPill({
   value: number | string;
 }) {
   return (
-    <div className="summary-pill">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
+    <Badge variant="secondary" className="gap-1.5 px-2.5 py-1">
+      <span className="text-muted-foreground">{label}</span>
+      <strong className="font-medium">{value}</strong>
+    </Badge>
   );
 }
 
 export function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="detail-row">
-      <span>{label}</span>
-      <strong>{value}</strong>
+    <div className="flex items-center justify-between text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <strong className="font-medium">{value}</strong>
     </div>
   );
 }
@@ -102,12 +106,14 @@ export function RoutePlaceholder({
   title: string;
 }) {
   return (
-    <section className="route-scroll">
-      <div className="route-header compact">
+    <section className="flex-1 overflow-y-auto p-6">
+      <div className="space-y-2">
         <DashboardBreadcrumbs items={[{ label: title }]} />
-        <span className="route-kicker">{title}</span>
-        <h1>{title}</h1>
-        <p>{body}</p>
+        <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          {title}
+        </span>
+        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+        <p className="text-sm text-muted-foreground">{body}</p>
       </div>
     </section>
   );
@@ -121,12 +127,12 @@ export function BoardPlaceholderView({
   title: string;
 }) {
   return (
-    <section className="board-placeholder-route">
-      <div className="board-placeholder-state">
+    <section className="flex flex-1 items-center justify-center p-8">
+      <div className="flex flex-col items-center gap-4 text-center">
         <BoardPlaceholderIcon />
-        <div className="board-placeholder-copy">
-          <h2>{title}</h2>
-          <p>{message}</p>
+        <div className="space-y-1">
+          <h2 className="text-base font-semibold">{title}</h2>
+          <p className="text-sm text-muted-foreground">{message}</p>
         </div>
       </div>
     </section>
@@ -137,7 +143,7 @@ function BoardPlaceholderIcon() {
   return (
     <svg
       aria-hidden="true"
-      className="board-placeholder-icon"
+      className="size-12 text-muted-foreground/50"
       fill="none"
       viewBox="0 0 48 48"
     >
@@ -177,21 +183,20 @@ export function ProjectDialogSelectField({
   value: string;
 }) {
   return (
-    <label className="project-dialog-field">
-      <span className="issue-dialog-label">{label}</span>
-      <div className="issue-dialog-select-shell">
-        <select
-          className="issue-dialog-select"
-          onChange={(event) => onChange(event.target.value)}
-          value={value}
-        >
-          {children}
-        </select>
-        <span aria-hidden="true" className="issue-dialog-select-arrow">
-          v
-        </span>
-      </div>
-      <small className="issue-dialog-hint">{hint}</small>
-    </label>
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      <Select
+        onValueChange={(v) => {
+          if (v) onChange(v);
+        }}
+        value={value}
+      >
+        <SelectTrigger className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>{children}</SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">{hint}</p>
+    </div>
   );
 }

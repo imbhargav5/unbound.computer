@@ -50,6 +50,18 @@ export interface RuntimeCapabilities {
   metadata: CapabilitiesMetadata;
 }
 
+export interface TerminalPresetRecord {
+  command: string;
+  enableChrome: boolean;
+  extraArgs: string;
+  id: string;
+  model: string;
+  name: string;
+  planMode: boolean;
+  skipPermissions: boolean;
+  thinkingEffort: string;
+}
+
 export interface DesktopSettings {
   birds_eye_canvas?: Record<string, BirdsEyeCanvasCompanyState> | null;
   dashboard_project_views?: Record<
@@ -65,11 +77,13 @@ export interface DesktopSettings {
   > | null;
   font_size_preset?: "small" | "medium" | "large" | null;
   last_repository_path?: string | null;
+  onboarding_version?: number | null;
   preferred_company_id?: string | null;
   preferred_repository_id?: string | null;
   preferred_space_id?: string | null;
   preferred_view?: string | null;
   show_raw_message_json: boolean;
+  terminal_presets?: TerminalPresetRecord[] | null;
   theme_mode?: "system" | "light" | "dark" | null;
 }
 

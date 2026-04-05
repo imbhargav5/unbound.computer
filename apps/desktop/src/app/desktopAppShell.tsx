@@ -17,7 +17,9 @@ import {
 } from "react";
 import { ActivityRouteView } from "../features/activity/activityRouteView";
 import { IssuesListView } from "../features/issues/issuesListView";
+import { DesktopOnboardingView } from "../features/onboarding/desktopOnboardingView";
 import { ProjectsRouteView } from "../features/projects/projectsRouteView";
+import { SettingsRouteView } from "../features/settings/settingsRouteView";
 import {
   DashboardBreadcrumbs,
   DetailRow,
@@ -26,6 +28,7 @@ import {
   SummaryPill,
 } from "../features/shared/routePrimitives";
 import { DashboardRouteView } from "../features/dashboard/dashboardRouteView";
+import { Navbar } from "../features/shared/navbar";
 import { StatsRouteView } from "../features/stats/statsRouteView";
 import {
   agentSend,
@@ -117,6 +120,7 @@ import type {
   SessionMessage,
   SessionRecord,
   SessionStreamPayload,
+  TerminalPresetRecord,
   WorkspaceRecord,
 } from "../lib/types";
 
@@ -336,6 +340,7 @@ type ProjectDefaultNewChatArea = "repo_root" | "new_worktree";
 interface IssueRuntimeDraft {
   command: string;
   enableChrome: boolean;
+  extraArgs: string;
   model: string;
   planMode: boolean;
   skipPermissions: boolean;
@@ -386,6 +391,7 @@ interface CreateIssueDialogDefaults {
   command?: string;
   dialogMode?: IssueDialogMode;
   enableChrome?: boolean;
+  extraArgs?: string;
   model?: string;
   parentId?: string;
   planMode?: boolean;
@@ -393,6 +399,7 @@ interface CreateIssueDialogDefaults {
   projectId?: string;
   skipPermissions?: boolean;
   status?: string;
+  terminalPresetId?: string;
   thinkingEffort?: string;
   workspaceTargetMode?: IssueWorkspaceTargetMode;
   workspaceWorktreeBranch?: string;
@@ -1061,6 +1068,7 @@ function createDefaultIssueRuntimeDraft(
       defaultProvider,
       dependencyCheck,
     ),
+    extraArgs: "",
     model: "default",
     thinkingEffort: "auto",
     planMode: false,
@@ -1069,11 +1077,60 @@ function createDefaultIssueRuntimeDraft(
   };
 }
 
+function createTerminalPresetId() {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+
+  return `terminal-preset-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+}
+
+function createTerminalPresetRecord(
+  dependencyCheck: RuntimeCapabilities | null,
+): TerminalPresetRecord {
+  const runtimeDraft = createDefaultIssueRuntimeDraft(dependencyCheck);
+  const providerLabel = capitalize(
+    detectAgentCliProvider(runtimeDraft.command, runtimeDraft.model),
+  );
+
+  return {
+    id: createTerminalPresetId(),
+    name: `${providerLabel} preset`,
+    ...issueDialogDefaultsFromRuntimeDraft(runtimeDraft),
+  };
+}
+
+function normalizeTerminalPresetRecord(
+  value: TerminalPresetRecord,
+): TerminalPresetRecord {
+  const fallbackDraft = createDefaultIssueRuntimeDraft(null);
+  return {
+    id: stringFromUnknown(value.id, createTerminalPresetId()),
+    name: stringFromUnknown(value.name, "Terminal preset"),
+    command: stringFromUnknown(value.command, fallbackDraft.command),
+    enableChrome: booleanFromUnknown(value.enableChrome),
+    extraArgs: stringFromUnknown(value.extraArgs),
+    model: stringFromUnknown(value.model, fallbackDraft.model),
+    planMode: booleanFromUnknown(value.planMode),
+    skipPermissions: booleanFromUnknown(value.skipPermissions),
+    thinkingEffort: stringFromUnknown(
+      value.thinkingEffort,
+      fallbackDraft.thinkingEffort,
+    ),
+  };
+}
+
 function issueDialogDefaultsFromRuntimeDraft(
   runtimeDraft: Pick<
     IssueRuntimeDraft,
     | "command"
     | "enableChrome"
+    | "extraArgs"
     | "model"
     | "planMode"
     | "skipPermissions"
@@ -1083,6 +1140,7 @@ function issueDialogDefaultsFromRuntimeDraft(
   return {
     command: runtimeDraft.command,
     enableChrome: runtimeDraft.enableChrome,
+    extraArgs: runtimeDraft.extraArgs,
     model: runtimeDraft.model,
     planMode: runtimeDraft.planMode,
     skipPermissions: runtimeDraft.skipPermissions,
@@ -1159,6 +1217,10 @@ function parseIssueAdapterOverrides(value: unknown): IssueRuntimeDraft {
 
   return {
     command,
+    extraArgs:
+      typeof record?.extraArgs === "string"
+        ? record.extraArgs
+        : arrayFromUnknown(record?.extraArgs).join(", "),
     model,
     thinkingEffort: stringFromUnknown(
       record?.thinkingEffort ?? record?.reasoningEffort,
@@ -1177,6 +1239,7 @@ function issueAdapterOverridesFromDraft(
     IssueRuntimeDraft,
     | "command"
     | "enableChrome"
+    | "extraArgs"
     | "model"
     | "planMode"
     | "skipPermissions"
@@ -1196,6 +1259,7 @@ function issueAdapterOverridesFromDraft(
     reasoningEffort: thinkingEffort,
     enableChrome: draft.enableChrome,
     skipPermissions: draft.skipPermissions,
+    extraArgs: commaSeparatedValues(draft.extraArgs),
     permissionMode:
       provider === "claude" && draft.planMode ? "plan" : "default",
   };
@@ -1386,17 +1450,21 @@ const desktopPreferredViewOptions: Array<
 ];
 
 const defaultSettings: DesktopSettings = {
+  onboarding_version: 0,
   preferred_company_id: null,
   preferred_repository_id: null,
   preferred_space_id: null,
   preferred_view: "dashboard",
   show_raw_message_json: false,
+  terminal_presets: [],
   last_repository_path: null,
   theme_mode: "dark",
   font_size_preset: "medium",
   dashboard_project_views: {},
   birds_eye_canvas: {},
 };
+
+const currentDesktopOnboardingVersion = 1;
 
 const companyContextMenuItems: Array<{
   icon: CompanyContextMenuIconKey;
@@ -1451,6 +1519,11 @@ export function App() {
     null,
   );
   const [settings, setSettings] = useState<DesktopSettings>(defaultSettings);
+  const [isInitializingShell, setIsInitializingShell] = useState(true);
+  const [isCompletingOnboarding, setIsCompletingOnboarding] = useState(false);
+  const [onboardingErrorMessage, setOnboardingErrorMessage] = useState<
+    string | null
+  >(null);
   const [currentSpaceScope, setCurrentSpaceScope] =
     useState<CurrentSpaceScope | null>(null);
   const [deviceNameDraft, setDeviceNameDraft] = useState("");
@@ -1560,8 +1633,10 @@ export function App() {
   const [issueDialogStatus, setIssueDialogStatus] = useState("backlog");
   const [issueDialogProjectId, setIssueDialogProjectId] = useState("");
   const [issueDialogParentIssueId, setIssueDialogParentIssueId] = useState("");
+  const [issueDialogPresetId, setIssueDialogPresetId] = useState("");
   const [issueDialogCommand, setIssueDialogCommand] = useState("claude");
   const [issueDialogModel, setIssueDialogModel] = useState("default");
+  const [issueDialogExtraArgs, setIssueDialogExtraArgs] = useState("");
   const [issueDialogThinkingEffort, setIssueDialogThinkingEffort] =
     useState("auto");
   const [issueDialogPlanMode, setIssueDialogPlanMode] = useState(false);
@@ -1654,6 +1729,15 @@ export function App() {
   const selectedRepository = repositories.find(
     (repository) => repository.id === selectedRepositoryId,
   );
+  const terminalPresets = useMemo(
+    () =>
+      arrayFromUnknown(settings.terminal_presets).map((preset) =>
+        normalizeTerminalPresetRecord(preset as TerminalPresetRecord),
+      ),
+    [settings.terminal_presets],
+  );
+  const shouldShowOnboarding =
+    (settings.onboarding_version ?? 0) < currentDesktopOnboardingVersion;
   const selectedCompany =
     companySnapshot?.company ??
     companies.find((company) => company.id === selectedCompanyId) ??
@@ -1669,10 +1753,6 @@ export function App() {
   const boardIssues = companySnapshot?.issues ?? emptyIssueRecords;
   const selectedIssue =
     boardIssues.find((issue) => issue.id === selectedIssueId) ?? null;
-  const visibleIssues = useMemo(
-    () => issuesVisible(boardIssues, selectedIssuesListTab),
-    [boardIssues, selectedIssuesListTab],
-  );
   const dashboardPreviewChatSummary =
     dashboardOverviewChats.find(
       (chat) => chat.id === dashboardIssuePreviewId,
@@ -1696,11 +1776,6 @@ export function App() {
         .map((issue) => issue.id),
     [activityVisibleIssues, issueCommentsByIssueId],
   );
-  const issueSummaryText = useMemo(() => {
-    const suffix =
-      visibleIssues.length === 1 ? "conversation" : "conversations";
-    return `${issuesListTabTitle(selectedIssuesListTab)} · ${visibleIssues.length} ${suffix}`;
-  }, [selectedIssuesListTab, visibleIssues.length]);
   const issueSubissues = useMemo(
     () =>
       selectedIssue
@@ -1732,12 +1807,48 @@ export function App() {
     dashboardPreviewChatSummary?.run_update ?? null;
   const boardGoals = companySnapshot?.goals ?? emptyGoalRecords;
   const boardProjects = companySnapshot?.projects ?? emptyProjectRecords;
+  const selectedRepositoryProjects = useMemo(
+    () =>
+      projectsForRepository(
+        boardProjects,
+        selectedRepository?.path ?? null,
+        selectedRepositoryId,
+      ),
+    [boardProjects, selectedRepository?.path, selectedRepositoryId],
+  );
+  const selectedRepositoryProjectIds = useMemo(
+    () => new Set(selectedRepositoryProjects.map((project) => project.id)),
+    [selectedRepositoryProjects],
+  );
+  const repositoryScopedIssues = useMemo(() => {
+    if (!selectedRepository) {
+      return boardIssues;
+    }
+
+    return boardIssues.filter((issue) =>
+      Boolean(
+        issue.project_id && selectedRepositoryProjectIds.has(issue.project_id),
+      ),
+    );
+  }, [boardIssues, selectedRepository, selectedRepositoryProjectIds]);
+  const visibleIssues = useMemo(
+    () => issuesVisible(repositoryScopedIssues, selectedIssuesListTab),
+    [repositoryScopedIssues, selectedIssuesListTab],
+  );
+  const issueSummaryText = useMemo(() => {
+    const suffix =
+      visibleIssues.length === 1 ? "conversation" : "conversations";
+    return `${issuesListTabTitle(selectedIssuesListTab)} · ${visibleIssues.length} ${suffix}`;
+  }, [selectedIssuesListTab, visibleIssues.length]);
   const currentProjectsForCreation =
     boardProjects.length > 0 ? boardProjects : dashboardOverviewProjects;
+  const issueDialogProjects =
+    selectedScreen === "issues" && selectedRepository
+      ? selectedRepositoryProjects
+      : currentProjectsForCreation;
   const issueDialogProjectRepoPath =
-    currentProjectsForCreation.find(
-      (project) => project.id === issueDialogProjectId,
-    )?.primary_workspace?.cwd ?? null;
+    issueDialogProjects.find((project) => project.id === issueDialogProjectId)
+      ?.primary_workspace?.cwd ?? null;
   const issueDialogWorktreeState = useProjectWorktrees(
     issueDialogProjectRepoPath,
   );
@@ -2099,6 +2210,8 @@ export function App() {
     let cancelled = false;
 
     const initialize = async () => {
+      setIsInitializingShell(true);
+
       try {
         const status = await desktopBootstrap();
         if (cancelled) {
@@ -2108,6 +2221,7 @@ export function App() {
         setBootstrap(status);
 
         if (status.state !== "ready") {
+          setIsInitializingShell(false);
           return;
         }
 
@@ -2147,11 +2261,13 @@ export function App() {
           setSelectedCompanyId(nextCompanyId);
           setSelectedRepositoryId(nextRepositoryId);
         });
+        setIsInitializingShell(false);
       } catch (error) {
         if (!cancelled) {
           setStatusMessage(
             error instanceof Error ? error.message : String(error),
           );
+          setIsInitializingShell(false);
         }
       }
     };
@@ -3178,6 +3294,7 @@ export function App() {
   const retryBootstrap = async () => {
     setStatusMessage(null);
     setBootstrap(null);
+    setIsInitializingShell(true);
 
     try {
       const status = await desktopBootstrap();
@@ -3212,8 +3329,10 @@ export function App() {
         setSelectedCompanyId(nextCompanyId);
         setSelectedRepositoryId(nextRepositoryId);
       }
+      setIsInitializingShell(false);
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : String(error));
+      setIsInitializingShell(false);
     }
   };
 
@@ -3892,8 +4011,10 @@ export function App() {
     setIssueDialogStatus("backlog");
     setIssueDialogProjectId("");
     setIssueDialogParentIssueId("");
+    setIssueDialogPresetId("");
     setIssueDialogCommand(runtimeDraft.command);
     setIssueDialogModel(runtimeDraft.model);
+    setIssueDialogExtraArgs(runtimeDraft.extraArgs);
     setIssueDialogThinkingEffort(runtimeDraft.thinkingEffort);
     setIssueDialogPlanMode(runtimeDraft.planMode);
     setIssueDialogEnableChrome(runtimeDraft.enableChrome);
@@ -3907,10 +4028,45 @@ export function App() {
     setIsIssueDialogSaving(false);
   };
 
+  const applyRuntimeDraftToIssueDialog = (
+    runtimeDraft: IssueRuntimeDraft,
+    terminalPresetId = "",
+  ) => {
+    setIssueDialogPresetId(terminalPresetId);
+    setIssueDialogCommand(runtimeDraft.command);
+    setIssueDialogModel(runtimeDraft.model);
+    setIssueDialogExtraArgs(runtimeDraft.extraArgs);
+    setIssueDialogThinkingEffort(runtimeDraft.thinkingEffort);
+    setIssueDialogPlanMode(runtimeDraft.planMode);
+    setIssueDialogEnableChrome(runtimeDraft.enableChrome);
+    setIssueDialogSkipPermissions(runtimeDraft.skipPermissions);
+  };
+
+  const handleIssueDialogPresetChange = (presetId: string) => {
+    const normalizedPresetId = presetId.trim();
+    if (!normalizedPresetId) {
+      setIssueDialogPresetId("");
+      return;
+    }
+
+    const selectedPreset =
+      terminalPresets.find((preset) => preset.id === normalizedPresetId) ??
+      null;
+    if (!selectedPreset) {
+      setIssueDialogPresetId("");
+      return;
+    }
+
+    applyRuntimeDraftToIssueDialog(selectedPreset, selectedPreset.id);
+  };
+
+  const clearIssueDialogPresetSelection = () => {
+    setIssueDialogPresetId("");
+  };
+
   const handleIssueDialogProjectChange = (projectId: string) => {
     const nextProject =
-      currentProjectsForCreation.find((project) => project.id === projectId) ??
-      null;
+      issueDialogProjects.find((project) => project.id === projectId) ?? null;
     const nextWorkspaceDefaults =
       projectDefaultNewChatWorkspaceDefaults(nextProject);
     setIssueDialogProjectId(projectId);
@@ -3954,11 +4110,10 @@ export function App() {
     const runtimeDraft = createDefaultIssueRuntimeDraft(dependencyCheck);
     resetIssueDialog();
     const nextProjectId =
-      defaults?.projectId ?? currentProjectsForCreation[0]?.id ?? "";
+      defaults?.projectId ?? issueDialogProjects[0]?.id ?? "";
     const nextProject =
-      currentProjectsForCreation.find(
-        (project) => project.id === nextProjectId,
-      ) ?? null;
+      issueDialogProjects.find((project) => project.id === nextProjectId) ??
+      null;
     const nextWorkspaceDefaults: Pick<
       IssueEditDraft,
       | "workspaceTargetMode"
@@ -3981,17 +4136,18 @@ export function App() {
     );
     setIssueDialogProjectId(nextProjectId);
     setIssueDialogParentIssueId(defaults?.parentId ?? "");
-    setIssueDialogCommand(defaults?.command ?? runtimeDraft.command);
-    setIssueDialogModel(defaults?.model ?? runtimeDraft.model);
-    setIssueDialogThinkingEffort(
-      defaults?.thinkingEffort ?? runtimeDraft.thinkingEffort,
-    );
-    setIssueDialogPlanMode(defaults?.planMode ?? runtimeDraft.planMode);
-    setIssueDialogEnableChrome(
-      defaults?.enableChrome ?? runtimeDraft.enableChrome,
-    );
-    setIssueDialogSkipPermissions(
-      defaults?.skipPermissions ?? runtimeDraft.skipPermissions,
+    applyRuntimeDraftToIssueDialog(
+      {
+        command: defaults?.command ?? runtimeDraft.command,
+        model: defaults?.model ?? runtimeDraft.model,
+        extraArgs: defaults?.extraArgs ?? runtimeDraft.extraArgs,
+        thinkingEffort: defaults?.thinkingEffort ?? runtimeDraft.thinkingEffort,
+        planMode: defaults?.planMode ?? runtimeDraft.planMode,
+        enableChrome: defaults?.enableChrome ?? runtimeDraft.enableChrome,
+        skipPermissions:
+          defaults?.skipPermissions ?? runtimeDraft.skipPermissions,
+      },
+      defaults?.terminalPresetId ?? "",
     );
     setIssueDialogWorkspaceTargetMode(
       nextWorkspaceDefaults.workspaceTargetMode ?? "main",
@@ -4005,7 +4161,7 @@ export function App() {
     setIssueDialogWorkspaceWorktreeName(
       nextWorkspaceDefaults.workspaceWorktreeName ?? "",
     );
-    if (!nextProjectId && currentProjectsForCreation.length === 0) {
+    if (!nextProjectId && issueDialogProjects.length === 0) {
       setIssueDialogError(
         defaults?.dialogMode === "queuedMessage"
           ? "Create a project before queueing messages."
@@ -4109,6 +4265,7 @@ export function App() {
     params.assignee_adapter_overrides = issueAdapterOverridesFromDraft({
       command: defaults.command ?? runtimeDraft.command,
       model: defaults.model ?? runtimeDraft.model,
+      extraArgs: defaults.extraArgs ?? runtimeDraft.extraArgs,
       thinkingEffort: defaults.thinkingEffort ?? runtimeDraft.thinkingEffort,
       planMode: defaults.planMode ?? runtimeDraft.planMode,
       enableChrome: defaults.enableChrome ?? runtimeDraft.enableChrome,
@@ -4229,7 +4386,7 @@ export function App() {
     const trimmedProjectId = issueDialogProjectId.trim();
     if (!trimmedProjectId) {
       setIssueDialogError(
-        currentProjectsForCreation.length === 0
+        issueDialogProjects.length === 0
           ? issueDialogMode === "queuedMessage"
             ? "Create a project before queueing messages."
             : "Create a project before creating a conversation."
@@ -4247,6 +4404,7 @@ export function App() {
         command: issueDialogCommand,
         description: issueDialogDescription,
         enableChrome: issueDialogEnableChrome,
+        extraArgs: issueDialogExtraArgs,
         model: issueDialogModel,
         navigateToDetail: true,
         parentId: issueDialogParentIssueId,
@@ -4255,6 +4413,7 @@ export function App() {
         projectId: trimmedProjectId,
         skipPermissions: issueDialogSkipPermissions,
         status: issueDialogStatus,
+        terminalPresetId: issueDialogPresetId,
         thinkingEffort: issueDialogThinkingEffort,
         title: issueDialogTitle,
         workspaceTargetMode: issueDialogWorkspaceTargetMode,
@@ -4586,6 +4745,7 @@ export function App() {
     if (
       Object.hasOwn(patch, "command") ||
       Object.hasOwn(patch, "model") ||
+      Object.hasOwn(patch, "extraArgs") ||
       Object.hasOwn(patch, "thinkingEffort") ||
       Object.hasOwn(patch, "planMode") ||
       Object.hasOwn(patch, "enableChrome") ||
@@ -4695,6 +4855,7 @@ export function App() {
       const shouldPersistRuntimeSettings =
         Object.hasOwn(patch, "command") ||
         Object.hasOwn(patch, "model") ||
+        Object.hasOwn(patch, "extraArgs") ||
         Object.hasOwn(patch, "thinkingEffort") ||
         Object.hasOwn(patch, "planMode") ||
         Object.hasOwn(patch, "enableChrome") ||
@@ -4704,6 +4865,7 @@ export function App() {
         params.assignee_adapter_overrides = issueAdapterOverridesFromDraft({
           command: patch.command ?? issueDraft.command,
           model: patch.model ?? issueDraft.model,
+          extraArgs: patch.extraArgs ?? issueDraft.extraArgs,
           thinkingEffort: patch.thinkingEffort ?? issueDraft.thinkingEffort,
           planMode: patch.planMode ?? issueDraft.planMode,
           enableChrome: patch.enableChrome ?? issueDraft.enableChrome,
@@ -5135,6 +5297,80 @@ export function App() {
     }
   };
 
+  const handleAddTerminalPreset = () => {
+    const nextPreset = createTerminalPresetRecord(dependencyCheck);
+    setSettings((current) => ({
+      ...current,
+      terminal_presets: [...terminalPresets, nextPreset],
+    }));
+  };
+
+  const handleTerminalPresetChange = (
+    presetId: string,
+    patch: Partial<TerminalPresetRecord>,
+  ) => {
+    setSettings((current) => ({
+      ...current,
+      terminal_presets: terminalPresets.map((preset) => {
+        if (preset.id !== presetId) {
+          return preset;
+        }
+
+        return normalizeTerminalPresetRecord({
+          ...preset,
+          ...patch,
+        });
+      }),
+    }));
+  };
+
+  const handleTerminalPresetProviderChange = (
+    presetId: string,
+    value: string,
+  ) => {
+    const preset =
+      terminalPresets.find((entry) => entry.id === presetId) ?? null;
+    if (!preset) {
+      return;
+    }
+
+    const patch = runtimeDraftPatchForProviderSelection(
+      value,
+      {
+        model: preset.model,
+        planMode: preset.planMode,
+      },
+      dependencyCheck,
+    );
+
+    handleTerminalPresetChange(presetId, {
+      command: patch.command,
+      model: patch.model,
+      planMode: patch.planMode,
+    });
+  };
+
+  const handleDeleteTerminalPreset = (presetId: string) => {
+    setSettings((current) => ({
+      ...current,
+      terminal_presets: terminalPresets.filter(
+        (preset) => preset.id !== presetId,
+      ),
+    }));
+    if (issueDialogPresetId === presetId) {
+      setIssueDialogPresetId("");
+    }
+  };
+
+  const handleSaveTerminalPresets = async () => {
+    await applySettingsPatch({
+      terminal_presets: terminalPresets.map((preset) =>
+        normalizeTerminalPresetRecord(preset),
+      ),
+    });
+    setStatusMessage("Terminal presets saved.");
+  };
+
   const persistSettings = async (nextSettings: DesktopSettings) => {
     try {
       const saved = await settingsUpdate(nextSettings);
@@ -5142,6 +5378,27 @@ export function App() {
       setSettings(merged);
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const handleCompleteOnboarding = async () => {
+    setOnboardingErrorMessage(null);
+    setIsCompletingOnboarding(true);
+
+    try {
+      const saved = await settingsUpdate(
+        mergeDesktopSettings({
+          ...settings,
+          onboarding_version: currentDesktopOnboardingVersion,
+        }),
+      );
+      setSettings(mergeDesktopSettings(saved));
+    } catch (error) {
+      setOnboardingErrorMessage(
+        error instanceof Error ? error.message : String(error),
+      );
+    } finally {
+      setIsCompletingOnboarding(false);
     }
   };
 
@@ -5319,785 +5576,663 @@ export function App() {
     );
   }
 
+  if (isInitializingShell) {
+    return (
+      <div className="splash-shell">
+        <div className="splash-card">
+          <h1>Loading your workspace</h1>
+          <p>Restoring desktop preferences, repositories, and device info.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (shouldShowOnboarding) {
+    return (
+      <DesktopOnboardingView
+        deviceName={currentSpaceScope?.machine?.name}
+        errorMessage={onboardingErrorMessage}
+        isCompleting={isCompletingOnboarding}
+        onComplete={handleCompleteOnboarding}
+        repositoryCount={repositories.length}
+      />
+    );
+  }
+
   const showBoardSidebar = layout === "companyDashboard";
 
   return (
-    <div className="swift-shell">
-      {companyContextMenu ? (
-        <div
-          aria-label={`${companyContextMenu.companyName} menu`}
-          className="company-context-menu"
-          onContextMenu={(event) => event.preventDefault()}
-          onPointerDown={(event) => event.stopPropagation()}
-          role="menu"
-          style={{ left: companyContextMenu.x, top: companyContextMenu.y }}
-        >
-          <div className="company-context-menu-header">
-            <div aria-hidden="true" className="company-context-menu-monogram">
-              {companyContextMenu.companyName.slice(0, 1).toUpperCase()}
+    <div className="swift-shell-outer">
+      <Navbar deviceName={currentSpaceScope?.machine?.name ?? "MacBook Pro"} />
+      <div className="swift-shell">
+        {companyContextMenu ? (
+          <div
+            aria-label={`${companyContextMenu.companyName} menu`}
+            className="company-context-menu"
+            onContextMenu={(event) => event.preventDefault()}
+            onPointerDown={(event) => event.stopPropagation()}
+            role="menu"
+            style={{ left: companyContextMenu.x, top: companyContextMenu.y }}
+          >
+            <div className="company-context-menu-header">
+              <div aria-hidden="true" className="company-context-menu-monogram">
+                {companyContextMenu.companyName.slice(0, 1).toUpperCase()}
+              </div>
+              <div className="company-context-menu-copy">
+                <strong>{companyContextMenu.companyName}</strong>
+                <span>Shortcuts and conversation views</span>
+              </div>
             </div>
-            <div className="company-context-menu-copy">
-              <strong>{companyContextMenu.companyName}</strong>
-              <span>Shortcuts and conversation views</span>
+            <div className="company-context-menu-actions">
+              {companyContextMenuItems.map((item) => {
+                const isActive =
+                  companyContextMenu.companyId === selectedCompanyId &&
+                  selectedScreen === item.screen;
+
+                return (
+                  <button
+                    className={
+                      isActive
+                        ? "company-context-menu-item active"
+                        : "company-context-menu-item"
+                    }
+                    key={item.screen}
+                    onClick={() =>
+                      handleSelectCompanyScreen(
+                        companyContextMenu.companyId,
+                        item.screen,
+                      )
+                    }
+                    role="menuitem"
+                    type="button"
+                  >
+                    <CompanyContextMenuIcon icon={item.icon} />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
-          <div className="company-context-menu-actions">
-            {companyContextMenuItems.map((item) => {
-              const isActive =
-                companyContextMenu.companyId === selectedCompanyId &&
-                selectedScreen === item.screen;
+        ) : null}
 
-              return (
-                <button
-                  className={
-                    isActive
-                      ? "company-context-menu-item active"
-                      : "company-context-menu-item"
-                  }
-                  key={item.screen}
-                  onClick={() =>
-                    handleSelectCompanyScreen(
-                      companyContextMenu.companyId,
-                      item.screen,
-                    )
-                  }
-                  role="menuitem"
-                  type="button"
-                >
-                  <CompanyContextMenuIcon icon={item.icon} />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
-
-      {layout === "companyDashboard" ? (
-        <div
-          className={
-            showBoardSidebar
-              ? "company-dashboard-shell"
-              : "company-dashboard-shell company-dashboard-shell-canvas"
-          }
-        >
-          {showBoardSidebar ? (
-            <aside className="board-sidebar">
-              <div className="board-sidebar-header">
-                <div>
-                  <strong>Workspaces</strong>
-                  <span>Local repositories</span>
-                </div>
-                <button
-                  className="icon-button"
-                  onClick={() => void handleAddRepository()}
-                  title="Add repository"
-                  type="button"
-                >
-                  +
-                </button>
-              </div>
-
-              <div className="board-sidebar-scroll">
-                <div className="board-sidebar-section">
-                  <BoardSidebarButton
-                    active={selectedScreen === "dashboard"}
-                    icon="dashboard"
-                    label="Dashboard"
-                    onClick={() => handleSelectScreen("dashboard")}
-                  />
-                  <BoardSidebarButton
-                    active={selectedScreen === "appSettings"}
-                    icon="appSettings"
-                    label="Settings"
-                    onClick={() => handleSelectScreen("appSettings")}
-                  />
-                </div>
-
-                <div className="board-sidebar-section">
-                  <span className="sidebar-section-title">Repositories</span>
-                  {repositories.length ? (
-                    repositories.map((repo) => (
-                      <button
-                        className={
-                          selectedRepositoryId === repo.id
-                            ? "agent-sidebar-button active"
-                            : "agent-sidebar-button"
-                        }
-                        key={repo.id}
-                        onClick={() => {
-                          setSelectedRepositoryId(repo.id);
-                          setSelectedScreen("dashboard");
-                        }}
-                        title={repo.path}
-                        type="button"
-                      >
-                        {repo.name || repo.path.split("/").pop() || repo.id}
-                      </button>
-                    ))
-                  ) : (
-                    <div className="agent-sidebar-empty">
-                      No repositories yet
-                    </div>
-                  )}
-                </div>
-              </div>
-            </aside>
-          ) : null}
-
-          <main
+        {layout === "companyDashboard" ? (
+          <div
             className={
               showBoardSidebar
-                ? "board-content"
-                : "board-content board-content-dashboard"
+                ? "company-dashboard-shell"
+                : "company-dashboard-shell company-dashboard-shell-canvas"
             }
           >
-            {statusMessage ? (
-              <div className="status-banner">{statusMessage}</div>
-            ) : null}
+            {showBoardSidebar ? (
+              <aside className="board-sidebar">
+                <div className="board-sidebar-header">
+                  <div>
+                    <strong>Workspaces</strong>
+                    <span>Local repositories</span>
+                  </div>
+                  <button
+                    className="icon-button"
+                    onClick={() => void handleAddRepository()}
+                    title="Add repository"
+                    type="button"
+                  >
+                    +
+                  </button>
+                </div>
 
-            {selectedScreen === "dashboard" ? (
-              <DashboardRouteView />
-            ) : null}
-
-            {selectedScreen === "stats" ? (
-              <StatsRouteView
-                bootstrap={bootstrap}
-                company={selectedCompany}
-                dependencyCheck={dependencyCheck}
-                issueRunCardUpdatesByIssueId={issueRunCardUpdatesByIssueId}
-                onCheckDependencies={() => void loadDependencies()}
-                onOpenWorkspace={handleSelectBoardWorkspace}
-                repositoriesCount={repositories.length}
-                snapshot={companySnapshot}
-              />
-            ) : null}
-
-            {selectedScreen === "agents" ? (
-              <RoutePlaceholder
-                body="Conversations now run models directly. Configure Claude or Codex on each conversation instead of managing agent pages."
-                title="Models"
-              />
-            ) : null}
-
-            {selectedScreen === "issues" ? (
-              issuesRouteMode === "detail" && selectedIssue ? (
-                <IssueWorkspaceDetailView
-                  agents={companySnapshot?.agents ?? []}
-                  availableStatusOptions={issueStatusOptions}
-                  dependencyCheck={dependencyCheck}
-                  isSavingIssue={isSavingIssue}
-                  issue={selectedIssue}
-                  issueDraft={issueDraft}
-                  issueEditorError={issueEditorError}
-                  issueWorkspaceSidebar={
-                    <WorkspaceInspectorSidebar
-                      currentBranch={currentBranch}
-                      currentBranchName={currentBranchName}
-                      currentDirectory={currentDirectory}
-                      fileEntries={fileEntries}
-                      gitCommitMessage={gitCommitMessage}
-                      gitHistory={gitHistory}
-                      gitState={gitState}
-                      hasUncommittedChanges={hasUncommittedChanges}
-                      hasUnpushedCommits={hasUnpushedCommits}
-                      issueMeta={
-                        <IssueWorkspaceInspectorMeta
-                          agents={companySnapshot?.agents ?? []}
-                          availableStatusOptions={issueStatusOptions}
-                          isSavingIssue={isSavingIssue}
-                          issue={selectedIssue}
-                          issueDraft={issueDraft}
-                          issueEditorError={issueEditorError}
-                          onCommitIssuePatch={(patch) =>
-                            void handlePersistIssuePatch(selectedIssue, patch)
-                          }
-                          onIssueDraftChange={(patch) =>
-                            setIssueDraft((current) => ({
-                              ...current,
-                              ...patch,
-                            }))
-                          }
-                          projects={companySnapshot?.projects ?? []}
-                          selectableParentIssues={selectableParentIssues}
-                          statusLabel={issueStatusLabel}
-                          workspaceTargetErrorMessage={
-                            issueDetailWorktreeState.errorMessage
-                          }
-                          workspaceTargetLoading={
-                            issueDetailWorktreeState.isLoading
-                          }
-                          workspaceTargetWorktrees={
-                            issueDetailWorktreeState.worktrees
-                          }
-                        />
-                      }
-                      isWorking={isWorking}
-                      onDiscardFile={(file) => void handleDiscardFile(file)}
-                      onGitCommit={(push) => void handleGitCommit(push)}
-                      onGitCommitMessageChange={setGitCommitMessage}
-                      onGitPush={() => void handleGitPush()}
-                      onOpenDiff={(path) => void handleOpenDiff(path)}
-                      onOpenDirectory={(path) => void handleOpenDirectory(path)}
-                      onOpenFile={(path) => void handleOpenFile(path)}
-                      onSelectSidebarTab={setWorkspaceSidebarTab}
-                      onStageFile={(file) => void handleStageFile(file)}
-                      onUnstageFile={(file) => void handleUnstageFile(file)}
-                      selectedDiff={selectedDiff}
-                      selectedFilePath={selectedFilePath}
-                      workspace={selectedIssueWorkspace}
-                      workspaceSidebarTab={workspaceSidebarTab}
+                <div className="board-sidebar-scroll">
+                  <div className="board-sidebar-section">
+                    <BoardSidebarButton
+                      active={selectedScreen === "dashboard"}
+                      icon="dashboard"
+                      label="Dashboard"
+                      onClick={() => handleSelectScreen("dashboard")}
                     />
-                  }
-                  isWorking={isWorking}
-                  latestCompletionSummary={
-                    selectedIssueWorkspace?.session_id
-                      ? selectedIssueWorkspaceLiveState.latestCompletionSummary
-                      : null
-                  }
-                  onAddAttachment={() =>
-                    void handleAddIssueAttachment(selectedIssue)
-                  }
-                  onBack={() => handleShowIssuesList()}
-                  onCommitIssuePatch={(patch) =>
-                    void handlePersistIssuePatch(selectedIssue, patch)
-                  }
-                  onIssueDraftChange={(patch) =>
-                    setIssueDraft((current) => ({
-                      ...current,
-                      ...patch,
-                    }))
-                  }
-                  onPromptChange={setPrompt}
-                  onRespondToQuestion={(response) =>
-                    void handleRespondToSessionQuestion(response)
-                  }
-                  onRevealRepo={() => {
-                    if (selectedIssueWorkspace?.workspace_repo_path) {
-                      void desktopRevealInFinder(
-                        selectedIssueWorkspace.workspace_repo_path,
-                      );
-                    }
-                  }}
-                  onRunTerminal={handleRunTerminal}
-                  onSelectWorkspaceCenterTab={setWorkspaceCenterTab}
-                  onSendPrompt={(content) =>
-                    void handleSendConversationPrompt(content)
-                  }
-                  onStopSession={() => {
-                    if (selectedIssueWorkspace?.session_id) {
-                      void agentStop(selectedIssueWorkspace.session_id);
-                    }
-                  }}
-                  onStopTerminal={() => {
-                    if (selectedIssueWorkspace?.session_id) {
-                      void terminalStop(selectedIssueWorkspace.session_id);
-                    }
-                  }}
-                  onTerminalCommandChange={setTerminalCommand}
-                  previewTabLabel={previewTabLabel}
-                  projectLabel={(projectId) =>
-                    issueProjectLabel(
-                      companySnapshot?.projects ?? [],
-                      projectId,
-                    )
-                  }
-                  projects={companySnapshot?.projects ?? []}
-                  prompt={prompt}
-                  runtimeStatusValue={
-                    selectedIssueWorkspace?.session_id
-                      ? stringifyStatus(
-                          selectedIssueWorkspaceLiveState.runtimeStatus,
-                        )
-                      : "idle"
-                  }
-                  selectableParentIssues={selectableParentIssues}
-                  selectedDiff={selectedDiff}
-                  selectedFile={selectedFile}
-                  selectedFilePath={selectedFilePath}
-                  session={selectedIssueWorkspaceSession}
-                  sessionErrorMessage={
-                    selectedIssueWorkspace?.session_id
-                      ? selectedIssueWorkspaceLiveState.errorMessage
-                      : null
-                  }
-                  sessionLoading={
-                    selectedIssueWorkspace?.session_id
-                      ? selectedIssueWorkspaceLiveState.isLoadingMessages
-                      : false
-                  }
-                  sessionRows={
-                    selectedIssueWorkspace?.session_id
-                      ? selectedIssueWorkspaceLiveState.conversationRows
-                      : []
-                  }
-                  statusLabel={issueStatusLabel}
-                  terminalCommand={terminalCommand}
-                  terminalContainerRef={terminalContainerRef}
-                  terminalStatusValue={stringifyStatus(
-                    activeTerminalStatusState,
-                  )}
-                  workspace={selectedIssueWorkspace}
-                  workspaceCenterTab={workspaceCenterTab}
-                  workspaceTargetErrorMessage={
-                    issueDetailWorktreeState.errorMessage
-                  }
-                  workspaceTargetLoading={issueDetailWorktreeState.isLoading}
-                  workspaceTargetWorktrees={issueDetailWorktreeState.worktrees}
-                />
-              ) : (
-                <IssuesListView
-                  activeTab={selectedIssuesListTab}
-                  emptyTitle={`No conversations in ${issuesListTabTitle(selectedIssuesListTab).toLowerCase()}`}
-                  issues={visibleIssues}
-                  onSelectIssue={(issueId) => void handleSelectIssue(issueId)}
-                  onTabChange={setSelectedIssuesListTab}
-                  selectedIssueId={selectedIssueId}
-                  summaryText={issueSummaryText}
-                />
-              )
-            ) : null}
+                    <BoardSidebarButton
+                      active={selectedScreen === "appSettings"}
+                      icon="appSettings"
+                      label="Settings"
+                      onClick={() => handleSelectScreen("appSettings")}
+                    />
+                  </div>
 
-            {selectedScreen === "approvals" ? (
-              <RoutePlaceholder
-                body="Board approvals are no longer part of the core project and conversation workflow."
-                title="Approvals Removed"
-              />
-            ) : null}
-
-            {selectedScreen === "projects" ? (
-              <ProjectsRouteView
-                currentProject={selectedProject}
-                currentProjectIssueCount={
-                  selectedProject
-                    ? boardIssues.filter(
-                        (issue) =>
-                          issue.project_id === selectedProject.id &&
-                          isRootConversationIssue(issue),
-                      ).length
-                    : 0
-                }
-                currentProjectWorkspaceCount={
-                  selectedProject
-                    ? companyWorkspaces.filter(
-                        (workspace) =>
-                          workspace.project_id === selectedProject.id,
-                      ).length
-                    : 0
-                }
-                goals={boardGoals}
-                onDeleteProject={handleDeleteProject}
-                onOpenCreateProject={() => void handleAddRepository()}
-                onUpdateProjectDefaultNewChatArea={
-                  handleUpdateProjectDefaultNewChatArea
-                }
-              />
-            ) : null}
-
-            {selectedScreen === "companySettings" ? (
-              <section className="route-scroll">
-                <div className="route-header compact">
-                  <DashboardBreadcrumbs items={[{ label: "Space settings" }]} />
-                  <span className="route-kicker">Space settings</span>
-                  <h1>{selectedCompany?.name ?? "Space settings"}</h1>
-                  <p>
-                    Space identity and runtime defaults live here. Device
-                    settings live in the main sidebar.
-                  </p>
+                  <div className="board-sidebar-section">
+                    <span className="sidebar-section-title">Repositories</span>
+                    {repositories.length ? (
+                      repositories.map((repo) => (
+                        <button
+                          className={
+                            selectedRepositoryId === repo.id
+                              ? "agent-sidebar-button active"
+                              : "agent-sidebar-button"
+                          }
+                          key={repo.id}
+                          onClick={() => {
+                            setSelectedRepositoryId(repo.id);
+                            handleShowIssuesList();
+                          }}
+                          title={repo.path}
+                          type="button"
+                        >
+                          {repo.name || repo.path.split("/").pop() || repo.id}
+                        </button>
+                      ))
+                    ) : (
+                      <div className="agent-sidebar-empty">
+                        No repositories yet
+                      </div>
+                    )}
+                  </div>
                 </div>
-
-                <div className="surface-grid single">
-                  <section className="surface-panel wide">
-                    <h3>Space profile</h3>
-                    <p>
-                      This route follows the board/space admin surface rather
-                      than the desktop preferences shell.
-                    </p>
-                    <div className="surface-list">
-                      <DetailRow
-                        label="Space Name"
-                        value={selectedCompany?.name ?? "n/a"}
-                      />
-                      <DetailRow
-                        label="Description"
-                        value={selectedCompany?.description ?? "No description"}
-                      />
-                      <CompanyBrandColorField
-                        errorMessage={companyBrandColorError}
-                        isSaving={isSavingCompanyBrandColor}
-                        label="Brand Color"
-                        onChange={(nextColor) =>
-                          void handleCompanyBrandColorChange(nextColor)
-                        }
-                        value={companyBrandColorDraft}
-                      />
-                      <DetailRow
-                        label="Conversation Prefix"
-                        value={selectedCompany?.issue_prefix ?? "n/a"}
-                      />
-                    </div>
-                  </section>
-
-                  <section className="surface-panel wide">
-                    <h3>Runtime summary</h3>
-                    <div className="summary-grid">
-                      <SummaryPill
-                        label="Conversation Prefix"
-                        value={selectedCompany?.issue_prefix ?? "n/a"}
-                      />
-                      <SummaryPill
-                        label="Monthly Budget"
-                        value={formatCents(
-                          selectedCompany?.budget_monthly_cents,
-                        )}
-                      />
-                      <SummaryPill
-                        label="Monthly Spend"
-                        value={formatCents(
-                          selectedCompany?.spent_monthly_cents,
-                        )}
-                      />
-                    </div>
-
-                    <div className="surface-list">
-                      <DetailRow
-                        label="Status"
-                        value={String(selectedCompany?.status ?? "active")}
-                      />
-                      <DetailRow
-                        label="Default Executor"
-                        value={
-                          selectedCompanyCeo?.name ??
-                          selectedCompany?.ceo_agent_id ??
-                          "Missing"
-                        }
-                      />
-                      <DetailRow
-                        label="Conversation Counter"
-                        value={String(selectedCompany?.issue_counter ?? 0)}
-                      />
-                      <DetailRow
-                        label="Created"
-                        value={formatTimestamp(selectedCompany?.created_at)}
-                      />
-                      <DetailRow
-                        label="Updated"
-                        value={formatTimestamp(selectedCompany?.updated_at)}
-                      />
-                    </div>
-                  </section>
-                </div>
-              </section>
+              </aside>
             ) : null}
 
-            {selectedScreen === "activity" ? (
-              <ActivityRouteView
-                agents={boardAgents}
-                issueCommentsByIssueId={issueCommentsByIssueId}
-                issueRunCardUpdatesByIssueId={issueRunCardUpdatesByIssueId}
-                issues={activityVisibleIssues}
-                onOpenIssue={(issueId) => void handleSelectIssue(issueId)}
-              />
-            ) : null}
-
-            {selectedScreen === "costs" ? (
-              <CostsRouteView
-                agents={companySnapshot?.agents ?? []}
-                company={selectedCompany}
-              />
-            ) : null}
-          </main>
-        </div>
-      ) : null}
-
-      {layout === "settings" ? (
-        <div className="settings-shell">
-          <aside className="settings-sidebar">
-            <div className="settings-traffic-spacer" />
-            <button
-              className="settings-back-button"
-              onClick={() => handleSelectScreen("dashboard")}
-              type="button"
+            <main
+              className={
+                showBoardSidebar
+                  ? "board-content"
+                  : "board-content board-content-dashboard"
+              }
             >
-              <span className="settings-back-chevron">‹</span>
-              <span>Back</span>
-            </button>
-            <div className="settings-nav">
-              <div className="settings-sidebar-header">
-                <strong>Settings</strong>
-                <span>App and device preferences</span>
-              </div>
-              <SettingsSidebarItem
-                icon="house"
-                isSelected={false}
-                label="Home"
-                onClick={() => handleSelectScreen("dashboard")}
-              />
-              {settingsSectionGroups.map((group) => (
-                <div className="settings-nav-group" key={group.title}>
-                  <span className="settings-nav-group-title">{group.title}</span>
-                  {group.sections.map((section) => (
-                    <SettingsSidebarItem
-                      icon={settingsSectionIcon(section.id)}
-                      isSelected={selectedSettingsSection === section.id}
-                      key={section.id}
-                      label={section.label}
-                      onClick={() => setSelectedSettingsSection(section.id)}
+              {statusMessage ? (
+                <div className="status-banner">{statusMessage}</div>
+              ) : null}
+
+              {selectedScreen === "dashboard" ? <DashboardRouteView /> : null}
+
+              {selectedScreen === "stats" ? (
+                <StatsRouteView
+                  bootstrap={bootstrap}
+                  company={selectedCompany}
+                  dependencyCheck={dependencyCheck}
+                  issueRunCardUpdatesByIssueId={issueRunCardUpdatesByIssueId}
+                  onCheckDependencies={() => void loadDependencies()}
+                  onOpenWorkspace={handleSelectBoardWorkspace}
+                  repositoriesCount={repositories.length}
+                  snapshot={companySnapshot}
+                />
+              ) : null}
+
+              {selectedScreen === "agents" ? (
+                <RoutePlaceholder
+                  body="Conversations now run models directly. Configure Claude or Codex on each conversation instead of managing agent pages."
+                  title="Models"
+                />
+              ) : null}
+
+              {selectedScreen === "issues" ? (
+                issuesRouteMode === "detail" && selectedIssue ? (
+                  <IssueWorkspaceDetailView
+                    agents={companySnapshot?.agents ?? []}
+                    availableStatusOptions={issueStatusOptions}
+                    dependencyCheck={dependencyCheck}
+                    isSavingIssue={isSavingIssue}
+                    issue={selectedIssue}
+                    issueDraft={issueDraft}
+                    issueEditorError={issueEditorError}
+                    issueWorkspaceSidebar={
+                      <WorkspaceInspectorSidebar
+                        currentBranch={currentBranch}
+                        currentBranchName={currentBranchName}
+                        currentDirectory={currentDirectory}
+                        fileEntries={fileEntries}
+                        gitCommitMessage={gitCommitMessage}
+                        gitHistory={gitHistory}
+                        gitState={gitState}
+                        hasUncommittedChanges={hasUncommittedChanges}
+                        hasUnpushedCommits={hasUnpushedCommits}
+                        issueMeta={
+                          <IssueWorkspaceInspectorMeta
+                            agents={companySnapshot?.agents ?? []}
+                            availableStatusOptions={issueStatusOptions}
+                            isSavingIssue={isSavingIssue}
+                            issue={selectedIssue}
+                            issueDraft={issueDraft}
+                            issueEditorError={issueEditorError}
+                            onCommitIssuePatch={(patch) =>
+                              void handlePersistIssuePatch(selectedIssue, patch)
+                            }
+                            onIssueDraftChange={(patch) =>
+                              setIssueDraft((current) => ({
+                                ...current,
+                                ...patch,
+                              }))
+                            }
+                            projects={companySnapshot?.projects ?? []}
+                            selectableParentIssues={selectableParentIssues}
+                            statusLabel={issueStatusLabel}
+                            workspaceTargetErrorMessage={
+                              issueDetailWorktreeState.errorMessage
+                            }
+                            workspaceTargetLoading={
+                              issueDetailWorktreeState.isLoading
+                            }
+                            workspaceTargetWorktrees={
+                              issueDetailWorktreeState.worktrees
+                            }
+                          />
+                        }
+                        isWorking={isWorking}
+                        onDiscardFile={(file) => void handleDiscardFile(file)}
+                        onGitCommit={(push) => void handleGitCommit(push)}
+                        onGitCommitMessageChange={setGitCommitMessage}
+                        onGitPush={() => void handleGitPush()}
+                        onOpenDiff={(path) => void handleOpenDiff(path)}
+                        onOpenDirectory={(path) =>
+                          void handleOpenDirectory(path)
+                        }
+                        onOpenFile={(path) => void handleOpenFile(path)}
+                        onSelectSidebarTab={setWorkspaceSidebarTab}
+                        onStageFile={(file) => void handleStageFile(file)}
+                        onUnstageFile={(file) => void handleUnstageFile(file)}
+                        selectedDiff={selectedDiff}
+                        selectedFilePath={selectedFilePath}
+                        workspace={selectedIssueWorkspace}
+                        workspaceSidebarTab={workspaceSidebarTab}
+                      />
+                    }
+                    isWorking={isWorking}
+                    latestCompletionSummary={
+                      selectedIssueWorkspace?.session_id
+                        ? selectedIssueWorkspaceLiveState.latestCompletionSummary
+                        : null
+                    }
+                    onAddAttachment={() =>
+                      void handleAddIssueAttachment(selectedIssue)
+                    }
+                    onBack={() => handleShowIssuesList()}
+                    onCommitIssuePatch={(patch) =>
+                      void handlePersistIssuePatch(selectedIssue, patch)
+                    }
+                    onIssueDraftChange={(patch) =>
+                      setIssueDraft((current) => ({
+                        ...current,
+                        ...patch,
+                      }))
+                    }
+                    onPromptChange={setPrompt}
+                    onRespondToQuestion={(response) =>
+                      void handleRespondToSessionQuestion(response)
+                    }
+                    onRevealRepo={() => {
+                      if (selectedIssueWorkspace?.workspace_repo_path) {
+                        void desktopRevealInFinder(
+                          selectedIssueWorkspace.workspace_repo_path,
+                        );
+                      }
+                    }}
+                    onRunTerminal={handleRunTerminal}
+                    onSelectWorkspaceCenterTab={setWorkspaceCenterTab}
+                    onSendPrompt={(content) =>
+                      void handleSendConversationPrompt(content)
+                    }
+                    onStopSession={() => {
+                      if (selectedIssueWorkspace?.session_id) {
+                        void agentStop(selectedIssueWorkspace.session_id);
+                      }
+                    }}
+                    onStopTerminal={() => {
+                      if (selectedIssueWorkspace?.session_id) {
+                        void terminalStop(selectedIssueWorkspace.session_id);
+                      }
+                    }}
+                    onTerminalCommandChange={setTerminalCommand}
+                    previewTabLabel={previewTabLabel}
+                    projectLabel={(projectId) =>
+                      issueProjectLabel(
+                        companySnapshot?.projects ?? [],
+                        projectId,
+                      )
+                    }
+                    projects={companySnapshot?.projects ?? []}
+                    prompt={prompt}
+                    runtimeStatusValue={
+                      selectedIssueWorkspace?.session_id
+                        ? stringifyStatus(
+                            selectedIssueWorkspaceLiveState.runtimeStatus,
+                          )
+                        : "idle"
+                    }
+                    selectableParentIssues={selectableParentIssues}
+                    selectedDiff={selectedDiff}
+                    selectedFile={selectedFile}
+                    selectedFilePath={selectedFilePath}
+                    session={selectedIssueWorkspaceSession}
+                    sessionErrorMessage={
+                      selectedIssueWorkspace?.session_id
+                        ? selectedIssueWorkspaceLiveState.errorMessage
+                        : null
+                    }
+                    sessionLoading={
+                      selectedIssueWorkspace?.session_id
+                        ? selectedIssueWorkspaceLiveState.isLoadingMessages
+                        : false
+                    }
+                    sessionRows={
+                      selectedIssueWorkspace?.session_id
+                        ? selectedIssueWorkspaceLiveState.conversationRows
+                        : []
+                    }
+                    statusLabel={issueStatusLabel}
+                    terminalCommand={terminalCommand}
+                    terminalContainerRef={terminalContainerRef}
+                    terminalStatusValue={stringifyStatus(
+                      activeTerminalStatusState,
+                    )}
+                    workspace={selectedIssueWorkspace}
+                    workspaceCenterTab={workspaceCenterTab}
+                    workspaceTargetErrorMessage={
+                      issueDetailWorktreeState.errorMessage
+                    }
+                    workspaceTargetLoading={issueDetailWorktreeState.isLoading}
+                    workspaceTargetWorktrees={
+                      issueDetailWorktreeState.worktrees
+                    }
+                  />
+                ) : (
+                  <IssuesListView
+                    activeTab={selectedIssuesListTab}
+                    createLabel="New conversation"
+                    emptyDescription={
+                      selectedRepository
+                        ? `Conversations for ${selectedRepository.name || fileName(selectedRepository.path)} will appear here. Create one to start model work in this repository.`
+                        : "Conversations own workspaces. Create one to start model work."
+                    }
+                    emptyTitle={`No conversations in ${issuesListTabTitle(selectedIssuesListTab).toLowerCase()}`}
+                    heading="CONVERSATIONS"
+                    issues={visibleIssues}
+                    onCreateIssue={() => handleOpenCreateIssueDialog()}
+                    onSelectIssue={(issueId) => void handleSelectIssue(issueId)}
+                    onTabChange={setSelectedIssuesListTab}
+                    selectedIssueId={selectedIssueId}
+                    summaryText={issueSummaryText}
+                  />
+                )
+              ) : null}
+
+              {selectedScreen === "approvals" ? (
+                <RoutePlaceholder
+                  body="Board approvals are no longer part of the core project and conversation workflow."
+                  title="Approvals Removed"
+                />
+              ) : null}
+
+              {selectedScreen === "projects" ? (
+                <ProjectsRouteView
+                  currentProject={selectedProject}
+                  currentProjectIssueCount={
+                    selectedProject
+                      ? boardIssues.filter(
+                          (issue) =>
+                            issue.project_id === selectedProject.id &&
+                            isRootConversationIssue(issue),
+                        ).length
+                      : 0
+                  }
+                  currentProjectWorkspaceCount={
+                    selectedProject
+                      ? companyWorkspaces.filter(
+                          (workspace) =>
+                            workspace.project_id === selectedProject.id,
+                        ).length
+                      : 0
+                  }
+                  goals={boardGoals}
+                  onDeleteProject={handleDeleteProject}
+                  onOpenCreateProject={() => void handleAddRepository()}
+                  onUpdateProjectDefaultNewChatArea={
+                    handleUpdateProjectDefaultNewChatArea
+                  }
+                />
+              ) : null}
+
+              {selectedScreen === "companySettings" ? (
+                <section className="route-scroll">
+                  <div className="route-header compact">
+                    <DashboardBreadcrumbs
+                      items={[{ label: "Space settings" }]}
                     />
-                  ))}
-                </div>
-              ))}
-            </div>
-          </aside>
-
-          <main className="settings-content">
-            {statusMessage ? (
-              <div className="status-banner">{statusMessage}</div>
-            ) : null}
-
-            {selectedSettingsSection === "appearance" ? (
-              <SettingsPageShell
-                subtitle="Customize how the app looks on your device."
-                title="Appearance"
-              >
-                <SettingsSectionBlock
-                  description="Select your preferred color scheme"
-                  title="Theme"
-                >
-                  <div className="theme-card-row">
-                    {themeModes.map((mode) => (
-                      <ThemeModeCard
-                        isAvailable={mode === "dark"}
-                        isSelected={(settings.theme_mode ?? "dark") === mode}
-                        key={mode}
-                        mode={mode}
-                        onSelect={() =>
-                          void applySettingsPatch({ theme_mode: mode })
-                        }
-                      />
-                    ))}
+                    <span className="route-kicker">Space settings</span>
+                    <h1>{selectedCompany?.name ?? "Space settings"}</h1>
+                    <p>
+                      Space identity and runtime defaults live here. Device
+                      settings live in the main sidebar.
+                    </p>
                   </div>
-                </SettingsSectionBlock>
-                <SettingsSectionBlock
-                  description="Adjust the interface text size"
-                  title="Text Size"
-                >
-                  <div className="settings-card-row">
-                    {fontSizePresets.map((preset) => (
-                      <FontSizePresetCard
-                        isSelected={
-                          (settings.font_size_preset ?? "medium") === preset
-                        }
-                        key={preset}
-                        onSelect={() =>
-                          void applySettingsPatch({ font_size_preset: preset })
-                        }
-                        preset={preset}
-                      />
-                    ))}
-                  </div>
-                </SettingsSectionBlock>
-                <SettingsSectionBlock
-                  description="Local app preferences for this installation."
-                  title="App Behavior"
-                >
-                  <section className="settings-desktop-panel">
-                    <form
-                      className="settings-shadcn-form"
-                      onSubmit={handleSettingsSubmit}
-                    >
-                      <div className="settings-shadcn-stack">
-                        <SettingsToggleField
-                          checked={settings.show_raw_message_json}
-                          description="Expose the raw payload beneath structured session messages."
-                          label="Show structured message JSON"
-                          onChange={(checked) =>
-                            setSettings((current) => ({
-                              ...current,
-                              show_raw_message_json: checked,
-                            }))
+
+                  <div className="surface-grid single">
+                    <section className="surface-panel wide">
+                      <h3>Space profile</h3>
+                      <p>
+                        This route follows the board/space admin surface rather
+                        than the desktop preferences shell.
+                      </p>
+                      <div className="surface-list">
+                        <DetailRow
+                          label="Space Name"
+                          value={selectedCompany?.name ?? "n/a"}
+                        />
+                        <DetailRow
+                          label="Description"
+                          value={
+                            selectedCompany?.description ?? "No description"
                           }
                         />
-                        <SettingsSelectField
-                          ariaLabel="Default opening view"
-                          description="Choose the first screen shown when Unbound Desktop launches."
-                          label="Default opening view"
-                          onChange={(value) =>
-                            setSettings((current) => ({
-                              ...current,
-                              preferred_view: value,
-                            }))
+                        <CompanyBrandColorField
+                          errorMessage={companyBrandColorError}
+                          isSaving={isSavingCompanyBrandColor}
+                          label="Brand Color"
+                          onChange={(nextColor) =>
+                            void handleCompanyBrandColorChange(nextColor)
                           }
-                          options={desktopPreferredViewOptions}
-                          value={preferredViewSelectValue(
-                            settings.preferred_view,
+                          value={companyBrandColorDraft}
+                        />
+                        <DetailRow
+                          label="Conversation Prefix"
+                          value={selectedCompany?.issue_prefix ?? "n/a"}
+                        />
+                      </div>
+                    </section>
+
+                    <section className="surface-panel wide">
+                      <h3>Runtime summary</h3>
+                      <div className="summary-grid">
+                        <SummaryPill
+                          label="Conversation Prefix"
+                          value={selectedCompany?.issue_prefix ?? "n/a"}
+                        />
+                        <SummaryPill
+                          label="Monthly Budget"
+                          value={formatCents(
+                            selectedCompany?.budget_monthly_cents,
+                          )}
+                        />
+                        <SummaryPill
+                          label="Monthly Spend"
+                          value={formatCents(
+                            selectedCompany?.spent_monthly_cents,
                           )}
                         />
                       </div>
-                      <div className="settings-shadcn-actions">
-                        <button
-                          className="settings-shadcn-button"
-                          type="submit"
-                        >
-                          Save app settings
-                        </button>
+
+                      <div className="surface-list">
+                        <DetailRow
+                          label="Status"
+                          value={String(selectedCompany?.status ?? "active")}
+                        />
+                        <DetailRow
+                          label="Default Executor"
+                          value={
+                            selectedCompanyCeo?.name ??
+                            selectedCompany?.ceo_agent_id ??
+                            "Missing"
+                          }
+                        />
+                        <DetailRow
+                          label="Conversation Counter"
+                          value={String(selectedCompany?.issue_counter ?? 0)}
+                        />
+                        <DetailRow
+                          label="Created"
+                          value={formatTimestamp(selectedCompany?.created_at)}
+                        />
+                        <DetailRow
+                          label="Updated"
+                          value={formatTimestamp(selectedCompany?.updated_at)}
+                        />
                       </div>
-                    </form>
-                  </section>
-                </SettingsSectionBlock>
-              </SettingsPageShell>
-            ) : null}
-            {selectedSettingsSection === "notifications" ? (
-              <SettingsPageShell
-                subtitle="This feature is coming soon."
-                title="Notifications"
-              >
-                <section className="settings-inline-panel">
-                  <p>Settings for notifications will appear here.</p>
+                    </section>
+                  </div>
                 </section>
-              </SettingsPageShell>
-            ) : null}
-            {selectedSettingsSection === "privacy" ? (
-              <SettingsPageShell
-                subtitle="Your data is protected with end-to-end encryption."
-                title="Privacy"
-              >
-                <SettingsSectionBlock
-                  description="Runtime information and local storage boundaries."
-                  title="Daemon Runtime"
-                >
-                  <section className="settings-inline-panel">
-                    <dl className="blocking-metadata">
-                      <div>
-                        <dt>App version</dt>
-                        <dd>{bootstrap.expected_app_version}</dd>
-                      </div>
-                      <div>
-                        <dt>Daemon version</dt>
-                        <dd>{bootstrap.daemon_info?.daemon_version}</dd>
-                      </div>
-                      <div>
-                        <dt>Socket</dt>
-                        <dd>{bootstrap.socket_path}</dd>
-                      </div>
-                      <div>
-                        <dt>Base dir</dt>
-                        <dd>{bootstrap.base_dir}</dd>
-                      </div>
-                    </dl>
-                  </section>
-                </SettingsSectionBlock>
-              </SettingsPageShell>
-            ) : null}
-            {selectedSettingsSection === "about" ? (
-              <SettingsPageShell
-                subtitle="Manage identity for this device."
-                title="About"
-              >
-                <SettingsSectionBlock
-                  description="Name this device and review the identifier used by the daemon."
-                  title="Device"
-                >
-                  <section className="settings-desktop-panel">
-                    <form
-                      className="settings-shadcn-form"
-                      onSubmit={handleDeviceNameSubmit}
-                    >
-                      <div className="settings-shadcn-stack">
-                        <SettingsInputField
-                          description="This name appears anywhere this machine is referenced in the app."
-                          label="Device name"
-                          onChange={setDeviceNameDraft}
-                          placeholder="This Device"
-                          value={deviceNameDraft}
-                        />
-                        <SettingsCopyField
-                          actionLabel={didCopyDeviceId ? "Copied" : "Copy"}
-                          description="This identifier is generated for the current device and cannot be edited."
-                          label="Device ID"
-                          onCopy={() => void handleCopyDeviceId()}
-                          value={currentSpaceScope?.machine?.id ?? ""}
-                        />
-                      </div>
-                      <div className="settings-shadcn-actions">
-                        <button
-                          className="settings-shadcn-button"
-                          disabled={isSavingDeviceName}
-                          type="submit"
-                        >
-                          {isSavingDeviceName ? "Saving..." : "Save device name"}
-                        </button>
-                      </div>
-                    </form>
-                  </section>
-                </SettingsSectionBlock>
-              </SettingsPageShell>
-            ) : null}
-          </main>
-        </div>
-      ) : null}
+              ) : null}
 
-      {isCreateCompanyDialogOpen ? (
-        <CreateCompanyDialogView
-          brandColor={companyDialogBrandColor}
-          description={companyDialogDescription}
-          errorMessage={companyDialogError}
-          isSaving={isCompanyDialogSaving}
-          name={companyDialogName}
-          onBrandColorChange={setCompanyDialogBrandColor}
-          onClose={handleCloseCreateCompanyDialog}
-          onCreate={() => void handleCreateCompanyFromDialog()}
-          onDescriptionChange={setCompanyDialogDescription}
-          onNameChange={setCompanyDialogName}
-        />
-      ) : null}
+              {selectedScreen === "activity" ? (
+                <ActivityRouteView
+                  agents={boardAgents}
+                  issueCommentsByIssueId={issueCommentsByIssueId}
+                  issueRunCardUpdatesByIssueId={issueRunCardUpdatesByIssueId}
+                  issues={activityVisibleIssues}
+                  onOpenIssue={(issueId) => void handleSelectIssue(issueId)}
+                />
+              ) : null}
 
-      {isCreateIssueDialogOpen ? (
-        <CreateIssueDialogView
-          attachments={issueDialogAttachments}
-          command={issueDialogCommand}
-          companyPrefix={selectedCompany?.issue_prefix ?? "ISS"}
-          dependencyCheck={dependencyCheck}
-          description={issueDialogDescription}
-          enableChrome={issueDialogEnableChrome}
-          errorMessage={issueDialogError}
-          isSaving={isIssueDialogSaving}
-          mode={issueDialogMode}
-          model={issueDialogModel}
-          onAddAttachment={() => void handleAddIssueDialogAttachment()}
-          onClose={handleCloseCreateIssueDialog}
-          onCommandChange={setIssueDialogCommand}
-          onCreate={() => void handleCreateIssueFromDialog()}
-          onDescriptionChange={setIssueDialogDescription}
-          onEnableChromeChange={setIssueDialogEnableChrome}
-          onModelChange={setIssueDialogModel}
-          onPlanModeChange={setIssueDialogPlanMode}
-          onProjectChange={handleIssueDialogProjectChange}
-          onRemoveAttachment={handleRemoveIssueDialogAttachment}
-          onSkipPermissionsChange={setIssueDialogSkipPermissions}
-          onThinkingEffortChange={setIssueDialogThinkingEffort}
-          onTitleChange={setIssueDialogTitle}
-          onWorkspaceTargetChange={handleIssueDialogWorkspaceTargetChange}
-          parentConversationTitle={
-            issueDialogParentIssueId
-              ? issueParentLabel(boardIssues, issueDialogParentIssueId)
-              : null
-          }
-          planMode={issueDialogPlanMode}
-          projects={boardProjects}
-          selectedProjectId={issueDialogProjectId}
-          selectedWorkspaceTargetValue={issueWorkspaceTargetSelectValue(
-            issueDialogWorkspaceTargetMode,
-            issueDialogWorkspaceWorktreePath,
-          )}
-          skipPermissions={issueDialogSkipPermissions}
-          thinkingEffort={issueDialogThinkingEffort}
-          title={issueDialogTitle}
-          workspaceTargetErrorMessage={issueDialogWorktreeState.errorMessage}
-          workspaceTargetLoading={issueDialogWorktreeState.isLoading}
-          workspaceTargetWorktrees={issueDialogWorktreeState.worktrees}
-        />
-      ) : null}
+              {selectedScreen === "costs" ? (
+                <CostsRouteView
+                  agents={companySnapshot?.agents ?? []}
+                  company={selectedCompany}
+                />
+              ) : null}
+            </main>
+          </div>
+        ) : null}
+
+        {layout === "settings" ? (
+          <SettingsRouteView
+            bootstrap={bootstrap}
+            buildAgentModelOptions={buildAgentModelOptions}
+            buildIssueRuntimeProviderOptions={buildIssueRuntimeProviderOptions}
+            currentSpaceScope={currentSpaceScope}
+            dependencyCheck={dependencyCheck}
+            desktopPreferredViewOptions={desktopPreferredViewOptions}
+            detectAgentCliProvider={detectAgentCliProvider}
+            deviceNameDraft={deviceNameDraft}
+            didCopyDeviceId={didCopyDeviceId}
+            isSavingDeviceName={isSavingDeviceName}
+            mergeIssueOptions={mergeIssueOptions}
+            onAddTerminalPreset={handleAddTerminalPreset}
+            onApplySettingsPatch={(patch) => void applySettingsPatch(patch)}
+            onBack={() => handleSelectScreen("dashboard")}
+            onCopyDeviceId={() => void handleCopyDeviceId()}
+            onDeleteTerminalPreset={handleDeleteTerminalPreset}
+            onDeviceNameDraftChange={setDeviceNameDraft}
+            onDeviceNameSubmit={handleDeviceNameSubmit}
+            onSaveTerminalPresets={() => void handleSaveTerminalPresets()}
+            onSelectSettingsSection={setSelectedSettingsSection}
+            onSettingsChange={(patch) =>
+              setSettings((current) => ({ ...current, ...patch }))
+            }
+            onSettingsSubmit={handleSettingsSubmit}
+            onTerminalPresetChange={handleTerminalPresetChange}
+            onTerminalPresetProviderChange={handleTerminalPresetProviderChange}
+            preferredViewSelectValue={preferredViewSelectValue}
+            selectedSettingsSection={selectedSettingsSection}
+            settings={settings}
+            statusMessage={statusMessage}
+            terminalPresets={terminalPresets}
+          />
+        ) : null}
+
+        {isCreateCompanyDialogOpen ? (
+          <CreateCompanyDialogView
+            brandColor={companyDialogBrandColor}
+            description={companyDialogDescription}
+            errorMessage={companyDialogError}
+            isSaving={isCompanyDialogSaving}
+            name={companyDialogName}
+            onBrandColorChange={setCompanyDialogBrandColor}
+            onClose={handleCloseCreateCompanyDialog}
+            onCreate={() => void handleCreateCompanyFromDialog()}
+            onDescriptionChange={setCompanyDialogDescription}
+            onNameChange={setCompanyDialogName}
+          />
+        ) : null}
+
+        {isCreateIssueDialogOpen ? (
+          <CreateIssueDialogView
+            attachments={issueDialogAttachments}
+            command={issueDialogCommand}
+            companyPrefix={selectedCompany?.issue_prefix ?? "ISS"}
+            dependencyCheck={dependencyCheck}
+            description={issueDialogDescription}
+            enableChrome={issueDialogEnableChrome}
+            errorMessage={issueDialogError}
+            extraArgs={issueDialogExtraArgs}
+            isSaving={isIssueDialogSaving}
+            mode={issueDialogMode}
+            model={issueDialogModel}
+            onAddAttachment={() => void handleAddIssueDialogAttachment()}
+            onClose={handleCloseCreateIssueDialog}
+            onCommandChange={(value) => {
+              clearIssueDialogPresetSelection();
+              setIssueDialogCommand(value);
+            }}
+            onCreate={() => void handleCreateIssueFromDialog()}
+            onDescriptionChange={setIssueDialogDescription}
+            onEnableChromeChange={(value) => {
+              clearIssueDialogPresetSelection();
+              setIssueDialogEnableChrome(value);
+            }}
+            onExtraArgsChange={(value) => {
+              clearIssueDialogPresetSelection();
+              setIssueDialogExtraArgs(value);
+            }}
+            onModelChange={(value) => {
+              clearIssueDialogPresetSelection();
+              setIssueDialogModel(value);
+            }}
+            onPlanModeChange={(value) => {
+              clearIssueDialogPresetSelection();
+              setIssueDialogPlanMode(value);
+            }}
+            onParentIssueChange={setIssueDialogParentIssueId}
+            onProjectChange={handleIssueDialogProjectChange}
+            onPresetChange={handleIssueDialogPresetChange}
+            onRemoveAttachment={handleRemoveIssueDialogAttachment}
+            onSkipPermissionsChange={(value) => {
+              clearIssueDialogPresetSelection();
+              setIssueDialogSkipPermissions(value);
+            }}
+            onThinkingEffortChange={(value) => {
+              clearIssueDialogPresetSelection();
+              setIssueDialogThinkingEffort(value);
+            }}
+            onTitleChange={setIssueDialogTitle}
+            onWorkspaceTargetChange={handleIssueDialogWorkspaceTargetChange}
+            parentConversationTitle={
+              issueDialogParentIssueId
+                ? issueParentLabel(boardIssues, issueDialogParentIssueId)
+                : null
+            }
+            planMode={issueDialogPlanMode}
+            projects={issueDialogProjects}
+            selectableParentIssues={repositoryScopedIssues}
+            selectedPresetId={issueDialogPresetId}
+            selectedParentIssueId={issueDialogParentIssueId}
+            selectedProjectId={issueDialogProjectId}
+            selectedWorkspaceTargetValue={issueWorkspaceTargetSelectValue(
+              issueDialogWorkspaceTargetMode,
+              issueDialogWorkspaceWorktreePath,
+            )}
+            skipPermissions={issueDialogSkipPermissions}
+            terminalPresets={terminalPresets}
+            thinkingEffort={issueDialogThinkingEffort}
+            title={issueDialogTitle}
+            workspaceTargetErrorMessage={issueDialogWorktreeState.errorMessage}
+            workspaceTargetLoading={issueDialogWorktreeState.isLoading}
+            workspaceTargetWorktrees={issueDialogWorktreeState.worktrees}
+          />
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -18049,6 +18184,7 @@ function CreateIssueDialogView({
   description,
   attachments,
   enableChrome,
+  extraArgs,
   model,
   selectedProjectId,
   projects,
@@ -18062,17 +18198,24 @@ function CreateIssueDialogView({
   onTitleChange,
   onDescriptionChange,
   onEnableChromeChange,
+  onExtraArgsChange,
   onModelChange,
   onPlanModeChange,
+  onParentIssueChange,
   onProjectChange,
+  onPresetChange,
   onRemoveAttachment,
   onSkipPermissionsChange,
   onThinkingEffortChange,
   onWorkspaceTargetChange,
   onCreate,
   onClose,
+  selectableParentIssues,
+  selectedPresetId,
+  selectedParentIssueId,
   selectedWorkspaceTargetValue,
   skipPermissions,
+  terminalPresets,
   thinkingEffort,
   workspaceTargetErrorMessage,
   workspaceTargetLoading,
@@ -18085,6 +18228,7 @@ function CreateIssueDialogView({
   description: string;
   attachments: IssueAttachmentDraft[];
   enableChrome: boolean;
+  extraArgs: string;
   model: string;
   selectedProjectId: string;
   projects: ProjectRecord[];
@@ -18098,17 +18242,24 @@ function CreateIssueDialogView({
   onTitleChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
   onEnableChromeChange: (checked: boolean) => void;
+  onExtraArgsChange: (value: string) => void;
   onModelChange: (value: string) => void;
   onPlanModeChange: (checked: boolean) => void;
+  onParentIssueChange: (value: string) => void;
   onProjectChange: (value: string) => void;
+  onPresetChange: (value: string) => void;
   onRemoveAttachment: (path: string) => void;
   onSkipPermissionsChange: (checked: boolean) => void;
   onThinkingEffortChange: (value: string) => void;
   onWorkspaceTargetChange: (value: string) => void;
   onCreate: () => void;
   onClose: () => void;
+  selectableParentIssues: IssueRecord[];
+  selectedPresetId: string;
+  selectedParentIssueId: string;
   selectedWorkspaceTargetValue: string;
   skipPermissions: boolean;
+  terminalPresets: TerminalPresetRecord[];
   thinkingEffort: string;
   workspaceTargetErrorMessage: string | null;
   workspaceTargetLoading: boolean;
@@ -18118,8 +18269,11 @@ function CreateIssueDialogView({
   const issueTitle = stringFromUnknown(title);
   const issueDescription = stringFromUnknown(description);
   const issueCommand = stringFromUnknown(command, "claude");
+  const issueExtraArgs = stringFromUnknown(extraArgs);
   const issueModel = stringFromUnknown(model, "default");
   const issueProjectId = stringFromUnknown(selectedProjectId);
+  const issuePresetId = stringFromUnknown(selectedPresetId);
+  const issueParentIssueId = stringFromUnknown(selectedParentIssueId);
   const issueThinkingEffort = stringFromUnknown(thinkingEffort, "auto");
   const issueWorkspaceTargetValue = stringFromUnknown(
     selectedWorkspaceTargetValue,
@@ -18147,6 +18301,19 @@ function CreateIssueDialogView({
       Boolean(project) &&
       typeof project === "object" &&
       typeof (project as ProjectRecord).id === "string",
+  );
+  const parentIssueOptions = arrayFromUnknown(selectableParentIssues).filter(
+    (issue): issue is IssueRecord =>
+      Boolean(issue) &&
+      typeof issue === "object" &&
+      typeof (issue as IssueRecord).id === "string" &&
+      (issue as IssueRecord).id !== issueParentIssueId,
+  );
+  const terminalPresetOptions = arrayFromUnknown(terminalPresets).filter(
+    (preset): preset is TerminalPresetRecord =>
+      Boolean(preset) &&
+      typeof preset === "object" &&
+      typeof (preset as TerminalPresetRecord).id === "string",
   );
   const worktreeOptions = normalizeGitWorktreeRecords(workspaceTargetWorktrees);
   const dialogTitle =
@@ -18219,14 +18386,21 @@ function CreateIssueDialogView({
         role="dialog"
       >
         <div className="issue-dialog-header">
-          <div className="issue-dialog-breadcrumbs">
-            <span className="issue-dialog-badge">
-              {issueCompanyPrefix.toUpperCase()}
-            </span>
-            <span aria-hidden="true" className="issue-dialog-breadcrumb-sep">
-              &gt;
-            </span>
-            <span id="create-issue-dialog-title">{dialogTitle}</span>
+          <div className="issue-dialog-title-block">
+            <div className="issue-dialog-breadcrumbs">
+              <span className="issue-dialog-badge">
+                {issueCompanyPrefix.toUpperCase()}
+              </span>
+              <span aria-hidden="true" className="issue-dialog-breadcrumb-sep">
+                &gt;
+              </span>
+              <span id="create-issue-dialog-title">{dialogTitle}</span>
+            </div>
+            <p className="issue-dialog-subtitle">
+              {mode === "queuedMessage"
+                ? `Queue a follow-up message under ${parentConversationTitle ?? "the parent conversation"} so it stays ready for the next run.`
+                : "Create a conversation, choose its local model, and point it at the selected repository project."}
+            </p>
           </div>
           <button
             aria-label={
@@ -18248,47 +18422,96 @@ function CreateIssueDialogView({
           ) : null}
 
           <div className="issue-dialog-composer">
-            <input
-              autoFocus
-              className="issue-dialog-title-input"
-              onChange={(event) => onTitleChange(event.target.value)}
-              placeholder={
-                mode === "queuedMessage"
-                  ? "Queued message title"
-                  : "Conversation title"
-              }
-              value={issueTitle}
-            />
+            <label className="issue-dialog-section">
+              <span className="issue-dialog-section-label">
+                {mode === "queuedMessage" ? "Message" : "Title"}
+              </span>
+              <input
+                autoFocus
+                className="issue-dialog-title-input"
+                onChange={(event) => onTitleChange(event.target.value)}
+                placeholder={
+                  mode === "queuedMessage"
+                    ? "Follow up on the failing deploy logs"
+                    : "Investigate CI flake"
+                }
+                value={issueTitle}
+              />
+              <p className="issue-dialog-inline-hint">
+                {mode === "queuedMessage"
+                  ? `This follow-up stays attached to ${parentConversationTitle ?? "the parent conversation"} until you open it.`
+                  : "This becomes the conversation title and the default workspace label."}
+              </p>
+            </label>
 
-            <p className="issue-dialog-inline-hint">
-              {mode === "queuedMessage"
-                ? `This follow-up will stay attached to ${parentConversationTitle ?? "the parent conversation"} until you open it.`
-                : "Keep it lightweight: capture the context, attach files, and point the conversation at a project."}
-            </p>
-
-            <div className="issue-dialog-inline-row">
-              <span className="issue-dialog-inline-copy">Project</span>
-              <IssueDialogInlineSelect
-                ariaLabel="Select project"
-                className="issue-dialog-inline-select-project"
-                onChange={onProjectChange}
-                value={issueProjectId}
-              >
-                <option disabled value="">
-                  {projectOptions.length ? "Select project" : "Create project"}
-                </option>
-                {projectOptions.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name ?? project.title ?? project.id}
+            <label className="issue-dialog-section">
+              <span className="issue-dialog-section-label">Project</span>
+              <div className="issue-dialog-inline-row">
+                <IssueDialogInlineSelect
+                  ariaLabel="Select project"
+                  className="issue-dialog-inline-select-project"
+                  onChange={onProjectChange}
+                  value={issueProjectId}
+                >
+                  <option disabled value="">
+                    {projectOptions.length
+                      ? "Select project"
+                      : "Create project"}
                   </option>
-                ))}
-              </IssueDialogInlineSelect>
-            </div>
+                  {projectOptions.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name ?? project.title ?? project.id}
+                    </option>
+                  ))}
+                </IssueDialogInlineSelect>
+              </div>
+              <p className="issue-dialog-inline-hint">
+                Optional project anchor for workspace routing and repo context.
+              </p>
+            </label>
+
+            {mode === "conversation" ? (
+              <label className="issue-dialog-section">
+                <span className="issue-dialog-section-label">
+                  Parent Conversation
+                </span>
+                <div className="issue-dialog-inline-row">
+                  <IssueDialogInlineSelect
+                    ariaLabel="Select parent conversation"
+                    onChange={onParentIssueChange}
+                    value={issueParentIssueId}
+                  >
+                    <option value="">No parent conversation</option>
+                    {parentIssueOptions.map((issue) => (
+                      <option key={issue.id} value={issue.id}>
+                        {issue.identifier ?? issue.title}
+                      </option>
+                    ))}
+                  </IssueDialogInlineSelect>
+                </div>
+                <p className="issue-dialog-inline-hint">
+                  Use this to nest follow-up work under an existing
+                  conversation.
+                </p>
+              </label>
+            ) : (
+              <div className="issue-dialog-section">
+                <span className="issue-dialog-section-label">
+                  Parent Conversation
+                </span>
+                <div className="issue-dialog-static-field">
+                  {parentConversationTitle ?? "No parent conversation"}
+                </div>
+                <p className="issue-dialog-inline-hint">
+                  Queued messages stay attached to this conversation.
+                </p>
+              </div>
+            )}
 
             {shouldShowWorktreeTarget ? (
-              <div className="issue-dialog-worktree-block">
+              <div className="issue-dialog-section issue-dialog-worktree-block">
+                <span className="issue-dialog-section-label">Run In</span>
                 <div className="issue-dialog-inline-row">
-                  <span className="issue-dialog-inline-copy">Run in</span>
                   <IssueDialogInlineSelect
                     ariaLabel="Select worktree target"
                     className="issue-dialog-inline-select-worktree"
@@ -18341,6 +18564,25 @@ function CreateIssueDialogView({
                 </div>
               </div>
               <div className="agent-config-grid">
+                <AgentConfigField
+                  htmlFor="issue-dialog-preset"
+                  label="Terminal preset"
+                >
+                  <AgentConfigSelect
+                    ariaLabel="Terminal preset"
+                    id="issue-dialog-preset"
+                    onChange={onPresetChange}
+                    value={issuePresetId}
+                  >
+                    <option value="">Custom configuration</option>
+                    {terminalPresetOptions.map((preset) => (
+                      <option key={preset.id} value={preset.id}>
+                        {preset.name}
+                      </option>
+                    ))}
+                  </AgentConfigSelect>
+                </AgentConfigField>
+
                 <AgentConfigField
                   htmlFor="issue-dialog-command"
                   label="Provider"
@@ -18420,6 +18662,20 @@ function CreateIssueDialogView({
                     </option>
                   </AgentConfigSelect>
                 </AgentConfigField>
+
+                <AgentConfigField
+                  fullWidth
+                  htmlFor="issue-dialog-extra-args"
+                  label="Extra flags"
+                >
+                  <input
+                    className="issue-dialog-input"
+                    id="issue-dialog-extra-args"
+                    onChange={(event) => onExtraArgsChange(event.target.value)}
+                    placeholder="--verbose, --dangerously-skip-permissions"
+                    value={issueExtraArgs}
+                  />
+                </AgentConfigField>
               </div>
 
               <div className="agent-config-toggle-grid">
@@ -18442,16 +18698,24 @@ function CreateIssueDialogView({
           <div className="issue-dialog-divider" />
 
           <div className="issue-dialog-description-panel">
-            <textarea
-              className="issue-dialog-description-input"
-              onChange={(event) => onDescriptionChange(event.target.value)}
-              placeholder={
-                mode === "queuedMessage"
-                  ? "Add the message or follow-up you want to queue for later..."
-                  : "Add context, goals, or the next thing a model should pick up..."
-              }
-              value={issueDescription}
-            />
+            <label className="issue-dialog-section">
+              <span className="issue-dialog-section-label">Description</span>
+              <textarea
+                className="issue-dialog-description-input"
+                onChange={(event) => onDescriptionChange(event.target.value)}
+                placeholder={
+                  mode === "queuedMessage"
+                    ? "What should the next run keep in mind when it picks this up?"
+                    : "What needs to happen, how should success be measured, and what context should the next run keep in mind?"
+                }
+                value={issueDescription}
+              />
+              <p className="issue-dialog-inline-hint">
+                {mode === "queuedMessage"
+                  ? "Optional extra context for the queued follow-up."
+                  : "Optional background, acceptance criteria, or context for the conversation."}
+              </p>
+            </label>
 
             {attachmentDrafts.length ? (
               <div className="issue-dialog-attachments">
@@ -18806,6 +19070,173 @@ function SettingsCopyField({
         </div>
       </div>
     </div>
+  );
+}
+
+function TerminalPresetEditor({
+  dependencyCheck,
+  onChange,
+  onDelete,
+  onProviderChange,
+  preset,
+}: {
+  dependencyCheck: RuntimeCapabilities | null;
+  onChange: (patch: Partial<TerminalPresetRecord>) => void;
+  onDelete: () => void;
+  onProviderChange: (value: string) => void;
+  preset: TerminalPresetRecord;
+}) {
+  const provider = detectAgentCliProvider(preset.command, preset.model);
+  const providerOptions = buildIssueRuntimeProviderOptions(
+    dependencyCheck,
+    preset.command,
+    preset.model,
+  );
+  const modelOptions = buildAgentModelOptions(preset, dependencyCheck);
+  const thinkingEffortOptions = mergeIssueOptions(
+    ["auto", "low", "medium", "high"],
+    preset.thinkingEffort,
+  );
+  const browserToggleLabel =
+    provider === "codex" ? "Enable web search" : "Enable Chrome";
+  const browserToggleDescription =
+    provider === "codex"
+      ? "Expose Codex web search when tasks use this preset."
+      : "Allow browser automation when tasks use this preset.";
+
+  return (
+    <section className="terminal-preset-card">
+      <div className="terminal-preset-card-header">
+        <div>
+          <strong>{preset.name || "Terminal preset"}</strong>
+          <span>
+            {provider === "codex"
+              ? "Codex runtime preset"
+              : "Claude runtime preset"}
+          </span>
+        </div>
+        <button className="secondary-button" onClick={onDelete} type="button">
+          Delete
+        </button>
+      </div>
+
+      <div className="terminal-preset-grid">
+        <AgentConfigField
+          htmlFor={`terminal-preset-name-${preset.id}`}
+          label="Name"
+        >
+          <input
+            className="issue-dialog-input"
+            id={`terminal-preset-name-${preset.id}`}
+            onChange={(event) => onChange({ name: event.target.value })}
+            placeholder="Claude review preset"
+            value={preset.name}
+          />
+        </AgentConfigField>
+
+        <AgentConfigField
+          htmlFor={`terminal-preset-provider-${preset.id}`}
+          label="Provider"
+        >
+          <AgentConfigSelect
+            ariaLabel="Terminal preset provider"
+            id={`terminal-preset-provider-${preset.id}`}
+            onChange={onProviderChange}
+            value={preset.command}
+          >
+            {providerOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </AgentConfigSelect>
+        </AgentConfigField>
+
+        <AgentConfigField
+          htmlFor={`terminal-preset-command-${preset.id}`}
+          label="Command"
+        >
+          <input
+            className="issue-dialog-input"
+            id={`terminal-preset-command-${preset.id}`}
+            onChange={(event) => onChange({ command: event.target.value })}
+            placeholder="claude"
+            value={preset.command}
+          />
+        </AgentConfigField>
+
+        <AgentConfigField
+          htmlFor={`terminal-preset-model-${preset.id}`}
+          label="Model"
+        >
+          <AgentConfigSelect
+            ariaLabel="Terminal preset model"
+            id={`terminal-preset-model-${preset.id}`}
+            onChange={(value) => onChange({ model: value })}
+            value={preset.model}
+          >
+            {modelOptions.map((option) => (
+              <option key={option} value={option}>
+                {option === "default" ? "Default" : option}
+              </option>
+            ))}
+          </AgentConfigSelect>
+        </AgentConfigField>
+
+        <AgentConfigField
+          htmlFor={`terminal-preset-thinking-${preset.id}`}
+          label="Thinking effort"
+        >
+          <AgentConfigSelect
+            ariaLabel="Terminal preset thinking effort"
+            id={`terminal-preset-thinking-${preset.id}`}
+            onChange={(value) => onChange({ thinkingEffort: value })}
+            value={preset.thinkingEffort}
+          >
+            {thinkingEffortOptions.map((option) => (
+              <option key={option} value={option}>
+                {capitalize(option)}
+              </option>
+            ))}
+          </AgentConfigSelect>
+        </AgentConfigField>
+
+        <AgentConfigField
+          fullWidth
+          htmlFor={`terminal-preset-extra-args-${preset.id}`}
+          label="Extra flags"
+        >
+          <input
+            className="issue-dialog-input"
+            id={`terminal-preset-extra-args-${preset.id}`}
+            onChange={(event) => onChange({ extraArgs: event.target.value })}
+            placeholder="--verbose, --dangerously-skip-permissions"
+            value={preset.extraArgs}
+          />
+        </AgentConfigField>
+      </div>
+
+      <div className="terminal-preset-toggle-grid">
+        <AgentConfigToggleField
+          checked={preset.planMode}
+          description="Enable Claude plan mode when this preset is selected."
+          label="Plan mode"
+          onChange={(checked) => onChange({ planMode: checked })}
+        />
+        <AgentConfigToggleField
+          checked={preset.enableChrome}
+          description={browserToggleDescription}
+          label={browserToggleLabel}
+          onChange={(checked) => onChange({ enableChrome: checked })}
+        />
+        <AgentConfigToggleField
+          checked={preset.skipPermissions}
+          description="Skip interactive permission prompts when this preset is selected."
+          label="Skip permissions"
+          onChange={(checked) => onChange({ skipPermissions: checked })}
+        />
+      </div>
+    </section>
   );
 }
 
@@ -20121,6 +20552,9 @@ function mergeDesktopSettings(settings: DesktopSettings): DesktopSettings {
     ...settings,
     dashboard_project_views: settings.dashboard_project_views ?? {},
     birds_eye_canvas: settings.birds_eye_canvas ?? {},
+    terminal_presets: arrayFromUnknown(settings.terminal_presets).map(
+      (preset) => normalizeTerminalPresetRecord(preset as TerminalPresetRecord),
+    ),
   };
 }
 
@@ -23205,6 +23639,29 @@ function issuesVisible(
   return visibleIssues.filter((issue) => {
     const createdAt = parseIssueDate(issue.created_at);
     return createdAt ? createdAt >= threshold : false;
+  });
+}
+
+function projectsForRepository(
+  projects: ProjectRecord[],
+  repositoryPath: string | null,
+  repositoryId: string | null,
+) {
+  if (!(repositoryPath || repositoryId)) {
+    return projects;
+  }
+
+  return projects.filter((project) => {
+    const projectRepoPath = project.primary_workspace?.cwd?.trim() ?? null;
+    if (repositoryPath && projectRepoPath === repositoryPath) {
+      return true;
+    }
+
+    const normalizedProjectId = project.id.trim().toLowerCase();
+    const normalizedRepositoryId = repositoryId?.trim().toLowerCase() ?? null;
+    return Boolean(
+      normalizedRepositoryId && normalizedProjectId === normalizedRepositoryId,
+    );
   });
 }
 

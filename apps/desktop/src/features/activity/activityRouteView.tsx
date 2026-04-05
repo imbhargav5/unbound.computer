@@ -6,6 +6,8 @@ import type {
   IssueRecord,
   IssueRunCardUpdateRecord,
 } from "../../lib/types";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DashboardBreadcrumbs } from "../shared/routePrimitives";
 
 type ActivityFeedTarget = { kind: "issue"; issueId: string };
@@ -49,21 +51,24 @@ export function ActivityRouteView({
   );
 
   return (
-    <section className="route-scroll">
-      <div className="route-header compact">
+    <section className="flex-1 overflow-y-auto p-6">
+      <div className="space-y-2 pb-6">
         <DashboardBreadcrumbs items={[{ label: "Activity" }]} />
-        <span className="route-kicker">Activity</span>
-        <h1>Model activity and conversation messages</h1>
+        <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Activity
+        </span>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Model activity and conversation messages
+        </h1>
       </div>
 
-      <div className="surface-grid single">
-        <section className="surface-panel activity-panel">
-          <div className="surface-header">
-            <h3>Activity</h3>
-          </div>
-
+      <Card>
+        <CardHeader>
+          <CardTitle>Activity</CardTitle>
+        </CardHeader>
+        <CardContent>
           {feedItems.length ? (
-            <div className="surface-list activity-feed-list">
+            <div className="divide-y divide-border">
               {feedItems.map((item) => (
                 <ActivityFeedRow
                   item={item}
@@ -73,12 +78,12 @@ export function ActivityRouteView({
               ))}
             </div>
           ) : (
-            <p className="activity-empty-text">
+            <p className="py-8 text-center text-sm text-muted-foreground">
               Model runs and conversation messages will appear here.
             </p>
           )}
-        </section>
-      </div>
+        </CardContent>
+      </Card>
     </section>
   );
 }
@@ -91,14 +96,22 @@ function ActivityFeedRow({
   onClick: () => void;
 }) {
   return (
-    <button className="activity-feed-row" onClick={onClick} type="button">
-      <div className="activity-feed-row-main">
-        <strong>{item.title}</strong>
-        <span>{item.subtitle}</span>
+    <button
+      className="flex w-full items-center justify-between gap-4 px-1 py-3 text-left transition-colors hover:bg-muted/50"
+      onClick={onClick}
+      type="button"
+    >
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <strong className="block truncate text-sm font-medium">
+          {item.title}
+        </strong>
+        <span className="block truncate text-xs text-muted-foreground">
+          {item.subtitle}
+        </span>
       </div>
-      <span className="activity-feed-row-trailing">
+      <Badge variant="outline" className="shrink-0">
         {item.trailingLabel.replaceAll("_", " ")}
-      </span>
+      </Badge>
     </button>
   );
 }

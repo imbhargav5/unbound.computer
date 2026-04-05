@@ -10,6 +10,9 @@ import type {
   RuntimeCapabilities,
   WorkspaceRecord,
 } from "../../lib/types";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DashboardBreadcrumbs,
   MetricCard,
@@ -179,18 +182,23 @@ export function StatsRouteView({
   ).length;
 
   return (
-    <section className="route-scroll">
-      <div className="route-header">
+    <section className="flex-1 overflow-y-auto p-6">
+      <div className="space-y-2 pb-6">
         <DashboardBreadcrumbs items={[{ label: "Stats" }]} />
-        <span className="route-kicker">Stats</span>
-        <h1>{company?.name ?? "Unbound"}</h1>
-        <p>
+        <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Stats
+        </span>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {company?.name ?? "Unbound"}
+        </h1>
+        <p className="text-sm text-muted-foreground">
           {company?.description ??
             "A quick view of conversation volume, queued follow-ups, active worktrees, and which models are doing the work."}
         </p>
       </div>
 
-      <div className="metric-grid">
+      {/* Metric Cards Grid */}
+      <div className="grid grid-cols-2 gap-3 pb-6 sm:grid-cols-4 lg:grid-cols-7">
         <MetricCard label="Conversations" value={visibleConversations.length} />
         <MetricCard label="Queued Messages" value={queuedMessages.length} />
         <MetricCard label="Models" value={modelSummaries.length} />
@@ -203,184 +211,224 @@ export function StatsRouteView({
         <MetricCard label="Repositories" value={repositoriesCount} />
       </div>
 
-      <div className="surface-grid">
-        <section className="surface-panel wide">
-          <div className="surface-header">
-            <h3>Production boundary preserved</h3>
-            <button
-              className="secondary-button"
-              onClick={onCheckDependencies}
-              type="button"
-            >
-              Check dependencies
-            </button>
-          </div>
-          <p>
-            `unbound-daemon` stays separately installed and version-checked. The
-            desktop app only connects over the existing local socket boundary.
-          </p>
-          <div className="summary-grid">
-            <SummaryPill
-              label="Daemon"
-              value={bootstrap.daemon_info?.daemon_version ?? "unknown"}
-            />
-            <SummaryPill
-              label="Protocol"
-              value={bootstrap.daemon_info?.protocol_version ?? "unknown"}
-            />
-            <SummaryPill label="App" value={bootstrap.expected_app_version} />
-          </div>
-          {dependencyCheck ? (
-            <div className="surface-list dense">
-              <DependencyToolRow
-                capability={dependencyCheck.cli.claude}
-                label="Claude"
-              />
-              <DependencyToolRow
-                capability={dependencyCheck.cli.codex}
-                label="Codex"
-              />
-              <DependencyToolRow
-                capability={dependencyCheck.cli.gh}
-                label="GitHub CLI"
-              />
-              <DependencyToolRow
-                capability={dependencyCheck.cli.ollama}
-                label="Ollama"
-              />
+      {/* Surface Panels Grid */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* Production Boundary */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Production boundary preserved</CardTitle>
+              <Button onClick={onCheckDependencies} size="sm" variant="outline">
+                Check dependencies
+              </Button>
             </div>
-          ) : (
-            <p>
-              Check dependencies to see which local coding CLIs are available
-              and which model families the daemon can offer.
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              `unbound-daemon` stays separately installed and version-checked.
+              The desktop app only connects over the existing local socket
+              boundary.
             </p>
-          )}
-        </section>
-
-        <section className="surface-panel">
-          <h3>Projects</h3>
-          {(snapshot?.projects ?? []).length ? (
-            <div className="surface-list">
-              {(snapshot?.projects ?? []).slice(0, 5).map((project) => (
-                <div className="surface-list-row" key={project.id}>
-                  <strong>
-                    {project.name ?? project.title ?? "Untitled project"}
-                  </strong>
-                  <span>
-                    {project.primary_workspace?.cwd ??
-                      project.status ??
-                      "Missing repo path"}
-                  </span>
-                </div>
-              ))}
+            <div className="flex flex-wrap gap-2">
+              <SummaryPill
+                label="Daemon"
+                value={bootstrap.daemon_info?.daemon_version ?? "unknown"}
+              />
+              <SummaryPill
+                label="Protocol"
+                value={bootstrap.daemon_info?.protocol_version ?? "unknown"}
+              />
+              <SummaryPill label="App" value={bootstrap.expected_app_version} />
             </div>
-          ) : (
-            <p className="surface-empty-copy">
-              Projects define the main repo path for worktrees.
-            </p>
-          )}
-        </section>
+            {dependencyCheck ? (
+              <div className="divide-y divide-border rounded-lg border">
+                <DependencyToolRow
+                  capability={dependencyCheck.cli.claude}
+                  label="Claude"
+                />
+                <DependencyToolRow
+                  capability={dependencyCheck.cli.codex}
+                  label="Codex"
+                />
+                <DependencyToolRow
+                  capability={dependencyCheck.cli.gh}
+                  label="GitHub CLI"
+                />
+                <DependencyToolRow
+                  capability={dependencyCheck.cli.ollama}
+                  label="Ollama"
+                />
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Check dependencies to see which local coding CLIs are available
+                and which model families the daemon can offer.
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
-        <section className="surface-panel">
-          <h3>Models</h3>
-          {modelSummaries.length ? (
-            <div className="surface-list">
-              {modelSummaries.map((summary) => (
-                <div className="surface-list-row" key={summary.label}>
-                  <div>
-                    <strong>{summary.label}</strong>
-                    <span>
-                      {summary.conversationCount}{" "}
-                      {summary.conversationCount === 1
-                        ? "conversation"
-                        : "conversations"}{" "}
-                      touched · {summary.workspaceCount} worktrees
+        {/* Projects */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Projects</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(snapshot?.projects ?? []).length ? (
+              <div className="divide-y divide-border">
+                {(snapshot?.projects ?? []).slice(0, 5).map((project) => (
+                  <div
+                    className="flex flex-col gap-0.5 py-2.5"
+                    key={project.id}
+                  >
+                    <strong className="text-sm font-medium">
+                      {project.name ?? project.title ?? "Untitled project"}
+                    </strong>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {project.primary_workspace?.cwd ??
+                        project.status ??
+                        "Missing repo path"}
                     </span>
                   </div>
-                  <span>
-                    {summary.activeRunCount > 0
-                      ? `${summary.activeRunCount} live`
-                      : summary.latestActivityAt
-                        ? formatRelativeIssueDate(
-                            summary.latestActivityAt.toISOString(),
-                          )
-                        : "Idle"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="surface-empty-copy">
-              Models will appear here after the first configured run.
-            </p>
-          )}
-        </section>
+                ))}
+              </div>
+            ) : (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                Projects define the main repo path for worktrees.
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
-        <section className="surface-panel">
-          <h3>Recent Model Work</h3>
-          {recentModelUpdates.length ? (
-            <div className="surface-list">
-              {recentModelUpdates.map(({ issue, update }) => (
-                <div className="surface-list-row" key={update.run_id}>
-                  <div>
-                    <strong>{issueModelLabel(issue, agents)}</strong>
-                    <span>
-                      {issue.identifier ?? issue.title} ·{" "}
-                      {issueRunCardUpdateSummary(update)}
+        {/* Models */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Models</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {modelSummaries.length ? (
+              <div className="divide-y divide-border">
+                {modelSummaries.map((summary) => (
+                  <div
+                    className="flex items-center justify-between py-2.5"
+                    key={summary.label}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <strong className="block text-sm font-medium">
+                        {summary.label}
+                      </strong>
+                      <span className="text-xs text-muted-foreground">
+                        {summary.conversationCount}{" "}
+                        {summary.conversationCount === 1
+                          ? "conversation"
+                          : "conversations"}{" "}
+                        touched · {summary.workspaceCount} worktrees
+                      </span>
+                    </div>
+                    <Badge
+                      variant={
+                        summary.activeRunCount > 0 ? "default" : "secondary"
+                      }
+                    >
+                      {summary.activeRunCount > 0
+                        ? `${summary.activeRunCount} live`
+                        : summary.latestActivityAt
+                          ? formatRelativeIssueDate(
+                              summary.latestActivityAt.toISOString(),
+                            )
+                          : "Idle"}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                Models will appear here after the first configured run.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Recent Model Work */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Model Work</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {recentModelUpdates.length ? (
+              <div className="divide-y divide-border">
+                {recentModelUpdates.map(({ issue, update }) => (
+                  <div
+                    className="flex items-center justify-between py-2.5"
+                    key={update.run_id}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <strong className="block text-sm font-medium">
+                        {issueModelLabel(issue, agents)}
+                      </strong>
+                      <span className="truncate text-xs text-muted-foreground">
+                        {issue.identifier ?? issue.title} ·{" "}
+                        {issueRunCardUpdateSummary(update)}
+                      </span>
+                    </div>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {formatCompactIssueTimestamp(update.last_activity_at)}
                     </span>
                   </div>
-                  <span>
-                    {formatCompactIssueTimestamp(update.last_activity_at)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="surface-empty-copy">
-              Model activity will appear here once runs start landing.
-            </p>
-          )}
-        </section>
+                ))}
+              </div>
+            ) : (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                Model activity will appear here once runs start landing.
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
-        <section className="surface-panel">
-          <h3>Active Worktrees</h3>
-          {workspaces.length ? (
-            <div className="surface-list">
-              {workspaces.map((workspace) => (
-                <button
-                  className="file-list-button"
-                  key={workspace.id}
-                  onClick={() => onOpenWorkspace(workspace)}
-                  type="button"
-                >
-                  <strong>
-                    {workspace.issue_identifier ?? workspace.title}
-                  </strong>
-                  <span>
-                    {[
-                      workspace.issue_title,
-                      workspace.project_name,
-                      workspace.issue_id
-                        ? issueModelLabel(
-                            issueById.get(workspace.issue_id) ?? null,
-                            agents,
-                          )
-                        : agentModelLabelById(agents, workspace.agent_id),
-                    ]
-                      .filter(Boolean)
-                      .join(" · ") ||
-                      workspace.workspace_status ||
-                      "worktree"}
-                  </span>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p className="surface-empty-copy">
-              Worktrees appear here once a conversation launches a run.
-            </p>
-          )}
-        </section>
+        {/* Active Worktrees */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Active Worktrees</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {workspaces.length ? (
+              <div className="divide-y divide-border">
+                {workspaces.map((workspace) => (
+                  <button
+                    className="flex w-full flex-col gap-0.5 py-2.5 text-left transition-colors hover:bg-muted/50"
+                    key={workspace.id}
+                    onClick={() => onOpenWorkspace(workspace)}
+                    type="button"
+                  >
+                    <strong className="text-sm font-medium">
+                      {workspace.issue_identifier ?? workspace.title}
+                    </strong>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {[
+                        workspace.issue_title,
+                        workspace.project_name,
+                        workspace.issue_id
+                          ? issueModelLabel(
+                              issueById.get(workspace.issue_id) ?? null,
+                              agents,
+                            )
+                          : agentModelLabelById(agents, workspace.agent_id),
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") ||
+                        workspace.workspace_status ||
+                        "worktree"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                Worktrees appear here once a conversation launches a run.
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </section>
   );
@@ -394,22 +442,22 @@ function DependencyToolRow({
   label: string;
 }) {
   return (
-    <div className="surface-list-row">
-      <div>
-        <strong>{label}</strong>
-        <span>
+    <div className="flex items-center justify-between px-3 py-2.5">
+      <div className="min-w-0 flex-1">
+        <strong className="block text-sm font-medium">{label}</strong>
+        <span className="text-xs text-muted-foreground">
           {capability.installed
             ? (capability.path ?? "Installed and ready")
             : "Not detected in PATH"}
         </span>
       </div>
-      <span>
+      <Badge variant={capability.installed ? "secondary" : "destructive"}>
         {capability.installed && capability.models?.length
           ? `${capability.models.length} ${capability.models.length === 1 ? "model" : "models"}`
           : capability.installed
             ? "Ready"
             : "Missing"}
-      </span>
+      </Badge>
     </div>
   );
 }

@@ -1,0 +1,28 @@
+// Release.xcconfig.template
+// Production configuration for macOS release builds.
+//
+// Copy this file to Release.xcconfig and customize as needed.
+// Release.xcconfig is gitignored and will not be committed.
+//
+// Usage:
+//   1. Copy: cp Release.xcconfig.template Release.xcconfig
+//   2. Edit Release.xcconfig with your production values
+//   3. Use the release build script (scripts/release/build-macos-release.sh)
+//      or point Xcode Release configuration to Release.xcconfig
+
+// ================================
+// App Identity (Production)
+// ================================
+
+UNBOUND_BASE_DIR = .unbound
+PRODUCT_BUNDLE_IDENTIFIER = com.arni.unbound-macos
+// PRODUCT_NAME is set in the Xcode target config (not here) to avoid
+// xcconfig applying it to all targets including Swift packages.
+UNBOUND_URL_SCHEME = unbound
+
+// ================================
+// Versioning (injected by release pipeline)
+// ================================
+
+MARKETING_VERSION = $(RELEASE_VERSION)
+CURRENT_PROJECT_VERSION = $(RELEASE_BUILD_NUMBER)

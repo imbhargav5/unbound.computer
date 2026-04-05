@@ -7,3 +7,4 @@ export {
   WorkspaceRuntimeStatusLine,
   WorkspaceSessionHeaderCard,
 } from "./app/desktopAppShell";
+export { Navbar } from "./features/shared/navbar";

@@ -1,3 +1,8 @@
 export function DashboardRouteView() {
-  return <section aria-label="Dashboard" className="dashboard-route-empty" />;
+  return (
+    <section
+      aria-label="Dashboard"
+      className="flex flex-1 items-center justify-center"
+    />
+  );
 }

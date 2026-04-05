@@ -1,22 +1,29 @@
 import type { IssueRecord } from "../../lib/types";
-import { DashboardBreadcrumbs } from "../shared/routePrimitives";
 
 type IssuesListTab = "new" | "all";
 
 export function IssuesListView({
   activeTab,
+  createLabel = "New conversation",
+  emptyDescription = "Conversations own workspaces. Create one to start model work.",
+  heading = "CONVERSATIONS",
   issues,
   selectedIssueId,
   summaryText,
   emptyTitle,
+  onCreateIssue,
   onTabChange,
   onSelectIssue,
 }: {
   activeTab: IssuesListTab;
+  createLabel?: string;
+  emptyDescription?: string;
+  heading?: string;
   issues: IssueRecord[];
   selectedIssueId: string | null;
   summaryText: string;
   emptyTitle: string;
+  onCreateIssue?: (() => void) | undefined;
   onTabChange: (tab: IssuesListTab) => void;
   onSelectIssue: (issueId: string) => void;
 }) {
@@ -24,7 +31,16 @@ export function IssuesListView({
     <section className="issues-route">
       <div className="issues-route-header">
         <div className="issues-route-header-inner">
-          <DashboardBreadcrumbs items={[{ label: "Conversations" }]} />
+          <span>{heading}</span>
+          {onCreateIssue ? (
+            <button
+              className="issues-route-create-button"
+              onClick={onCreateIssue}
+              type="button"
+            >
+              {createLabel}
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -58,9 +74,6 @@ export function IssuesListView({
           <div className="issues-list">
             {issues.map((issue) => {
               const isSelected = selectedIssueId === issue.id;
-              const normalizedIssueStatus = normalizeBoardIssueValue(
-                issue.status,
-              );
               return (
                 <button
                   className={
@@ -76,19 +89,9 @@ export function IssuesListView({
                       paddingLeft: `${20 + issue.request_depth * 12}px`,
                     }}
                   >
-                    <span
-                      aria-hidden="true"
-                      className="issues-list-row-status"
-                      data-status={normalizedIssueStatus}
-                    >
-                      <IssueListStatusIcon status={normalizedIssueStatus} />
+                    <span className="issues-list-row-title">
+                      {issuesListRowTitle(issue)}
                     </span>
-                    {issue.identifier ? (
-                      <span className="issues-list-row-identifier">
-                        {issue.identifier}
-                      </span>
-                    ) : null}
-                    <span className="issues-list-row-title">{issue.title}</span>
                   </span>
                   <span className="issues-list-row-timestamp">
                     {formatCompactIssueTimestamp(issue.updated_at)}
@@ -100,10 +103,7 @@ export function IssuesListView({
         ) : (
           <div className="issues-empty-state">
             <h2>{emptyTitle}</h2>
-            <p>
-              Conversations hold the context, and model worktrees spin up when a
-              run starts.
-            </p>
+            <p>{emptyDescription}</p>
           </div>
         )}
       </div>
@@ -111,49 +111,16 @@ export function IssuesListView({
   );
 }
 
-function IssueListStatusIcon({ status }: { status: string }) {
-  switch (status) {
-    case "done":
-      return "✓";
-    case "in_progress":
-      return "↗";
-    case "blocked":
-      return "!";
-    case "cancelled":
-      return "×";
-    default:
-      return "•";
-  }
-}
-
 function issuesListTabTitle(tab: IssuesListTab) {
   return tab === "new" ? "New" : "All";
 }
 
-function normalizeBoardIssueValue(value: string | null | undefined) {
-  const normalized = (value ?? "").trim().toLowerCase().replaceAll(" ", "_");
-
-  if (!normalized) {
-    return "backlog";
+function issuesListRowTitle(issue: IssueRecord) {
+  if (!(issue.identifier && issue.identifier.trim())) {
+    return issue.title;
   }
 
-  if (normalized === "todo") {
-    return "todo";
-  }
-
-  if (normalized === "to_do") {
-    return "todo";
-  }
-
-  if (normalized === "inprogress") {
-    return "in_progress";
-  }
-
-  if (normalized === "cancelled" || normalized === "canceled") {
-    return "cancelled";
-  }
-
-  return normalized;
+  return `${issue.identifier}  ${issue.title}`;
 }
 
 function formatCompactIssueTimestamp(
